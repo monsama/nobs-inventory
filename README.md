@@ -2,19 +2,30 @@
 
 Inventory for PCs, servers, storage, phones, network gear, patch panels and racks. A small Node/Express API stores everything in one SQLite file. The page in `public/` is the same file as the mockup: without a server it keeps its data in the browser, with the server it signs in and saves there.
 
-## Set up (Docker Compose, HTTPS with Caddy)
+## Set up
 
-1. Point a DNS name at the server, for example `inventory.monsama.ch`.
-2. Copy `.env.example` to `.env` and set `NI_HOST` to that name and `NI_ADMIN_PASSWORD` to a strong password.
-3. Start it:
+On a Linux server with Docker and the Compose plugin:
 
-       docker compose up -d --build
+    git clone https://github.com/monsama/nobs-inventory && cd nobs-inventory
+    sudo NI_HOST=inventory.example.ch ./deploy-nobs.sh
 
-4. Open `https://inventory.monsama.ch` and sign in as `admin` with the password from `.env`. Change that password under Settings → Users, then add the people.
+The script creates `.env` (settings) and `secrets/` (admin password, LDAP service password, Lansweeper token), builds the image, starts the app and Caddy, and waits until everything is healthy. It shows the first admin password once. Change it after the first sign-in (Settings → Users).
 
-Caddy gets the certificate by itself. Ports 80 and 443 must reach the server, so that Let's Encrypt can check the name. For a name that is only inside the network, use a DNS challenge in the Caddyfile or Caddy's internal CA instead.
+Requirements: Docker Engine with the Compose plugin, ports 80 and 443 reachable (Caddy needs them for the certificate), and the DNS name pointing at the server. For a name that only exists inside the network, use a DNS challenge or Caddy's internal CA in the Caddyfile.
 
-The app itself is not published; only Caddy is reachable, and the session cookie is marked Secure.
+Secrets live in `secrets/` and are mounted into the app container as files. They are never in `.env`, and `docker inspect` does not show them. Add the LDAP service password or the Lansweeper token by writing the value into the matching file in `secrets/`, then `docker compose restart app`.
+
+## Operations
+
+| Task | Command |
+| --- | --- |
+| Update the code and image | `sudo ./scripts/update.sh` (backs up first) |
+| Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days) |
+| Restore | `sudo ./scripts/restore.sh backup/<file>.tar.gz` (type RESTORE to confirm) |
+| Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
+| Logs | `docker compose logs -f` |
+
+Backups contain the database, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; settings and secrets are restored only with `RESTORE_SECRETS=yes`.
 
 ## Accounts and directory
 
