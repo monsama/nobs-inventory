@@ -1094,7 +1094,7 @@ const FIELDS = {
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
-  monitor:[], printer:[]
+  monitor:[], printer:[], smartphone:[], other:[]
 };
 function fieldHtml(o, [k, label, kind]){
   const id = 'f_' + o.id + '_' + k;
@@ -1172,7 +1172,7 @@ function patchPanel(o){
 }
 function renderObj(o){
   const rs = relsOf(o);
-  const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...FIELDS[o.type]];
+  const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
   const chain = pathUp(o);
   const targets = objs.filter(x => x.id !== o.id);
   const rk = o.rack ? RACKS.find(r => r.id === o.rack) : null;
