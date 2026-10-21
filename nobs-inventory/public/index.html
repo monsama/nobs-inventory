@@ -1460,6 +1460,7 @@ function renderSetUsers(){
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
+      <td>${SERVER.on && u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Role</th><th>Devices</th><th>Active</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -1468,6 +1469,7 @@ function renderSetUsers(){
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => { USERS[+c.dataset.act].active = c.checked; renderSetUsers(); });
+  root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
     const u = USERS[+sel.dataset.role], admins = USERS.filter(x => x.role === 'admin').length;
     if (u.role === 'admin' && sel.value !== 'admin' && admins <= 1){ toast('At least one admin is needed.'); renderSetUsers(); return; }
@@ -1562,6 +1564,20 @@ function sanitizeSvg(text){
   const ser = new XMLSerializer();
   return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: root.getAttribute('viewBox') || '0 0 24 24'};
 }
+function passwordModal(u){
+  modal(`<div class="mh">Password for ${esc(u.name)}</div>
+    <div class="mb"><div class="form" style="padding:0"><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHint"></div>
+    <p class="note" id="pwHint">At least 8 characters. The server stores only a salted hash.</p></div>
+    <div class="mf"><button id="pwCancel">Cancel</button><button id="pwOk" class="primary">Set password</button></div>`, 'sm');
+  $('#pwCancel').onclick = closeModal;
+  $('#pwOk').onclick = async () => {
+    const r = await fetch('api/users/' + encodeURIComponent(u.id) + '/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({password: $('#pwNew').value})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'Not set.'); return; }
+    closeModal(); toast('Password set for ' + u.name);
+  };
+  $('#pwNew').focus();
+}
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 function renderSetLocs(){
   const rows = LOCS.map((l, i) => {
@@ -1632,8 +1648,25 @@ function renderSetTypes(){
     toast('Added ' + name + '. Pick it when you create an object.'); renderSetTypes(); render();
   };
 }
+/* Feed on the server: upload the report, and the server applies the policy and the merge rules. */
+function renderSetFeedServer(){
+  $('#setFeed').innerHTML = `<div class="hdr">Feed</div>
+    <div class="note" style="padding:10px 12px">Upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed, and what you set by hand stays.</div>
+    <div class="form" style="grid-template-columns:110px minmax(0,1fr)"><label for="feedUp">Export</label><input id="feedUp" type="file" accept=".csv,text/csv"></div>
+    <div class="note" style="padding:0 12px 10px">Nightly import from a file: set NI_FEED_CSV on the server.</div>`;
+  $('#feedUp').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = await fetch('api/feed/import', {method: 'POST', headers: {'Content-Type': 'text/csv'}, credentials: 'same-origin', body: await f.text()});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'The export could not be imported.'); return; }
+    const c = j.counts;
+    toast(`Import: ${c.created} new, ${c.updated} updated, ${c.linked} linked, ${c.unchanged} unchanged`);
+    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); render(); }
+  };
+}
 /* The feed is optional: without one, every object is entered and kept by hand. */
 function renderSetFeed(){
+  if (SERVER.on) return renderSetFeedServer();
   const n = objs.filter(o => o.feed).length;
   $('#setFeed').innerHTML = st.feedOn ? `<div class="hdr">Feed</div>
     <dl class="lsbox"><dt>Connection</dt><dd style="font-family:inherit">Connected · site HQ Zürich</dd><dt>Last sync</dt><dd style="font-family:inherit">${SYNC_TIME}</dd><dt>Covers</dt><dd style="font-family:inherit">${n} objects</dd></dl>
@@ -1858,7 +1891,7 @@ function applyPlan(plan){
 
 /* ---------- top bar ---------- */
 $('#newBtn').onclick = () => newObjModal();
-$('#whoBtn').onclick = signInModal;
+$('#whoBtn').onclick = () => (SERVER.on ? (me() ? signOut() : loginModal()) : signInModal());
 $('#setBtn').onclick = openSettings;
 $('#themeBtn').onclick = () => {
   const root = document.documentElement;
@@ -1988,13 +2021,32 @@ function render(){
   saveData();
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
+/* The inventory as one object. The server stores it; without a server it stays in this browser. */
+const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
+  policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
+const SERVER = {on: false, ldap: false, last: null, timer: null};
+let DEMO_STATE = null;   /* the sample inventory as the page starts, for Load demo */
 function saveData(){
-  try { localStorage.setItem('ni-data', JSON.stringify({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
-    policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq, meId: st.meId})); } catch(e) {}
+  if (SERVER.on){ queueServerSave(); return; }
+  try { localStorage.setItem('ni-data', JSON.stringify({...snapshot(), meId: st.meId})); } catch(e) {}
 }
-function loadData(){
-  let d = null; try { d = JSON.parse(localStorage.getItem('ni-data') || 'null'); } catch(e) {}
-  if (!d) return;
+function queueServerSave(){
+  if (!SERVER.last) return;   /* nothing has been loaded yet */
+  clearTimeout(SERVER.timer);
+  SERVER.timer = setTimeout(async () => {
+    if (!canEdit()) return;
+    const body = JSON.stringify(snapshot());
+    if (body === SERVER.last) return;
+    try {
+      const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body, credentials: 'same-origin'});
+      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
+      SERVER.last = body;
+    } catch(e) { toast('Not saved: the server cannot be reached.'); }
+  }, 400);
+}
+function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
@@ -2002,8 +2054,13 @@ function loadData(){
   Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types);
   Object.assign(st, {policy: d.policy, feedOn: d.feedOn, feedSync: d.feedSync, ldap: d.ldap, mapPos: d.mapPos});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
-  st.meId = d.meId ?? null;
   objs.forEach(bindUser);
+}
+function loadData(){
+  let d = null; try { d = JSON.parse(localStorage.getItem('ni-data') || 'null'); } catch(e) {}
+  if (!d) return;
+  applyState(d);
+  st.meId = d.meId ?? null;
 }
 function resetDemo(){
   try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); } catch(e) {}
@@ -2033,14 +2090,67 @@ function welcome(){
   modal(`<div class="mh">Welcome to NOBS Inventory</div>
     <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own. The demo can be loaded again from Settings.</p></div>
     <div class="mf"><button id="wEmpty">Start empty</button><button id="wDemo" class="primary">Load demo</button></div>`, 'sm');
-  const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); };
-  $('#wDemo').onclick = done;
-  $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = []; saveData(); done(); };
+  const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); saveData(); };
+  $('#wDemo').onclick = () => {
+    const d = JSON.parse(DEMO_STATE);
+    const me0 = USERS.find(u => u.id === st.meId);
+    if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
+    applyState(d);
+    done();
+  };
+  $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = USERS.filter(u => u.id === st.meId); done(); };
 }
-loadData();
-if (!st.meId && USERS.length) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
-if (!localStorage.getItem('ni-started') && !localStorage.getItem('ni-data')) welcome();
-render();
+async function boot(){
+  DEMO_STATE = JSON.stringify(snapshot());
+  let info = null;
+  try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch(e) { info = null; }
+  if (!info){
+    loadData();
+    if (!st.meId && USERS.length) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
+    if (!localStorage.getItem('ni-started') && !localStorage.getItem('ni-data')) welcome();
+    render();
+    return;
+  }
+  SERVER.on = true; SERVER.ldap = info.ldap;
+  if (!info.user){ render(); loginModal(); return; }
+  await loadFromServer(info.user);
+}
+async function loadFromServer(user){
+  const r = await fetch('api/state', {credentials: 'same-origin'});
+  if (r.status === 401){ loginModal(); return; }
+  if (!r.ok){ toast('The inventory could not be loaded.'); return; }
+  const d = await r.json();
+  applyState(d);
+  st.meId = user.id;
+  SERVER.last = JSON.stringify(snapshot());
+  if (!objs.length && !localStorage.getItem('ni-started')) welcome();
+  render();
+}
+/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
+function loginModal(err = '', login = ''){
+  modal(`<div class="mh">Sign in to NOBS Inventory</div>
+    <div class="mb"><form id="loginForm" class="form" style="padding:0">
+      <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
+      <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
+    </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p></div>
+    <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free');
+  const go = async () => {
+    const login = $('#lgUser').value;
+    const r = await fetch('api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+      body: JSON.stringify({login, password: $('#lgPw').value})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ loginModal(j.error || 'Sign in failed.', login); return; }
+    closeModal(); await loadFromServer(j.user);
+  };
+  $('#lgOk').onclick = go;
+  $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });
+  (login ? $('#lgPw') : $('#lgUser')).focus();
+}
+async function signOut(){
+  await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
+  location.reload();
+}
+boot();
 </script>
 </body>
 </html>

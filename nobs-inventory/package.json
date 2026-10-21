@@ -1,0 +1,19 @@
+{
+  "name": "nobs-inventory",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Inventory for PCs, servers, phones, network gear and racks, with a small API and SQLite storage.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/schedule.test.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "ldapjs": "^3.0.7"
+  }
+}
