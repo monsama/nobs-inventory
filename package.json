@@ -7,7 +7,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js",
+    "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js tests/secrets.test.js",
     "lansweeper:introspect": "node tools/lansweeper-introspect.js",
     "test:browser": "node tests/browser/users.e2e.mjs"
   },

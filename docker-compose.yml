@@ -1,53 +1,79 @@
+# NOBS Inventory. Generated values live in ./secrets and .env (see deploy-nobs.sh).
+name: nobs-inventory
+
 services:
   app:
     build: .
     image: nobs-inventory:0.2
+    restart: unless-stopped
     expose:
       - "8080"
     environment:
-      # Used only when the server starts with no admin account yet. Change the password later under Settings → Users.
-      NI_ADMIN_PASSWORD: ${NI_ADMIN_PASSWORD:?Set NI_ADMIN_PASSWORD in .env}
+      NI_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      NI_LDAP_SERVICE_PASSWORD_FILE: /run/secrets/ldap_service_password
+      NI_LS_TOKEN_FILE: /run/secrets/ls_token
       # Caddy serves HTTPS, so the session cookie is sent only over HTTPS.
       NI_SECURE_COOKIE: ${NI_SECURE_COOKIE:-1}
-      # LDAP / Active Directory sign-in. Leave NI_LDAP_URL empty to use local accounts only.
       NI_LDAP_URL: ${NI_LDAP_URL:-}
       NI_LDAP_BIND: ${NI_LDAP_BIND:-}
       NI_LDAP_BASE: ${NI_LDAP_BASE:-}
-      NI_LDAP_ADMIN_GROUP: ${NI_LDAP_ADMIN_GROUP:-}
       NI_LDAP_GROUP: ${NI_LDAP_GROUP:-}
+      NI_LDAP_ADMIN_GROUP: ${NI_LDAP_ADMIN_GROUP:-}
       NI_LDAP_SERVICE_DN: ${NI_LDAP_SERVICE_DN:-}
-      NI_LDAP_SERVICE_PASSWORD: ${NI_LDAP_SERVICE_PASSWORD:-}
       NI_LDAP_USER_FILTER: ${NI_LDAP_USER_FILTER:-}
       NI_LDAP_CA: ${NI_LDAP_CA:-}
-      # Lansweeper API (nightly 06:00 sync when set; takes precedence over the file).
-      NI_LS_TOKEN: ${NI_LS_TOKEN:-}
       NI_LS_URL: ${NI_LS_URL:-}
       NI_LS_AUTH_SCHEME: ${NI_LS_AUTH_SCHEME:-}
       NI_LS_SITE: ${NI_LS_SITE:-}
-      # Nightly Lansweeper report file, used when no API token is set (put the report in ./feed).
       NI_FEED_CSV: ${NI_FEED_CSV:-}
+    secrets:
+      - admin_password
+      - ldap_service_password
+      - ls_token
     volumes:
-      # The database lives here. A rebuild or an update does not touch it.
       - ni-data:/data
       - ./feed:/feed:ro
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   caddy:
     image: caddy:2-alpine
+    restart: unless-stopped
     environment:
       NI_HOST: ${NI_HOST:?Set NI_HOST in .env, the address people type}
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - app
-    restart: unless-stopped
+      app:
+        condition: service_healthy
+    logging: *logging
+
+secrets:
+  admin_password:
+    file: ./secrets/admin_password
+  ldap_service_password:
+    file: ./secrets/ldap_service_password
+  ls_token:
+    file: ./secrets/ls_token
 
 volumes:
   ni-data:
+    name: nobs-inventory-data
   caddy-data:
+    name: nobs-inventory-caddy-data
   caddy-config:
+    name: nobs-inventory-caddy-config

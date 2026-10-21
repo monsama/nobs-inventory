@@ -8,6 +8,7 @@ import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword } from './auth.js';
 import { mergeFeed } from './feed.js';
 import { syncLansweeper, DEFAULT_ENDPOINT } from './lansweeper.js';
+import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 
 /* First start: one admin account, so someone can sign in and add the rest. Its password comes from
@@ -87,9 +88,10 @@ export function start(env = process.env) {
   const dataDir = env.NI_DATA || path.resolve('data');
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'inventory.db'));
-  bootstrap(db, env);
-  const ldap = env.NI_LDAP_URL ? configFromEnv(env) : null;
-  const lansweeper = lansweeperFromEnv(env);
+  const resolved = { ...env, NI_ADMIN_PASSWORD: readSecret(env, 'NI_ADMIN_PASSWORD'), NI_LDAP_SERVICE_PASSWORD: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), NI_LS_TOKEN: readSecret(env, 'NI_LS_TOKEN') };
+  bootstrap(db, resolved);
+  const ldap = resolved.NI_LDAP_URL ? configFromEnv(resolved) : null;
+  const lansweeper = lansweeperFromEnv(resolved);
   /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
   const app = createApp({ db, ldap, lansweeper, secureCookie: secure });
