@@ -69,7 +69,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* main frame */
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
-.hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:32px;flex:none}
+.hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
 .hdr button{height:22px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 #side>.hdr:first-child{height:38px}
 .item{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
@@ -292,7 +292,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 .menubox{position:absolute;right:0;top:32px;z-index:10;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px}
 .menubox button{justify-content:flex-start}
 .readonly .obj input:disabled,.readonly .obj select:disabled{opacity:.85}
-#whoBtn{height:28px;font-size:12px;color:var(--muted)}
+#whoBtn{height:28px;font-size:13px;color:var(--muted)}
 #toast{position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
@@ -739,8 +739,8 @@ function parseCsv(text){
     if (q){ if (c === '"'){ if (text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
     else if (c === '"') q = true;
     else if (c === ',' || c === ';'){ row.push(cell); cell = ''; }
-    else if (c === '\\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
-    else if (c !== '\\r') cell += c;
+    else if (c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c !== '\r') cell += c;
   }
   if (cell || row.length){ row.push(cell); rows.push(row); }
   return rows.filter(r => r.some(x => x.trim()));
