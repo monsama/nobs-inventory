@@ -2,13 +2,7 @@ name: nobs-inventory CI
 
 on:
   push:
-    paths: ['nobs-inventory/**', '.github/workflows/nobs-inventory-ci.yml']
   pull_request:
-    paths: ['nobs-inventory/**', '.github/workflows/nobs-inventory-ci.yml']
-
-defaults:
-  run:
-    working-directory: nobs-inventory
 
 jobs:
   unit:
@@ -20,7 +14,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: nobs-inventory/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm test
 
@@ -34,7 +28,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: nobs-inventory/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
