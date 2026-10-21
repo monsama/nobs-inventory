@@ -44,7 +44,8 @@ try {
   await page.locator('[data-role="1"]').selectOption('admin');
   await page.waitForFunction(() => document.querySelector('[data-role="1"]').value === 'admin');
   await page.waitForTimeout(700);
-  const after = await (await fetch(base + '/api/state', { headers: { Cookie: await adminCookie() } })).json();
+  // read through the page's own session: a second sign-in would end it (one session per user)
+  const after = await page.evaluate(async () => (await fetch('api/state', { credentials: 'same-origin' })).json());
   assert.equal(after.users.find(u => u.login === 'anna').role, 'admin', 'the promotion is saved on the server');
 
   await page.locator('[data-pw="1"]').click();
@@ -67,9 +68,4 @@ try {
 } finally {
   await browser.close();
   await new Promise(r => server.close(r)); db.close();
-}
-
-async function adminCookie() {
-  const r = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: 'admin', password: 'adminpass123' }) });
-  return r.headers.get('set-cookie').split(';')[0];
 }
