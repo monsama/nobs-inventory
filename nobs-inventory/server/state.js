@@ -25,6 +25,12 @@ export function saveState(db, s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
+  for (const u of s.users) {
+    if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
+    if (!['admin', 'viewer'].includes(u.role)) bad('A user\'s role must be admin or viewer.');
+    if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
+    if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
+  }
   const ids = s.objs.map(o => o.id);
   if (new Set(ids).size !== ids.length) bad('Two objects have the same id.');
   if (ids.some(id => typeof id !== 'string' || !id)) bad('Every object needs an id.');

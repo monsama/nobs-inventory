@@ -9,6 +9,9 @@ import { mergeFeed } from './feed.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
+import { createThrottle } from './throttle.js';
+import { DUMMY } from './password.js';
+import crypto from 'node:crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -17,6 +20,16 @@ const COOKIE = 'ni_session';
 export function createApp({ db, ldap = null, lansweeper = null, secureCookie = false }) {
   const app = express();
   app.disable('x-powered-by');
+  const throttle = createThrottle();
+  /* Browser protections: the page's script is a file of its own, so no inline script runs. */
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
   app.use(express.json({ limit: '6mb' }));
   app.use(express.text({ type: ['text/plain', 'text/csv'], limit: '6mb' }));
 
@@ -41,29 +54,39 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
     res.json({ user: u ? me(u) : null, ldap: ldapEnabled(ldap), lansweeper: !!lansweeper });
   });
 
+  /* One answer for every failed sign-in: wrong login, wrong password, deactivated, not in the group. This keeps
+     account names from being discovered, and the throttle counts every failure against the login and the address. */
+  const FAILED = 'The login or password is not right.';
   app.post('/api/login', async (req, res, next) => {
     try {
-      const login = String(req.body?.login ?? '').trim();
+      const login = String(req.body?.login ?? '').trim().slice(0, 200);
       const password = String(req.body?.password ?? '');
-      if (!login || !password) throw new HttpError(401, 'Enter your login and password.');
+      const keys = ['login:' + login.toLowerCase(), 'ip:' + (req.ip || '')];
+      if (throttle.blocked(keys)) { audit(db, null, 'sign in throttled for ' + login); throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.'); }
+      if (!login || !password || password.length > 256) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
       const s = loadState(db);
       let user = s.users.find(u => u.login && u.login.toLowerCase() === login.toLowerCase()) || null;
-      let ok = !!user && checkLocalPassword(db, user.id, password);
+      let ok = false;
+      if (user) ok = checkLocalPassword(db, user.id, password);
+      else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
       if (!ok && ldapEnabled(ldap)) {
         let d;
         try { d = await ldapLogin(ldap, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
-        if (d && !inGroup(d, ldap.group)) { audit(db, null, 'sign in refused, not in group: ' + login); throw new HttpError(403, 'This account is not in a group that may use the inventory.'); }
-        if (d) {
-          const isAdmin = inGroup(d, ldap.adminGroup) && !!ldap.adminGroup;
+        if (d && inGroup(d, ldap.group)) {
+          const isAdmin = !!ldap.adminGroup && inGroup(d, ldap.adminGroup);
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
           saveUserDoc(user);
           ok = true;
-        }
+        } else if (d) { audit(db, null, 'sign in refused, not in group: ' + login); }
       }
-      if (!ok || !user) { audit(db, null, 'failed sign in for ' + login); throw new HttpError(401, 'That login and password do not match.'); }
-      if (user.active === false) throw new HttpError(403, 'This account is deactivated.');
+      if (!ok || !user || user.active === false) {
+        throttle.recordFailure(keys);
+        audit(db, null, 'failed sign in for ' + login);
+        throw new HttpError(401, FAILED);
+      }
+      throttle.clearFailures(keys);
       const token = createSession(db, user.id);
       audit(db, user.id, 'sign in');
       res.setHeader('Set-Cookie', cookie(token, 43200));
@@ -79,6 +102,7 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
 
   app.get('/api/state', requireUser, (req, res) => {
     const s = loadState(db); delete s.empty;
+    if (req.user.role !== 'admin') delete s.ldap;   /* directory settings are for admins */
     res.json(s);
   });
 
@@ -101,6 +125,7 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
       if (!u) throw new HttpError(404, 'No such user.');
       const password = String(req.body?.password ?? '');
       if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
+      if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');
       setPassword(db, u.id, password);
       audit(db, req.user.id, 'set password for ' + u.login);
       res.json({ ok: true });

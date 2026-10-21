@@ -90,7 +90,9 @@ export function start(env = process.env) {
   bootstrap(db, env);
   const ldap = env.NI_LDAP_URL ? configFromEnv(env) : null;
   const lansweeper = lansweeperFromEnv(env);
-  const app = createApp({ db, ldap, lansweeper, secureCookie: env.NI_SECURE_COOKIE === '1' });
+  /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
+  const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
+  const app = createApp({ db, ldap, lansweeper, secureCookie: secure });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
   const timer = startScheduler(db, env, { lansweeper, ldap });

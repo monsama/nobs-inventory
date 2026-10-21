@@ -57,7 +57,7 @@ try {
   await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'dora'); await page.fill('#lgPw', 'anything-here'); await page.click('#lgOk');
   await page.waitForTimeout(300);
-  assert.match(await page.textContent('#lgErr'), /not match|deactivated|not in a group/i, 'a deactivated user cannot sign in');
+  assert.match(await page.textContent('#lgErr'), /not right/i, 'a deactivated user cannot sign in');
 
   await page.fill('#lgUser', 'anna'); await page.fill('#lgPw', 'a-new-password-99'); await page.click('#lgOk');
   await page.waitForFunction(() => /Anna/.test(document.querySelector('#whoBtn').textContent));
