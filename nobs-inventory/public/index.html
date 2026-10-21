@@ -281,6 +281,7 @@ a.link:hover{text-decoration:underline}
 .sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
+.grp.collapsed>#cards{display:none}
 details.menu{position:relative}
 details.menu>summary{list-style:none;display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);cursor:pointer}
 details.menu>summary::-webkit-details-marker{display:none}
@@ -653,6 +654,7 @@ function renderCardsBody(){
   const list = filtered();
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
+    ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; render(); };
@@ -666,7 +668,20 @@ function renderCardsBody(){
   if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(cardHtml).join('')}</div>`; return; }
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
-  $('#view').innerHTML = groups.map(g => `<div class="hdr" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${list.filter(o=>key(o)===g).length}</span></div><div id="cards">${list.filter(o=>key(o)===g).map(cardHtml).join('')}</div>`).join('');
+  st.groupsClosed ??= {};
+  $('#view').innerHTML = groups.map(g => {
+    const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
+    return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(cardHtml).join('')}</div></section>`;
+  }).join('');
+  $('#view').querySelectorAll('.grphdr').forEach(h => {
+    const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+  const setAll = closed => { $('#view').querySelectorAll('.grphdr').forEach(h => st.groupsClosed[st.cardsGroup + ':' + h.dataset.grp] = closed); renderCards(); };
+  const ca = $('#grpAll'), ea = $('#grpNone');
+  if (ca) ca.onclick = () => setAll(true);
+  if (ea) ea.onclick = () => setAll(false);
 }
 
 function renderCards(){ renderCardsBody(); addSearchHits(); }
