@@ -4,22 +4,25 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { loadState, saveState } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
-import { ldapEnabled, ldapLogin } from './ldap.js';
+import { ldapEnabled, ldapLogin, inGroup } from './ldap.js';
 import { mergeFeed } from './feed.js';
+import { syncLansweeper } from './lansweeper.js';
+import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 
-export function createApp({ db, ldap = null, secureCookie = false }) {
+export function createApp({ db, ldap = null, lansweeper = null, secureCookie = false }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '6mb' }));
   app.use(express.text({ type: ['text/plain', 'text/csv'], limit: '6mb' }));
 
   const userDoc = id => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(id); return r ? JSON.parse(r.data) : null; };
-  const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); return uid ? userDoc(uid) : null; };
+  /* A deactivated user loses access at once, even with a session that is still open. */
+  const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false ? u : null; };
   const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   const saveUserDoc = u => db.prepare("INSERT INTO docs (kind, id, data) VALUES ('user', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(u.id, JSON.stringify(u));
@@ -35,7 +38,7 @@ export function createApp({ db, ldap = null, secureCookie = false }) {
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
-    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(ldap) });
+    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(ldap), lansweeper: !!lansweeper });
   });
 
   app.post('/api/login', async (req, res, next) => {
@@ -47,12 +50,14 @@ export function createApp({ db, ldap = null, secureCookie = false }) {
       let user = s.users.find(u => u.login && u.login.toLowerCase() === login.toLowerCase()) || null;
       let ok = !!user && checkLocalPassword(db, user.id, password);
       if (!ok && ldapEnabled(ldap)) {
-        const d = await ldapLogin(ldap, login, password);
+        let d;
+        try { d = await ldapLogin(ldap, login, password); }
+        catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
+        if (d && !inGroup(d, ldap.group)) { audit(db, null, 'sign in refused, not in group: ' + login); throw new HttpError(403, 'This account is not in a group that may use the inventory.'); }
         if (d) {
-          const groups = d.groups.map(g => g.replace(/^CN=/i, '').split(',')[0]);
-          const isAdmin = !!ldap.adminGroup && groups.some(g => g.toLowerCase() === ldap.adminGroup.toLowerCase());
-          if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups, source: 'ldap', active: true, role: 'viewer' };
-          Object.assign(user, { name: d.name, dept: d.dept, groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
+          const isAdmin = inGroup(d, ldap.adminGroup) && !!ldap.adminGroup;
+          if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
+          Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
           saveUserDoc(user);
           ok = true;
         }
@@ -99,6 +104,24 @@ export function createApp({ db, ldap = null, secureCookie = false }) {
       setPassword(db, u.id, password);
       audit(db, req.user.id, 'set password for ' + u.login);
       res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/feed/sync', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      if (!lansweeper) throw new HttpError(400, 'No Lansweeper API is configured. Set NI_LS_TOKEN on the server.');
+      const counts = await syncLansweeper(db, lansweeper);
+      res.json({ counts });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      if (!ldapEnabled(ldap)) throw new HttpError(400, 'Directory sign-in is not configured. Set NI_LDAP_URL on the server.');
+      let counts;
+      try { counts = await syncLdapUsers(db, ldap); }
+      catch (e) { if (e instanceof HttpError) throw e; console.error('directory sync:', e.message); throw new HttpError(503, 'The directory could not be read. Check the service account.'); }
+      res.json({ counts });
     } catch (e) { next(e); }
   });
 

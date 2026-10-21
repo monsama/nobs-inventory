@@ -1,0 +1,55 @@
+name: nobs-inventory CI
+
+on:
+  push:
+    paths: ['nobs-inventory/**', '.github/workflows/nobs-inventory-ci.yml']
+  pull_request:
+    paths: ['nobs-inventory/**', '.github/workflows/nobs-inventory-ci.yml']
+
+defaults:
+  run:
+    working-directory: nobs-inventory
+
+jobs:
+  unit:
+    name: API, directory, Lansweeper and user tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nobs-inventory/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  browser:
+    name: Browser test of user management
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nobs-inventory/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  image:
+    name: Docker image builds and answers health checks
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nobs-inventory:ci .
+      - name: Start the image and check it answers
+        run: |
+          docker run -d --name ni -p 8080:8080 -e NI_ADMIN_PASSWORD=ci-password-123 nobs-inventory:ci
+          for i in $(seq 1 20); do curl -fs http://localhost:8080/api/health && break; sleep 1; done
+          curl -fs http://localhost:8080/api/health
+          curl -fs http://localhost:8080/ > /dev/null
+          docker logs ni | tail -5

@@ -1455,7 +1455,7 @@ function mountModal(){
 
 function renderSetUsers(){
   const rows = USERS.map((u, i) => `<tr>
-      <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc(u.groups.join(', '))}</td>
+      <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
@@ -1532,6 +1532,22 @@ function renderSetLdap(){
   <div id="ldapPlan"></div>
   <p class="note">Attributes read: login sAMAccountName, name displayName, department, groups memberOf. Users are never deleted by a sync.</p>`;
   const root = $('#setLdap');
+  if (SERVER.on){
+    $('#ldapPlan').innerHTML = '<p class="note">The sync reads the directory on the server. Users who left are deactivated, not deleted.</p>';
+    $('#ldapSync').textContent = 'Sync now';
+    $('#ldapSync').onclick = async () => {
+      $('#ldapSync').disabled = true;
+      const r = await fetch('api/ldap/sync', {method: 'POST', credentials: 'same-origin'});
+      const j = await r.json().catch(() => ({}));
+      $('#ldapSync').disabled = false;
+      if (!r.ok){ $('#ldapMsg').textContent = j.error || 'The sync failed.'; return; }
+      const c = j.counts;
+      $('#ldapMsg').textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated`;
+      const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); }
+    };
+    $('#ldapTest').onclick = () => { $('#ldapMsg').textContent = 'Connection is tested when the sync runs.'; };
+    return;
+  }
   root.querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.type === 'checkbox' ? i.checked : i.value; });
   $('#ldapTest').onclick = () => { $('#ldapMsg').textContent = 'Connected · ' + LDAP_SAMPLE.length + ' users in scope'; };
   $('#ldapSync').onclick = () => {
@@ -1653,7 +1669,18 @@ function renderSetFeedServer(){
   $('#setFeed').innerHTML = `<div class="hdr">Feed</div>
     <div class="note" style="padding:10px 12px">Upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed, and what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:110px minmax(0,1fr)"><label for="feedUp">Export</label><input id="feedUp" type="file" accept=".csv,text/csv"></div>
-    <div class="note" style="padding:0 12px 10px">Nightly import from a file: set NI_FEED_CSV on the server.</div>`;
+    <div class="note" style="padding:0 12px 10px">Nightly import from a file: set NI_FEED_CSV on the server.</div>
+    ${SERVER.lansweeper ? '<div class="addrel"><button id="feedApi" class="primary">Sync from the Lansweeper API now</button></div>' : ''}`;
+  const fa = $('#feedApi'); if (fa) fa.onclick = async () => {
+    fa.disabled = true;
+    const r = await fetch('api/feed/sync', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    fa.disabled = false;
+    if (!r.ok){ toast(j.error || 'The sync failed.'); return; }
+    const c = j.counts;
+    toast(`Lansweeper: ${c.assets} assets, ${c.created} new, ${c.updated} updated, ${c.linked} linked`);
+    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); render(); }
+  };
   $('#feedUp').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     const r = await fetch('api/feed/import', {method: 'POST', headers: {'Content-Type': 'text/csv'}, credentials: 'same-origin', body: await f.text()});
@@ -2024,7 +2051,7 @@ function render(){
 /* The inventory as one object. The server stores it; without a server it stays in this browser. */
 const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
   policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
-const SERVER = {on: false, ldap: false, last: null, timer: null};
+const SERVER = {on: false, ldap: false, lansweeper: false, last: null, timer: null};
 let DEMO_STATE = null;   /* the sample inventory as the page starts, for Load demo */
 function saveData(){
   if (SERVER.on){ queueServerSave(); return; }
@@ -2111,7 +2138,7 @@ async function boot(){
     render();
     return;
   }
-  SERVER.on = true; SERVER.ldap = info.ldap;
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper;
   if (!info.user){ render(); loginModal(); return; }
   await loadFromServer(info.user);
 }

@@ -14,7 +14,17 @@ services:
       NI_LDAP_BIND: ${NI_LDAP_BIND:-}
       NI_LDAP_BASE: ${NI_LDAP_BASE:-}
       NI_LDAP_ADMIN_GROUP: ${NI_LDAP_ADMIN_GROUP:-}
-      # Nightly Lansweeper import at 06:00 from this file inside the container (put the report in ./feed).
+      NI_LDAP_GROUP: ${NI_LDAP_GROUP:-}
+      NI_LDAP_SERVICE_DN: ${NI_LDAP_SERVICE_DN:-}
+      NI_LDAP_SERVICE_PASSWORD: ${NI_LDAP_SERVICE_PASSWORD:-}
+      NI_LDAP_USER_FILTER: ${NI_LDAP_USER_FILTER:-}
+      NI_LDAP_CA: ${NI_LDAP_CA:-}
+      # Lansweeper API (nightly 06:00 sync when set; takes precedence over the file).
+      NI_LS_TOKEN: ${NI_LS_TOKEN:-}
+      NI_LS_URL: ${NI_LS_URL:-}
+      NI_LS_AUTH_SCHEME: ${NI_LS_AUTH_SCHEME:-}
+      NI_LS_SITE: ${NI_LS_SITE:-}
+      # Nightly Lansweeper report file, used when no API token is set (put the report in ./feed).
       NI_FEED_CSV: ${NI_FEED_CSV:-}
     volumes:
       # The database lives here. A rebuild or an update does not touch it.
