@@ -87,6 +87,8 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
         throw new HttpError(401, FAILED);
       }
       throttle.clearFailures(keys);
+      /* One session per user: signing in again ends the earlier sessions, so a stolen token stops working. */
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
       const token = createSession(db, user.id);
       audit(db, user.id, 'sign in');
       res.setHeader('Set-Cookie', cookie(token, 43200));
@@ -168,6 +170,8 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
   app.use((err, req, res, next) => {
     const status = err.status || 500;
     if (status === 500) console.error(err);
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Send valid JSON.' });
+    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'The request is too large.' });
     res.status(status).json({ error: status === 500 ? 'Something went wrong.' : err.message });
   });
   return app;

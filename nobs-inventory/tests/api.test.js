@@ -174,3 +174,16 @@ test('an overlong password is refused before the hash is computed; roles are che
     assert.equal((await srv.call('PUT', '/api/state', { body: bad, cookie: admin.cookie })).status, 400);
   } finally { await srv.close(); }
 });
+
+test('a new sign-in ends the earlier session of the same user; malformed JSON gets a short answer', async () => {
+  const srv = await startServer();
+  try {
+    const first = await signIn(srv, 'admin', 'adminpass123');
+    const second = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 401);
+    assert.equal((await srv.call('GET', '/api/state', { cookie: second.cookie })).status, 200);
+    const bad = await fetch(srv.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
+    assert.equal(bad.status, 400);
+    assert.deepEqual(await bad.json(), { error: 'Send valid JSON.' });
+  } finally { await srv.close(); }
+});
