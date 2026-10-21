@@ -3,5 +3,6 @@
 # For a name that only exists inside the network, use a real DNS name with a DNS challenge or the internal CA.
 {$NI_HOST:localhost} {
 	encode gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	reverse_proxy app:8080
 }

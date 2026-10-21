@@ -60,13 +60,13 @@ test('an admin promotes and demotes users; the last active admin cannot be demot
 test('a deactivated user cannot sign in, and an open session stops working when they are deactivated', async () => {
   const { srv, admin } = await setup();
   try {
-    assert.equal((await signIn(srv, 'dora', 'doras-pw-1234')).status, 403, 'deactivated users are refused at sign-in');
+    assert.equal((await signIn(srv, 'dora', 'doras-pw-1234')).status, 401, 'deactivated users are refused with the same answer');
     const anna = await signIn(srv, 'anna', 'annas-pw-1234');
     assert.equal((await srv.call('GET', '/api/state', { cookie: anna.cookie })).status, 200);
     const users = loadState(srv.db).users.map(u => u.id === 'u-anna' ? { ...u, active: false } : u);
     assert.equal((await put(srv, admin.cookie, users)).status, 200);
     assert.equal((await srv.call('GET', '/api/state', { cookie: anna.cookie })).status, 401, 'her open session ends at once');
-    assert.equal((await signIn(srv, 'anna', 'annas-pw-1234')).status, 403);
+    assert.equal((await signIn(srv, 'anna', 'annas-pw-1234')).status, 401);
   } finally { await srv.close(); }
 });
 

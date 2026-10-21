@@ -20,7 +20,7 @@ export function hasPassword(db, userId) {
 
 export function checkLocalPassword(db, userId, password) {
   const c = db.prepare('SELECT salt, hash FROM credentials WHERE user_id = ?').get(userId);
-  if (!c) return false;
+  if (!c) { crypto.scryptSync(password, 'x'.repeat(16), 64); return false; }   /* same work as a real check */
   const h = crypto.scryptSync(password, c.salt, 64);
   return crypto.timingSafeEqual(h, Buffer.from(c.hash, 'hex'));
 }

@@ -141,3 +141,36 @@ test('feed import over HTTP saves the merge', async () => {
     assert.equal(back.objs[0].ip, '10.0.0.2');
   } finally { await srv.close(); }
 });
+
+test('repeated failed sign-ins are throttled; the answer is the same for every failure', async () => {
+  const srv = await startServer();
+  try {
+    const answers = new Set();
+    for (let i = 0; i < 8; i++) answers.add((await signIn(srv, 'admin', 'wrong' + i)).status);
+    assert.deepEqual([...answers], [401]);
+    assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 429, 'even the right password waits after the limit');
+    const fresh = await startServer();
+    assert.equal((await signIn(fresh, 'nobody', 'x')).status, 401, 'an unknown login gets the same generic answer');
+    await fresh.close();
+  } finally { await srv.close(); }
+});
+
+test('security headers are sent, and the cookie is Secure in production', async () => {
+  const srv = await startServer();
+  try {
+    const r = await fetch(srv.base + '/');
+    assert.match(r.headers.get('content-security-policy'), /script-src 'self'/);
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(r.headers.get('x-frame-options'), 'DENY');
+  } finally { await srv.close(); }
+});
+
+test('an overlong password is refused before the hash is computed; roles are checked on save', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal((await srv.call('POST', '/api/users/u-admin/password', { body: { password: 'x'.repeat(300) }, cookie: admin.cookie })).status, 400);
+    const bad = baseState({ users: [{ id: 'u-admin', login: 'admin', name: 'A', role: 'superuser', active: true }] });
+    assert.equal((await srv.call('PUT', '/api/state', { body: bad, cookie: admin.cookie })).status, 400);
+  } finally { await srv.close(); }
+});

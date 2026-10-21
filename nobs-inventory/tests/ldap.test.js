@@ -44,7 +44,7 @@ test('directory sign-in: password checked by the directory, role from the admin 
   try {
     assert.equal((await signIn(srv, 'anna', 'wrong')).status, 401, 'a wrong password is refused');
     assert.equal((await signIn(srv, 'anna', '')).status, 401, 'an empty password is refused');
-    assert.equal((await signIn(srv, 'ben', 'bens-secret')).status, 403, 'a user outside the inventory group is refused');
+    assert.equal((await signIn(srv, 'ben', 'bens-secret')).status, 401, 'a user outside the inventory group is refused, with the same answer as a wrong password');
     const anna = await signIn(srv, 'anna', 'annas-secret');
     assert.equal(anna.status, 200);
     assert.equal(anna.user.role, 'admin');
