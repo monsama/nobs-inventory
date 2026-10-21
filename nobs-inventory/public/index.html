@@ -278,10 +278,9 @@ a.link:hover{text-decoration:underline}
 .maplegend .lgtext{color:var(--muted);line-height:1.4}
 /* Object page: each panel folds from its header. Save waits for a change. More holds the rare actions. */
 .sechdr{cursor:pointer;user-select:none}
-/* Object page panels: title centred, count on the right, arrow on the left. */
-.obj .panelbox>.hdr{justify-content:center;position:relative;text-align:center}
+/* Object page panels: title left-aligned after the fold arrow, count on the right. */
+.obj .panelbox>.hdr{justify-content:flex-start;position:relative;text-align:left}
 .obj .panelbox>.hdr>span.muted{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
-.obj .panelbox>.hdr>.sechdr-arrow{position:absolute;left:10px}
 .sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
