@@ -11,10 +11,14 @@ export function openDb(file) {
     CREATE TABLE IF NOT EXISTS credentials (user_id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT, action TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
+    CREATE INDEX IF NOT EXISTS sessions_expires ON sessions (expires);
   `);
   return db;
 }
 
 export function audit(db, userId, action) {
   db.prepare('INSERT INTO audit (at, user_id, action) VALUES (?, ?, ?)').run(new Date().toISOString(), userId ?? null, action);
+  /* Keep the last 20,000 entries; older ones are removed when the log grows. */
+  if (Math.random() < 0.01) db.prepare('DELETE FROM audit WHERE id <= (SELECT MAX(id) - 20000 FROM audit)').run();
 }

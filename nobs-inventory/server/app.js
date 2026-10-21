@@ -64,8 +64,11 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
       const keys = ['login:' + login.toLowerCase(), 'ip:' + (req.ip || '')];
       if (throttle.blocked(keys)) { audit(db, null, 'sign in throttled for ' + login); throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.'); }
       if (!login || !password || password.length > 256) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
-      const s = loadState(db);
-      let user = s.users.find(u => u.login && u.login.toLowerCase() === login.toLowerCase()) || null;
+      let user = null;   /* only the user records are read; a sign-in does not load the whole inventory */
+      for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'user'").all()) {
+        const u = JSON.parse(r.data);
+        if (u.login && u.login.toLowerCase() === login.toLowerCase()) { user = u; break; }
+      }
       let ok = false;
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
@@ -164,7 +167,8 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
     } catch (e) { next(e); }
   });
 
-  app.use(express.static(publicDir, { index: 'index.html' }));
+  /* The page itself is never cached, so an update is seen at once; scripts and styles are cached and revalidated. */
+  app.use(express.static(publicDir, { index: 'index.html', maxAge: 0, setHeaders: (res, file) => { if (!file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); } }));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
   app.use((err, req, res, next) => {
