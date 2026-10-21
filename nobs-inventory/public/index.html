@@ -815,7 +815,8 @@ function importCsvModal(){
 const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
 const MAP_W = 200, MAP_STEP = 340;
 const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? o.ports + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
-const mapH = o => 40 + 15 * mapLines(o).length + 6;
+/* Every box has the same height, so the rows line up across a column. */
+const mapH = () => 91;
 
 function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
@@ -873,7 +874,7 @@ function mapInner(L){
   const edges = L.edges.map(r => {
     const a = byId(r.from), b = byId(r.to), pa = L.pos[a.id], pb = L.pos[b.id];
     lanes[pa.x] = (lanes[pa.x] || 0) + 1;
-    const lane = ((lanes[pa.x] % 5) - 2) * 6;
+    const lane = ((lanes[pa.x] % 5) - 2) * 9;
     const p = mapRoute(pa, mapH(a), pb, mapH(b), lane);
     const label = MAP_SHORT[r.kind] + (r.port != null ? ' · ' + portLabel(b, r.port) : '');
     return `<g class="mline" data-from="${a.id}" data-to="${b.id}">
@@ -995,7 +996,9 @@ function renderMap(){
   };
   mapApply();
   requestAnimationFrame(mapFit);
+  setTimeout(mapFit, 60);
 }
+window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(); });
 
 /* ---------- switch ports ---------- */
 function renderNet(){
