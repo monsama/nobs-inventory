@@ -7,7 +7,9 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/schedule.test.js"
+    "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js",
+    "lansweeper:introspect": "node tools/lansweeper-introspect.js",
+    "test:browser": "node tests/browser/users.e2e.mjs"
   },
   "engines": {
     "node": ">=22.13"
@@ -15,5 +17,8 @@
   "dependencies": {
     "express": "^4.22.3",
     "ldapjs": "^3.0.7"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
   }
 }

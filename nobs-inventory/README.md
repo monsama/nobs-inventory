@@ -16,17 +16,22 @@ Caddy gets the certificate by itself. Ports 80 and 443 must reach the server, so
 
 The app itself is not published; only Caddy is reachable, and the session cookie is marked Secure.
 
-## Accounts and LDAP
+## Accounts and directory
 
 - Local accounts: each user with a login gets a password under Settings → Users → Password. Passwords are stored as salted scrypt hashes.
-- Active Directory: set `NI_LDAP_URL`, `NI_LDAP_BIND` (for example `{login}@monsama.ch`), `NI_LDAP_BASE` and `NI_LDAP_ADMIN_GROUP` in `.env`. People sign in with their directory password, and members of the admin group become admins. The password is never stored.
+- Active Directory sign-in: set `NI_LDAP_URL`, `NI_LDAP_BIND`, `NI_LDAP_BASE`, `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP`. People sign in with their directory password, which is never stored. Only members of `NI_LDAP_GROUP` may sign in; members of `NI_LDAP_ADMIN_GROUP` are admins, everyone else is a viewer.
+- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs nightly at 06:00, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
 
 ## Lansweeper
 
-- Upload a report (CSV) under Settings → Feed. Matches are by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
-- Nightly: put the report in `./feed` and set `NI_FEED_CSV=/feed/report.csv`. It is imported at 06:00.
-- A direct connection to the Lansweeper API is not built yet; it needs your tenant's token and query.
+- Direct API: set `NI_LS_TOKEN`. The sync runs nightly at 06:00 and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
+
+      NI_LS_TOKEN=... npm run lansweeper:introspect -- AssetResources
+
+  The query in `server/lansweeper.js` is written from public examples and has not been checked against a live tenant. Correct its field names there if introspection shows different ones.
+- Report file: upload a CSV under Settings → Feed, or set `NI_FEED_CSV=/feed/report.csv` with the report in `./feed`. Used when no token is set.
+- Matching is by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
 
 ## Updating
 
