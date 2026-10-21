@@ -462,7 +462,10 @@ const objs = [
   O('storage','NAS-ZH-2OG',{model:'Synology DS224+',serial:'SYN224A17', ip:'10.10.2.11', mac:'00:11:32:5c:0a:11', loc:LOCS[1], cap:'8 TB', proto:'SMB · NFS'}),
   O('storage','STO-ZH-01',{model:'QNAP TS-h1290FX',serial:'Q1290FX0042',ip:'10.10.2.10',mac:'24:5e:be:11:00:01',loc:LOCS[0],cap:'24 TB',proto:'iSCSI · NFS'}),
   O('firewall','FW-ZH-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0001',ip:'10.10.0.1',mac:'08:5b:0e:11:22:01',loc:LOCS[0],os:'FortiOS 7.4'}),
-  O('firewall','FW-BE-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0002',ip:'10.20.0.1',mac:'08:5b:0e:11:22:02',loc:LOCS[4],os:'FortiOS 7.4'})
+  O('firewall','FW-BE-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0002',ip:'10.20.0.1',mac:'08:5b:0e:11:22:02',loc:LOCS[4],os:'FortiOS 7.4'}),
+  O('smartphone','PH-ZH-KELLER',{model:'Apple iPhone 15',serial:'DNQ4K2L7P9',loc:LOCS[1],user:'M. Keller',os:'iOS 18.6',mac:'a8:88:08:14:5c:21'}),
+  O('smartphone','PH-BE-SCHMID',{model:'Samsung Galaxy S24',serial:'R5CX3ABC901',loc:LOCS[4],user:'R. Schmid',os:'Android 15',mac:'f4:7b:5e:90:12:0d'}),
+  O('other','BEAMER-ZH-2OG',{model:'Epson EB-X51 projector',serial:'X5ABC24019',loc:LOCS[1],ip:'10.10.50.30',mac:'00:26:ab:3c:10:77'})
 ];
 const byName = n => objs.find(o => o.name === n);
 const byId = id => objs.find(o => o.id === id);
