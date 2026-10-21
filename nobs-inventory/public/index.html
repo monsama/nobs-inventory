@@ -286,6 +286,8 @@ details.menu>summary{list-style:none;display:inline-flex;align-items:center;heig
 details.menu>summary::-webkit-details-marker{display:none}
 .menubox{position:absolute;right:0;top:32px;z-index:10;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px}
 .menubox button{justify-content:flex-start}
+.readonly .obj input:disabled,.readonly .obj select:disabled{opacity:.85}
+#whoBtn{height:28px;font-size:12px;color:var(--muted)}
 #toast{position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
@@ -311,6 +313,7 @@ details.menu>summary::-webkit-details-marker{display:none}
   <input id="search" type="search" placeholder="Search code, name, IP, MAC, serial, user…" aria-label="Search">
   <button id="newBtn" class="primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New object</button>
   <div class="grow"></div>
+  <button id="whoBtn" class="ghost" title="Sign in or out (demo)">Signed out</button>
   <button id="themeBtn" class="icon" title="Switch light / dark" aria-label="Switch light or dark"><svg class="i" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
   <button id="setBtn" class="icon" title="Settings" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </div>
@@ -1165,6 +1168,7 @@ function modal(html, cls=''){
   $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
   const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
+  applyRole();
 }
 const closeModal = () => $('#modalHost').innerHTML = '';
 document.addEventListener('keydown', e => {
@@ -1212,6 +1216,7 @@ function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}})[st.setTab]();
+  applyRole();
 }
 
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
@@ -1224,7 +1229,7 @@ let USERS = [
   {login:'', name:'Aussendienst', dept:'Sales', groups:[], source:'manual', active:true},
   {login:'', name:'Empfang (Check-in)', dept:'Reception', groups:[], source:'manual', active:true}
 ];
-USERS = USERS.map((u, i) => ({id:'u' + (i + 1), ...u}));
+USERS = USERS.map((u, i) => ({id:'u' + (i + 1), role: u.login === 'l.meier' ? 'admin' : 'viewer', ...u}));
 /* What the directory returns for the search base in the settings. Mock data for this mockup. */
 const LDAP_SAMPLE = [
   {login:'a.frei', name:'A. Frei', dept:'IT', groups:['IT']},
@@ -1236,6 +1241,36 @@ st.ldap = {url:'ldaps://dc01.monsama.ch:636', bindDn:'CN=nobs-sync,OU=Service,DC
   filter:'(&(objectClass=user)(!(objectCategory=computer)))', group:'CN=IT-Inventory,OU=Groups,DC=monsama,DC=ch',
   nightly:true, disable:true, last:null};
 const devicesOf = name => objs.filter(o => o.user === name).length;
+/* Demo roles. Admins can change everything; viewers can look but not change. No password is checked here:
+   the server login will do that and enforce the roles itself. */
+const me = () => USERS.find(u => u.id === st.meId);
+const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
+const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
+/* Viewers: controls in the page are disabled, navigation stays. */
+const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
+const RO_NAV = 'button[data-open],button[data-devs],button[data-sw],button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+const RO_INPUT_OK = /^(search|mapFind|mapOnly|mapLabels|grp|swSel|rkSel|swVerX)$/;
+function applyRole(){
+  const ro = !canEdit();
+  document.body.classList.toggle('readonly', ro);
+  $('#newBtn').disabled = ro;
+  $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
+  ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
+    if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
+    if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
+    if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
+  }));
+}
+function signInModal(){
+  modal(`<div class="mh">Sign in</div>
+    <div class="mb">
+      <p class="note"><b>Demo.</b> Nothing is checked here: anyone who can open this file can pick any user. The server login will check passwords or LDAP and enforce the roles itself.</p>
+      <div class="srcs">${USERS.filter(u => u.active).map(u => `<label class="src"><input type="radio" name="who" value="${u.id}" ${u.id === st.meId ? 'checked' : ''}><span><b>${esc(u.name)}</b><small>${roleLabel(u) === 'Admin' ? 'Admin · can change everything' : 'Viewer · can look, not change'}</small></span></label>`).join('') || '<span class="muted">No active users yet. Add them under Settings → Users.</span>'}</div>
+    </div>
+    <div class="mf"><button id="siOut">Sign out</button><button id="siOk" class="primary">Sign in</button></div>`, 'sm free');
+  $('#siOk').onclick = () => { const v = document.querySelector('input[name=who]:checked'); st.meId = v ? v.value : null; closeModal(); render(); };
+  $('#siOut').onclick = () => { st.meId = null; closeModal(); render(); };
+}
 const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 function ensureUser(name){
   let u = USERS.find(x => x.name === name);
@@ -1310,15 +1345,21 @@ function renderSetUsers(){
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc(u.groups.join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
+      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Active</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Role</th><th>Devices</th><th>Active</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => { USERS[+c.dataset.act].active = c.checked; renderSetUsers(); });
+  root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
+    const u = USERS[+sel.dataset.role], admins = USERS.filter(x => x.role === 'admin').length;
+    if (u.role === 'admin' && sel.value !== 'admin' && admins <= 1){ toast('At least one admin is needed.'); renderSetUsers(); return; }
+    u.role = sel.value; toast(u.name + ' is now ' + roleLabel(u).toLowerCase()); renderSetUsers();
+  });
   root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const u = USERS[+b.dataset.del]; USERS.splice(+b.dataset.del, 1); toast(u.name + ' removed'); renderSetUsers(); });
   $('#nuAdd').onclick = () => {
     const name = $('#nuName').value.trim();
@@ -1616,6 +1657,7 @@ function feedModal(startStep = 1, forObj = null){
         ${step<4?'<button id="iCancel">Cancel</button>':''}${step>1&&step<4?'<button id="iBack">Back</button>':''}
         <button id="iNext" class="primary">${step===3?'Start sync':step===4?'Close':'Next'}</button></div>`;
     bindPolicy($('#mdl'));
+    applyRole();
     if (step === 1){
       const srcForm = () => {
         const v = document.querySelector('input[name=src]:checked').value;
@@ -1689,6 +1731,7 @@ function applyPlan(plan){
 
 /* ---------- top bar ---------- */
 $('#newBtn').onclick = () => newObjModal();
+$('#whoBtn').onclick = signInModal;
 $('#setBtn').onclick = openSettings;
 $('#themeBtn').onclick = () => {
   const root = document.documentElement;
@@ -1814,12 +1857,13 @@ function render(){
   else renderObj(byId(st.tab));
   $('#stObjs').textContent = objs.length + ' objects';
   $('#stRels').textContent = rels.length + ' relations';
+  applyRole();
   saveData();
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 function saveData(){
   try { localStorage.setItem('ni-data', JSON.stringify({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
-    policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq})); } catch(e) {}
+    policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq, meId: st.meId})); } catch(e) {}
 }
 function loadData(){
   let d = null; try { d = JSON.parse(localStorage.getItem('ni-data') || 'null'); } catch(e) {}
@@ -1831,6 +1875,7 @@ function loadData(){
   Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types);
   Object.assign(st, {policy: d.policy, feedOn: d.feedOn, feedSync: d.feedSync, ldap: d.ldap, mapPos: d.mapPos});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
+  st.meId = d.meId ?? null;
   objs.forEach(bindUser);
 }
 function resetDemo(){
@@ -1847,6 +1892,7 @@ function welcome(){
   $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = []; saveData(); done(); };
 }
 loadData();
+if (!st.meId && USERS.length) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
 if (!localStorage.getItem('ni-started') && !localStorage.getItem('ni-data')) welcome();
 render();
 </script>
