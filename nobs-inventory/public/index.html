@@ -200,6 +200,8 @@ table.grid th .rz:hover{background:var(--accent);opacity:.45}
 .form input,.form select,.form textarea{width:100%}
 .form .ro{font-family:var(--mono);font-size:12px}
 .rkrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.hits{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
+button.chip{cursor:pointer;height:24px;font-size:12px}
 .relist{display:flex;flex-direction:column}
 .relrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2);min-width:0}
 .relrow:last-child{border-bottom:none}
@@ -389,7 +391,7 @@ const KINDS = {
   docked:{fwd:'docked at', rev:'docks'},
   hosted:{fwd:'hosted on', rev:'hosts'}
 };
-const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -430,7 +432,9 @@ const objs = [
   O('server','VM-ZH-DC01',{kind:'vm',model:'Windows Server 2022 Standard',os:'Windows Server 2022 Standard',ip:'10.10.1.5',mac:'00:50:56:a1:00:05',loc:LOCS[0],cpu:'4 vCPU',ram:'8 GB'}),
   O('server','VM-ZH-APP01',{kind:'vm',model:'Debian 12',os:'Debian 12',ip:'10.10.1.6',mac:'00:50:56:a1:00:06',loc:LOCS[0],cpu:'8 vCPU',ram:'32 GB'}),
   O('storage','NAS-ZH-2OG',{model:'Synology DS224+',serial:'SYN224A17', ip:'10.10.2.11', mac:'00:11:32:5c:0a:11', loc:LOCS[1], cap:'8 TB', proto:'SMB · NFS'}),
-  O('storage','STO-ZH-01',{model:'QNAP TS-h1290FX',serial:'Q1290FX0042',ip:'10.10.2.10',mac:'24:5e:be:11:00:01',loc:LOCS[0],cap:'24 TB',proto:'iSCSI · NFS'})
+  O('storage','STO-ZH-01',{model:'QNAP TS-h1290FX',serial:'Q1290FX0042',ip:'10.10.2.10',mac:'24:5e:be:11:00:01',loc:LOCS[0],cap:'24 TB',proto:'iSCSI · NFS'}),
+  O('firewall','FW-ZH-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0001',ip:'10.10.0.1',mac:'08:5b:0e:11:22:01',loc:LOCS[0],os:'FortiOS 7.4'}),
+  O('firewall','FW-BE-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0002',ip:'10.20.0.1',mac:'08:5b:0e:11:22:02',loc:LOCS[4],os:'FortiOS 7.4'})
 ];
 const byName = n => objs.find(o => o.name === n);
 const byId = id => objs.find(o => o.id === id);
@@ -443,6 +447,7 @@ place('SW-ZH-2OG-01','R-2OG',10); place('PP-ZH-2OG-01','R-2OG',8);
 Object.assign(byName('NAS-ZH-2OG'), {rack:'R-2OG', ontop:byName('SW-ZH-2OG-01').id});
 place('SW-BE-01','R-BE',6); place('SRV-BE-DC01','R-BE',4);
 place('STO-ZH-01','R-SRV',20,4);
+place('FW-ZH-01','R-SRV',42); place('FW-BE-01','R-BE',5);
 
 let rseq = 0;
 const rels = [];
@@ -471,6 +476,7 @@ R('BE-PC-0031','connected','SIP-BE-3101','PC port','20 Clients');
 R('MON-0440','attached','BE-PC-0031','DP 1');
 R('VM-ZH-DC01','hosted','SRV-ZH-HV01'); R('VM-ZH-APP01','hosted','SRV-ZH-HV02');
 R('STO-ZH-01','connected','SW-ZH-CORE-01',24,'10 Server');
+R('SW-ZH-CORE-01','uplink','FW-ZH-01','wan1','WAN'); R('SW-BE-01','uplink','FW-BE-01','wan1','WAN');
 R('SRV-ZH-HV01','connected','STO-ZH-01','iSCSI'); R('SRV-ZH-HV02','connected','STO-ZH-01','iSCSI');
 
 const history = {};
@@ -481,7 +487,7 @@ hist(byName('TAB-ZH-02'), '03.10.2026 10:15', 'Status changed In use → In repa
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack'], cardsGroup:'none', netSw:byName('SW-ZH-2OG-01').id, netPort:3,
+const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:byName('SW-ZH-2OG-01').id, netPort:3,
   rackId:'R-SRV', setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}};
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
@@ -493,7 +499,7 @@ const feedOwns = (o, k, linked = !!o.feed) => !!(st.feedOn && linked && (k in o.
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tcol = t => TYPES[t]?.color || '#888';
-const tico = (t, cls='tico') => `<span class="${cls}" style="background:${tcol(t)}">${svg(t)}</span>`;
+const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
 const fmtVal = (k, v) => k === 'status' ? (STATUS[v]?.label ?? v) : (v ?? '');
 const pad2 = n => String(n).padStart(2, '0');
 const portLabel = (target, p) => {
@@ -553,7 +559,7 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', net:'Switch ports', rack:'Racks'};
+const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', net:'Switch ports', rack:'Racks', sw:'Software'};
 function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   $('#tabsbar').innerHTML = ids.map(id => {
@@ -568,6 +574,7 @@ function renderTabs(){
     el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('dragover'); });
     el.addEventListener('dragleave', () => el.classList.remove('dragover'));
     el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('dragover'); const src = e.dataTransfer.getData('text/plain'); if (src && src !== id) reorderTabs(src, id); });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); st.tab = id; render(); } });
     el.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('auxclick', e => { if (e.button === 1 && st.open.includes(id)) closeObjTab(id); });
   });
@@ -618,7 +625,7 @@ function cardHtml(o){
     <div class="cf"><span class="code">${esc(o.code)}</span>${o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : ''}<span class="grow"></span>${rs.length} relations</div>
   </button>`;
 }
-function renderCards(){
+function renderCardsBody(){
   const list = filtered();
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
@@ -630,6 +637,18 @@ function renderCards(){
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
   $('#view').innerHTML = groups.map(g => `<div class="hdr" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${list.filter(o=>key(o)===g).length}</span></div><div id="cards">${list.filter(o=>key(o)===g).map(cardHtml).join('')}</div>`).join('');
+}
+
+function renderCards(){ renderCardsBody(); addSearchHits(); }
+/* When the search matches a person or a place, those come first as buttons. */
+function addSearchHits(){
+  const q = st.q.trim().toLowerCase(); if (!q) return;
+  const people = USERS.filter(u => [u.name, u.login, u.dept].some(v => v && v.toLowerCase().includes(q)));
+  const locs = LOCS.filter(l => l.toLowerCase().includes(q));
+  if (!people.length && !locs.length) return;
+  $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${devicesOf(u.name)} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
+  $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
+  $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; render(); });
 }
 
 /* ---------- table ---------- */
@@ -669,7 +688,7 @@ function mapLayout(nodes){
   const edges = E.filter(r => inList.has(r.from) && inList.has(r.to) && !mirrored(r));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
   const adj = {}; edges.forEach(r => { (adj[r.from] ??= []).push(r.to); (adj[r.to] ??= []).push(r.from); });
-  const depth = {}, q = list.filter(o => o.type === 'switch').map(o => o.id);
+  const depth = {}, q = list.filter(o => ['firewall','router','switch'].includes(o.type) && !edges.some(r => r.kind === 'uplink' && r.from === o.id)).map(o => o.id);
   q.forEach(id => depth[id] = 0);
   for (let i = 0; i < q.length; i++) (adj[q[i]] || []).forEach(n => { if (!(n in depth)){ depth[n] = depth[q[i]] + 1; q.push(n); } });
   const maxD = Math.max(0, ...Object.values(depth));
@@ -914,7 +933,7 @@ function renderRack(){
 
 /* ---------- object page ---------- */
 const FIELDS = {
-  base:[['name','Name','mono'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner']],
+  base:[['name','Name','mono'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system']], server:[['kind','Kind','kind'],['os','Operating system'],['cpu','CPU'],['ram','Memory']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
@@ -927,6 +946,7 @@ function fieldHtml(o, [k, label, kind]){
   let ctl;
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Nobody</option>${USERS.map(u => `<option value="${u.id}" ${u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
   return `<label for="${id}">${label}</label>${ctl}`;
@@ -944,6 +964,44 @@ function feedPanel(o){
       ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${esc(fmtVal(k, o[k]))}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> ${k in o.ovr ? 'override' : '<span class="muted">default</span>'}</label></td></tr>`).join('')}
     </tbody></table>
     <div class="addrel"><span class="note" style="flex:1">Unchecked fields keep the value you set here. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
+}
+const SW_TYPES = ['pc','server'];
+function softwarePanel(o){
+  const list = o.software || [];
+  return `<div class="panelbox"><div class="hdr">Software <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${list.length} installed</span></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
+    ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing recorded.</td></tr>'}
+    </tbody></table></div>
+    <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`;
+}
+function bindSoftware(o){
+  $('#view').querySelectorAll('[data-swdel]').forEach(b => b.onclick = () => {
+    const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); render();
+  });
+  const add = $('#swAdd'); if (!add) return;
+  add.onclick = () => {
+    const name = $('#swName').value.trim();
+    if (!name){ toast('Give the software a name.'); return; }
+    o.software = [...(o.software || []), {name, version: $('#swVer').value.trim()}];
+    hist(o, now(), 'Software added: ' + name); render();
+  };
+}
+/* Every package across the PCs and servers; pick one to list where it is installed. */
+function renderSoftware(){
+  const map = {};
+  objs.forEach(o => (o.software || []).forEach(p => {
+    (map[p.name] ??= {name: p.name, versions: new Set(), devices: []});
+    map[p.name].versions.add(p.version || '—'); map[p.name].devices.push(o);
+  }));
+  const rows = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+  const sel = rows.find(r => r.name === st.swSel);
+  $('#toolbar').innerHTML = `<span class="muted">${rows.length} packages · ${objs.filter(o => (o.software || []).length).length} devices</span><div class="grow"></div><span class="muted hide-n">Add software on a PC or server</span>`;
+  $('#view').innerHTML = rows.length ? `<div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Package</th><th>Versions</th><th>Devices</th></tr></thead><tbody>
+    ${rows.map(r => `<tr data-sw="${esc(r.name)}" ${sel && sel.name === r.name ? 'style="background:var(--hover)"' : ''}><td><b>${esc(r.name)}</b></td><td class="mono">${esc([...r.versions].join(', '))}</td><td class="n">${r.devices.length}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on</div><div class="path">${sel.devices.map(d => `<button class="node" data-open="${d.id}">${tico(d.type, 'tico sm')}${esc(d.name)}</button>`).join('')}</div></div>` : ''}`
+    : '<div class="empty">No software recorded yet. Add it on a PC or server.</div>';
+  $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.swSel = st.swSel === tr.dataset.sw ? null : tr.dataset.sw; render(); });
 }
 /* A patch panel's ports, with the device on each one and the trunk into the switch. */
 function patchPanel(o){
@@ -975,6 +1033,7 @@ function renderObj(o){
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
+      ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       <div class="panelbox"><div class="hdr">Relations <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${rs.length}</span></div>
         <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(x.r.vlan)}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
@@ -987,6 +1046,7 @@ function renderObj(o){
       <div class="panelbox"><div class="hdr">History</div><ul class="hist">${(history[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul></div>
     </div></div>`;
 
+  bindSoftware(o);
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device is patched to a panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
@@ -1002,7 +1062,10 @@ function renderObj(o){
     if (to.type === 'switch' && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(to.pfx + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
-    rels.push({id:'r'+(++rseq), from:o.id, to:to.id, kind:k, port: port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port), vlan:null});
+    const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
+    if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
+    if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (to.type === 'switch' || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
+    rels.push({id:'r'+(++rseq), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by v.ljuca`);
     toast('Relation added'); render();
   };
@@ -1028,6 +1091,7 @@ function renderObj(o){
     const kept = [];
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = el.value;
+      if (k === 'user'){ o.uid = v || null; return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       if (o.feed && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
@@ -1052,9 +1116,19 @@ function modal(html, cls=''){
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
   $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
+  const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
 }
 const closeModal = () => $('#modalHost').innerHTML = '';
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#mdl')) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (!$('#mdl')) return;
+  if (e.key === 'Escape') closeModal();
+  if (e.key !== 'Tab') return;
+  const f = [...$('#mdl .box').querySelectorAll('button:not([disabled]), input:not([disabled]), select, textarea')];
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
 const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>`;
@@ -1069,9 +1143,11 @@ function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button id="setClose" class="primary">Done</button></div>`, 'wide');
+    <div class="mf"><button id="setReset" style="margin-right:auto">Reset demo data</button><button id="setClose" class="primary">Done</button></div>`, 'wide');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
+  let armed = false;
+  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to reset'; return; } resetDemo(); };
   renderSetPane();
 }
 function renderSetPane(){
@@ -1100,6 +1176,7 @@ let USERS = [
   {login:'', name:'Aussendienst', dept:'Sales', groups:[], source:'manual', active:true},
   {login:'', name:'Empfang (Check-in)', dept:'Reception', groups:[], source:'manual', active:true}
 ];
+USERS = USERS.map((u, i) => ({id:'u' + (i + 1), ...u}));
 /* What the directory returns for the search base in the settings. Mock data for this mockup. */
 const LDAP_SAMPLE = [
   {login:'a.frei', name:'A. Frei', dept:'IT', groups:['IT']},
@@ -1111,6 +1188,32 @@ st.ldap = {url:'ldaps://dc01.monsama.ch:636', bindDn:'CN=nobs-sync,OU=Service,DC
   filter:'(&(objectClass=user)(!(objectCategory=computer)))', group:'CN=IT-Inventory,OU=Groups,DC=monsama,DC=ch',
   nightly:true, disable:true, last:null};
 const devicesOf = name => objs.filter(o => o.user === name).length;
+const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
+function ensureUser(name){
+  let u = USERS.find(x => x.name === name);
+  if (!u){ u = {id:userId(), login:'', name, dept:'', groups:[], source:'manual', active:true}; USERS.push(u); }
+  return u;
+}
+/* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
+function bindUser(o){
+  const d = Object.getOwnPropertyDescriptor(o, 'user');
+  if (d && d.get) return;
+  const name = o.user;
+  delete o.user;
+  if (!o.uid) o.uid = name ? ensureUser(name).id : null;
+  Object.defineProperty(o, 'user', {
+    get(){ const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
+    set(v){ this.uid = v ? ensureUser(v).id : null; },
+    enumerable: true, configurable: true
+  });
+}
+objs.forEach(bindUser);
+/* Software on PCs and servers. */
+byName('ZH-PC-0142').software = [{name:'Microsoft Office',version:'2024'},{name:'Google Chrome',version:'129'},{name:'Adobe Acrobat Reader',version:'24.3'}];
+byName('ZH-PC-0143').software = [{name:'Microsoft Office',version:'2021'},{name:'Google Chrome',version:'129'}];
+byName('ZH-NB-0201').software = [{name:'Microsoft Office',version:'2024'}];
+byName('SRV-ZH-HV01').software = [{name:'Hyper-V',version:'Server 2022'}];
+byName('SRV-ZH-HV02').software = [{name:'Hyper-V',version:'Server 2022'}];
 
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
 const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
@@ -1160,7 +1263,7 @@ function renderSetUsers(){
       <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
-      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
+      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Active</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
@@ -1173,7 +1276,7 @@ function renderSetUsers(){
     const name = $('#nuName').value.trim();
     if (!name){ toast('Give the user a name first.'); return; }
     if (USERS.some(u => u.name.toLowerCase() === name.toLowerCase())){ toast(name + ' is already a user.'); return; }
-    USERS.push({login:'', name, dept:$('#nuDept').value.trim(), groups:[], source:'manual', active:true});
+    USERS.push({id:userId(), login:'', name, dept:$('#nuDept').value.trim(), groups:[], source:'manual', active:true});
     toast('Added ' + name); renderSetUsers();
   };
 }
@@ -1198,11 +1301,9 @@ function ldapPlan(){
 }
 function applyLdap(plan){
   plan.forEach(p => {
-    if (p.act === 'new') USERS.push({login:p.e.login, name:p.e.name, dept:p.e.dept, groups:p.e.groups, source:'ldap', active:true});
+    if (p.act === 'new') USERS.push({id:userId(), login:p.e.login, name:p.e.name, dept:p.e.dept, groups:p.e.groups, source:'ldap', active:true});
     if (p.act === 'changed'){
-      const old = p.u.name;
       Object.assign(p.u, {name:p.e.name, dept:p.e.dept, groups:p.e.groups});
-      objs.forEach(o => { if (o.user === old) o.user = p.e.name; });
     }
     if (p.act === 'off') p.u.active = false;
   });
@@ -1252,11 +1353,10 @@ function sanitizeSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const root = doc.documentElement;
   if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
-  root.querySelectorAll('script, foreignObject, image, use, style, iframe').forEach(n => n.remove());
-  root.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => {
-    const external = /^(xlink:)?href$/i.test(a.name) && !a.value.startsWith('#');
-    if (/^on/i.test(a.name) || external) n.removeAttribute(a.name);
-  }));
+  const OK_EL = ['svg','g','path','circle','ellipse','rect','line','polyline','polygon','title','defs','desc'];
+  const OK_AT = ['d','x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','width','height','points','fill','fill-rule','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','opacity','transform','id'];
+  root.querySelectorAll('*').forEach(n => { if (n !== root && !OK_EL.includes(n.localName)) n.remove(); });
+  root.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => { if (!OK_AT.includes(a.name.toLowerCase())) n.removeAttribute(a.name); }));
   const ser = new XMLSerializer();
   return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: root.getAttribute('viewBox') || '0 0 24 24'};
 }
@@ -1367,10 +1467,16 @@ function newObjModal(pre={}){
     const name = $('#nName').value.trim();
     if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
     if (byName(name)){ toast(name + ' already exists. Pick another name.'); return; }
+    const upId = $('#nUp').value;
+    if (upId && $('#nPort').value.trim()){
+      const t = byId(upId), pp = $('#nPort').value.trim();
+      const val = t.type === 'patch' ? pp.toUpperCase() : (t.type === 'switch' && /^\d+$/.test(pp) ? +pp : pp);
+      if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
+    }
     const o = O($('#nType').value, name, {model:$('#nModel').value || '—', serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
     if (o.type === 'patch') o.ports = 24;
-    objs.push(o); hist(o, now(), 'Created manually by v.ljuca');
+    objs.push(o); bindUser(o); hist(o, now(), 'Created manually by v.ljuca');
     const up = $('#nUp').value;
     if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && t.type === 'switch') p = +p;
       rels.push({id:'r'+(++rseq), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
@@ -1516,7 +1622,7 @@ function applyPlan(plan){
   plan.forEach(p => {
     if (p.act === 'new'){
       const o = O(p.type, p.name, {...p.rec, feed:F(p.ref, p.seen)});
-      objs.push(o); hist(o, SYNC_TIME, 'Created by feed sync');
+      objs.push(o); bindUser(o); hist(o, SYNC_TIME, 'Created by feed sync');
     }
   });
   FEED_NEW.forEach(n => {
@@ -1613,10 +1719,34 @@ function render(){
   else if (st.tab === 'map') renderMap();
   else if (st.tab === 'net') renderNet();
   else if (st.tab === 'rack') renderRack();
+  else if (st.tab === 'sw') renderSoftware();
   else renderObj(byId(st.tab));
   $('#stObjs').textContent = objs.length + ' objects';
   $('#stRels').textContent = rels.length + ' relations';
+  saveData();
 }
+/* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
+function saveData(){
+  try { localStorage.setItem('ni-data', JSON.stringify({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
+    policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq})); } catch(e) {}
+}
+function loadData(){
+  let d = null; try { d = JSON.parse(localStorage.getItem('ni-data') || 'null'); } catch(e) {}
+  if (!d) return;
+  objs.splice(0, objs.length, ...d.objs);
+  rels.splice(0, rels.length, ...d.rels);
+  Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
+  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
+  Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types);
+  Object.assign(st, {policy: d.policy, feedOn: d.feedOn, feedSync: d.feedSync, ldap: d.ldap, mapPos: d.mapPos});
+  seq = d.seq; codeN = d.codeN; rseq = d.rseq;
+  objs.forEach(bindUser);
+}
+function resetDemo(){
+  try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); } catch(e) {}
+  location.reload();
+}
+loadData();
 render();
 </script>
 </body>
