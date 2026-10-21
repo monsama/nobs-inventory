@@ -1,6 +1,43 @@
 services:
-  web:
+  app:
     build: .
-    ports:
-      - "8080:80"
+    image: nobs-inventory:0.2
+    expose:
+      - "8080"
+    environment:
+      # Used only when the server starts with no admin account yet. Change the password later under Settings → Users.
+      NI_ADMIN_PASSWORD: ${NI_ADMIN_PASSWORD:?Set NI_ADMIN_PASSWORD in .env}
+      # Caddy serves HTTPS, so the session cookie is sent only over HTTPS.
+      NI_SECURE_COOKIE: ${NI_SECURE_COOKIE:-1}
+      # LDAP / Active Directory sign-in. Leave NI_LDAP_URL empty to use local accounts only.
+      NI_LDAP_URL: ${NI_LDAP_URL:-}
+      NI_LDAP_BIND: ${NI_LDAP_BIND:-}
+      NI_LDAP_BASE: ${NI_LDAP_BASE:-}
+      NI_LDAP_ADMIN_GROUP: ${NI_LDAP_ADMIN_GROUP:-}
+      # Nightly Lansweeper import at 06:00 from this file inside the container (put the report in ./feed).
+      NI_FEED_CSV: ${NI_FEED_CSV:-}
+    volumes:
+      # The database lives here. A rebuild or an update does not touch it.
+      - ni-data:/data
+      - ./feed:/feed:ro
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      NI_HOST: ${NI_HOST:?Set NI_HOST in .env, the address people type}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  ni-data:
+  caddy-data:
+  caddy-config:
