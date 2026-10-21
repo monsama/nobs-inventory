@@ -141,6 +141,11 @@ table.grid th[draggable="true"]{cursor:grab}
 table.grid th.over{box-shadow:inset 3px 0 0 var(--accent),inset 0 -2px 0 var(--bd)}
 table.grid th .rz{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:2}
 table.grid th .rz:hover{background:var(--accent);opacity:.45}
+/* Sorting: click a header. Filtering: a box under each header (the big tables only). */
+table.grid th[data-sort="asc"]::after{content:' \25B2';font-size:9px;color:var(--muted)}
+table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
+table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
+table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;padding:1px 4px}
 
 /* switch ports */
 #net{padding:12px;display:flex;flex-direction:column;gap:12px}
@@ -1666,6 +1671,30 @@ function applyTable(t){
   [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
   t.style.tableLayout = Object.keys(s.widths).length ? 'fixed' : '';
   [...head.cells].forEach(th => { const w = s.widths[th.dataset.ci]; th.style.width = w ? w + 'px' : ''; });
+  applyView(t);
+}
+/* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */
+const dateKey = v => { const m = v.match(/^(\d{2})\.(\d{2})\.(\d{4})(?: (\d{2}):(\d{2}))?/); return m ? Number(m[3] + m[2] + m[1] + (m[4] || '00') + (m[5] || '00')) : null; };
+const numKey = v => /^-?\d+([.,]\d+)?$/.test(v) ? parseFloat(v.replace(',', '.')) : null;
+function cmpCells(x, y){
+  const dx = dateKey(x), dy = dateKey(y); if (dx !== null && dy !== null) return dx - dy;
+  const nx = numKey(x), ny = numKey(y); if (nx !== null && ny !== null) return nx - ny;
+  return x.localeCompare(y, 'de', {numeric: true});
+}
+function applyView(t){
+  const s = TBL[tableKey(t)], head = t.tHead && t.tHead.rows[0];
+  if (!s || !head) return;
+  const heads = [...head.cells];
+  const ciAt = heads.map(th => +th.dataset.ci);                 // visual position -> original column
+  heads.forEach(th => th.dataset.sort = s.sort && +th.dataset.ci === s.sort.ci ? (s.sort.dir > 0 ? 'asc' : 'desc') : '');
+  const rows = [...t.tBodies].flatMap(tb => [...tb.rows]);
+  const at = (row, ci) => { const c = row.cells[ciAt.indexOf(ci)]; return c ? c.textContent.trim() : ''; };
+  const filters = Object.entries(s.filters).filter(([, q]) => q);
+  rows.forEach(r => { r.style.display = filters.every(([ci, q]) => at(r, +ci).toLowerCase().includes(q.toLowerCase())) ? '' : 'none'; });
+  if (s.sort){
+    rows.sort((a, b) => s.sort.dir * cmpCells(at(a, s.sort.ci), at(b, s.sort.ci)));
+    const tb = t.tBodies[0]; if (tb) rows.forEach(r => tb.appendChild(r));
+  }
 }
 function resizeStart(e, t, th){
   e.preventDefault(); e.stopPropagation();
@@ -1683,15 +1712,34 @@ function setupTable(t){
   t.dataset.tb = '1';
   const key = tableKey(t);
   const n = head.cells.length;
-  const s = TBL[key] || (TBL[key] = {order: null, widths: {}});
+  const s = TBL[key] || (TBL[key] = {order: null, widths: {}, filters: {}, sort: null});
+  s.filters ??= {}; s.sort ??= null;
   if (!s.order || s.order.length !== n) s.order = [...Array(n).keys()];
   [...head.cells].forEach((th, i) => th.dataset.ci = i);
+  /* A filter box under each header, on the big tables only. */
+  if (!t.classList.contains('mini')){
+    const fr = document.createElement('tr'); fr.className = 'fr';
+    [...head.cells].forEach((th, i) => {
+      const c = document.createElement('th');
+      const inp = document.createElement('input');
+      inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); applyView(t); });
+      c.appendChild(inp); fr.appendChild(c);
+    });
+    head.parentNode.appendChild(fr);
+  }
   [...t.rows].forEach(r => r._orig = [...r.cells]);
   [...head.cells].forEach(th => {
     th.draggable = true;
     const rz = document.createElement('span'); rz.className = 'rz'; th.appendChild(rz);
     rz.addEventListener('pointerdown', e => resizeStart(e, t, th));
     th.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', th.dataset.ci); e.dataTransfer.effectAllowed = 'move'; });
+    th.addEventListener('click', e => {
+      if (e.target.classList.contains('rz')) return;
+      const cur = TBL[tableKey(t)], ci = +th.dataset.ci;
+      cur.sort = cur.sort && cur.sort.ci === ci ? {ci, dir: -cur.sort.dir} : {ci, dir: 1};
+      saveTBL(); applyView(t);
+    });
     th.addEventListener('dragover', e => { e.preventDefault(); th.classList.add('over'); });
     th.addEventListener('dragleave', () => th.classList.remove('over'));
     th.addEventListener('drop', e => {
