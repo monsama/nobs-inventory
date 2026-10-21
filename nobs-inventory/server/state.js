@@ -35,16 +35,29 @@ export function saveState(db, s) {
   if (new Set(ids).size !== ids.length) bad('Two objects have the same id.');
   if (ids.some(id => typeof id !== 'string' || !id)) bad('Every object needs an id.');
   if (JSON.stringify(s).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  const rows = [];
+  for (const o of s.objs) rows.push(['object', o.id, o]);
+  for (const r of s.rels) rows.push(['rel', String(r.id), r]);
+  for (const u of s.users) rows.push(['user', String(u.id), u]);
+  for (const [k, t] of Object.entries(s.types)) rows.push(['type', k, t]);
+  for (const [k, h] of Object.entries(s.history)) rows.push(['history', k, h]);
+  for (const k of SETTING_KEYS) if (s[k] !== undefined) rows.push(['setting', k, s[k]]);
+  /* Only the records that changed are written, so a small edit to a large inventory is a small write. */
+  const current = new Map(db.prepare('SELECT kind, id, data FROM docs').all().map(r => [r.kind + '\u0000' + r.id, r.data]));
+  const wanted = new Set();
   db.exec('BEGIN');
   try {
-    db.exec('DELETE FROM docs');
-    const put = db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)');
-    for (const o of s.objs) put.run('object', o.id, JSON.stringify(o));
-    for (const r of s.rels) put.run('rel', String(r.id), JSON.stringify(r));
-    for (const u of s.users) put.run('user', String(u.id), JSON.stringify(u));
-    for (const [k, t] of Object.entries(s.types)) put.run('type', k, JSON.stringify(t));
-    for (const [k, h] of Object.entries(s.history)) put.run('history', k, JSON.stringify(h));
-    for (const k of SETTING_KEYS) if (s[k] !== undefined) put.run('setting', k, JSON.stringify(s[k]));
+    const put = db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data');
+    const del = db.prepare('DELETE FROM docs WHERE kind = ? AND id = ?');
+    for (const [kind, id, value] of rows) {
+      const key = kind + '\u0000' + id;
+      wanted.add(key);
+      const json = JSON.stringify(value);
+      if (current.get(key) !== json) put.run(kind, id, json);
+    }
+    for (const [key, _] of current) {
+      if (!wanted.has(key)) { const [kind, id] = key.split('\u0000'); del.run(kind, id); }
+    }
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
