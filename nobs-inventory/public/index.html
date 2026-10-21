@@ -272,6 +272,20 @@ a.link:hover{text-decoration:underline}
 .diff del{color:var(--danger);text-decoration:line-through}
 .diff ins{color:var(--used);text-decoration:none}
 
+.maplegend{position:absolute;right:12px;bottom:10px;max-width:280px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:8px 10px;font-size:11px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.maplegend .lgtypes{display:flex;flex-wrap:wrap;gap:4px 10px}
+.maplegend .lgtypes span{display:inline-flex;align-items:center;gap:4px}
+.maplegend .lgtext{color:var(--muted);line-height:1.4}
+/* Object page: each panel folds from its header. Save waits for a change. More holds the rare actions. */
+.sechdr{cursor:pointer;user-select:none}
+.sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s}
+.collapsed>.sechdr::before{transform:rotate(-90deg)}
+.collapsed>:not(.sechdr){display:none}
+details.menu{position:relative}
+details.menu>summary{list-style:none;display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);cursor:pointer}
+details.menu>summary::-webkit-details-marker{display:none}
+.menubox{position:absolute;right:0;top:32px;z-index:10;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px}
+.menubox button{justify-content:flex-start}
 #toast{position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
@@ -364,19 +378,21 @@ const svg = (t, cls='i') => {
 const TYPES = {
   pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
-  sip:{label:'SIP phone', short:'SIP phone', color:'#1a7a5e', icon:'sip'},
-  tablet:{label:'Tablet', short:'Tablet', color:'#b5651d', icon:'tablet'},
-  monitor:{label:'Monitor', short:'Monitor', color:'#4f5b66', icon:'monitor'},
-  switch:{label:'Switch', short:'Switch', color:'#a8442a', icon:'switch'},
-  printer:{label:'Printer', short:'Printer', color:'#7a6a00', icon:'printer'},
-  patch:{label:'Patch panel', short:'Patch', color:'#8a5a00', icon:'patch'},
-  router:{label:'Router', short:'Router', color:'#2d6a8f', icon:'router'},
-  firewall:{label:'Firewall', short:'Firewall', color:'#b03a2e', icon:'firewall'},
-  modem:{label:'Modem', short:'Modem', color:'#6b5b95', icon:'modem'},
-  storage:{label:'Storage', short:'Storage', color:'#2a6f6f', icon:'storage'}
+  sip:{label:'SIP phone', short:'SIP phone', color:'#15803d', icon:'sip'},
+  tablet:{label:'Tablet', short:'Tablet', color:'#db2777', icon:'tablet'},
+  monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
+  switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
+  printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
+  patch:{label:'Patch panel', short:'Patch', color:'#0f766e', icon:'patch'},
+  router:{label:'Router', short:'Router', color:'#1e3a8a', icon:'router'},
+  firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
+  modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
+  storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
+  smartphone:{label:'Smartphone', short:'Phone', color:'#65a30d', icon:'mobile'},
+  other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
-const BUILTIN = ['pc','server','sip','tablet','monitor','switch','printer','patch'];
+const BUILTIN = ['pc','server','sip','tablet','monitor','switch','printer','patch','other'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 const LOCS = ['Zürich HQ / Serverraum UG','Zürich HQ / Büro 2.OG','Zürich HQ / Empfang','Zürich HQ / Lager','Bern / Büro'];
 const RACKS = [
@@ -637,7 +653,13 @@ function renderCardsBody(){
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; render(); };
-  if (!list.length){ $('#view').innerHTML = `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`; $('#clr2').onclick = () => $('#clearF').click(); return; }
+  if (!list.length){
+    $('#view').innerHTML = objs.length
+      ? `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`
+      : `<div class="empty">The inventory is empty. Add an object with New object, or connect a feed in Settings.</div>`;
+    const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
+    return;
+  }
   if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(cardHtml).join('')}</div>`; return; }
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
@@ -759,6 +781,13 @@ function mapInner(L){
   }).join('');
   return `<g class="medges">${edges}</g><g class="mnodes">${nodes}</g>`;
 }
+/* Key for the map: which colour is which type, and what a line label says. */
+function mapLegend(L){
+  const types = [...new Set(L.list.map(o => o.type))];
+  return `<div class="maplegend" aria-label="Map key">
+    <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
+    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links. The chain runs left to right from the top.</div></div>`;
+}
 function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
 function mapBox(L){
   const xs = L.list.map(o => L.pos[o.id].x), ys = L.list.map(o => L.pos[o.id].y);
@@ -797,9 +826,14 @@ function renderMap(){
     <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
     <button id="mapExport">Export SVG</button>`;
   MAP.L = mapLayout(nodes);
+  if (!MAP.L.list.length){
+    $('#mapCount').textContent = '0 objects';
+    $('#view').innerHTML = '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+    return;
+  }
   $('#mapCount').textContent = MAP.L.list.length + ' objects · ' + MAP.L.edges.length + ' relations';
   $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relationship map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
-    <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div></div>`;
+    <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
   svg.addEventListener('pointerdown', e => {
     const n = e.target.closest('.mnode');
@@ -931,7 +965,7 @@ function renderRack(){
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${esc(R_.name)}</div>
         <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${R_.units} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">Empty rack.</span>'}</div>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
       </div>
     </div></div>`;
 }
@@ -1028,7 +1062,7 @@ function renderObj(o){
   const rk = o.rack ? RACKS.find(r => r.id === o.rack) : null;
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button><button id="saveBtn" class="primary">Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button></div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => fieldHtml(o, f)).join('')}
@@ -1052,6 +1086,15 @@ function renderObj(o){
     </div></div>`;
 
   bindSoftware(o);
+  const objView = $('#view').querySelector('.obj');
+  const dirty = () => { $('#saveBtn').disabled = false; };
+  objView.addEventListener('input', dirty); objView.addEventListener('change', dirty);
+  $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
+    h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0; h.setAttribute('aria-expanded', 'true');
+    const toggle = () => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); };
+    h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
+    h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
+  });
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device is patched to a panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
@@ -1794,7 +1837,17 @@ function resetDemo(){
   try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); } catch(e) {}
   location.reload();
 }
+/* First run: choose demo or an empty inventory. Once chosen, it is not asked again. */
+function welcome(){
+  modal(`<div class="mh">Welcome to NOBS Inventory</div>
+    <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own. The demo can be loaded again from Settings.</p></div>
+    <div class="mf"><button id="wEmpty">Start empty</button><button id="wDemo" class="primary">Load demo</button></div>`, 'sm');
+  const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); };
+  $('#wDemo').onclick = done;
+  $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = []; saveData(); done(); };
+}
 loadData();
+if (!localStorage.getItem('ni-started') && !localStorage.getItem('ni-data')) welcome();
 render();
 </script>
 </body>
