@@ -557,5 +557,8 @@ try {
     $where = $_.InvocationInfo
     Write-PushLog "Failed: $($_.Exception.Message)" 'ERROR'
     if ($where -and $where.ScriptLineNumber) { Write-PushLog "  at line $($where.ScriptLineNumber): $($where.Line.Trim())" 'ERROR' }
+    $inner = $_.Exception.InnerException
+    Write-PushLog "  type: $($_.Exception.GetType().FullName)$(if ($inner) { '; inner: ' + $inner.GetType().FullName + ': ' + $inner.Message })" 'ERROR'
+    Write-PushLog "  stack: $(($_.ScriptStackTrace -split "`n" | Select-Object -First 4) -join ' | ')" 'ERROR'
     exit 1
 }
