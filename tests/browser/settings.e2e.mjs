@@ -32,7 +32,9 @@ try {
   // clear the inventory: two clicks, devices gone, admin and settings kept
   saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-X', ovr: {}, feed: null }], rels: [], history: {} });
   await page.click('#setTabs [data-st=feed]');
-  await page.click('#setReset'); await page.click('#setReset'); await page.waitForTimeout(400);
+  await page.click('#setReset'); await page.waitForSelector('#clrOk');
+  await page.fill('#clrWord', 'clear'); assert.equal(await page.isDisabled('#clrOk'), true, 'lower case confirms');
+  await page.fill('#clrWord', 'CLEAR'); await page.click('#clrOk'); await page.waitForTimeout(400);
   assert.equal(loadState(db).objs.length, 0, 'devices are cleared on the server');
   assert.ok(loadState(db).users.some(u => u.role === 'admin'), 'the admin stays');
   console.log('browser settings: all checks passed');

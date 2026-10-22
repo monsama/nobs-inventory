@@ -41,6 +41,15 @@ try {
   assert.equal(await p.evaluate(() => LOCS.includes('Basel / Lager')), true, 'the room was not added under the site');
   await p.click('#setClose');
   assert.ok((await p.textContent('#locList')).includes('Basel'), 'the sidebar does not show the site');
+  // Object types: adding a custom type keeps the built-in ones after a reload from the server.
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
+  await p.fill('#ntName', 'Note'); await p.click('#ntAdd');
+  await p.waitForFunction(() => Object.values(TYPES).some(t => t.label === 'Note'), null, { timeout: 5000 });
+  await p.waitForTimeout(1200);
+  await p.evaluate(() => reloadFromServer());
+  const types = await p.evaluate(() => Object.keys(TYPES));
+  assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
+  await p.click('#setClose');
   assert.deepEqual(await p.evaluate(() => parseCsv('Name,Type\nX1,pc')), [['Name', 'Type'], ['X1', 'pc']], 'CSV parsing');
   await ctx.close();
 
