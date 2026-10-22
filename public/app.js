@@ -622,6 +622,7 @@ function renderNet(){
 function renderRack(){
   const R_ = RACKS.find(r => r.id === st.rackId) || RACKS[0];
   if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet.</div>'; return; }
+  st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${RACKS.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
