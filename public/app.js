@@ -35,7 +35,7 @@ const svg = (t, cls='i') => {
 const TYPES = {
   pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
-  sip:{label:'SIP phone', short:'SIP phone', color:'#15803d', icon:'sip'},
+  sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
   tablet:{label:'Tablet', short:'Tablet', color:'#db2777', icon:'tablet'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
   switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
@@ -45,7 +45,9 @@ const TYPES = {
   firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
   modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
   storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
-  smartphone:{label:'Smartphone', short:'Phone', color:'#65a30d', icon:'mobile'},
+  iphone:{label:'iPhone', short:'iPhone', color:'#65a30d', icon:'mobile'},
+  android:{label:'Android phone', short:'Android', color:'#84cc16', icon:'mobile'},
+  smartphone:{label:'Other smartphone', short:'Phone', color:'#65a30d', icon:'mobile'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
@@ -1303,7 +1305,7 @@ function checkAddress(k, raw){
   return {ok: true, value: v};
 }
 /* Readable names for the icons, for the dropdown. */
-const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'SIP phone', mobile: 'Smartphone', tablet: 'Tablet',
+const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Smartphone', tablet: 'Tablet',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
   ups: 'UPS', accesspoint: 'Access point', other: 'Other' };
@@ -1368,7 +1370,7 @@ function renderSetTypes(){
 /* Feed. The Lansweeper API settings are saved in the inventory; the token is on the server. A Lansweeper export
    can also be uploaded here. */
 /* The push token made in this panel. undefined until it is loaded; the new token is shown once, here. */
-let pushInfo, pushNew = '';
+let pushInfo, pushNew = '', pushNote = '';
 async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
   if (r.ok){ pushInfo = (await r.json()).info; if ($('#setFeed')) renderSetFeed(); }
@@ -1388,7 +1390,7 @@ function renderSetFeed(){
       ${pushNew ? '<button id="pushCopy">Copy token</button>' : ''}
       ${pushInfo ? '<button id="pushRevoke" class="danger-text">Revoke</button>' : ''}
       <button id="pushScript" ${pushInfo ? '' : 'disabled title="Create a token first"'}>Download script</button>
-      <span class="note" id="pushMsg"></span></div></div>` : '';
+      <span class="note" id="pushMsg">${esc(pushNote)}</span></div></div>` : '';
   $('#setFeed').innerHTML = pushPanel + `<div class="panelbox"><div class="hdr">Lansweeper API</div>
     <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
@@ -1407,17 +1409,21 @@ function renderSetFeed(){
     const r = await fetch('api/feed/push-token', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ pushMsg(j.error || 'The token could not be made.'); return; }
-    pushNew = j.token; pushInfo = j.info; renderSetFeed();
+    pushNew = j.token; pushInfo = j.info; pushNote = ''; renderSetFeed();
   };
+  /* After a copy the token is hidden again; it can only be read once, then a new token is made. */
   if ($('#pushCopy')) $('#pushCopy').onclick = async () => {
     const box = $('#pushTok'); box.select();
-    try { await navigator.clipboard.writeText(pushNew); pushMsg('Copied.'); } catch (e) { document.execCommand('copy'); pushMsg('Copied.'); }
+    let copied = false;
+    try { await navigator.clipboard.writeText(pushNew); copied = true; } catch (e) { copied = document.execCommand('copy'); }
+    if (!copied){ pushMsg('Could not copy. Select the token and copy it by hand.'); return; }
+    pushNew = ''; pushNote = 'Copied. The token is hidden now. Make a new one if you need it again.'; renderSetFeed();
   };
   if ($('#pushRevoke')) $('#pushRevoke').onclick = async () => {
     if (!confirm('Revoke the token? The Lansweeper script stops working until you make a new one.')) return;
     const r = await fetch('api/feed/push-token', {method: 'DELETE', credentials: 'same-origin'});
     if (!r.ok){ pushMsg('The token could not be revoked.'); return; }
-    pushInfo = null; pushNew = ''; renderSetFeed();
+    pushInfo = null; pushNew = ''; pushNote = ''; renderSetFeed();
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
