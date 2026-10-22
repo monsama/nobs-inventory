@@ -20,6 +20,7 @@
     .\Lansweeper-Push.ps1 -DryRun                        # read Lansweeper, show the first records, send nothing
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
+    .\Lansweeper-Push.ps1 -FindTables                   # list the tables and columns that may hold links (port, switch, monitor)
 #>
 [CmdletBinding()]
 param(
@@ -27,6 +28,7 @@ param(
     [switch]$SetCredential,
     [switch]$SetSqlCredential,
     [switch]$RegisterTask,
+    [switch]$FindTables,
     [string]$TaskTime = '06:30'
 )
 
@@ -141,7 +143,7 @@ function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
     return "CAST(NULL AS nvarchar(200)) AS [$out]"
 }
 
-function Get-LsRecords {
+function Open-LsConnection {
     $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString
     if ($Config.SqlUseStoredCredential) {
         $cred = Get-StoredSqlCredential
@@ -151,6 +153,23 @@ function Get-LsRecords {
     }
     $conn = New-Object System.Data.SqlClient.SqlConnection $csb.ConnectionString
     $conn.Open()
+    return $conn
+}
+
+function Find-LsTables {
+    $conn = Open-LsConnection
+    try {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        $reader = $cmd.ExecuteReader()
+        $lines = New-Object System.Collections.Generic.List[string]
+        try { while ($reader.Read()) { $lines.Add("$($reader[0]).$($reader[1])") } } finally { $reader.Close() }
+        return , $lines.ToArray()
+    } finally { $conn.Dispose() }
+}
+
+function Get-LsRecords {
+    $conn = Open-LsConnection
     try {
         $schema = Initialize-Schema $conn
         if ($schema.Problems.Count) {
@@ -249,6 +268,14 @@ try {
         exit 0
     }
     if ($RegisterTask) { Register-PushTask; exit 0 }
+    if ($FindTables) {
+        $lines = Find-LsTables
+        $file = Join-Path $Config.DataDir 'tables.txt'
+        $lines | Set-Content -Path $file -Encoding UTF8
+        $lines | ForEach-Object { Write-Host $_ }
+        Write-PushLog "Found $($lines.Count) column(s). Saved to $file"
+        exit 0
+    }
 
     Write-PushLog 'Reading Lansweeper ...'
     $records = Get-LsRecords
