@@ -44,7 +44,7 @@ try {
   await page.waitForSelector('#setAbout:has-text("Version")');
   const about = await page.textContent('#setAbout');
   assert.match(about, /Version 0\.2\.6/, 'About shows the version');
-  assert.match(about, /GNU General Public License version 2/, 'About shows the licence');
+  assert.match(about, /GNU General Public License version 3/, 'About shows the licence');
   assert.match(about, /Copyright © 2026 Viktor Ljuca/);
   await page.click('#setClose');
   assert.match(await page.textContent('#verFoot'), /NOBS Inventory 0\.2\.6/, 'the footer shows the version');
