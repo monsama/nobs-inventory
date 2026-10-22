@@ -956,11 +956,11 @@ function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button id="setReset" style="margin-right:auto">Reset demo data</button><button id="setClose" class="primary">Done</button></div>`, 'wide');
+    <div class="mf"><button id="setReset" style="margin-right:auto">${SERVER.on ? 'Clear inventory' : 'Reset demo data'}</button><button id="setClose" class="primary">Done</button></div>`, 'wide');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
   let armed = false;
-  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to reset'; return; } resetDemo(); };
+  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } resetDemo(); };
   renderSetPane();
 }
 function renderSetPane(){
@@ -1164,7 +1164,7 @@ function applyLdap(plan){
   renderSetPane(); render();
 }
 function renderSetLdap(){
-  const L = st.ldap;
+  const L = st.ldap || {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null};
   $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${L.last ? 'Last sync ' + esc(L.last) : 'Never synced'}</span></div>
     <div class="form" style="grid-template-columns:150px minmax(0,1fr)">
       <label for="lk_url">Server</label><input id="lk_url" class="mono" data-lk="url" value="${esc(L.url)}">
@@ -1727,7 +1727,8 @@ function applyState(d){
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
   Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types);
-  Object.assign(st, {policy: d.policy, feedOn: d.feedOn, feedSync: d.feedSync, ldap: d.ldap, mapPos: d.mapPos});
+  /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
+  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
@@ -1737,7 +1738,19 @@ function loadData(){
   applyState(d);
   st.meId = d.meId ?? null;
 }
-function resetDemo(){
+/* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
+   for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
+async function resetDemo(){
+  if (SERVER.on){
+    if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
+    objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]);
+    try {
+      const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(snapshot())});
+      if (!r.ok){ toast('Not cleared: ' + ((await r.json().catch(() => ({}))).error || r.status)); return; }
+      SERVER.last = JSON.stringify(snapshot());
+    } catch(e) { toast('Not cleared: the server cannot be reached.'); return; }
+    closeModal(); toast('Inventory cleared on the server'); render(); return;
+  }
   try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); } catch(e) {}
   location.reload();
 }
