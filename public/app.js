@@ -68,6 +68,9 @@ const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','si
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 let seq = 100, codeN = 0;
+const nextCode = () => 'INV-' + String(++codeN).padStart(4, '0');
+const F = (ref, seen) => ({sys:'Lansweeper', ref, seen});
+const O = (type, name, f) => ({id:'o'+(++seq), code:nextCode(), type, name, status:'active', feed:null, ovr:{}, ...f});
 
 const objs = [];
 const byName = n => objs.find(o => o.name === n);
