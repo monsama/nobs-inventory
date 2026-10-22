@@ -109,7 +109,7 @@ function applyLinks(s, pairs) {
       const existing = s.rels.find(x => x.from === obj.id && x.to === to.id && x.kind === l.kind);
       /* A link made by hand is left as it is; only links Lansweeper made get a new port. */
       if (existing) {
-        if (existing.src === 'Lansweeper' && existing.port !== port) { existing.port = port; n++; }
+        if (existing.src === 'Lansweeper' && port && existing.port !== port) { existing.port = port; n++; }
         continue;
       }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
