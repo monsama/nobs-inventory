@@ -186,6 +186,18 @@ test('pushed links join objects: a device to its switch port, a monitor to its P
   assert.equal(s.rels.length, 2, 'a second push does not add the links again');
 });
 
+test('a virtual machine is linked to its host by name, as runs on', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  const counts = mergeRecords(s, recordsFromJson([
+    { name: 'ESX01', assetType: 'VMware', ref: 'h1' },
+    { name: 'VM-APP', assetType: 'Virtual machine', ref: 'v1', links: [{ name: 'ESX01', kind: 'hosted' }] }
+  ]));
+  assert.equal(counts.links, 1);
+  const id = n => s.objs.find(o => o.name === n).id;
+  assert.ok(s.rels.some(r => r.from === id('VM-APP') && r.to === id('ESX01') && r.kind === 'hosted'));
+});
+
 test('pushed software replaces the Lansweeper software and keeps what was typed by hand', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'PC1', type: 'pc', feed: { sys: 'Lansweeper', ref: 'pc1' }, ovr: {}, software: [{ name: 'Typed', version: '1' }, { name: 'Old', version: '1', src: 'Lansweeper' }] }],

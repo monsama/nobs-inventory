@@ -65,6 +65,7 @@ const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
+  hosted:{fwd:'runs on', rev:'hosts'},
   connected:{fwd:'connected to', rev:'connects'},
   patched:{fwd:'patched to', rev:'patched from'},
   uplink:{fwd:'uplink to', rev:'downlink from'},
