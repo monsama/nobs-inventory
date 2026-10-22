@@ -50,7 +50,7 @@ step_env() {
         [ -z "$host" ] && host="$(grep '^NI_HOST=' "$env" | cut -d= -f2-)"
     fi
     if [ -z "$host" ] || [ "$host" = "inventory.example.ch" ]; then
-        if [ -t 0 ]; then read -r -p "Name people will type (e.g. inventory.monsama.ch, or localhost for testing): " host; fi
+        if [ -t 0 ]; then read -r -p "Name people will type (e.g. inventory.example.ch, or localhost for testing): " host; fi
         [ -n "$host" ] || fail "Set NI_HOST (the address people type), e.g. NI_HOST=inventory.example.ch sudo ./deploy-nobs.sh"
     fi
     if [ ! -f "$env" ]; then

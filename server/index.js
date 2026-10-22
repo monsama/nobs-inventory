@@ -70,7 +70,8 @@ export function configFromEnv(env) {
     serviceDn: env.NI_LDAP_SERVICE_DN || '',
     servicePassword: env.NI_LDAP_SERVICE_PASSWORD || '',
     userFilter: env.NI_LDAP_USER_FILTER || '',
-    caFile: env.NI_LDAP_CA || ''
+    caFile: env.NI_LDAP_CA || '',
+    allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1'
   };
 }
 
