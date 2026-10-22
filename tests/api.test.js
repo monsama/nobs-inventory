@@ -208,6 +208,17 @@ test('pushed cpu, memory and last user: the user fills an object only when nobod
   assert.equal(s.objs.find(o => o.name === 'PC2').user, 'mueller', 'a new object gets the last user');
 });
 
+test('firmware, power event, disks, update and antivirus move only where the policy allows', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [{ id: 'o1', name: 'SRV1', type: 'server', feed: { sys: 'Lansweeper', ref: 'srv1' }, ovr: {} }],
+    rels: [], policy: { fw: true, disk: true, av: false }, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  mergeRecords(s, recordsFromJson([{ name: 'SRV1', ref: 'srv1', fw: '2.10', boot: '2026-10-20 06:00', disk: 'C: 40/120 GB', patch: 'KB5034441 (2026-10-01)', av: 'Defender, scanning on, up to date' }]));
+  assert.equal(s.objs[0].fw, '2.10');
+  assert.equal(s.objs[0].disk, 'C: 40/120 GB');
+  assert.equal(s.objs[0].av, undefined, 'antivirus is off in the policy');
+  assert.equal(s.objs[0].boot, undefined, 'power event is off in the policy');
+});
+
 test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
   const srv = await startServer({ feedToken: 'push-secret-123' });
   const push = (auth, body) => fetch(srv.base + '/api/feed/push', {

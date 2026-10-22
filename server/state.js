@@ -8,7 +8,7 @@ export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'fee
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, user: false, loc: false, status: false };
+const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: false, disk: false, patch: false, av: false, user: false, loc: false, status: false };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
 export const docKey = (kind, id) => kind + '|' + id;

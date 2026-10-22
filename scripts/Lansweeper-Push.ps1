@@ -10,7 +10,8 @@
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
     Links are sent too: each device to the switch port it is connected to (from the Lansweeper switch report),
-    and each monitor to the PC it is attached to (from the monitor scan). The installed software of each device is sent as well.
+    and each monitor to the PC it is attached to (from the monitor scan). The installed software of each device is sent as well,
+    and its firmware, last power event, disks, last update and antivirus state.
 
     The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
     machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
@@ -73,6 +74,11 @@ $script:Wanted = [ordered]@{
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
+    tblBIOS        = @('AssetID', 'Version')
+    tblUptime      = @('AssetId', 'EventTime')
+    tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace')
+    tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
+    tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -226,6 +232,54 @@ function Get-SoftwareByAsset($conn) {
     return $map
 }
 
+# Firmware, last power event, disks, last update and antivirus per asset. Each part is left out when its table is missing.
+function Get-HealthByAsset($conn) {
+    $health = @{}
+    function Get-Entry($id) { if (-not $health.ContainsKey($id)) { $health[$id] = @{} }; return $health[$id] }
+    if (Test-Col 'tblBIOS' 'Version') {
+        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [Version] FROM [tblBIOS]'
+        $rd = $r.ExecuteReader()
+        try { while ($rd.Read()) { $id = ConvertTo-Text $rd['AssetID']; $v = Get-Clean $rd['Version']; if ($id -and $v -and -not (Get-Entry $id).ContainsKey('fw')) { (Get-Entry $id)['fw'] = $v } } } finally { $rd.Close() }
+    }
+    if (Test-Col 'tblUptime' 'EventTime') {
+        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetId], MAX([EventTime]) AS [last] FROM [tblUptime] GROUP BY [AssetId]'
+        $rd = $r.ExecuteReader()
+        try { while ($rd.Read()) { $id = ConvertTo-Text $rd['AssetId']; if ($id -and $rd['last'] -is [datetime]) { (Get-Entry $id)['boot'] = $rd['last'].ToString('yyyy-MM-dd HH:mm') } } } finally { $rd.Close() }
+    }
+    if (Test-Col 'tblVolume' 'DriveLetter') {
+        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [DriveLetter], [Capacity], [FreeSpace] FROM [tblVolume] WHERE [DriveLetter] IS NOT NULL'
+        $rd = $r.ExecuteReader()
+        try { while ($rd.Read()) {
+            $id = ConvertTo-Text $rd['AssetID']; $letter = ConvertTo-Text $rd['DriveLetter']
+            if (-not $id -or -not $letter) { continue }
+            $e = Get-Entry $id
+            $size = if ($rd['Capacity'] -is [System.DBNull] -or $null -eq $rd['Capacity']) { '' } else { '{0:N0}/{1:N0} GB' -f ([double]$rd['FreeSpace'] / 1GB), ([double]$rd['Capacity'] / 1GB) }
+            $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size") | Where-Object { $_ }) -join '; '
+        } } finally { $rd.Close() }
+    }
+    if (Test-Col 'tblQuickFixEngineering' 'InstalledOn') {
+        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [QFEID], [InstalledOn] FROM [tblQuickFixEngineering] WHERE [InstalledOn] IS NOT NULL'
+        $rd = $r.ExecuteReader()
+        try { while ($rd.Read()) {
+            $id = ConvertTo-Text $rd['AssetID']; $date = $rd['InstalledOn']
+            if (-not $id -or -not ($date -is [datetime])) { continue }
+            $e = Get-Entry $id
+            if (-not $e.ContainsKey('patchDate') -or $date -gt $e['patchDate']) { $e['patchDate'] = $date; $e['patch'] = "$(ConvertTo-Text $rd['QFEID']) ($($date.ToString('yyyy-MM-dd')))" }
+        } } finally { $rd.Close() }
+    }
+    if (Test-Col 'tblAntivirus' 'DisplayName') {
+        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [DisplayName], [onAccessScanningEnabled], [productUpToDate] FROM [tblAntivirus]'
+        $rd = $r.ExecuteReader()
+        try { while ($rd.Read()) {
+            $id = ConvertTo-Text $rd['AssetID']; $name = Get-Clean $rd['DisplayName']
+            if (-not $id -or -not $name) { continue }
+            $on = ([string]$rd['onAccessScanningEnabled']) -in @('1', 'True'); $upd = ([string]$rd['productUpToDate']) -in @('1', 'True')
+            (Get-Entry $id)['av'] = "$name, " + $(if ($on) { 'scanning on' } else { 'scanning OFF' }) + ', ' + $(if ($upd) { 'up to date' } else { 'out of date' })
+        } } finally { $rd.Close() }
+    }
+    return $health
+}
+
 # Monitors with a serial number, each linked to the PC it is attached to.
 function Get-MonitorRecords($conn) {
     $list = New-Object System.Collections.Generic.List[object]
@@ -332,11 +386,17 @@ function Get-LsRecords {
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
+                    fw = ''; boot = ''; disk = ''; patch = ''; av = ''
                 })
             }
         } finally { $reader.Close() }
         $links = Get-SwitchLinks $conn
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
+        $health = Get-HealthByAsset $conn
+        foreach ($rec in $list) {
+            $h = $health[$rec['ref']]
+            foreach ($k in @('fw', 'boot', 'disk', 'patch', 'av')) { $rec[$k] = $(if ($h -and $h.ContainsKey($k)) { $h[$k] } else { '' }) }
+        }
         $software = Get-SoftwareByAsset $conn
         if ($software) {
             foreach ($rec in $list) { $rec['software'] = $(if ($software.ContainsKey($rec['ref'])) { @($software[$rec['ref']]) } else { @() }) }
