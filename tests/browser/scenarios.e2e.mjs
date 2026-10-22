@@ -67,6 +67,12 @@ try {
   await p.locator('.relrow', { hasText: 'SW-ZH-2OG-01' }).locator('[data-delrel]').click();
   assert.equal(await state(p, () => rels.length), before - 1, 'the relation was not removed');
 
+  // Delete an object for good: it leaves the inventory with its relations.
+  await openByName(p, 'SCEN-SIP-1');
+  const sipId = await idOf(p, 'SCEN-SIP-1');
+  await p.click('details.menu > summary'); await p.click('#purgeBtn'); await p.click('#pgOk');
+  assert.equal(await state(p, () => byName('SCEN-SIP-1') === undefined), true, 'the object was not deleted');
+  assert.equal(await state(p, id => rels.some(r => r.from === id || r.to === id), sipId), false, 'the deleted object still has relations');
   // Retire an object.
   await openByName(p, 'MON-0433');
   await p.click('details.menu > summary'); await p.click('#delBtn');
@@ -126,6 +132,7 @@ try {
   if (await q.isVisible('#lgUser')) { await q.fill('#lgUser', 'admin'); await q.fill('#lgPw', 'adminpass123'); await q.click('#lgOk'); }
   await q.waitForFunction(() => objs.length > 0, null, { timeout: 10000 });
   assert.equal(await state(q, () => byName('SRV-ZH-HV01').model), 'KEPT MODEL', 'the edit was not kept after reload');
+  assert.equal(await state(q, () => byName('SCEN-SIP-1') === undefined), true, 'a deleted object came back after reload');
   await ctx2.close();
 
   assert.deepEqual(errors, [], 'page errors');
