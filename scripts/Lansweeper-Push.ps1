@@ -274,7 +274,8 @@ function Get-HealthByAsset($conn) {
             $id = ConvertTo-Text $rd['AssetID']; $letter = ConvertTo-Text $rd['DriveLetter']
             if (-not $id -or -not $letter) { continue }
             $e = Get-Entry $id
-            $size = if ($rd['Capacity'] -is [System.DBNull] -or $null -eq $rd['Capacity']) { '' } else { '{0:N0}/{1:N0} GB' -f ([double]$rd['FreeSpace'] / 1GB), ([double]$rd['Capacity'] / 1GB) }
+            $capacity = ConvertTo-Text $rd['Capacity']; $free = ConvertTo-Text $rd['FreeSpace']
+            $size = if ($capacity -match '^\d+$') { '{0:N0}/{1:N0} GB' -f ([double]$free / 1GB), ([double]$capacity / 1GB) } else { '' }
             $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size") | Where-Object { $_ }) -join '; '
         } } finally { $rd.Close() }
     }
@@ -548,6 +549,8 @@ try {
         $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded)
     exit 0
 } catch {
+    $where = $_.InvocationInfo
     Write-PushLog "Failed: $($_.Exception.Message)" 'ERROR'
+    if ($where -and $where.ScriptLineNumber) { Write-PushLog "  at line $($where.ScriptLineNumber): $($where.Line.Trim())" 'ERROR' }
     exit 1
 }
