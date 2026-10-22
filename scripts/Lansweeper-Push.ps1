@@ -433,7 +433,12 @@ function Get-LsRecords {
         }
         $software = Get-SoftwareByAsset $conn
         if ($software) {
-            foreach ($rec in $list) { $rec['software'] = $(if ($software.ContainsKey($rec['ref'])) { @($software[$rec['ref']]) } else { @() }) }
+            foreach ($rec in $list) {
+                $key = [string]$rec['ref']
+                $items = New-Object System.Collections.Generic.List[object]
+                if ($software.ContainsKey($key)) { foreach ($x in $software[$key]) { $items.Add($x) } }
+                $rec['software'] = $items.ToArray()
+            }
         }
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
         return , $list.ToArray()
