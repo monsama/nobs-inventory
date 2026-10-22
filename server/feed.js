@@ -12,7 +12,7 @@ const TYPE_WORDS = [
   [/virtual machine|\bvm\b/i, 'vm'],
   [/webserver|\bweb\b/i, 'other'],
   [/ipad|tablet/i, 'tablet'], [/iphone/i, 'iphone'], [/android/i, 'android'], [/smartphone|mobile/i, 'smartphone'],
-  [/phone|voip|sip/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
+  [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
   [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
   [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
 ];
