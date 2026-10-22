@@ -1,9 +1,10 @@
+import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ldap from 'ldapjs';
 import { startServer, signIn } from './helpers.js';
 import { syncLdapUsers } from '../server/ldap-sync.js';
-import { ldapListUsers } from '../server/ldap.js';
+import { ldapListUsers, ldapLogin } from '../server/ldap.js';
 import { loadState, saveState } from '../server/state.js';
 
 /* A directory stand-in. It checks passwords, applies the requested filter and returns every attribute. */
@@ -109,4 +110,58 @@ test('directory sync refuses a change that would leave no active admin, and chan
 
 test('a plain ldap:// address is refused unless it is allowed, so passwords are not sent unencrypted', async () => {
   await assert.rejects(ldapListUsers({ ...cfg('ldap://127.0.0.1:1'), allowPlain: false }), /unencrypted/);
+});
+
+/* A stand-in for the directory client that evaluates the filters the server sends, including the nested-group rule
+   ("memberOf in chain"), so the queries and how their answers are used are both tested. */
+const DIR = { group: 'CN=Inventory-Users,OU=Groups,DC=test', admin: 'CN=IT-Inventory,OU=Groups,DC=test', nested: 'CN=Field-Team,OU=Groups,DC=test', other: 'CN=Canteen,OU=Groups,DC=test' };
+const fakePeople = [
+  { login: 'anna', pw: 'pw-anna', groups: [DIR.admin], chain: [DIR.admin, DIR.group] },   /* admin group, which is inside the sign-in group */
+  { login: 'ben', pw: 'pw-ben', groups: [DIR.nested], chain: [DIR.nested, DIR.group] },   /* in a group nested in the sign-in group */
+  { login: 'carl', pw: 'pw-carl', groups: [DIR.other], chain: [DIR.other] },
+];
+const matchesFilter = (filter, p) => {
+  const login = /\(sAMAccountName=([^()]*)\)/.exec(filter)?.[1];
+  if (login !== undefined && p.login !== login.toLowerCase()) return false;
+  const g = /memberOf:1\.2\.840\.113556\.1\.4\.1941:=([^()]*)\)/.exec(filter)?.[1];
+  if (g !== undefined && !p.chain.some(x => x.toLowerCase() === g.toLowerCase())) return false;
+  return true;
+};
+const fakeDirectory = opts => {
+  const dn = p => `cn=${p.login},ou=people,dc=test`;
+  return {
+    on: () => {},
+    unbind: cb => cb && cb(),
+    bind: (name, pw, cb) => {
+      const p = fakePeople.find(x => dn(x) === name);
+      const ok = p ? p.pw === pw : name === 'cn=svc,ou=service,dc=test' && pw === 'svc-secret';
+      setImmediate(() => cb(ok ? null : new ldap.InvalidCredentialsError()));
+    },
+    search: (base, o, cb) => {
+      const res = new EventEmitter();
+      cb(null, res);
+      setImmediate(() => {
+        for (const p of fakePeople.filter(x => matchesFilter(o.filter, x))) {
+          res.emit('searchEntry', { pojo: { objectName: dn(p), attributes: [
+            { type: 'sAMAccountName', values: [p.login] }, { type: 'displayName', values: [p.login.toUpperCase()] },
+            { type: 'memberOf', values: p.groups }] } });
+        }
+        res.emit('end');
+      });
+    },
+  };
+};
+const nestedCfg = { ...cfg('ldaps://fake'), group: DIR.group, adminGroup: DIR.admin, createClient: fakeDirectory };
+
+test('nested groups: a member of a group inside the sign-in group may sign in; an admin is recognised the same way', async () => {
+  assert.equal((await ldapLogin(nestedCfg, 'ben', 'pw-ben')).allowed, true, 'the nested member was refused');
+  assert.equal((await ldapLogin(nestedCfg, 'ben', 'pw-ben')).admin, false);
+  assert.equal((await ldapLogin(nestedCfg, 'anna', 'pw-anna')).admin, true, 'the admin was not recognised');
+  assert.equal((await ldapLogin(nestedCfg, 'carl', 'pw-carl')).allowed, false, 'someone outside the group was let in');
+  assert.equal(await ldapLogin(nestedCfg, 'ben', 'wrong'), null, 'a wrong password was accepted');
+});
+
+test('nested groups: the sync covers the members of the sign-in group, with admins flagged', async () => {
+  const people = await ldapListUsers(nestedCfg);
+  assert.deepEqual(people.map(p => [p.login, p.admin]).sort(), [['anna', true], ['ben', false]]);
 });

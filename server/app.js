@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { loadState, saveState, applyChanges } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
-import { ldapEnabled, ldapLogin, inGroup } from './ldap.js';
+import { ldapEnabled, ldapLogin } from './ldap.js';
 import { mergeFeed } from './feed.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -80,8 +80,8 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
         let d;
         try { d = await ldapLogin(ldap, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
-        if (d && inGroup(d, ldap.group)) {
-          const isAdmin = !!ldap.adminGroup && inGroup(d, ldap.adminGroup);
+        if (d && d.allowed) {
+          const isAdmin = !!d.admin;
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
           saveUserDoc(user);

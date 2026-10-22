@@ -11,13 +11,17 @@ const LOGIN_OK = /^[\w.@-]{1,64}$/;
 const escapeFilter = v => String(v).replace(/[\\*()\0]/g, c => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
 const cnOf = dn => String(dn).replace(/^CN=/i, '').split(',')[0];
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+/* A group given as a distinguished name (CN=…,OU=…) is matched with its nested groups too. */
+const isDn = g => /=/.test(String(g || ''));
+/* Active Directory's "in chain" rule: true when the user is in the group directly or through groups nested in it. */
+const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
 
 function connect(config) {
   /* A plain ldap:// connection sends the password unencrypted. It needs an explicit opt-in (NI_LDAP_ALLOW_PLAIN=1). */
   if (/^ldap:\/\//i.test(config.url) && !config.allowPlain) throw new Error('The directory address starts with ldap://, which sends passwords unencrypted. Use ldaps:// or set NI_LDAP_ALLOW_PLAIN=1.');
   const opts = { url: config.url, timeout: 8000, connectTimeout: 8000 };
   if (config.caFile) opts.tlsOptions = { ca: [fs.readFileSync(config.caFile)] };
-  const client = ldap.createClient(opts);
+  const client = (config.createClient || ldap.createClient)(opts);
   // Connection errors also reach the pending bind or search callback; without this listener they would crash the server.
   client.on('error', () => {});
   return client;
@@ -56,30 +60,53 @@ export function profileOf(attrs, config) {
     groups: (attrs.memberof ?? []).map(cnOf)
   };
 }
+/* Membership of the groups the user is directly in. Used when a group is given by name. */
 export const inGroup = (profile, group) => !group || profile.groups.some(g => same(g, group));
 
-/* Checks the login and password. Returns the profile, or null when the password is wrong. Throws when the
-   directory cannot be reached, so the caller can tell the two apart. */
+/* Whether the user is in a group: by distinguished name, nested groups count; by name, only direct membership. */
+async function isMember(client, config, login, profile, group) {
+  if (!group) return true;
+  if (!isDn(group)) return inGroup(profile, group);
+  const hit = await ldapSearch(client, config.searchBase, `(&(${config.loginAttr}=${escapeFilter(login)})${chain(group)})`, ['cn']);
+  return hit.length > 0;
+}
+
+/* Checks the login and password. Returns the profile with allowed (may sign in) and admin (is an admin), or null
+   when the password is wrong. Throws when the directory cannot be reached, so the caller can tell the two apart. */
 export async function ldapLogin(config, login, password) {
   if (!password || !LOGIN_OK.test(login)) return null;
   const client = connect(config);
   try {
     await bind(client, config.bindTemplate.replace('{login}', login), password);
     const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`);
-    return entry ? profileOf(entry.attrs, config) : null;
+    if (!entry) return null;
+    const profile = profileOf(entry.attrs, config);
+    profile.allowed = await isMember(client, config, login, profile, config.group);
+    profile.admin = !!config.adminGroup && await isMember(client, config, login, profile, config.adminGroup);
+    return profile;
   } catch (err) {
     if (err instanceof ldap.InvalidCredentialsError) return null;
     throw err;
   } finally { close(client); }
 }
 
-/* Every user the sync covers, read with the service account. */
+/* Every user the sync covers, read with the service account: the members of the sign-in group, each with admin set
+   when they are in the admin group. */
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   const client = connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
-    const entries = await ldapSearch(client, config.searchBase, config.userFilter || '(objectClass=person)');
-    return entries.map(e => profileOf(e.attrs, config)).filter(p => p.login);
+    const userFilter = config.userFilter || '(objectClass=person)';
+    const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`))
+      .map(e => profileOf(e.attrs, config)).filter(p => p.login);
+    const everyone = (await ldapSearch(client, config.searchBase, userFilter)).map(e => profileOf(e.attrs, config)).filter(p => p.login);
+    const sameLogin = (a, list) => { const set = new Set(list.map(p => p.login.toLowerCase())); return p => set.has(p.login.toLowerCase()); };
+    const people = isDn(config.group) ? everyone.filter(sameLogin(null, await members(config.group)))
+      : everyone.filter(p => inGroup(p, config.group));
+    const isAdmin = !config.adminGroup ? () => false
+      : isDn(config.adminGroup) ? sameLogin(null, await members(config.adminGroup))
+      : p => inGroup(p, config.adminGroup);
+    return people.map(p => ({ ...p, admin: isAdmin(p) }));
   } finally { close(client); }
 }
