@@ -906,9 +906,8 @@ function openSettings(){
     <div class="mf">${canEdit() ? '<button id="setReset" style="margin-right:auto">Clear inventory</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
-  let armed = false;
   const sr = $('#setReset');
-  if (sr) sr.onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } clearAll(); };
+  if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
 }
 function renderSetPane(){
@@ -1058,7 +1057,7 @@ function renderSetUsers(){
       <td>${SERVER.on && u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
@@ -1607,9 +1606,8 @@ function applyState(d){
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
   SITES.splice(0, SITES.length, ...(d.sites || []));
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
-  if (d.types){   /* a new server has no types saved yet: it gets the built-in ones */
-    const t = Object.keys(d.types).length ? d.types : DEFAULT_TYPES;
-    Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify(t)));
+  if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
+    Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}});
@@ -1619,6 +1617,17 @@ function applyState(d){
 /* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
    for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
 /* Clears the devices, relations and history on the server for everyone. Users, locations, types and settings stay. */
+/* Clearing deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
+function clearConfirm(){
+  modal(`<div class="mh">Clear the whole inventory?</div>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay. It cannot be undone: only a backup brings the devices back.</p>
+      <div class="form" style="padding:0"><label for="clrWord">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR"></div></div>
+    <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
+  $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
+  $('#clrWord').focus();
+  $('#clrCancel').onclick = closeModal;
+  $('#clrOk').onclick = () => clearAll();
+}
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */
 async function clearAll(){
