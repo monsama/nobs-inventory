@@ -8,6 +8,7 @@ import { checkAddress } from './validate.js';
 const FEED_FIELDS = ['ip', 'mac', 'os', 'model'];
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
+  [/webserver|\bweb\b/i, 'other'],
   [/ipad|tablet/i, 'tablet'], [/iphone/i, 'iphone'], [/android/i, 'android'], [/smartphone|mobile/i, 'smartphone'],
   [/phone|voip|sip/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
   [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
