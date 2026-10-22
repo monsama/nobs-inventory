@@ -2,9 +2,26 @@ import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { mergeRecords } from './feed.js';
+import { readSecret } from './secrets.js';
 
 export const DEFAULT_ENDPOINT = 'https://api.lansweeper.com/api/v2/graphql';
 const MAX_PAGES = 200;
+
+/* The Lansweeper settings in use: the address, site and scheme saved in the inventory (Settings → Feed), with the token
+   from the server's environment (NI_LS_TOKEN or NI_LS_TOKEN_FILE). The NI_LS_* variables are the fallback. */
+const clean = v => (typeof v === 'string' ? v.trim().slice(0, 500) : '');
+export function lansweeperConfigOf(db, env) {
+  const token = readSecret(env, 'NI_LS_TOKEN');
+  if (!token) return null;
+  const row = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'lansweeper'").get();
+  const saved = row ? (JSON.parse(row.data) || {}) : {};
+  return {
+    endpoint: clean(saved.endpoint) || env.NI_LS_URL || DEFAULT_ENDPOINT,
+    site: clean(saved.site) || env.NI_LS_SITE || '',
+    authScheme: clean(saved.authScheme) || env.NI_LS_AUTH_SCHEME || 'Token',
+    token,
+  };
+}
 
 export const SITES_QUERY = 'query Sites { authorizedSites { sites { id name } } }';
 

@@ -1,9 +1,9 @@
 import { HttpError } from './errors.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
-export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -35,6 +35,23 @@ export function loadState(db) {
   if (!s.policy) s.policy = { ...DEFAULT_POLICY };
   s.revs = revsOf(db);
   return s;
+}
+
+/* Factory reset: removes every record, setting, account and sign-in except the account that asked for it, and its
+   sessions. The audit log is kept. The next load starts as a new server does. */
+export function factoryReset(db, keepUserId) {
+  const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM docs; DELETE FROM revs;');
+    db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
+    db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
+    if (me) db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)').run('user', String(me.id), JSON.stringify(me));
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /* The rules a whole inventory must follow before it is stored. */
