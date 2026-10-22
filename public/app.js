@@ -1053,7 +1053,7 @@ function renderSetUsers(){
       <td>${SERVER.on && u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
-    <div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
@@ -1134,16 +1134,20 @@ function renderSetLocs(){
       <td><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></td></tr>`;
   }).join('');
   $('#setLocs').innerHTML = `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Location (Site / Room)</th><th>Used by</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="nlName" placeholder="New location, e.g. Basel / Lager" style="flex:1;min-width:180px" aria-label="New location"><button id="nlAdd" class="primary">Add location</button></div>`;
+    <div class="addrel"><input id="nlName" placeholder="Site / Room, e.g. Basel / Lager" style="flex:1;min-width:180px" aria-label="New location"><button id="nlAdd" class="primary">Add location</button></div>
+    <p class="note" id="nlMsg">A location is a site and a room, written as Site / Room.</p>`;
   const root = $('#setLocs');
   root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => renameLoc(LOCS[+i.dataset.lo], i.value));
   root.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => { LOCS.splice(+b.dataset.ld, 1); toast('Location deleted'); renderSetLocs(); render(); });
-  $('#nlAdd').onclick = () => {
+  const addLoc = () => {
     const name = cleanLoc($('#nlName').value);
-    if (!name){ toast('Use the form Site / Room, e.g. Basel / Lager'); return; }
-    if (LOCS.includes(name)){ toast(name + ' already exists.'); return; }
+    const msg = $('#nlMsg');
+    if (!name){ msg.innerHTML = '<span style="color:var(--danger)">Write it as Site / Room, with a slash between them, e.g. Basel / Lager.</span>'; $('#nlName').focus(); return; }
+    if (LOCS.includes(name)){ msg.innerHTML = '<span style="color:var(--danger)">' + esc(name) + ' already exists.</span>'; return; }
     LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
   };
+  $('#nlAdd').onclick = addLoc;
+  $('#nlName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); addLoc(); } };
 }
 const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 function renameLoc(old, value){
