@@ -7,6 +7,8 @@
     NOBS Inventory at POST /api/feed/push. NOBS matches them by serial number, then by name, and merges
     the fields its policy allows (IP, MAC, OS, model). Nothing is deleted, and what you set by hand stays.
 
+    Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
+
     The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
     machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
 
@@ -47,6 +49,20 @@ $ErrorActionPreference = 'Stop'
 $script:LocalConfig = Join-Path $PSScriptRoot 'Lansweeper-Push.config.ps1'
 if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
 
+# The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
+$script:Wanted = [ordered]@{
+    tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'OScode')
+    tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building')
+    tsysAssetTypes = @('AssetType', 'AssetTypename')
+    tsysOS         = @('OScode', 'OSname')
+}
+$script:Required = @{
+    tblAssets      = @('AssetID', 'AssetName', 'Assettype')
+    tblAssetCustom = @('AssetID')
+    tsysAssetTypes = @('AssetType', 'AssetTypename')
+}
+$script:Cols = @{}   # table -> lower-case column name -> real column name, for the columns that exist
+
 function Write-PushLog([string]$Message, [string]$Level = 'INFO') {
     $line = '{0} [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
     if ($Level -eq 'ERROR') { Write-Host $line -ForegroundColor Red } else { Write-Host $line }
@@ -78,46 +94,98 @@ function Test-Junk([string]$s) {
 }
 function Get-Clean($v) { $s = ConvertTo-Text $v; if (Test-Junk $s.ToLowerInvariant()) { return '' } return $s }
 
+function Test-Col([string]$Table, [string]$Col) {
+    return ($script:Cols.ContainsKey($Table) -and $script:Cols[$Table].ContainsKey($Col.ToLowerInvariant()))
+}
+
+# Reads which tables and columns exist. Stops when a required one is missing.
+function Initialize-Schema($conn) {
+    $problems = New-Object System.Collections.Generic.List[string]
+    $missing = New-Object System.Collections.Generic.List[string]
+    foreach ($table in $script:Wanted.Keys) {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t'
+        [void]$cmd.Parameters.AddWithValue('@t', $table)
+        $existing = @{}
+        $reader = $cmd.ExecuteReader()
+        try { while ($reader.Read()) { $existing[([string]$reader[0]).ToLowerInvariant()] = [string]$reader[0] } }
+        finally { $reader.Close() }
+        $script:Cols[$table] = $existing
+        if ($existing.Count -eq 0) {
+            if ($script:Required.ContainsKey($table)) { $problems.Add("table $table") } else { $missing.Add("table $table") }
+            continue
+        }
+        foreach ($c in $script:Wanted[$table]) {
+            if (-not $existing.ContainsKey($c.ToLowerInvariant())) {
+                if ($script:Required.ContainsKey($table) -and $script:Required[$table] -contains $c) { $problems.Add("$table.$c") }
+                else { $missing.Add("$table.$c") }
+            }
+        }
+    }
+    return @{ Problems = $problems; Missing = $missing }
+}
+
+# One select item. A column that does not exist is selected as NULL, so the reader always has the same names.
+function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
+    $out = "${Alias}__$Col"
+    if (Test-Col $Table $Col) { return "$Alias.[$($script:Cols[$Table][$Col.ToLowerInvariant()])] AS [$out]" }
+    return "CAST(NULL AS nvarchar(200)) AS [$out]"
+}
+
 function Get-LsRecords {
-    $where = @('c.[State] = 1')
     $conn = New-Object System.Data.SqlClient.SqlConnection $Config.SqlConnectionString
     $conn.Open()
     try {
-        $sql = @"
-SELECT a.[AssetID], a.[AssetName], a.[Username], a.[Userdomain], a.[IPAddress], a.[Mac], a.[Lastseen],
-       c.[Manufacturer], c.[Model], c.[Serialnumber], c.[Location], c.[Building],
-       ty.[AssetTypename], os.[OSname]
-FROM [tblAssets] a
-LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID]
-LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype]
-LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode]
-WHERE {0}
-ORDER BY a.[AssetName]
-"@
-        if ($Config.MaxAgeDays -gt 0) { $where += 'a.[Lastseen] >= @since' }
+        $schema = Initialize-Schema $conn
+        if ($schema.Problems.Count) {
+            foreach ($p in $schema.Problems) { Write-PushLog "Required column or table missing: $p" 'ERROR' }
+            throw 'Lansweeper database does not have the columns this push needs.'
+        }
+        if ($schema.Missing.Count) { Write-PushLog ("Not in this Lansweeper version, skipped: " + ($schema.Missing -join ', ')) 'WARN' }
+
+        $select = @(
+            (Get-SelectItem 'tblAssets' 'a' 'AssetID'), (Get-SelectItem 'tblAssets' 'a' 'AssetName'),
+            (Get-SelectItem 'tblAssets' 'a' 'Username'), (Get-SelectItem 'tblAssets' 'a' 'Userdomain'),
+            (Get-SelectItem 'tblAssets' 'a' 'IPAddress'), (Get-SelectItem 'tblAssets' 'a' 'Mac'), (Get-SelectItem 'tblAssets' 'a' 'Lastseen'),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
+            (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname')
+        ) -join ', '
+
+        $joins = ''
+        if (Test-Col 'tblAssetCustom' 'AssetID') { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
+        $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
+        if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
+
+        $where = @('1=1')
+        if (Test-Col 'tblAssetCustom' 'State') { $where += 'c.[State] = 1' }
+        if ($Config.MaxAgeDays -gt 0) {
+            if (Test-Col 'tblAssets' 'Lastseen') { $where += 'a.[Lastseen] >= @since' }
+            else { Write-PushLog 'No Lastseen column - the age filter is not applied' 'WARN' }
+        }
+
         $cmd = $conn.CreateCommand()
-        $cmd.CommandText = $sql -f ($where -join ' AND ')
+        $cmd.CommandText = "SELECT $select FROM [tblAssets] a $joins WHERE $($where -join ' AND ') ORDER BY a.[AssetName]"
         $cmd.CommandTimeout = 300
-        if ($Config.MaxAgeDays -gt 0) { [void]$cmd.Parameters.AddWithValue('@since', (Get-Date).AddDays(-$Config.MaxAgeDays)) }
+        if ($Config.MaxAgeDays -gt 0 -and (Test-Col 'tblAssets' 'Lastseen')) { [void]$cmd.Parameters.AddWithValue('@since', (Get-Date).AddDays(-$Config.MaxAgeDays)) }
         $reader = $cmd.ExecuteReader()
         $list = New-Object System.Collections.Generic.List[object]
         try {
             while ($reader.Read()) {
-                $name = Get-Clean $reader['AssetName']
+                $name = Get-Clean $reader['a__AssetName']
                 if (-not $name) { continue }
-                $user = Get-Clean $reader['Username']
-                $dom = Get-Clean $reader['Userdomain']
-                $mac = (Get-Clean $reader['Mac']) -replace '[^0-9a-fA-F]', ''
+                $mac = (Get-Clean $reader['a__Mac']) -replace '[^0-9a-fA-F]', ''
                 $list.Add([ordered]@{
                     name = $name
-                    serial = Get-Clean $reader['Serialnumber']
-                    ip = ConvertTo-FirstIPv4 $reader['IPAddress']
+                    serial = Get-Clean $reader['c__Serialnumber']
+                    ip = ConvertTo-FirstIPv4 $reader['a__IPAddress']
                     mac = $(if ($mac.Length -eq 12) { (($mac -split '(..)' | Where-Object { $_ }) -join ':').ToLowerInvariant() } else { '' })
-                    os = Get-Clean $reader['OSname']
-                    model = (@((Get-Clean $reader['Manufacturer']), (Get-Clean $reader['Model'])) | Where-Object { $_ }) -join ' '
-                    location = (@((Get-Clean $reader['Building']), (Get-Clean $reader['Location'])) | Where-Object { $_ }) -join ' / '
-                    assetType = Get-Clean $reader['AssetTypename']
-                    ref = ConvertTo-Text $reader['AssetID']
+                    os = Get-Clean $reader['os__OSname']
+                    model = (@((Get-Clean $reader['c__Manufacturer']), (Get-Clean $reader['c__Model'])) | Where-Object { $_ }) -join ' '
+                    location = (@((Get-Clean $reader['c__Building']), (Get-Clean $reader['c__Location'])) | Where-Object { $_ }) -join ' / '
+                    assetType = Get-Clean $reader['ty__AssetTypename']
+                    ref = ConvertTo-Text $reader['a__AssetID']
                 })
             }
         } finally { $reader.Close() }
