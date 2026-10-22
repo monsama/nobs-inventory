@@ -876,7 +876,7 @@ function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button id="setReset" style="margin-right:auto">${SERVER.on ? 'Clear inventory' : 'Reset demo data'}</button><button id="setClose" class="primary">Done</button></div>`, 'wide');
+    <div class="mf"><button id="setReset" style="margin-right:auto">${SERVER.on ? 'Clear inventory' : 'Reset demo data'}</button><button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
   let armed = false;
@@ -1040,7 +1040,7 @@ function renderSetUsers(){
       <td>${SERVER.on && u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Role</th><th>Devices</th><th>Active</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
