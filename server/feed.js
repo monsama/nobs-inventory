@@ -94,23 +94,30 @@ function applySoftware(s, pairs) {
   return n;
 }
 
-/* Creates or updates the links of the records that were merged. Only links to objects that exist are made; links are
-   never removed here. A link that is already there keeps its place and gets the new port. */
+/* Makes the links of the records that were merged match what Lansweeper reports: new links are added, changed ports
+   are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
 function applyLinks(s, pairs) {
   let n = 0;
   for (const { r, obj } of pairs) {
-    for (const l of r.links || []) {
+    if (!Array.isArray(r.links)) continue;
+    const wanted = new Set();
+    for (const l of r.links) {
       const to = (l.ref && findByRef(s, l.ref)) || (l.name && findByName(s, l.name));
       if (!to || to === obj) continue;
       const port = l.port || null;
+      wanted.add(to.id + '|' + l.kind);
       const existing = s.rels.find(x => x.from === obj.id && x.to === to.id && x.kind === l.kind);
+      /* A link made by hand is left as it is; only links Lansweeper made get a new port. */
       if (existing) {
-        if (existing.port !== port) { existing.port = port; n++; }
+        if (existing.src === 'Lansweeper' && existing.port !== port) { existing.port = port; n++; }
         continue;
       }
-      s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null });
+      s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
+    const before = s.rels.length;
+    s.rels = s.rels.filter(x => !(x.from === obj.id && x.src === 'Lansweeper' && !wanted.has(x.to + '|' + x.kind)));
+    n += before - s.rels.length;
   }
   return n;
 }
