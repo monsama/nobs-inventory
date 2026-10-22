@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 
 const SAMPLE_DEVICE = 'SRV-ZH-HV01';
+const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;   /* the release being tested */
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-demo-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
@@ -45,11 +46,11 @@ try {
   await page.click('#setBtn'); await page.click('#setTabs [data-st=about]');
   await page.waitForSelector('#setAbout:has-text("Version")');
   const about = await page.textContent('#setAbout');
-  assert.match(about, /Version 0\.2\.5/, 'About shows the version');
+  assert.ok(about.includes(`Version ${VERSION}`), 'About shows the version');
   assert.match(about, /GNU General Public License version 3/, 'About shows the licence');
   assert.match(about, /Copyright © 2026 Viktor Ljuca/);
   await page.click('#setClose');
-  assert.match(await page.textContent('#verFoot'), /NOBS Inventory 0\.2\.5/, 'the footer shows the version');
+  assert.equal(await page.textContent('#verFoot'), `NOBS Inventory ${VERSION}`, 'the footer shows the version');
 
   // 3. Without a server (the page opened as a file) the demo is loaded only on request.
   const file = 'file://' + path.join(fileURLToPath(new URL('../../public/index.html', import.meta.url)));
