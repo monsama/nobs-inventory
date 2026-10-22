@@ -54,6 +54,9 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .addbar button{height:30px;padding:0 14px;white-space:nowrap}
 .locpanel>.note{margin:0;padding:0 12px 12px}
 @media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
+.ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
+.ctlrow>:not(.pchk){flex:1;min-width:0}
+.ctlrow .pchk{white-space:nowrap;flex:none}
 .icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
 .icondd-btn,.icondd-item{display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;justify-content:flex-start;font-weight:400}
 .icondd-btn{width:100%}
