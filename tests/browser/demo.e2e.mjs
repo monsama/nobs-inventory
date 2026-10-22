@@ -63,7 +63,12 @@ try {
   await local.waitForFunction(() => typeof window.NI_DEMO === 'function');
   await local.waitForSelector(`text=${SAMPLE_DEVICE}`);
   assert.ok((await local.textContent('body')).includes(SAMPLE_DEVICE), 'the demo did not show its devices');
-  await local.waitForFunction(() => !document.querySelector('#mdl'));   /* the welcome dialog closes once the demo is in */
+  await local.waitForFunction(() => !document.querySelector('#mdl'));
+  /* a new object gets its own code (this used to fail: the helper was only in demo.js) */
+  await local.click('#newBtn'); await local.waitForSelector('#nName');
+  await local.fill('#nName', 'CREATE-CHECK-1'); await local.click('#nOk');
+  await local.waitForSelector('text=CREATE-CHECK-1');
+  assert.ok((await local.textContent('body')).includes('INV-'), 'the new object has no code');   /* the welcome dialog closes once the demo is in */
   await local.click('#setBtn');
   await walkSettings(local);
   await local.click('#setClose');
