@@ -70,9 +70,10 @@ const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','si
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 let seq = 100, codeN = 0;
-const nextCode = () => 'INV-' + String(++codeN).padStart(4, '0');
+/* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
+const rid = () => Math.random().toString(36).slice(2, 10);
 const F = (ref, seen) => ({sys:'Lansweeper', ref, seen});
-const O = (type, name, f) => ({id:'o'+(++seq), code:nextCode(), type, name, status:'active', feed:null, ovr:{}, ...f});
+const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
 const objs = [];
 const byName = n => objs.find(o => o.name === n);
@@ -819,7 +820,7 @@ function renderObj(o){
     const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (to.type === 'switch' || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
-    rels.push({id:'r'+(++rseq), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
+    rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by v.ljuca`);
     toast('Relation added'); render();
   };
@@ -1096,7 +1097,7 @@ function renderSetLdap(){
     if (!r.ok){ $('#ldapMsg').textContent = j.error || 'The sync failed.'; return; }
     const c = j.counts;
     $('#ldapMsg').textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated`;
-    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); }
+    await reloadFromServer();
   };
 }
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
@@ -1210,7 +1211,7 @@ function renderSetFeed(){
     if (!r.ok){ toast(j.error || 'The sync failed.'); return; }
     const c = j.counts;
     toast(`Lansweeper: ${c.assets} assets, ${c.created} new, ${c.updated} updated, ${c.linked} linked`);
-    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); render(); }
+    await reloadFromServer();
   };
   $('#feedUp').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1219,7 +1220,7 @@ function renderSetFeed(){
     if (!r.ok){ toast(j.error || 'The export could not be imported.'); return; }
     const c = j.counts;
     toast(`Import: ${c.created} new, ${c.updated} updated, ${c.linked} linked, ${c.unchanged} unchanged`);
-    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); render(); }
+    await reloadFromServer();
   };
 }
 /* The feed is optional: without one, every object is entered and kept by hand. */
@@ -1259,11 +1260,11 @@ function newObjModal(pre={}){
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by v.ljuca');
     const up = $('#nUp').value;
     if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && t.type === 'switch') p = +p;
-      rels.push({id:'r'+(++rseq), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
+      rels.push({id:'r'+rid(), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && o[k] === undefined) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
-      rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+(++rseq), from:o.id, port: ['switch','patch'].includes(byId(r.to).type) ? null : r.port}));
+      rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: ['switch','patch'].includes(byId(r.to).type) ? null : r.port}));
       if (c.rack && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackOf(c.rack).units; top >= h && !placed; top--){
@@ -1417,23 +1418,113 @@ function render(){
 /* The inventory as one object. The server stores it. */
 const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, racks: RACKS, types: TYPES,
   policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
-const SERVER = {on: false, ldap: false, lansweeper: false, last: null, timer: null};
+const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
 function saveData(){ queueServerSave(); }
+/* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
+   (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
+   changed on the server since is not saved; the page then shows the newer version. */
+const PREFERENCES = ['mapPos'];
+function documents(){
+  const m = new Map();
+  objs.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
+  rels.forEach(r => m.set('rel|' + r.id, {kind:'rel', id:String(r.id), value:r}));
+  USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
+  Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
+  Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
+  const settings = {locs: LOCS, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
+  Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
+  return m;
+}
+function setBaseline(){
+  SERVER.base = new Map();
+  for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
+}
+function pendingChanges(){
+  const now = documents(), puts = [], dels = [];
+  for (const [k, d] of now){
+    const json = JSON.stringify(d.value);
+    if (SERVER.base.get(k) === json) continue;
+    const pref = d.kind === 'setting' && PREFERENCES.includes(d.id);
+    puts.push({key:k, kind:d.kind, id:d.id, value:d.value, json, base: pref ? null : (SERVER.revs[k] ?? 0)});
+  }
+  for (const k of SERVER.base.keys()){
+    if (now.has(k)) continue;
+    const i = k.indexOf('|');
+    dels.push({key:k, kind:k.slice(0, i), id:k.slice(i + 1), base: SERVER.revs[k] ?? 0});
+  }
+  return {puts, dels};
+}
 function queueServerSave(){
-  if (!SERVER.last) return;   /* nothing has been loaded yet */
+  if (!SERVER.base) return;   /* nothing has been loaded yet */
   clearTimeout(SERVER.timer);
-  SERVER.timer = setTimeout(async () => {
-    if (!canEdit()) return;
-    const body = JSON.stringify(snapshot());
-    if (body === SERVER.last) return;
-    try {
-      const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body, credentials: 'same-origin'});
-      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
-      SERVER.last = body;
-    } catch(e) { toast('Not saved: the server cannot be reached.'); }
-  }, 400);
+  SERVER.timer = setTimeout(sendChanges, 400);
+}
+async function sendChanges(){
+  if (SERVER.busy){ SERVER.again = true; return; }
+  if (!canEdit()) return;
+  const {puts, dels} = pendingChanges();
+  if (!puts.length && !dels.length) return;
+  SERVER.busy = true;
+  try {
+    const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
+    const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
+    if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); await reloadFromServer(); return; }
+    for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
+    const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
+    for (const [key, rev] of Object.entries(j.revs || {})){
+      const c = sent.get(key); if (!c) continue;
+      SERVER.revs[key] = rev;
+      if (c.json === undefined){ SERVER.base.delete(key); continue; }
+      const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
+      SERVER.base.set(key, JSON.stringify(v));
+    }
+    if (j.conflicts && j.conflicts.length){
+      const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : k.split('|')[0]; });
+      toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
+      await reloadFromServer();
+    }
+  } catch(e) {
+    toast('Not saved: the server cannot be reached.');
+  } finally {
+    SERVER.busy = false;
+    if (SERVER.again){ SERVER.again = false; queueServerSave(); }
+  }
+}
+/* Loads the inventory and its revisions from the server, and makes it the base for the next save. */
+async function reloadFromServer(){
+  const r = await fetch('api/state', {credentials: 'same-origin'});
+  if (r.status === 401){ loginModal(); return false; }
+  if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
+  const d = await r.json();
+  applyState(d);
+  dropMissingTabs();
+  SERVER.revs = d.revs || {};
+  setBaseline();
+  render();
+  return true;
+}
+/* An object open in a tab may have been deleted by someone else: its tab is closed. */
+function dropMissingTabs(){
+  const gone = id => !FIXED_TABS[id] && !byId(id);
+  st.open = st.open.filter(id => !gone(id));
+  st.tabIds = st.tabIds.filter(id => !gone(id));
+  if (gone(st.tab)) st.tab = 'table';
+}
+/* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
+   are unsaved changes, a dialog is open, or someone is typing. */
+async function checkForChanges(){
+  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  const {puts, dels} = pendingChanges();
+  if (puts.length || dels.length) return;
+  const r = await fetch('api/state', {credentials: 'same-origin'});
+  if (!r.ok) return;
+  const d = await r.json();
+  const revs = d.revs || {};
+  const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
+  if (changed) await reloadFromServer();
 }
 function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
@@ -1452,15 +1543,24 @@ function applyState(d){
 /* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
    for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
 /* Clears the devices, relations and history on the server for everyone. Users, locations, types and settings stay. */
+/* Clears the devices, relations and history on the server, all of them, including any another person added since
+   this page loaded. Users, locations, types and settings stay. */
 async function clearAll(){
   if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
-  objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]);
-  try {
-    const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(snapshot())});
-    if (!r.ok){ toast('Not cleared: ' + ((await r.json().catch(() => ({}))).error || r.status)); return; }
-    SERVER.last = JSON.stringify(snapshot());
-  } catch(e) { toast('Not cleared: the server cannot be reached.'); return; }
-  closeModal(); toast('Inventory cleared'); render();
+  const r = await fetch('api/state', {credentials: 'same-origin'});
+  if (!r.ok){ toast('The inventory could not be loaded.'); return; }
+  const d = await r.json();
+  const dels = [
+    ...d.objs.map(o => ({kind:'object', id:o.id})),
+    ...d.rels.map(x => ({kind:'rel', id:String(x.id)})),
+    ...Object.keys(d.history).map(id => ({kind:'history', id})),
+  ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
+  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
+  closeModal();
+  await reloadFromServer();
+  toast(j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : 'Inventory cleared');
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];
@@ -1512,18 +1612,12 @@ function clearInventory(){
   st.open = []; st.tab = 'cards';
 }
 async function loadFromServer(user){
-  const r = await fetch('api/state', {credentials: 'same-origin'});
-  if (r.status === 401){ loginModal(); return; }
-  if (!r.ok){ toast('The inventory could not be loaded.'); return; }
-  const d = await r.json();
-  applyState(d);
+  if (!(await reloadFromServer())) return;
   document.body.classList.remove('signed-out');
   st.meId = user.id;
-  SERVER.last = JSON.stringify(snapshot());
-
+  if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
-}
-/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
+}/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
 function loginModal(err = '', login = ''){
   document.body.classList.add('signed-out');
   modal(`<div class="mh">Sign in to NOBS Inventory</div>
