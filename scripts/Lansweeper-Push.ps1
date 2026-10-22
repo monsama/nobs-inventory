@@ -21,6 +21,7 @@
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
     .\Lansweeper-Push.ps1 -FindTables                   # list the tables and columns that may hold links (port, switch, monitor)
+    .\Lansweeper-Push.ps1 -ShowCertificate              # show the thumbprint of the NOBS certificate, for NobsCertThumbprint
 #>
 [CmdletBinding()]
 param(
@@ -29,6 +30,7 @@ param(
     [switch]$SetSqlCredential,
     [switch]$RegisterTask,
     [switch]$FindTables,
+    [switch]$ShowCertificate,
     [string]$TaskTime = '06:30'
 )
 
@@ -43,6 +45,9 @@ $Config = @{
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
     NobsUrl             = 'https://inventory.argolite.ch'
+    # Thumbprint of the NOBS certificate, when Windows does not trust it (e.g. Caddy's internal CA).
+    # Get it with: .\LansweeperNobs.ps1 -ShowCertificate. Leave empty when the certificate is trusted.
+    NobsCertThumbprint  = ''
 
     MaxAgeDays          = 90      # only assets Lansweeper has seen in the last N days (0 = all)
     BatchSize           = 500     # assets per request
@@ -228,7 +233,49 @@ function Get-LsRecords {
     } finally { $conn.Dispose() }
 }
 
+# Accepts the NOBS certificate when its thumbprint is the pinned one (as the Snipe-IT script does).
+# Windows PowerShell 5.1 only: PowerShell 7 ignores this callback.
+function Set-NobsCertificatePin {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $pin = ($Config.NobsCertThumbprint -replace '[ :]', '').ToUpperInvariant()
+    if (-not $pin) { return }
+    if (-not ('NobsCertPin' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+public static class NobsCertPin {
+    static string pin;
+    public static void Install(string thumbprint) {
+        pin = thumbprint;
+        ServicePointManager.ServerCertificateValidationCallback = Check;
+    }
+    static bool Check(object sender, X509Certificate cert, X509Chain chain, SslPolicyErrors errors) {
+        if (errors == SslPolicyErrors.None) return true;
+        return cert != null && string.Equals(cert.GetCertHashString(), pin, System.StringComparison.OrdinalIgnoreCase);
+    }
+}
+"@
+    }
+    [NobsCertPin]::Install($pin)
+}
+
+# Connects to NOBS and prints its certificate's thumbprint, for NobsCertThumbprint.
+function Show-NobsCertificate {
+    $uri = [Uri]$Config.NobsUrl
+    $tcp = New-Object System.Net.Sockets.TcpClient $uri.Host, $uri.Port
+    try {
+        $ssl = New-Object System.Net.Security.SslStream $tcp.GetStream(), $false, ([System.Net.Security.RemoteCertificateValidationCallback] { param($a, $b, $c, $d) $true })
+        $ssl.AuthenticateAsClient($uri.Host)
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ssl.RemoteCertificate
+        Write-PushLog "Certificate of $($uri.Host): $($cert.Subject)"
+        Write-PushLog "Thumbprint: $($cert.Thumbprint)  (valid until $($cert.NotAfter.ToString('yyyy-MM-dd')))"
+        Write-PushLog 'Put the thumbprint in NobsCertThumbprint. Caddy renews its certificate, so check it again when pushes start failing.'
+    } finally { $tcp.Close() }
+}
+
 function Send-Records($records, [string]$Token) {
+    Set-NobsCertificatePin
     $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0 }
     $url = $Config.NobsUrl.TrimEnd('/') + '/api/feed/push'
     for ($i = 0; $i -lt $records.Count; $i += $Config.BatchSize) {
@@ -268,6 +315,7 @@ try {
         exit 0
     }
     if ($RegisterTask) { Register-PushTask; exit 0 }
+    if ($ShowCertificate) { Show-NobsCertificate; exit 0 }
     if ($FindTables) {
         $lines = Find-LsTables
         $file = Join-Path $Config.DataDir 'tables.txt'
