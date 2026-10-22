@@ -1751,6 +1751,7 @@ async function loadFromServer(user){
   if (!r.ok){ toast('The inventory could not be loaded.'); return; }
   const d = await r.json();
   applyState(d);
+  document.body.classList.remove('signed-out');
   st.meId = user.id;
   SERVER.last = JSON.stringify(snapshot());
   if (!objs.length && !localStorage.getItem('ni-started')) welcome();
@@ -1758,6 +1759,7 @@ async function loadFromServer(user){
 }
 /* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
 function loginModal(err = '', login = ''){
+  document.body.classList.add('signed-out');
   modal(`<div class="mh">Sign in to NOBS Inventory</div>
     <div class="mb"><form id="loginForm" class="form" style="padding:0">
       <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>

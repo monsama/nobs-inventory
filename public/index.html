@@ -239,6 +239,9 @@ a.link:hover{text-decoration:underline}
 .hist time{font-family:var(--mono);color:var(--muted);flex:none}
 
 /* modal */
+/* Signed out: nothing of the app is drawn behind the sign-in dialog, and the dialog has a solid backdrop. */
+body.signed-out>:not(#modalHost){visibility:hidden}
+body.signed-out #modalHost .modal{background:var(--bg)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
 .modal .box{background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-l);box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(860px,100%);max-height:100%;display:flex;flex-direction:column;min-height:0}
 .modal .box.sm{width:min(580px,100%)}
