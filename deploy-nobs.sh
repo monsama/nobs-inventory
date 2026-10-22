@@ -106,9 +106,9 @@ step_build_start() {
     info "Waiting for the app to be healthy ..."
     local i status
     for i in $(seq 1 30); do
-        status="$(docker inspect -f '{{.State.Health.Status}}' "$PROJECT-app-1" 2>/dev/null || echo starting)"
+        status="$(docker inspect -f '{{.State.Health.Status}}' "$PROJECT-app" 2>/dev/null || echo starting)"
         [ "$status" = healthy ] && { info "App healthy"; return 0; }
-        [ "$status" = unhealthy ] && { docker logs --tail 20 "$PROJECT-app-1" 2>&1 | sed 's/^/        /'; fail "The app is unhealthy. See the log above."; }
+        [ "$status" = unhealthy ] && { docker logs --tail 20 "$PROJECT-app" 2>&1 | sed 's/^/        /'; fail "The app is unhealthy. See the log above."; }
         sleep 3
     done
     fail "The app did not become healthy. Check: docker compose logs app"

@@ -5,7 +5,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 VOLUME=nobs-inventory-data
-APP=nobs-inventory-app-1
+APP=nobs-inventory-app
 mkdir -p backup && chmod 700 backup
 exec 9>backup/.lock
 flock -n 9 || { echo "[ERROR] Another backup is running." >&2; exit 1; }

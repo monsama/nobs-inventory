@@ -3,8 +3,9 @@ name: nobs-inventory
 
 services:
   app:
+    container_name: nobs-inventory-app
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.2.0}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.2.1}
     build: .
     restart: unless-stopped
     expose:
@@ -47,6 +48,7 @@ services:
         max-file: "5"
 
   caddy:
+    container_name: nobs-inventory-caddy
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
