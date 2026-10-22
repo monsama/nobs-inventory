@@ -196,6 +196,18 @@ test('pushed software replaces the Lansweeper software and keeps what was typed 
   assert.deepEqual(s.objs[0].software.map(x => x.name), ['Typed', 'Chrome'], 'a push without software leaves it as it is');
 });
 
+test('pushed cpu, memory and last user: the user fills an object only when nobody is assigned', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [{ id: 'o1', name: 'PC1', type: 'pc', feed: { sys: 'Lansweeper', ref: 'pc1' }, ovr: {}, user: 'Frei' }],
+    rels: [], policy: { cpu: true, ram: true, user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1', cpu: 'Intel Core i7', ram: '16 GB', user: 'mueller' }]));
+  assert.equal(s.objs[0].cpu, 'Intel Core i7');
+  assert.equal(s.objs[0].ram, '16 GB');
+  assert.equal(s.objs[0].user, 'Frei', 'a person already on the object is kept');
+  mergeRecords(s, recordsFromJson([{ name: 'PC2', serial: 'P2', ref: 'pc2', user: 'mueller' }]));
+  assert.equal(s.objs.find(o => o.name === 'PC2').user, 'mueller', 'a new object gets the last user');
+});
+
 test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
   const srv = await startServer({ feedToken: 'push-secret-123' });
   const push = (auth, body) => fetch(srv.base + '/api/feed/push', {

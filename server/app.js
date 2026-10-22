@@ -219,7 +219,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* The push token, made in Settings → Feed. Only its hash is kept. */
   app.get('/api/feed/push-token', requireUser, requireAdmin, (req, res) => {
-    res.json({ info: feedTokenInfo(db) });
+    const row = db.prepare("SELECT at, action FROM audit WHERE action LIKE 'feed push: %' ORDER BY id DESC LIMIT 1").get();
+    const last = row ? { at: row.at, counts: JSON.parse(row.action.slice('feed push: '.length)) } : null;
+    res.json({ info: feedTokenInfo(db), last });
   });
   app.post('/api/feed/push-token', requireUser, requireAdmin, (req, res, next) => {
     try {

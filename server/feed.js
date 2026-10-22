@@ -6,7 +6,7 @@ import { HttpError } from './errors.js';
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
 
-const FEED_FIELDS = ['ip', 'mac', 'os', 'model'];
+const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram'];
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
   [/webserver|\bweb\b/i, 'other'],
@@ -52,7 +52,7 @@ export function recordsFromCsv(text) {
   }));
 }
 
-const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref'];
+const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
@@ -145,7 +145,8 @@ export function mergeRecords(s, records, now = new Date()) {
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
-        ...Object.fromEntries(['ip', 'mac', 'os', 'model'].map(k => [k, r[k]]).filter(([, v]) => v))
+        ...Object.fromEntries(['ip', 'mac', 'os', 'model', 'cpu', 'ram'].map(k => [k, r[k]]).filter(([, v]) => v)),
+        ...(r.user ? { user: r.user } : {})
       };
       s.objs.push(obj);
       pairs.push({ r, obj });
@@ -162,6 +163,9 @@ export function mergeRecords(s, records, now = new Date()) {
       const owns = s.feedOn !== false && (found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
       if (owns) { found[k] = incoming; changed = true; }
     }
+    /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
+    const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
+    if (r.user && userOwned && !found.uid && !found.user) { found.user = r.user; changed = true; }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
