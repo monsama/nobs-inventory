@@ -680,16 +680,18 @@ const FIELDS = {
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
   monitor:[], printer:[], smartphone:[], other:[]
 };
-function fieldHtml(o, [k, label, kind]){
-  const id = 'f_' + o.id + '_' + k;
+function fieldCtl(o, [k, label, kind], idp = 'f_'){
+  const id = idp + o.id + '_' + k;
   let ctl;
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
   else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option>${USERS.map(u => `<option value="${u.id}" ${u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
-  return `<label for="${id}">${label}</label>${ctl}`;
+  return ctl;
 }
+function fieldHtml(o, f){ return `<label for="f_${o.id}_${f[0]}">${f[1]}</label>${fieldCtl(o, f)}`; }
+const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* Feed panel: link state, and per field whether the feed may overwrite it for this object. */
 function feedPanel(o){
   if (!o.feed) return `<div class="panelbox"><div class="hdr">Feed</div>
@@ -699,7 +701,7 @@ function feedPanel(o){
   return `<div class="panelbox"><div class="hdr">Feed <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
     <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
     <table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Value</th><th style="width:150px">Take from feed</th></tr></thead><tbody>
-      ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${esc(fmtVal(k, o[k]))}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> Take from feed</label></td></tr>`).join('')}
+      ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${feedOwns(o,k) ? esc(fmtVal(k, o[k])) : fieldCtl(o, [k, FIELD_LABEL[k], fieldKind(k)], 'g_')}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> Take from feed</label></td></tr>`).join('')}
     </tbody></table>
     <div class="addrel"><span class="note" style="flex:1">Unchecked fields keep the value you set here. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
 }
