@@ -9,6 +9,9 @@
 
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
+    Links are sent too: each device to the switch port it is connected to (from the Lansweeper switch report),
+    and each monitor to the PC it is attached to (from the monitor scan).
+
     The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
     machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
 
@@ -66,6 +69,8 @@ $script:Wanted = [ordered]@{
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
     tblNetwork     = @('AssetID', 'DNSHostname')
+    web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
+    tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -174,6 +179,54 @@ function Find-LsTables {
     } finally { $conn.Dispose() }
 }
 
+# Which device is connected to which switch port, from the Lansweeper switch report. Keyed by the device's AssetID.
+function Get-SwitchLinks($conn) {
+    $map = @{}
+    if (-not (Test-Col 'web50repSwitchports' 'deviceassetid')) { Write-PushLog 'The switch port table is not in this Lansweeper version - no switch links' 'WARN'; return $map }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT [AssetID], [If], [Portname], [deviceassetid] FROM [web50repSwitchports] WHERE [deviceassetid] IS NOT NULL'
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $switch = ConvertTo-Text $reader['AssetID']
+            $device = ConvertTo-Text $reader['deviceassetid']
+            if (-not $switch -or -not $device) { continue }
+            $port = Get-Clean $reader['Portname']
+            if (-not $port) { $port = Get-Clean $reader['If'] }
+            if (-not $map.ContainsKey($device)) { $map[$device] = New-Object System.Collections.Generic.List[object] }
+            $map[$device].Add([ordered]@{ ref = $switch; kind = 'connected'; port = $port })
+        }
+    } finally { $reader.Close() }
+    return $map
+}
+
+# Monitors with a serial number, each linked to the PC it is attached to.
+function Get-MonitorRecords($conn) {
+    $list = New-Object System.Collections.Generic.List[object]
+    if (-not ((Test-Col 'tblMonitor' 'AssetID') -and (Test-Col 'tblMonitor' 'SerialNumber'))) { return , @() }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT [AssetID], [MonitorModel], [SerialNumber], [MonitorManufacturer] FROM [tblMonitor] WHERE [SerialNumber] IS NOT NULL'
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $serial = Get-Clean $reader['SerialNumber']
+            $pc = ConvertTo-Text $reader['AssetID']
+            if (-not $serial -or -not $pc) { continue }
+            $model = Get-Clean $reader['MonitorModel']
+            $maker = Get-Clean $reader['MonitorManufacturer']
+            $list.Add([ordered]@{
+                name = (@($model, $serial) | Where-Object { $_ }) -join ' '
+                serial = $serial; ref = "mon-$serial"; assetType = 'Monitor'
+                model = (@($maker, $model) | Where-Object { $_ }) -join ' '
+                links = @([ordered]@{ ref = $pc; kind = 'attached'; port = '' })
+            })
+        }
+    } finally { $reader.Close() }
+    return , $list.ToArray()
+}
+
 function Get-LsRecords {
     $conn = Open-LsConnection
     try {
@@ -234,9 +287,13 @@ function Get-LsRecords {
                     location = (@((Get-Clean $reader['c__Building']), (Get-Clean $reader['c__Location'])) | Where-Object { $_ }) -join ' / '
                     assetType = Get-Clean $reader['ty__AssetTypename']
                     ref = ConvertTo-Text $reader['a__AssetID']
+                    links = @()
                 })
             }
         } finally { $reader.Close() }
+        $links = Get-SwitchLinks $conn
+        foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
+        foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
         return , $list.ToArray()
     } finally { $conn.Dispose() }
 }
