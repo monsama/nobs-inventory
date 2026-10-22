@@ -33,7 +33,6 @@ try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   assert.ok(!(await page.textContent('body')).includes(SAMPLE_DEVICE), 'sample data is visible before sign-in');
   assert.equal(await page.isVisible('#tabsbar'), false, 'the app is drawn behind the sign-in dialog');
-  await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/signin.png' : '/dev/null' });
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('#wEmpty');
   assert.equal(await page.isVisible('#tabsbar'), true, 'the app is shown after sign-in');
