@@ -684,11 +684,11 @@ function fieldHtml(o, [k, label, kind]){
 /* Feed panel: link state, and per field whether the feed may overwrite it for this object. */
 function feedPanel(o){
   if (!o.feed) return `<div class="panelbox"><div class="hdr">Feed</div>
-    <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd></dl>
+    <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the Lansweeper sync does not change this object</dd>' : ''}</dl>
     <p class="note" style="padding:0 12px 10px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
   const keys = Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined);
   return `<div class="panelbox"><div class="hdr">Feed <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
-    <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd></dl>
+    <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
     <table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Value</th><th style="width:150px">Take from feed</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${esc(fmtVal(k, o[k]))}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> Take from feed</label></td></tr>`).join('')}
     </tbody></table>
@@ -770,7 +770,7 @@ function renderObj(o){
   const rk = o.rack ? RACKS.find(r => r.id === o.rack) : null;
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => fieldHtml(o, f)).join('')}
@@ -864,6 +864,23 @@ function renderObj(o){
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
+  /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
+  const eb = $('#exclBtn');
+  if (eb) eb.onclick = () => {
+    o.excluded = !o.excluded;
+    hist(o, now(), (o.excluded ? 'Excluded from Lansweeper sync' : 'Back in Lansweeper sync') + ' by ' + who());
+    toast(o.name + (o.excluded ? ' is excluded from the sync' : ' is back in the sync')); render();
+  };
+  const er = $('#exclRelBtn');
+  if (er) er.onclick = () => {
+    o.excluded = true; hist(o, now(), 'Excluded from Lansweeper sync with its relations by ' + who());
+    let n = 0;
+    rels.forEach(r => {
+      const other = r.from === o.id ? byId(r.to) : r.to === o.id ? byId(r.from) : null;
+      if (other && !other.excluded){ other.excluded = true; hist(other, now(), 'Excluded from Lansweeper sync with ' + o.name + ' by ' + who()); n++; }
+    });
+    toast(o.name + ' and ' + n + ' related object' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
+  };
 
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by ' + who()); toast(o.name + ' is now a manual object'); render(); };
 }
@@ -1618,7 +1635,8 @@ function applyState(d){
 /* Clearing deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay. It cannot be undone: only a backup brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
+      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <div class="form" style="padding:0"><label for="clrWord">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR"></div></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
   $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
@@ -1633,17 +1651,22 @@ async function clearAll(){
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (!r.ok){ toast('The inventory could not be loaded.'); return; }
   const d = await r.json();
+  /* Objects excluded from sync are kept, unless the box to delete protected objects is ticked. Relations and history of
+     the removed objects go with them; relations between kept objects stay. */
+  const deleteAll = !!($('#clrAll') && $('#clrAll').checked);
+  const removed = new Set(d.objs.filter(o => deleteAll || !o.excluded).map(o => o.id));
+  const kept = d.objs.length - removed.size;
   const dels = [
-    ...d.objs.map(o => ({kind:'object', id:o.id})),
-    ...d.rels.map(x => ({kind:'rel', id:String(x.id)})),
-    ...Object.keys(d.history).map(id => ({kind:'history', id})),
+    ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),
+    ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
+    ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
   ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
   const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
   closeModal();
   await reloadFromServer();
-  toast(j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : 'Inventory cleared');
+  toast(j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared'));
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];

@@ -59,6 +59,8 @@ export function mergeRecords(s, records, now = new Date()) {
     const found = s.objs.find(o => r.serial && (o.serial || '').toLowerCase() === r.serial.toLowerCase())
       || (sameName.length === 1 ? sameName[0] : null);
     if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
+    /* An object excluded from sync is left as it is. */
+    if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
       const type = (TYPE_WORDS.find(([re]) => re.test(r.assetType || '')) || [null, 'other'])[1];
