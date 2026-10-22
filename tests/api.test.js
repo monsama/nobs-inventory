@@ -186,6 +186,20 @@ test('pushed links join objects: a device to its switch port, a monitor to its P
   assert.equal(s.rels.length, 2, 'a second push does not add the links again');
 });
 
+test('a link Lansweeper stops reporting is removed; a link made by hand stays', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  mergeRecords(s, recordsFromJson([
+    { name: 'PC1', ref: 'pc1' }, { name: 'PC2', ref: 'pc2' },
+    { name: 'MON1', serial: 'M1', ref: 'mon-m1', links: [{ ref: 'pc1', kind: 'attached' }] }
+  ]));
+  const id = n => s.objs.find(o => o.name === n).id;
+  s.rels.push({ id: 'manual', from: id('MON1'), to: id('PC2'), kind: 'attached', port: null, vlan: null });
+  mergeRecords(s, recordsFromJson([{ name: 'MON1', serial: 'M1', ref: 'mon-m1', links: [{ ref: 'pc2', kind: 'attached' }] }]));
+  const linked = s.rels.filter(r => r.from === id('MON1')).map(r => [r.to === id('PC1') ? 'PC1' : 'PC2', r.kind, r.src || 'hand']);
+  assert.deepEqual(linked, [['PC2', 'attached', 'hand']], 'the link to PC1 is gone; the hand-made link to PC2 is kept as it is');
+});
+
 test('a virtual machine is linked to its host by name, as runs on', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
