@@ -173,7 +173,7 @@ function Find-LsTables {
     $conn = Open-LsConnection
     try {
         $cmd = $conn.CreateCommand()
-        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' OR TABLE_NAME LIKE '%soft%' OR TABLE_NAME LIKE '%install%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' OR TABLE_NAME LIKE '%soft%' OR TABLE_NAME LIKE '%install%' OR TABLE_NAME LIKE '%bios%' OR TABLE_NAME LIKE '%firmware%' OR TABLE_NAME LIKE '%boot%' OR TABLE_NAME LIKE '%uptime%' OR TABLE_NAME LIKE '%disk%' OR TABLE_NAME LIKE '%drive%' OR TABLE_NAME LIKE '%volume%' OR TABLE_NAME LIKE '%quickfix%' OR TABLE_NAME LIKE '%patch%' OR TABLE_NAME LIKE '%hotfix%' OR TABLE_NAME LIKE '%update%' OR TABLE_NAME LIKE '%antivir%' OR TABLE_NAME LIKE '%virus%' OR TABLE_NAME LIKE '%defender%' OR TABLE_NAME LIKE '%security%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
         $reader = $cmd.ExecuteReader()
         $lines = New-Object System.Collections.Generic.List[string]
         try { while ($reader.Read()) { $lines.Add("$($reader[0]).$($reader[1])") } } finally { $reader.Close() }
