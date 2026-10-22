@@ -350,17 +350,14 @@ function importCsvModal(){
       $('#csvPrev').innerHTML = rows.length ? '<p class="note">The first row needs at least the columns name and type.</p>' : '';
       parsed = []; $('#csvGo').disabled = true; return;
     }
-    const seen = new Set(objs.map(o => o.name.toLowerCase()));
     parsed = rows.slice(1).map((r, i) => {
       const g = k => col(k) >= 0 ? (r[col(k)] || '').trim() : '';
       const name = g('name'), tv = g('type').toLowerCase(), loc = g('location');
       const tKey = Object.keys(TYPES).find(k => k === tv || TYPES[k].label.toLowerCase() === tv);
       const errs = [];
       if (!name) errs.push('no name');
-      else if (seen.has(name.toLowerCase())) errs.push('name already exists');
       if (!tKey) errs.push('unknown type');
       if (loc && !LOCS.includes(loc)) errs.push('unknown location');
-      if (name) seen.add(name.toLowerCase());
       return {line: i + 2, name, type: tKey, loc: loc || LOCS[0], model: g('model'), serial: g('serial'), ip: g('ip'), mac: g('mac'), user: g('user'), errs};
     });
     const ok = parsed.filter(p => !p.errs.length).length;
@@ -1293,7 +1290,6 @@ function newObjModal(pre={}){
   $('#nOk').onclick = () => {
     const name = $('#nName').value.trim();
     if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
-    if (byName(name)){ toast(name + ' already exists. Pick another name.'); return; }
     const upId = $('#nUp').value;
     if (upId && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();

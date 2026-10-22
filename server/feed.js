@@ -53,8 +53,12 @@ export function mergeRecords(s, records, now = new Date()) {
   const locs = s.locs || [];
   for (const r of records) {
     if (!r.name && !r.serial) continue;
+    /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
+       objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
+    const sameName = r.name ? s.objs.filter(o => o.name.toLowerCase() === r.name.toLowerCase()) : [];
     const found = s.objs.find(o => r.serial && (o.serial || '').toLowerCase() === r.serial.toLowerCase())
-      || s.objs.find(o => r.name && o.name.toLowerCase() === r.name.toLowerCase());
+      || (sameName.length === 1 ? sameName[0] : null);
+    if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
       const type = (TYPE_WORDS.find(([re]) => re.test(r.assetType || '')) || [null, 'other'])[1];

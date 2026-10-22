@@ -72,6 +72,13 @@ try {
   const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const q = await watch(await ctx2.newPage());
   await signIn(q);
+  // Two objects may share a name: each has its own code.
+  await q.click('#newBtn'); await q.waitForSelector('#nName');
+  await q.fill('#nName', 'SAME-NAME'); await q.click('#nOk');
+  await q.click('#newBtn'); await q.waitForSelector('#nName');
+  await q.fill('#nName', 'SAME-NAME'); await q.click('#nOk');
+  await q.waitForFunction(() => objs.filter(o => o.name === 'SAME-NAME').length === 2, null, { timeout: 5000 });
+  assert.equal(await q.evaluate(() => new Set(objs.filter(o => o.name === 'SAME-NAME').map(o => o.code)).size), 2, 'the two objects share a code');
   await q.click('#newBtn'); await q.waitForSelector('#nName');
   await q.fill('#nName', 'PERSIST-CHECK-1'); await q.click('#nOk');
   await q.waitForTimeout(1500);
