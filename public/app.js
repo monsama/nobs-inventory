@@ -823,7 +823,7 @@ function renderObj(o){
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (to.type === 'switch' || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
-    hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by v.ljuca`);
+    hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);
     toast('Relation added'); render();
   };
   $('#view').querySelectorAll('[data-delrel]').forEach(b => b.onclick = () => { const i = rels.findIndex(r => r.id === b.dataset.delrel); rels.splice(i, 1); toast('Relation removed'); render(); });
@@ -859,14 +859,14 @@ function renderObj(o){
       if (place.ontop) delete o.u;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
-    hist(o, now(), 'Saved by v.ljuca' + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
+    hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '')); render();
   };
   $('#dupBtn').onclick = () => newObjModal({copy: o});
-  $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by v.ljuca'); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
+  $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
 
-  const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by v.ljuca'); toast(o.name + ' is now a manual object'); render(); };
+  const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by ' + who()); toast(o.name + ' is now a manual object'); render(); };
 }
 
 /* ---------- modals ---------- */
@@ -965,6 +965,8 @@ async function renderSetAbout(){
 let USERS = [];
 const devicesOf = name => objs.filter(o => o.user === name).length;
 const me = () => USERS.find(u => u.id === st.meId);
+/* The name the history records for the signed-in person. */
+const who = () => (me() && me().name) || 'someone';
 const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
@@ -1299,7 +1301,7 @@ function newObjModal(pre={}){
     const o = O($('#nType').value, name, {model:$('#nModel').value || '—', serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
     if (o.type === 'patch') o.ports = 24;
-    objs.push(o); bindUser(o); hist(o, now(), 'Created manually by v.ljuca');
+    objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who());
     const up = $('#nUp').value;
     if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && t.type === 'switch') p = +p;
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
