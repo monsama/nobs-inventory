@@ -59,7 +59,7 @@ const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 const SITES = [];
 let RACKS = [];
-const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', user:'User', loc:'Location', status:'Status'};
+const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 const KINDS = {
@@ -95,7 +95,7 @@ const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
    Each object can override these on its own page (o.ovr). */
 const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
-  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false},
+  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 let APP_VERSION = '';
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
@@ -670,7 +670,7 @@ function renderRack(){
 const FIELDS = {
   base:[['name','Name','mono'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system']], server:[['kind','Kind','kind'],['os','Operating system'],['cpu','CPU'],['ram','Memory']],
+  pc:[['os','Operating system'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
@@ -1805,7 +1805,7 @@ function applyState(d){
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
-  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
+  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
