@@ -7,6 +7,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
+import { loadState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -28,6 +29,7 @@ const openByName = async (p, name) => {
   await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
   await p.waitForFunction(n => byName(n) && st.tab === byName(n).id, name);
 };
+const waitServer = async (fn, what) => { for (let i = 0; i < 60; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } assert.fail('the server did not get: ' + what); };
 const state = (p, fn, arg) => p.evaluate(fn, arg);
 const idOf = (p, name) => state(p, n => byName(n).id, name);
 
@@ -97,10 +99,14 @@ try {
   await p.waitForSelector('#csvGo:not([disabled])'); await p.click('#csvGo');
   assert.ok(await state(p, () => !!byName('CSV-A') && !!byName('CSV-B')), 'the CSV rows were not imported');
 
-  // LDAP: this server has no directory configured, so the sync is off and says so.
+  // LDAP: without a server address the test and sync are off; an address saved here is used by the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=ldap]');
-  assert.equal(await p.isDisabled('#ldapSync'), true, 'the LDAP sync is on without a directory');
-  assert.ok((await p.textContent('#setLdap')).includes('Not connected'), 'the LDAP pane does not say it is not connected');
+  assert.equal(await p.isDisabled('#ldapSync'), true, 'the LDAP sync is on without a server address');
+  await p.fill('#lk_url', 'ldaps://127.0.0.1:1'); await p.press('#lk_url', 'Tab');
+  await waitServer(() => loadState(db).ldap && loadState(db).ldap.url === 'ldaps://127.0.0.1:1', 'the LDAP address');
+  await p.click('#ldapTest');
+  await p.waitForFunction(() => document.querySelector('#ldapMsg').textContent.length > 0, null, { timeout: 15000 });
+  assert.ok(!(await p.textContent('#setLdap')).includes('NI_LDAP_URL'), 'the pane still asks for environment variables');
   await p.click('#setClose');
 
   // Feed: a Lansweeper export creates an object; a second export with a new IP updates it.

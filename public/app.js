@@ -1102,21 +1102,46 @@ function showDevicesOf(name){
 }
 
 /* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
+/* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
+   account's password is not stored there: the server reads it from its environment. */
 function renderSetLdap(){
-  const L = st.ldap || {};
-  $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${L.last ? 'Last sync ' + esc(L.last) : 'Never synced'}</span></div>
-    <div class="note" style="padding:10px 12px">${SERVER.ldap
-      ? 'Connected. The server reads the directory with the NI_LDAP_* settings. Users who left are deactivated, not deleted.'
-      : 'Not connected. Set NI_LDAP_URL, NI_LDAP_BIND, NI_LDAP_BASE and NI_LDAP_GROUP on the server to sign people in with their directory password.'}</div>
-    <div class="addrel" style="padding:0 12px 10px"><button id="ldapSync" class="primary" ${SERVER.ldap ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  if (!st.ldap) st.ldap = {};
+  const L = st.ldap, edit = canEdit();
+  const ro = edit ? '' : 'disabled';
+  const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
+  const ready = !!L.url && edit;
+  $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory</div>
+    <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account's password is not stored here: the server reads it from its environment (NI_LDAP_SERVICE_PASSWORD).</div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+      ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
+      ${field('bindTemplate', 'Sign-in name', 'EXAMPLE\\{login}  or  {login}@example.ch')}
+      ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
+      ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
+      ${field('userFilter', 'User filter', '(objectClass=person)')}
+      ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
+      ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
+      ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
+    </div>
+    <div class="addrel" style="padding:0 12px 10px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
+  const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
+  $('#ldapTest').onclick = async () => {
+    const msg = $('#ldapMsg'); msg.textContent = 'Testing…';
+    await flushSave();
+    const r = await fetch('api/ldap/test', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    msg.innerHTML = r.ok ? `<span style="color:var(--ok)">Connected. ${j.people} users are in scope.</span>` : bad(j.error || 'The directory cannot be reached.');
+  };
   $('#ldapSync').onclick = async () => {
-    $('#ldapSync').disabled = true;
+    const msg = $('#ldapMsg'), btn = $('#ldapSync');
+    btn.disabled = true; msg.textContent = 'Syncing…';
+    await flushSave();
     const r = await fetch('api/ldap/sync', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
-    $('#ldapSync').disabled = false;
-    if (!r.ok){ $('#ldapMsg').textContent = j.error || 'The sync failed.'; return; }
+    btn.disabled = false;
+    if (!r.ok){ msg.innerHTML = bad(j.error || 'The sync failed.'); return; }
     const c = j.counts;
-    $('#ldapMsg').textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated`;
+    msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`;
     await reloadFromServer();
   };
 }
@@ -1261,7 +1286,7 @@ function renderSetFeed(){
   $('#setFeed').innerHTML = `<div class="hdr">Feed</div>
     <div class="note" style="padding:10px 12px">Upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed, and what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:110px minmax(0,1fr)"><label for="feedUp">Export</label><input id="feedUp" type="file" accept=".csv,text/csv"></div>
-    <div class="note" style="padding:0 12px 10px">Nightly import from a file: set NI_FEED_CSV on the server.</div>
+    <div class="note" style="padding:0 12px 10px">The server can also import this export every night from a file your administrator sets up.</div>
     ${SERVER.lansweeper ? '<div class="addrel"><button id="feedApi" class="primary">Sync from the Lansweeper API now</button></div>' : ''}`;
   const fa = $('#feedApi'); if (fa) fa.onclick = async () => {
     fa.disabled = true;
@@ -1514,7 +1539,7 @@ function pendingChanges(){
   return {puts, dels};
 }
 /* Saves now, without waiting for the pause after an edit: a new object gets its code straight away. */
-function flushSave(){ clearTimeout(SERVER.timer); sendChanges(); }
+function flushSave(){ clearTimeout(SERVER.timer); return sendChanges(); }
 function queueServerSave(){
   if (!SERVER.base) return;   /* nothing has been loaded yet */
   clearTimeout(SERVER.timer);
@@ -1637,7 +1662,7 @@ function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
-      <div class="form" style="padding:0"><label for="clrWord">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR"></div></div>
+      <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
   $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
   $('#clrWord').focus();

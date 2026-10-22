@@ -10,6 +10,7 @@ import { mergeFeed } from './feed.js';
 import { syncLansweeper, DEFAULT_ENDPOINT } from './lansweeper.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
+import { ldapConfigOf } from './ldap-config.js';
 
 /* First start: one admin account, so someone can sign in and add the rest. Its password comes from
    NI_ADMIN_PASSWORD; without that a random one is printed once. */
@@ -40,8 +41,8 @@ export function runFeedFile(db, file, now = new Date()) {
 }
 
 /* Nightly at 06:00: the Lansweeper API when a token is set, otherwise the report file; then the directory users. */
-export function startScheduler(db, env, { lansweeper = null, ldap = null } = {}, log = console.log) {
-  if (!lansweeper && !env.NI_FEED_CSV && !ldap) return null;
+export function startScheduler(db, env, { lansweeper = null, ldapConfig = null } = {}, log = console.log) {
+  if (!lansweeper && !env.NI_FEED_CSV && !ldapConfig) return null;
   let lastRun = '';
   return setInterval(async () => {
     const now = new Date();
@@ -53,27 +54,14 @@ export function startScheduler(db, env, { lansweeper = null, ldap = null } = {},
     } else if (env.NI_FEED_CSV) {
       try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); }
     }
-    if (ldap) {
-      try { log('ldap sync', await syncLdapUsers(db, ldap)); } catch (e) { log('ldap sync failed:', e.message); }
+    const lc = ldapConfig ? ldapConfig() : null;
+    if (lc) {
+      try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); }
     }
   }, 30_000);
 }
 
-export function configFromEnv(env) {
-  return {
-    url: env.NI_LDAP_URL,
-    bindTemplate: env.NI_LDAP_BIND || '{login}',
-    searchBase: env.NI_LDAP_BASE || '',
-    loginAttr: env.NI_LDAP_LOGIN_ATTR || 'sAMAccountName',
-    adminGroup: env.NI_LDAP_ADMIN_GROUP || '',
-    group: env.NI_LDAP_GROUP || '',
-    serviceDn: env.NI_LDAP_SERVICE_DN || '',
-    servicePassword: env.NI_LDAP_SERVICE_PASSWORD || '',
-    userFilter: env.NI_LDAP_USER_FILTER || '',
-    caFile: env.NI_LDAP_CA || '',
-    allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1'
-  };
-}
+export { configFromEnv } from './ldap-config.js';
 
 export function lansweeperFromEnv(env) {
   if (!env.NI_LS_TOKEN) return null;
@@ -91,14 +79,14 @@ export function start(env = process.env) {
   const db = openDb(path.join(dataDir, 'inventory.db'));
   const resolved = { ...env, NI_ADMIN_PASSWORD: readSecret(env, 'NI_ADMIN_PASSWORD'), NI_LDAP_SERVICE_PASSWORD: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), NI_LS_TOKEN: readSecret(env, 'NI_LS_TOKEN') };
   bootstrap(db, resolved);
-  const ldap = resolved.NI_LDAP_URL ? configFromEnv(resolved) : null;
+  const ldapConfig = () => ldapConfigOf(db, resolved);
   const lansweeper = lansweeperFromEnv(resolved);
   /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
-  const app = createApp({ db, ldap, lansweeper, secureCookie: secure });
+  const app = createApp({ db, ldapConfig, lansweeper, secureCookie: secure });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeper, ldap });
+  const timer = startScheduler(db, env, { lansweeper, ldapConfig });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }
