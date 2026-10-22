@@ -306,6 +306,16 @@ function Get-MonitorRecords($conn) {
     return , $list.ToArray()
 }
 
+# Virtual machines are their own type (no rack slot); a computer whose manufacturer or model says virtual is one.
+$script:VmPattern = 'vmware|virtual|qemu|kvm|xen|hyper-v|virtualbox|parallels|bochs|nutanix|proxmox'
+function Get-AssetTypeText($reader) {
+    $type = Get-Clean $reader['ty__AssetTypename']
+    if ($type -notmatch '^(Windows|Linux|VMware|Computer|Apple Mac)$') { return $type }
+    $hardware = (@((Get-Clean $reader['c__Manufacturer']), (Get-Clean $reader['c__Model'])) | Where-Object { $_ }) -join ' '
+    if ($hardware -match $script:VmPattern) { return 'Virtual machine' }
+    return $type
+}
+
 # The logged-on user, unless it is a service account.
 function Get-UserText($v) {
     $u = Get-Clean $v
@@ -379,7 +389,7 @@ function Get-LsRecords {
                     os = Get-Clean $reader['os__OSname']
                     model = (@((Get-Clean $reader['c__Manufacturer']), (Get-Clean $reader['c__Model'])) | Where-Object { $_ }) -join ' '
                     location = (@((Get-Clean $reader['c__Building']), (Get-Clean $reader['c__Location'])) | Where-Object { $_ }) -join ' / '
-                    assetType = Get-Clean $reader['ty__AssetTypename']
+                    assetType = Get-AssetTypeText $reader
                     cpu = Get-Clean $reader['a__Processor']
                     ram = Get-RamText $reader['a__Memory']
                     user = Get-UserText $reader['a__Username']
