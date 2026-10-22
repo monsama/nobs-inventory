@@ -1,17 +1,17 @@
 import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { audit } from './db.js';
-import { ldapListUsers, inGroup } from './ldap.js';
+import { ldapListUsers } from './ldap.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
 export async function syncLdapUsers(db, config) {
-  const people = (await ldapListUsers(config)).filter(p => inGroup(p, config.group));
+  const people = await ldapListUsers(config);   /* the members of the sign-in group, with admin set for the admin group */
   const s = loadState(db);
   const wanted = new Set(people.map(p => p.login.toLowerCase()));
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
   for (const p of people) {
-    const role = inGroup(p, config.adminGroup) ? 'admin' : 'viewer';
+    const role = p.admin ? 'admin' : 'viewer';
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
     if (!u) {
       s.users.push({ id: 'ldap-' + p.login.toLowerCase(), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
