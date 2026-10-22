@@ -95,7 +95,7 @@ const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:null, netPort:3,
+const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -129,7 +129,9 @@ const isUplink = k => k === 'uplink' || k === 'downlink';
 
 function filtered(){
   const q = st.q.trim().toLowerCase();
-  return objs.filter(o => (!st.type || o.type === st.type) && (!st.loc || o.loc.startsWith(st.loc)) && (!st.status || o.status === st.status)
+  /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
+  const scoped = !(st.searchAll && q);
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || o.loc.startsWith(st.loc)) && (!st.status || o.status === st.status)))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
@@ -683,7 +685,7 @@ function fieldHtml(o, [k, label, kind]){
   let ctl;
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Nobody</option>${USERS.map(u => `<option value="${u.id}" ${u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option>${USERS.map(u => `<option value="${u.id}" ${u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
   return `<label for="${id}">${label}</label>${ctl}`;
@@ -814,14 +816,15 @@ function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device is patched to a panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port no.' : k === 'patched' ? 'Panel port, e.g. P04' : 'Port (opt.)';
   };
   $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.fwd}</option>`).join('');
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets();
   $('#arKind').onchange = fitTargets;
   $('#arAdd').onclick = () => {
-    const to = byId($('#arTo').value); if (!to) return;
+    const to = $('#arTo').value ? byId($('#arTo').value) : null;
+    if (!to){ toast('Choose what to connect to first.'); return; }
     let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && to.type === 'switch') port = +port;
     if (to.type === 'switch' && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(to.pfx + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }
@@ -1535,6 +1538,7 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch(e) {}
 };
+$('#searchAll').addEventListener('change', e => { st.searchAll = e.target.checked; render(); });
 $('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; render(); });
 document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]')) openObj(t.dataset.open); });
 
