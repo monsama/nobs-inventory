@@ -915,7 +915,7 @@ async function renderSetAbout(){
     <div class="hdr" style="margin:14px -14px 8px">License</div>
     <div class="muted" style="font-size:12px;line-height:1.6">
       This program is free software: you may redistribute and/or modify it under the terms of the
-      <b>GNU General Public License version 2</b>, or (at your option) any later version.<br>
+      <b>GNU General Public License version 3</b>, or (at your option) any later version.<br>
       It is distributed in the hope that it will be useful, but <b>WITHOUT ANY WARRANTY</b> - without
       even the implied warranty of merchantability or fitness for a particular purpose. See the
       GNU General Public License for details.
@@ -924,7 +924,7 @@ async function renderSetAbout(){
     <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:12px;line-height:1.7;overflow-wrap:anywhere">
       <span class="muted">Website</span><span>https://monsama.ch</span>
       <span class="muted">Source</span><span>https://github.com/monsama/nobs-inventory</span>
-      <span class="muted">License</span><span>https://www.gnu.org/licenses/old-licenses/gpl-2.0.html</span>
+      <span class="muted">License</span><span>https://www.gnu.org/licenses/gpl-3.0.html</span>
     </div>
     <div class="hdr" style="margin:14px -14px 8px">Third party</div>
     <div class="muted" style="font-size:11px;line-height:1.6">
