@@ -25,6 +25,18 @@ test('signing in: wrong password and missing login are refused, the right one gi
   } finally { await srv.close(); }
 });
 
+test('a user can be signed in from several browsers; the oldest sessions end past the limit', async () => {
+  const srv = await startServer();
+  try {
+    const first = await signIn(srv, 'admin', 'adminpass123');
+    const second = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 200, 'an earlier sign-in still works');
+    for (let i = 0; i < 4; i++) await signIn(srv, 'admin', 'adminpass123');   /* six sign-ins in all */
+    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 401, 'the oldest session ends past the limit');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: second.cookie })).status, 200, 'the newer sessions keep working');
+  } finally { await srv.close(); }
+});
+
 test('the inventory is saved and comes back the same, and survives a restart', async () => {
   const dir = tempDataDir();
   let srv = await startServer({ dir });
@@ -176,12 +188,12 @@ test('an overlong password is refused before the hash is computed; roles are che
   } finally { await srv.close(); }
 });
 
-test('a new sign-in ends the earlier session of the same user; malformed JSON gets a short answer', async () => {
+test('a second sign-in keeps the first one working; malformed JSON gets a short answer', async () => {
   const srv = await startServer();
   try {
     const first = await signIn(srv, 'admin', 'adminpass123');
     const second = await signIn(srv, 'admin', 'adminpass123');
-    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 401);
+    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 200);
     assert.equal((await srv.call('GET', '/api/state', { cookie: second.cookie })).status, 200);
     const bad = await fetch(srv.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
     assert.equal(bad.status, 400);

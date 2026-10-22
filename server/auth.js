@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 const SESSION_HOURS = 12;
+const MAX_SESSIONS = 5;   /* per user: a sign-in from another browser does not end this one */
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 
 export function hashPassword(password) {
@@ -29,6 +30,9 @@ export function createSession(db, userId) {
   const token = crypto.randomBytes(32).toString('base64url');
   db.prepare('DELETE FROM sessions WHERE expires < ?').run(Date.now());
   db.prepare('INSERT INTO sessions (token_hash, user_id, expires) VALUES (?, ?, ?)').run(sha(token), userId, Date.now() + SESSION_HOURS * 3600e3);
+  /* Keep the newest few; the oldest end when a user goes past the limit. */
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY expires DESC LIMIT ?)')
+    .run(userId, userId, MAX_SESSIONS);
   return token;
 }
 

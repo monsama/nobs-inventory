@@ -1,12 +1,12 @@
 import { HttpError } from './errors.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos', 'seq', 'codeN', 'rseq'];
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
@@ -24,6 +24,7 @@ export function loadState(db) {
 export function saveState(db, s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
+  if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
