@@ -315,7 +315,7 @@ function renderCardsBody(){
   if (!list.length){
     $('#view').innerHTML = objs.length
       ? (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
-      : `<div class="empty">The inventory is empty. Add an object with New object, or connect a feed in Settings.</div>`;
+      : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : `<div class="empty">The inventory is empty. Add an object with New object, or connect a feed in Settings.</div>`);
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     return;
@@ -926,7 +926,7 @@ function renderObj(o){
 /* ---------- modals ---------- */
 function modal(html, cls=''){
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
-  $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
+  if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
   const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
   applyRole();
@@ -934,7 +934,8 @@ function modal(html, cls=''){
 const closeModal = () => $('#modalHost').innerHTML = '';
 document.addEventListener('keydown', e => {
   if (!$('#mdl')) return;
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape' && $('#mdl .locked')) return;
+  if (e.key === 'Escape' && !$('#mdl .locked')) closeModal();
   if (e.key !== 'Tab') return;
   const f = [...$('#mdl .box').querySelectorAll('button:not([disabled]), input:not([disabled]), select, textarea')];
   if (!f.length) return;
@@ -1800,8 +1801,14 @@ async function boot(){
     return;
   }
   SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper;
-  if (!info.user){ render(); loginModal(); return; }
+  if (!info.user){ clearInventory(); render(); loginModal(); return; }
   await loadFromServer(info.user);
+}
+/* Before sign-in the page holds no inventory: the sample data built into this file is removed from memory. */
+function clearInventory(){
+  objs.length = 0; rels.length = 0; LOCS.length = 0; USERS = [];
+  Object.keys(history).forEach(k => delete history[k]);
+  st.open = []; st.tab = 'cards';
 }
 async function loadFromServer(user){
   const r = await fetch('api/state', {credentials: 'same-origin'});
@@ -1821,7 +1828,7 @@ function loginModal(err = '', login = ''){
       <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
       <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
     </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p></div>
-    <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free');
+    <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
   const go = async () => {
     const login = $('#lgUser').value;
     const r = await fetch('api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
