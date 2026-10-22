@@ -688,7 +688,7 @@ function fieldHtml(o, [k, label, kind]){
 function feedPanel(o){
   if (!o.feed) return `<div class="panelbox"><div class="hdr">Feed</div>
     <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the Lansweeper sync does not change this object</dd>' : ''}</dl>
-    <p class="note" style="padding:0 12px 10px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
+    <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
   const keys = Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined);
   return `<div class="panelbox"><div class="hdr">Feed <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
     <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
@@ -944,7 +944,7 @@ function renderSetPane(){
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div>',
     ldap: '<div id="setLdap"></div>',
-    policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:0 12px 10px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
+    policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
     maintenance: '<div id="setMaint"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
@@ -1117,8 +1117,8 @@ function renderSetMaint(){
   const edit = canEdit();
   $('#setMaint').innerHTML = `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings. Only your own account stays, with its password, so you can sign in again.</div>
-    <div class="note" style="padding:0 12px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
-    <div class="addrel" style="padding:0 12px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
+    <div class="note" style="padding:10px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
+    <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   if (edit) $('#frReset').onclick = factoryResetModal;
 }
 function factoryResetModal(){
@@ -1157,7 +1157,7 @@ function renderSetLdap(){
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
     </div>
-    <div class="addrel" style="padding:0 12px 10px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+    <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
   $('#ldapTest').onclick = async () => {
@@ -1313,11 +1313,13 @@ function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
   const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
   return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
-    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}</div></div>`;
+    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
 function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
 document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconLists(); });
+/* The list is fixed to the viewport, so it closes when the page scrolls away from its button. */
+document.addEventListener('scroll', e => { if (!e.target.closest?.('.icondd-list')) closeIconLists(); }, true);
 function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
@@ -1326,8 +1328,7 @@ function renderSetTypes(){
       <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" style="width:90px" aria-label="Short name"></td>
-      <td>${iconChoice(k, t)}
-        <input type="file" accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}" style="width:150px;font-size:11px"></td>
+      <td>${iconChoice(k, t)}</td>
       <td class="n">${n}</td>
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
   }).join('');
@@ -1337,7 +1338,13 @@ function renderSetTypes(){
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
   root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = i.value.trim() || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
   root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = i.value.trim() || TYPES[i.dataset.ts].short; render(); });
-  root.querySelectorAll('.icondd-btn').forEach(b => b.onclick = e => { e.stopPropagation(); const list = b.nextElementSibling, open = list.hidden; closeIconLists(); list.hidden = !open; b.setAttribute('aria-expanded', String(open)); });
+  root.querySelectorAll('.icondd-btn').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const list = b.nextElementSibling, open = list.hidden;
+    closeIconLists();
+    if (open) { const r = b.getBoundingClientRect(); Object.assign(list.style, { left: r.left + 'px', top: r.bottom + 4 + 'px', width: r.width + 'px' }); }
+    list.hidden = !open; b.setAttribute('aria-expanded', String(open));
+  });
   root.querySelectorAll('.icondd-item').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
   root.querySelectorAll('[data-up]').forEach(f => f.onchange = async () => {
     const file = f.files[0]; if (!file) return;
@@ -1372,11 +1379,11 @@ function renderSetFeed(){
       ${field('site', 'Site ID', 'empty: the first site of the token')}
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
-    <div class="addrel" style="padding:0 12px 10px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
+    <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
   <div class="panelbox"><div class="hdr">Export file</div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
-    <div class="note" style="padding:0 12px 10px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
+    <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
   $('#setFeed').querySelectorAll('[data-ls]').forEach(i => i.onchange = () => { st.lansweeper[i.dataset.ls] = i.value.trim(); queueServerSave(); renderSetFeed(); });
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
   $('#lsSync').onclick = async () => {

@@ -70,7 +70,9 @@ try {
   assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
   await p.evaluate(() => closeModal());
   await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
-  await p.click('.icondd-btn[aria-label="Icon for PC / Notebook"]'); await p.click('.icondd-item[data-ic=pc][data-icon=server]');
+  await p.click('.icondd-btn[aria-label="Icon for PC / Notebook"]');
+  if (!(await p.isVisible('.icondd-list:not([hidden]) .icondd-up'))) throw new Error('the icon dropdown does not open');
+  await p.click('.icondd-item[data-ic=pc][data-icon=server]');
   assert.equal(await p.evaluate(() => TYPES.pc.icon), 'server', 'the icon was not chosen');
   if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT });
   await p.click('.icondd-btn[aria-label="Icon for PC / Notebook"]'); await p.click('.icondd-item[data-ic=pc][data-icon=pc]');
