@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
 
 /* Lansweeper merge rules, shared by the file import and the API sync.
@@ -57,14 +58,49 @@ export function recordsFromJson(list) {
   return list.map(raw => {
     const r = {};
     for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, 200) : '';
+    /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. */
+    r.links = Array.isArray(raw && raw.links) ? raw.links.slice(0, 50).map(l => ({
+      ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
+      name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
+      kind: l && l.kind === 'attached' ? 'attached' : 'connected',
+      port: String(l && l.port != null ? l.port : '').trim().slice(0, 100)
+    })) : [];
     return r;
   });
+}
+
+const findByRef = (s, ref) => s.objs.find(o => o.feed && String(o.feed.ref) === String(ref));
+const findByName = (s, name) => {
+  const same = s.objs.filter(o => o.name.toLowerCase() === name.toLowerCase());
+  return same.length === 1 ? same[0] : null;
+};
+
+/* Creates or updates the links of the records that were merged. Only links to objects that exist are made; links are
+   never removed here. A link that is already there keeps its place and gets the new port. */
+function applyLinks(s, pairs) {
+  let n = 0;
+  for (const { r, obj } of pairs) {
+    for (const l of r.links || []) {
+      const to = (l.ref && findByRef(s, l.ref)) || (l.name && findByName(s, l.name));
+      if (!to || to === obj) continue;
+      const port = l.port || null;
+      const existing = s.rels.find(x => x.from === obj.id && x.to === to.id && x.kind === l.kind);
+      if (existing) {
+        if (existing.port !== port) { existing.port = port; n++; }
+        continue;
+      }
+      s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null });
+      n++;
+    }
+  }
+  return n;
 }
 
 export function mergeRecords(s, records, now = new Date()) {
   const policy = s.policy || {};
   const seen = stamp(now);
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
+  const pairs = [];
   const locs = s.locs || [];
   /* A field that is not a valid address is left out of the record, so it is never stored. */
   const clean = raw => {
@@ -88,14 +124,17 @@ export function mergeRecords(s, records, now = new Date()) {
       const type = (TYPE_WORDS.find(([re]) => re.test(r.assetType || '')) || [null, 'other'])[1];
       s.codeN = (s.codeN || 0) + 1;
       s.seq = (s.seq || 100) + 1;
-      s.objs.push({
+      const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
         ...Object.fromEntries(['ip', 'mac', 'os', 'model'].map(k => [k, r[k]]).filter(([, v]) => v))
-      });
+      };
+      s.objs.push(obj);
+      pairs.push({ r, obj });
       counts.created++;
       continue;
     }
+    pairs.push({ r, obj: found });
     const wasLinked = !!found.feed;
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen };
     let changed = false;
@@ -109,6 +148,7 @@ export function mergeRecords(s, records, now = new Date()) {
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
   }
+  counts.links = applyLinks(s, pairs);
   return counts;
 }
 

@@ -170,6 +170,22 @@ test('Lansweeper asset type names land in the matching app type', async () => {
   }
 });
 
+test('pushed links join objects: a device to its switch port, a monitor to its PC, without duplicates', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  const counts = mergeRecords(s, recordsFromJson([
+    { name: 'SW1', assetType: 'Switch', ref: 'sw1' },
+    { name: 'PC1', assetType: 'Windows', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected', port: 'Gi1/0/5' }] },
+    { name: 'Dell U2419 MX1', serial: 'MX1', assetType: 'Monitor', ref: 'mon-mx1', links: [{ ref: 'pc1', kind: 'attached' }] }
+  ]));
+  assert.equal(counts.links, 2);
+  const id = n => s.objs.find(o => o.name === n).id;
+  assert.ok(s.rels.some(r => r.from === id('PC1') && r.to === id('SW1') && r.kind === 'connected' && r.port === 'Gi1/0/5'));
+  assert.ok(s.rels.some(r => r.from === id('Dell U2419 MX1') && r.to === id('PC1') && r.kind === 'attached'));
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', assetType: 'Windows', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected', port: 'Gi1/0/5' }] }]));
+  assert.equal(s.rels.length, 2, 'a second push does not add the links again');
+});
+
 test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
   const srv = await startServer({ feedToken: 'push-secret-123' });
   const push = (auth, body) => fetch(srv.base + '/api/feed/push', {
