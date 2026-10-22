@@ -1208,7 +1208,7 @@ function renderSetTypes(){
     const n = objs.filter(o => o.type === k).length;
     const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} objects` : '';
     return `<tr>
-      <td><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
+      <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" style="width:90px" aria-label="Short name"></td>
       <td><select data-ti="${k}" aria-label="Icon">${[...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])].map(i => `<option ${i===t.icon?'selected':''}>${i}</option>`).join('')}</select>
@@ -1216,7 +1216,7 @@ function renderSetTypes(){
       <td class="n">${n}</td>
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
   }).join('');
-  $('#setTypes').innerHTML = `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th>Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  $('#setTypes').innerHTML = `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th style="width:1%">Colour</th><th>Name</th><th>Short</th><th>Icon</th><th>Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd" class="primary">Add type</button></div>`;
   const root = $('#setTypes');
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
