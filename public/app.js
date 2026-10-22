@@ -1370,10 +1370,23 @@ function renderSetTypes(){
 /* Feed. The Lansweeper API settings are saved in the inventory; the token is on the server. A Lansweeper export
    can also be uploaded here. */
 /* The push token made in this panel. undefined until it is loaded; the new token is shown once, here. */
-let pushInfo, pushNew = '', pushNote = '';
+let pushInfo, pushLast = null, pushNew = '', pushNote = '';
 async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
-  if (r.ok){ pushInfo = (await r.json()).info; if ($('#setFeed')) renderSetFeed(); }
+  if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
+}
+/* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
+function daysSince(stamp){
+  const m = /^(\d\d)\.(\d\d)\.(\d{4}) (\d\d):(\d\d)$/.exec(stamp || '');
+  return m ? (Date.now() - new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5])) / 864e5 : 0;
+}
+/* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
+function pushStatus(){
+  const c = pushLast ? pushLast.counts : null;
+  const last = c ? `Last push ${esc(new Date(pushLast.at).toLocaleString())}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.linked || 0} linked, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}.` : 'No push yet.';
+  const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
+  const stale = old.length ? `Not seen for 30 days or more: ${old.length} (${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}).` : 'Every linked device was seen in the last 30 days.';
+  return `<div class="note" style="padding:0 12px 10px">${last}<br>${stale}</div>`;
 }
 function renderSetFeed(){
   if (!st.lansweeper) st.lansweeper = {};
@@ -1383,6 +1396,7 @@ function renderSetFeed(){
   if (edit && pushInfo === undefined) loadPushInfo();
   const pushPanel = edit ? `<div class="panelbox"><div class="hdr">Push from the Lansweeper server</div>
     <div class="note" style="padding:10px 12px">Lansweeper sends its assets here with a PowerShell script that runs on its own server, so no API address is needed. ${pushInfo ? `A token is active since ${esc(pushInfo.created)}.` : 'No token is active yet.'} Download the script, copy it to the Lansweeper server and run it there (see the README for the steps).</div>
+    ${pushStatus()}
     ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
     <div class="note" style="padding:0 12px 10px">Copy it now. It is not shown again. The script asks for it once (-SetCredential).</div>` : ''}
     <div class="addrel" style="padding:10px 12px">

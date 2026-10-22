@@ -64,7 +64,7 @@ if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
 
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
 $script:Wanted = [ordered]@{
-    tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'OScode')
+    tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'OScode', 'Memory', 'Processor')
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
@@ -252,6 +252,13 @@ function Get-MonitorRecords($conn) {
     return , $list.ToArray()
 }
 
+# Memory in MB (Lansweeper) as text in GB, e.g. "16 GB".
+function Get-RamText($v) {
+    $mb = ConvertTo-Text $v
+    if ($mb -notmatch '^\d+$' -or [int]$mb -le 0) { return '' }
+    return ('{0} GB' -f ([math]::Round([double]$mb / 1024, 1)).ToString([Globalization.CultureInfo]::InvariantCulture))
+}
+
 function Get-LsRecords {
     $conn = Open-LsConnection
     try {
@@ -266,6 +273,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssets' 'a' 'AssetID'), (Get-SelectItem 'tblAssets' 'a' 'AssetName'),
             (Get-SelectItem 'tblAssets' 'a' 'Username'), (Get-SelectItem 'tblAssets' 'a' 'Userdomain'),
             (Get-SelectItem 'tblAssets' 'a' 'IPAddress'), (Get-SelectItem 'tblAssets' 'a' 'Mac'), (Get-SelectItem 'tblAssets' 'a' 'Lastseen'),
+            (Get-SelectItem 'tblAssets' 'a' 'Memory'), (Get-SelectItem 'tblAssets' 'a' 'Processor'), (Get-SelectItem 'tblAssets' 'a' 'Username'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
@@ -311,6 +319,9 @@ function Get-LsRecords {
                     model = (@((Get-Clean $reader['c__Manufacturer']), (Get-Clean $reader['c__Model'])) | Where-Object { $_ }) -join ' '
                     location = (@((Get-Clean $reader['c__Building']), (Get-Clean $reader['c__Location'])) | Where-Object { $_ }) -join ' / '
                     assetType = Get-Clean $reader['ty__AssetTypename']
+                    cpu = Get-Clean $reader['a__Processor']
+                    ram = Get-RamText $reader['a__Memory']
+                    user = $(if ($u = Get-Clean $reader['a__Username']; $u -and $u -notmatch '^(system|local service|network service|administrator)$') { $u } else { '' })
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
