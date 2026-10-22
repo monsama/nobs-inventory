@@ -1,6 +1,6 @@
 /* Sample inventory: the demo that "Load demo" adds in a browser. It is not part of the page and is never sent to a server.
    The page starts empty; this file is loaded only when the demo is asked for. Each call builds a fresh copy. */
-window.NI_DEMO = function () {
+window.NI_DEMO = function (syncTime) {
   let seq = 100, codeN = 0;
   const byName = n => objs.find(o => o.name === n);
   const LOCS = ['Zürich HQ / Serverraum UG','Zürich HQ / Büro 2.OG','Zürich HQ / Empfang','Zürich HQ / Lager','Bern / Büro'];
@@ -131,11 +131,11 @@ window.NI_DEMO = function () {
     {name:'MON-0433', ref:'3150-m2', rec:{}}
   ];
   const FEED_NEW = [
-    {name:'SIP-ZH-2103', type:'sip', ref:'4103', seen:SYNC_TIME, rec:{model:'Yealink T54W', serial:'801541E09A77', ip:'10.10.40.103', mac:'80:5e:c0:41:09:a7', ext:'2103', fw:'96.86.0.70', user:'A. Frei', loc:LOCS[1]},
+    {name:'SIP-ZH-2103', type:'sip', ref:'4103', seen:syncTime, rec:{model:'Yealink T54W', serial:'801541E09A77', ip:'10.10.40.103', mac:'80:5e:c0:41:09:a7', ext:'2103', fw:'96.86.0.70', user:'A. Frei', loc:LOCS[1]},
       rel:{kind:'patched', to:'PP-ZH-2OG-01', port:'P03', vlan:'40 Voice'}, detail:'Ext. 2103 · 10.10.40.103 · patched to PP-ZH-2OG-01 P03'},
-    {name:'ZH-PC-0144', type:'pc', ref:'3144', seen:SYNC_TIME, rec:{model:'HP EliteDesk 800 G9 Mini', serial:'CZC3217KR2', ip:'10.10.20.44', mac:'64:4e:d7:3a:98:11', os:'Windows 11 Pro 23H2', user:'A. Frei', loc:LOCS[1]},
+    {name:'ZH-PC-0144', type:'pc', ref:'3144', seen:syncTime, rec:{model:'HP EliteDesk 800 G9 Mini', serial:'CZC3217KR2', ip:'10.10.20.44', mac:'64:4e:d7:3a:98:11', os:'Windows 11 Pro 23H2', user:'A. Frei', loc:LOCS[1]},
       rel:{kind:'connected', to:'SIP-ZH-2103', port:'PC port', vlan:'20 Clients'}, detail:'Windows 11 Pro · 10.10.20.44'},
-    {name:'MON-0445', type:'monitor', ref:'3144-m1', seen:SYNC_TIME, rec:{model:'Dell P2423D 24"', serial:'CN0R7W1K-QDC12', loc:LOCS[1]},
+    {name:'MON-0445', type:'monitor', ref:'3144-m1', seen:syncTime, rec:{model:'Dell P2423D 24"', serial:'CN0R7W1K-QDC12', loc:LOCS[1]},
       rel:{kind:'attached', to:'ZH-PC-0144', port:'DP 1', vlan:null}, detail:'Attached to ZH-PC-0144'}
   ];
   return {seq, codeN, rseq, locs: LOCS, racks: RACKS, users: USERS, objs, rels, history, ldap, ldapSample: LDAP_SAMPLE, feedMap: FEED_MAP, feedExisting: FEED_EXISTING, feedNew: FEED_NEW};
