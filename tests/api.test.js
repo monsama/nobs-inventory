@@ -186,6 +186,16 @@ test('pushed links join objects: a device to its switch port, a monitor to its P
   assert.equal(s.rels.length, 2, 'a second push does not add the links again');
 });
 
+test('pushed software replaces the Lansweeper software and keeps what was typed by hand', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [{ id: 'o1', name: 'PC1', type: 'pc', feed: { sys: 'Lansweeper', ref: 'pc1' }, ovr: {}, software: [{ name: 'Typed', version: '1' }, { name: 'Old', version: '1', src: 'Lansweeper' }] }],
+    rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1', software: [{ name: 'Chrome', version: '120' }] }]));
+  assert.deepEqual(s.objs[0].software.map(x => x.name), ['Typed', 'Chrome']);
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1' }]));
+  assert.deepEqual(s.objs[0].software.map(x => x.name), ['Typed', 'Chrome'], 'a push without software leaves it as it is');
+});
+
 test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
   const srv = await startServer({ feedToken: 'push-secret-123' });
   const push = (auth, body) => fetch(srv.base + '/api/feed/push', {

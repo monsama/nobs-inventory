@@ -10,7 +10,7 @@
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
     Links are sent too: each device to the switch port it is connected to (from the Lansweeper switch report),
-    and each monitor to the PC it is attached to (from the monitor scan).
+    and each monitor to the PC it is attached to (from the monitor scan). The installed software of each device is sent as well.
 
     The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
     machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
@@ -71,6 +71,8 @@ $script:Wanted = [ordered]@{
     tblNetwork     = @('AssetID', 'DNSHostname')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
+    tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
+    tblSoftwareUni = @('SoftID', 'softwareName')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -201,6 +203,29 @@ function Get-SwitchLinks($conn) {
     return $map
 }
 
+# Installed software per asset, from the Lansweeper software tables. Null when those tables are not there.
+function Get-SoftwareByAsset($conn) {
+    if (-not ((Test-Col 'tblSoftware' 'AssetID') -and (Test-Col 'tblSoftware' 'softID') -and (Test-Col 'tblSoftwareUni' 'SoftID') -and (Test-Col 'tblSoftwareUni' 'softwareName'))) {
+        Write-PushLog 'The software tables are not in this Lansweeper version - no software is sent' 'WARN'
+        return $null
+    }
+    $map = @{}
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT s.[AssetID], u.[softwareName], s.[softwareVersion] FROM [tblSoftware] s JOIN [tblSoftwareUni] u ON u.[SoftID] = s.[softID] WHERE u.[softwareName] IS NOT NULL'
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $asset = ConvertTo-Text $reader['AssetID']
+            $name = Get-Clean $reader['softwareName']
+            if (-not $asset -or -not $name) { continue }
+            if (-not $map.ContainsKey($asset)) { $map[$asset] = New-Object System.Collections.Generic.List[object] }
+            $map[$asset].Add([ordered]@{ name = $name; version = Get-Clean $reader['softwareVersion'] })
+        }
+    } finally { $reader.Close() }
+    return $map
+}
+
 # Monitors with a serial number, each linked to the PC it is attached to.
 function Get-MonitorRecords($conn) {
     $list = New-Object System.Collections.Generic.List[object]
@@ -288,11 +313,16 @@ function Get-LsRecords {
                     assetType = Get-Clean $reader['ty__AssetTypename']
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
+                    software = $null
                 })
             }
         } finally { $reader.Close() }
         $links = Get-SwitchLinks $conn
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
+        $software = Get-SoftwareByAsset $conn
+        if ($software) {
+            foreach ($rec in $list) { $rec['software'] = $(if ($software.ContainsKey($rec['ref'])) { @($software[$rec['ref']]) } else { @() }) }
+        }
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
         return , $list.ToArray()
     } finally { $conn.Dispose() }
