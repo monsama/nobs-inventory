@@ -21,7 +21,8 @@ trap 'echo "[ERROR] Failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 cd "$(dirname "$0")"
 BASE_DIR="$(pwd)"
 PROJECT=nobs-inventory
-IMAGE=nobs-inventory:0.2
+VERSION="$(cat VERSION)"
+IMAGE="${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:$VERSION}"
 INSTALL_BACKUP_CRON="${INSTALL_BACKUP_CRON:-true}"
 
 info() { echo "[INFO]  $*"; }
@@ -61,6 +62,7 @@ step_env() {
     else
         echo "NI_HOST=$host" >> "$env"
     fi
+    grep -q '^NI_IMAGE=' "$env" || echo "NI_IMAGE=ghcr.io/monsama/nobs-inventory:$VERSION" >> "$env"
     # Old installs kept secrets here; they move to ./secrets below
     sed -i -E '/^(NI_ADMIN_PASSWORD|NI_LDAP_SERVICE_PASSWORD|NI_LS_TOKEN)=/d' "$env"
     chmod 640 "$env"
@@ -93,8 +95,12 @@ step_build_start() {
     [ -n "$net" ] && args+=(--network "$net")
     [ -n "${HTTP_PROXY:-}" ] && args+=(--build-arg "HTTP_PROXY=$HTTP_PROXY")
     [ -n "${HTTPS_PROXY:-}" ] && args+=(--build-arg "HTTPS_PROXY=$HTTPS_PROXY")
-    info "Building $IMAGE ..."
-    docker build "${args[@]}" -t "$IMAGE" "$BASE_DIR" >/dev/null
+    if docker pull "$IMAGE" >/dev/null 2>&1; then
+        info "Pulled release image $IMAGE"
+    else
+        warn "Could not pull $IMAGE - building it from this folder instead."
+        docker build "${args[@]}" -t "$IMAGE" "$BASE_DIR" >/dev/null
+    fi
     info "Starting containers ..."
     docker compose -p "$PROJECT" up -d --no-build
     info "Waiting for the app to be healthy ..."

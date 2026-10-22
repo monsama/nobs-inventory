@@ -2,6 +2,10 @@
 
 Inventory for PCs, servers, storage, phones, network gear, patch panels and racks. A small Node/Express API stores everything in one SQLite file. The page in `public/` is the same file as the mockup: without a server it keeps its data in the browser, with the server it signs in and saves there.
 
+## Releases
+
+Each version is a tag (`v0.2.0`) with a downloadable archive and checksum on the GitHub releases page, and a Docker image `ghcr.io/monsama/nobs-inventory:<version>`. The install pulls that image; it builds from source only if the pull fails.
+
 ## Set up
 
 On a Linux server with Docker and the Compose plugin:
@@ -19,7 +23,9 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 
 | Task | Command |
 | --- | --- |
-| Update the code and image | `sudo ./scripts/update.sh` (backs up first) |
+| Update to the latest code | `sudo ./scripts/update.sh` (backs up first; rolls back automatically if unhealthy) |
+| Update to a release | `sudo ./scripts/update.sh 0.3.0` |
+| Current version | `cat VERSION` and `grep NI_IMAGE .env` |
 | Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days) |
 | Restore | `sudo ./scripts/restore.sh backup/<file>.tar.gz` (type RESTORE to confirm) |
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
