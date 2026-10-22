@@ -65,6 +65,11 @@ export function recordsFromJson(list) {
       kind: l && l.kind === 'attached' ? 'attached' : 'connected',
       port: String(l && l.port != null ? l.port : '').trim().slice(0, 100)
     })) : [];
+    /* Installed software: null when the push did not send it, so the software already on the object stays. */
+    r.software = Array.isArray(raw && raw.software) ? raw.software.slice(0, 1000).map(x => ({
+      name: String(x && x.name != null ? x.name : '').trim().slice(0, 200),
+      version: String(x && x.version != null ? x.version : '').trim().slice(0, 100)
+    })).filter(x => x.name) : null;
     return r;
   });
 }
@@ -74,6 +79,19 @@ const findByName = (s, name) => {
   const same = s.objs.filter(o => o.name.toLowerCase() === name.toLowerCase());
   return same.length === 1 ? same[0] : null;
 };
+
+/* The software a push sends replaces what came from Lansweeper before; software typed in by hand is kept. */
+function applySoftware(s, pairs) {
+  let n = 0;
+  if (s.feedOn === false) return n;
+  for (const { r, obj } of pairs) {
+    if (!Array.isArray(r.software)) continue;
+    const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
+    obj.software = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
+    n++;
+  }
+  return n;
+}
 
 /* Creates or updates the links of the records that were merged. Only links to objects that exist are made; links are
    never removed here. A link that is already there keeps its place and gets the new port. */
@@ -149,6 +167,7 @@ export function mergeRecords(s, records, now = new Date()) {
     else { found.feed.seen = seen; counts.unchanged++; }
   }
   counts.links = applyLinks(s, pairs);
+  counts.software = applySoftware(s, pairs);
   return counts;
 }
 
