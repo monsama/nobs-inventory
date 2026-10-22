@@ -155,6 +155,21 @@ test('feed import over HTTP saves the merge', async () => {
   } finally { await srv.close(); }
 });
 
+test('Lansweeper asset type names land in the matching app type', async () => {
+  const { mergeRecords } = await import('../server/feed.js');
+  const expected = {
+    'Windows': 'pc', 'Apple Mac': 'pc', 'Computer': 'pc', 'Laptop': 'pc', 'Linux': 'server', 'VMware': 'server',
+    'Switch': 'switch', 'Router': 'router', 'Firewall': 'firewall', 'Printer': 'printer', 'Tablet': 'tablet', 'iPad': 'tablet',
+    'iPhone': 'smartphone', 'Android': 'smartphone', 'Mobile': 'smartphone', 'Phone': 'sip', 'VoIP': 'sip', 'VOIP phone': 'sip',
+    'Wireless Access point': 'other', 'Wifi': 'other', 'UPS': 'other', 'Network device': 'other'
+  };
+  for (const [assetType, type] of Object.entries(expected)) {
+    const s = { objs: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0 };
+    mergeRecords(s, [{ name: 'X-' + assetType, assetType }]);
+    assert.equal(s.objs[0].type, type, assetType);
+  }
+});
+
 test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
   const srv = await startServer({ feedToken: 'push-secret-123' });
   const push = (auth, body) => fetch(srv.base + '/api/feed/push', {

@@ -6,10 +6,12 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 const FEED_FIELDS = ['ip', 'mac', 'os', 'model'];
+/* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
-  [/phone|sip/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
-  [/ipad|ios|android|tablet/i, 'tablet'], [/server|linux/i, 'server'], [/router|firewall/i, 'router'],
-  [/windows|workstation|pc|notebook|laptop/i, 'pc']
+  [/ipad|tablet/i, 'tablet'], [/iphone|smartphone|mobile|android/i, 'smartphone'],
+  [/phone|voip|sip/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
+  [/firewall/i, 'firewall'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
+  [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
 ];
 const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
