@@ -65,6 +65,7 @@ $script:Wanted = [ordered]@{
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
+    tblNetwork     = @('AssetID', 'DNSHostname')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -165,7 +166,7 @@ function Find-LsTables {
     $conn = Open-LsConnection
     try {
         $cmd = $conn.CreateCommand()
-        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        $cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME LIKE '%port%' OR TABLE_NAME LIKE '%switch%' OR TABLE_NAME LIKE '%connect%' OR TABLE_NAME LIKE '%network%' OR TABLE_NAME LIKE '%monitor%' OR TABLE_NAME LIKE '%soft%' OR TABLE_NAME LIKE '%install%' ORDER BY TABLE_NAME, ORDINAL_POSITION"
         $reader = $cmd.ExecuteReader()
         $lines = New-Object System.Collections.Generic.List[string]
         try { while ($reader.Read()) { $lines.Add("$($reader[0]).$($reader[1])") } } finally { $reader.Close() }
@@ -190,11 +191,15 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
-            (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname')
+            (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
+            (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname')
         ) -join ', '
 
         $joins = ''
         if (Test-Col 'tblAssetCustom' 'AssetID') { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
+        if ((Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'DNSHostname')) {
+            $joins += 'LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname] FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] '
+        }
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
         if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
 
@@ -214,6 +219,9 @@ function Get-LsRecords {
         try {
             while ($reader.Read()) {
                 $name = Get-Clean $reader['a__AssetName']
+                # A device scanned without an agent is named by its IP address: use its DNS name when Lansweeper has one.
+                $dns = Get-Clean $reader['n__DNSHostname']
+                if ($dns -and $name -match '^\d{1,3}(\.\d{1,3}){3}$') { $name = $dns }
                 if (-not $name) { continue }
                 $mac = (Get-Clean $reader['a__Mac']) -replace '[^0-9a-fA-F]', ''
                 $list.Add([ordered]@{
