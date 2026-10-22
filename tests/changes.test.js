@@ -130,3 +130,22 @@ test('factory reset removes every record, setting and other account; the admin w
     assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 200, 'the admin cannot sign in again');
   } finally { await srv.close(); }
 });
+
+test('addresses are checked: a bad IP is refused, IPv6 is kept, a MAC is stored in lower case; a feed never stores a bad one', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const bad = await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: { ...pc('o1', 'PC-1', ''), ip: '10.10.0.300' }, base: 0 }], dels: [] });
+    assert.equal(bad.status, 400, 'a bad IP was saved');
+    assert.match(bad.json.error, /IPv4/);
+    const good = await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: { ...pc('o1', 'PC-1', ''), ip6: '2001:DB8::12', mac: '70-B3-17-4A-00-01' }, base: 0 }], dels: [] });
+    assert.equal(good.status, 200);
+    const saved = (await load(srv, a.cookie)).objs.find(o => o.id === 'o1');
+    assert.equal(saved.ip6, '2001:db8::12');
+    assert.equal(saved.mac, '70:b3:17:4a:00:01');
+  } finally { await srv.close(); }
+  const { mergeRecords } = await import('../server/feed.js');
+  const s = { objs: [{ id: 'x', name: 'PC-F', serial: 'SF', ip: '10.1.1.5', ovr: {}, feed: { sys: 'Lansweeper', ref: '1', seen: 'now' } }], policy: { ip: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  mergeRecords(s, [{ name: 'PC-F', serial: 'SF', ip: '10.1.1.999' }]);
+  assert.equal(s.objs[0].ip, '10.1.1.5', 'the feed stored a bad IP');
+});

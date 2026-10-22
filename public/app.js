@@ -57,7 +57,7 @@ const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 const SITES = [];
 let RACKS = [];
-const FIELD_LABEL = {ip:'IP address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', user:'User', loc:'Location', status:'Status'};
+const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 const KINDS = {
@@ -126,7 +126,7 @@ const isUplink = k => k === 'uplink' || k === 'downlink';
 function filtered(){
   const q = st.q.trim().toLowerCase();
   return objs.filter(o => (!st.type || o.type === st.type) && (!st.loc || o.loc.startsWith(st.loc)) && (!st.status || o.status === st.status)
-    && (!q || [o.code,o.name,o.ip,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
+    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */
@@ -358,7 +358,10 @@ function importCsvModal(){
       if (!name) errs.push('no name');
       if (!tKey) errs.push('unknown type');
       if (loc && !LOCS.includes(loc)) errs.push('unknown location');
-      return {line: i + 2, name, type: tKey, loc: loc || LOCS[0], model: g('model'), serial: g('serial'), ip: g('ip'), mac: g('mac'), user: g('user'), errs};
+      const ip = checkAddress('ip', g('ip')), mac = checkAddress('mac', g('mac'));
+      if (!ip.ok) errs.push('IP address is not valid');
+      if (!mac.ok) errs.push('MAC address is not valid');
+      return {line: i + 2, name, type: tKey, loc: loc || LOCS[0], model: g('model'), serial: g('serial'), ip: ip.value, mac: g('mac'), user: g('user'), errs};
     });
     const ok = parsed.filter(p => !p.errs.length).length;
     $('#csvPrev').innerHTML = `<div class="summary"><span class="chip ok">${ok} ready</span><span class="chip warn">${parsed.length - ok} with problems</span></div>
@@ -664,7 +667,7 @@ function renderRack(){
 /* ---------- object page ---------- */
 const FIELDS = {
   base:[['name','Name','mono'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
-  net:[['ip','IP address','mono'],['mac','MAC address','mono']],
+  net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system']], server:[['kind','Kind','kind'],['os','Operating system'],['cpu','CPU'],['ram','Memory']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
@@ -833,6 +836,12 @@ function renderObj(o){
     toast(`${FIELD_LABEL[k]} ${c.checked ? 'follows the feed' : 'is kept as set here'}`); render();
   });
   $('#saveBtn').onclick = () => {
+    /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
+    const addrs = [...$('#view').querySelectorAll('[data-k="ip"],[data-k="ip6"],[data-k="mac"]')];
+    const checked = addrs.map(el => ({ el, c: checkAddress(el.dataset.k, el.value) }));
+    const wrong = checked.find(x => !x.c.ok);
+    if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return; }
+    checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
     let place = null;
     if (rkEl('rack') !== null){
@@ -1273,6 +1282,26 @@ function renameLoc(old, value){
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
 /* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in and no object has it. */
+/* Address checks, the same rules as server/validate.js: an empty value is allowed. */
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
+function validIPv6(v){
+  if (v.length > 45 || !/^[0-9a-f:.]+$/i.test(v)) return false;
+  if (v.includes('.')){ const i = v.lastIndexOf(':'); if (i < 0 || !IPV4_RE.test(v.slice(i + 1))) return false; v = v.slice(0, i + 1) + '0:0'; }
+  const parts = v.split('::'); if (parts.length > 2) return false;
+  const groups = x => (x === '' ? [] : x.split(':'));
+  const all = [...groups(parts[0]), ...(parts.length === 2 ? groups(parts[1]) : [])];
+  if (!all.every(g => /^[0-9a-f]{1,4}$/i.test(g))) return false;
+  return parts.length === 2 ? all.length <= 7 : all.length === 8;
+}
+function checkAddress(k, raw){
+  const v = String(raw ?? '').trim();
+  if (!v) return {ok: true, value: ''};
+  if (k === 'ip') return IPV4_RE.test(v) ? {ok: true, value: v} : {ok: false, msg: `"${v}" is not an IPv4 address, such as 10.10.0.12.`};
+  if (k === 'ip6') return validIPv6(v) ? {ok: true, value: v.toLowerCase()} : {ok: false, msg: `"${v}" is not an IPv6 address, such as 2001:db8::12.`};
+  if (k === 'mac') return MAC_RE.test(v) ? {ok: true, value: v.toLowerCase().replace(/-/g, ':')} : {ok: false, msg: `"${v}" is not a MAC address, such as 70:b3:17:4a:00:01.`};
+  return {ok: true, value: v};
+}
 /* Readable names for the icons, for the dropdown. */
 const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'SIP phone', mobile: 'Smartphone', tablet: 'Tablet',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
@@ -1620,7 +1649,7 @@ async function sendChanges(){
     const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
     if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); await reloadFromServer(); return; }
+    if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
     for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
     if (Object.keys(j.codes || {}).length) render();
     const sent = new Map([...puts, ...dels].map(c => [c.key, c]));

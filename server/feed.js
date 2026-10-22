@@ -3,6 +3,8 @@ import { HttpError } from './errors.js';
 /* Lansweeper merge rules, shared by the file import and the API sync.
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
+import { checkAddress } from './validate.js';
+
 const FEED_FIELDS = ['ip', 'mac', 'os', 'model'];
 const TYPE_WORDS = [
   [/phone|sip/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
@@ -51,7 +53,14 @@ export function mergeRecords(s, records, now = new Date()) {
   const seen = stamp(now);
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
   const locs = s.locs || [];
-  for (const r of records) {
+  /* A field that is not a valid address is left out of the record, so it is never stored. */
+  const clean = raw => {
+    const r = { ...raw };
+    for (const k of ['ip', 'mac']) { const c = checkAddress(k, r[k]); r[k] = c.ok ? c.value : ''; }
+    return r;
+  };
+  for (const raw of records) {
+    const r = clean(raw);
     if (!r.name && !r.serial) continue;
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */

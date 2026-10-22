@@ -41,6 +41,17 @@ try {
   assert.equal(await p.evaluate(() => LOCS.includes('Basel / Lager')), true, 'the room was not added under the site');
   await p.click('#setClose');
   assert.ok((await p.textContent('#locList')).includes('Basel'), 'the sidebar does not show the site');
+  // Addresses: a bad IP is refused with the reason and nothing is saved; corrected values are saved in the form they are kept in.
+  await p.evaluate(() => openObj(byName('SRV-ZH-HV01').id));
+  const sid = await p.evaluate(() => byName('SRV-ZH-HV01').id);
+  await p.fill(`#f_${sid}_ip`, '10.10.0.300'); await p.click('#saveBtn');
+  await p.waitForFunction(() => /not an IPv4 address/.test(document.querySelector('#toast').textContent), null, { timeout: 5000 });
+  assert.equal(await p.evaluate(() => byName('SRV-ZH-HV01').ip), undefined, 'a bad IP was saved');
+  await p.fill(`#f_${sid}_ip`, '10.10.0.20'); await p.fill(`#f_${sid}_ip6`, '2001:DB8::20'); await p.fill(`#f_${sid}_mac`, 'AA-BB-CC-DD-EE-FF');
+  await p.click('#saveBtn');
+  await p.waitForFunction(() => byName('SRV-ZH-HV01').ip === '10.10.0.20', null, { timeout: 5000 });
+  assert.equal(await p.evaluate(() => byName('SRV-ZH-HV01').ip6), '2001:db8::20', 'the IPv6 address was not saved in lower case');
+  assert.equal(await p.evaluate(() => byName('SRV-ZH-HV01').mac), 'aa:bb:cc:dd:ee:ff', 'the MAC address was not stored with colons');
   // Feed: the Lansweeper address is kept after a reload; Sync now waits for a token on the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
   await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
