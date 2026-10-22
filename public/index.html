@@ -95,6 +95,9 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
 @media (max-width:760px){.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
+.btnlike{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
+.btnlike:hover{filter:brightness(1.08)}
+.btnlike.disabled{opacity:.45;pointer-events:none}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}

@@ -1189,12 +1189,64 @@ function showDevicesOf(name){
 
 /* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
 /* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
+/* Backups of the inventory: taken before each Lansweeper sync, push and import, and by hand. */
+let BACKUPS = null;
+async function loadBackups(){
+  const r = await fetch('api/backups', {credentials: 'same-origin'});
+  if (r.ok){ BACKUPS = (await r.json()).backups; if ($('#setMaint')) renderSetMaint(); }
+}
+function backupPanel(edit){
+  const list = BACKUPS || [];
+  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n">${b.objects}</td><td class="n">${(b.bytes / 1048576).toFixed(1)} MB</td>
+    <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
+  return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
+    <p class="note" style="padding:10px 12px">A backup is taken before every Lansweeper sync, push and import, and the last 10 are kept. Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before the restore, so it can be restored again.</p>
+    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n">Devices</th><th class="n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
+    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
+}
+function wireBackups(edit){
+  const msg = t => toast(t);
+  if ($('#bkNew')) $('#bkNew').onclick = async () => {
+    const r = await fetch('api/backups', {method: 'POST', credentials: 'same-origin'});
+    if (!r.ok){ msg('The backup could not be taken.'); return; }
+    msg('Backup taken'); loadBackups();
+  };
+  document.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+    const r = await fetch('api/backups/' + b.dataset.bdel, {method: 'DELETE', credentials: 'same-origin'});
+    if (r.ok){ msg('Backup deleted'); loadBackups(); }
+  });
+  document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
+  const file = $('#bkFile');
+  if (file) file.onchange = async () => {
+    const f = file.files[0]; if (!f) return;
+    const text = await f.text();
+    restoreModal(f.name, () => fetch('api/backups/restore-file', {method: 'POST', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: text}));
+    file.value = '';
+  };
+}
+/* A restore replaces the inventory, so it asks for the word RESTORE. */
+function restoreModal(label, run){
+  modal(`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${esc(label)}. The current state is backed up first, so the restore can be undone from the list.</p>
+    <div class="form" style="padding:0"><label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
+    <div class="mf"><button id="rsCancel">Cancel</button><button id="rsOk" class="danger-text" disabled>Restore</button></div>`, 'sm');
+  $('#rsCancel').onclick = closeModal;
+  $('#rsWord').oninput = () => { $('#rsOk').disabled = $('#rsWord').value !== 'RESTORE'; };
+  $('#rsOk').onclick = async () => {
+    const r = await run();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'The backup could not be restored.'); return; }
+    closeModal(); toast('Restored'); await reloadFromServer(); loadBackups();
+  };
+  $('#rsWord').focus();
+}
 function renderSetMaint(){
   const edit = canEdit();
-  $('#setMaint').innerHTML = `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
+  if (edit && BACKUPS === null) loadBackups();
+  $('#setMaint').innerHTML = `${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
+  if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
 }
 function factoryResetModal(){

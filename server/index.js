@@ -8,6 +8,7 @@ import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword } from './auth.js';
 import { mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
+import { takeBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
@@ -50,6 +51,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     if (now.getHours() !== 6 || now.getMinutes() !== 0 || lastRun === key) return;
     lastRun = key;
     const ls = lansweeperConfig ? lansweeperConfig() : null;
+    takeBackup(db, 'before the nightly sync');
     if (ls) {
       try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); }
     } else if (env.NI_FEED_CSV) {
