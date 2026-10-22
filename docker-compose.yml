@@ -3,8 +3,9 @@ name: nobs-inventory
 
 services:
   app:
+    # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.2.0}
     build: .
-    image: nobs-inventory:0.2
     restart: unless-stopped
     expose:
       - "8080"
