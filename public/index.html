@@ -61,6 +61,35 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
 .ctlrow>:not(.pchk){flex:1;min-width:0}
 .ctlrow .pchk{white-space:nowrap;flex:none}
+.plans{display:flex;flex-direction:column;min-height:0}
+.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
+.pl-bar select{height:30px;min-width:200px}
+.pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
+.pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
+.pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 190px);min-height:360px}
+.pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
+.pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
+.pl-q{padding:8px 10px}
+.pl-q input{width:100%;height:30px;box-sizing:border-box}
+.pl-list{overflow:auto;flex:1;min-height:0}
+.pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
+.pl-item:hover{background:var(--hover)}
+.pl-item.on{background:var(--panel2);font-weight:600}
+.pl-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.pl-none{padding:12px}
+.pl-tip{margin:0;padding:10px 12px;border-top:1px solid var(--bd2)}
+.pl-stage{overflow:auto;background:var(--panel2);padding:18px;min-width:0}
+.pl-canvas{position:relative;width:100%;margin:0 auto;user-select:none;touch-action:none}
+.pl-canvas>img{display:block;width:100%;height:auto;border-radius:var(--r-s);box-shadow:0 2px 14px rgba(0,0,0,.28);pointer-events:none}
+.pl-area{position:absolute;border:2px dashed var(--accent);background:rgba(37,99,235,.08);border-radius:4px;pointer-events:none}
+.pl-area>span{position:absolute;left:6px;top:4px;font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;white-space:nowrap}
+.pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
+.pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:12px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
+.pl-pin>i{width:8px;height:8px;border-radius:50%;background:#fff;flex:none}
+.pl-pin:active{cursor:grabbing}
+.pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
+.pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
+@media (max-width:760px){.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:220px}}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}

@@ -173,7 +173,7 @@ export function mergeRecords(s, records, now = new Date()) {
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
-    if (r.user && userOwned && !found.uid && !found.user) { found.user = r.user; changed = true; }
+    if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; changed = true; }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

@@ -60,6 +60,7 @@ const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 const SITES = [];
 let RACKS = [];
+let PLANS = [];
 const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
@@ -95,7 +96,7 @@ const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
+const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -171,7 +172,7 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', net:'Switch ports', rack:'Racks', sw:'Software'};
+const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Switch ports', rack:'Racks', sw:'Software'};
 function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   $('#tabsbar').innerHTML = ids.map(id => {
@@ -712,7 +713,7 @@ function fieldCtl(o, [k, label, kind], idp = 'f_'){
   let ctl;
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option>${USERS.map(u => `<option value="${u.id}" ${u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
   return ctl;
@@ -919,8 +920,9 @@ function renderObj(o){
     const kept = [];
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = el.value;
-      if (k === 'user'){ o.uid = v || null; return; }
+      if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
+      if (k === 'ports' && o.type === 'switch' && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       if (o.feed && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
     });
@@ -1087,7 +1089,7 @@ function bindUser(o){
   delete o.user;
   if (!o.uid) o.uid = name ? ensureUser(name).id : null;
   Object.defineProperty(o, 'user', {
-    get(){ const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
+    get(){ if (this.hotdesk) return 'Hot desk'; const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
     enumerable: true, configurable: true
   });
@@ -1716,11 +1718,177 @@ function setupTable(t){
 new MutationObserver(() => document.querySelectorAll('table.grid').forEach(setupTable)).observe(document.body, {childList: true, subtree: true});
 
 /* ---------- render ---------- */
+/* ---------- floor plans ---------- */
+/* An image per site or room, areas drawn on it, and devices placed by position (in percent of the image). */
+let planSel = null, planMode = 'view', planPlace = null, planDraw = null, planDrag = null;
+const planById = id => PLANS.find(p => p.id === id);
+const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
+const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
+const round1 = v => Math.round(v * 10) / 10;
+function renderPlans(){
+  const plan = planById(planSel) || PLANS[0] || null;
+  planSel = plan ? plan.id : null;
+  const bar = `<div class="pl-bar">
+      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet</span>'}
+      <button id="plNew" class="primary">New plan</button>
+      ${plan ? `<span class="pl-sep"></span>
+        <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
+        <button id="plReplace">Replace image</button>
+        <button id="plDel" class="danger-text">Delete plan</button>` : ''}
+      <span class="grow"></span>
+      ${plan ? `<span class="muted">${(plan.areas || []).length} areas · ${planDevices(plan).length} devices</span>` : ''}
+    </div>`;
+  const body = plan ? `<div class="pl-body">
+      <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
+        <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices"></div>
+        <div class="pl-list" id="plList"></div>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Choose a device, then click the plan to place it. Drag a placed device to move it.'}</p></aside>
+      <div class="pl-stage" id="plStage">${planCanvas(plan)}</div></div>`
+    : `<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p><button class="primary" id="plNew2">New plan</button></div>`;
+  $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));
+  const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; renderPlans(); };
+  on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; renderPlans(); });
+  on('#plReplace', () => planModal(plan));
+  on('#plDel', () => deletePlanModal(plan));
+  if (!plan) return;
+  renderPlanList(plan);
+  $('#plQ').oninput = () => renderPlanList(plan);
+  $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
+  const c = $('#plCanvas');
+  c.onpointerdown = e => {
+    if (e.target.closest('.pl-pin,.pl-x') || e.button !== 0) return;
+    const r = c.getBoundingClientRect();
+    const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
+    if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
+    if (planPlace && canEdit()) placeDevice(plan, planPlace, round1(x), round1(y));
+  };
+  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0}; });
+  c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
+}
+function planCanvas(plan){
+  const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
+  return `<div class="pl-canvas" id="plCanvas" style="cursor:${cursor}">
+    <img src="${plan.image}" alt="Floor plan ${esc(plan.name)}" draggable="false">
+    ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
+    ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
+  </div>`;
+}
+function renderPlanList(plan){
+  const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
+  const placed = planDevices(plan).map(o => o.id);
+  const rows = objs.filter(o => !placed.includes(o.id) && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
+  $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
+}
+function placeDevice(plan, o, x, y){
+  o.planPos = {plan: plan.id, x, y};
+  hist(o, now(), `Placed on ${plan.name} by ${who()}`);
+  planPlace = null; queueServerSave(); renderPlans();
+}
+function drawPreview(){
+  const c = $('#plCanvas'); if (!c || !planDraw) return;
+  let p = $('#plPreview');
+  if (!p){ p = document.createElement('div'); p.id = 'plPreview'; p.className = 'pl-preview'; c.appendChild(p); }
+  const d = planDraw;
+  Object.assign(p.style, {left: Math.min(d.x0, d.x1) + '%', top: Math.min(d.y0, d.y1) + '%', width: Math.abs(d.x1 - d.x0) + '%', height: Math.abs(d.y1 - d.y0) + '%'});
+}
+document.addEventListener('pointermove', e => {
+  const c = $('#plCanvas'); if (!c) return;
+  if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
+  if (planDrag){
+    const r = c.getBoundingClientRect();
+    planDrag.x = pctOf(e.clientX, r.left, r.width); planDrag.y = pctOf(e.clientY, r.top, r.height); planDrag.moved = true;
+    const pin = c.querySelector(`[data-pin="${planDrag.id}"]`);
+    if (pin){ pin.style.left = planDrag.x + '%'; pin.style.top = planDrag.y + '%'; }
+  }
+});
+document.addEventListener('pointerup', () => {
+  if (planDraw){
+    const d = planDraw; planDraw = null;
+    const rect = {x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0)};
+    if (rect.w > 2 && rect.h > 2 && planById(planSel)) areaModal(planById(planSel), rect); else renderPlans();
+  }
+  if (planDrag){
+    const d = planDrag; planDrag = null;
+    if (d.moved){
+      const o = byId(d.id);
+      if (o && o.planPos){ o.planPos = {...o.planPos, x: round1(d.x), y: round1(d.y)}; hist(o, now(), `Moved on the plan by ${who()}`); queueServerSave(); }
+      renderPlans();
+    } else openObj(d.id);
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; renderPlans(); }
+});
+function areaModal(plan, rect){
+  modal(`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0"><label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60"></div>
+    <p class="note">An area is a named place on this plan. Devices placed inside it are in that place.</p></div>
+    <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
+  $('#arCancel').onclick = () => { closeModal(); renderPlans(); };
+  $('#arOk').onclick = () => {
+    const name = $('#arName').value.trim();
+    if (!name){ toast('Give the area a name.'); return; }
+    plan.areas = [...(plan.areas || []), {id: 'ar' + rid(), name, x: round1(rect.x), y: round1(rect.y), w: round1(rect.w), h: round1(rect.h)}];
+    planMode = 'view'; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
+  };
+  $('#arName').focus();
+}
+function loadPlanImage(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('not an image')); };
+    img.src = url;
+  });
+}
+/* Reduced to 1800 px wide and saved as JPEG, so a plan stays small in the inventory. */
+function shrinkPlanImage(img){
+  const k = Math.min(1, 1800 / img.naturalWidth);
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+function planModal(existing){
+  modal(`<div class="mh">${existing ? 'Replace image' : 'New floor plan'}</div><div class="mb">
+    <div class="form" style="padding:0">${existing ? '' : `<label for="plName">Name</label><input id="plName" placeholder="e.g. Ground floor" maxlength="60"><label for="plSite">Site</label><select id="plSite">${SITES.map(s => `<option>${esc(s)}</option>`).join('')}</select>`}
+    <label for="plFile">Image</label><input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp"></div>
+    <p class="note">PNG, JPG, GIF or WebP.</p></div>
+    <div class="mf"><button id="plCancel">Cancel</button><button id="plOk" class="primary">Save</button></div>`, 'sm');
+  $('#plCancel').onclick = closeModal;
+  $('#plOk').onclick = async () => {
+    const name = existing ? existing.name : $('#plName').value.trim();
+    const file = $('#plFile').files[0];
+    if (!name){ toast('Give the plan a name.'); return; }
+    if (!file){ toast('Choose an image.'); return; }
+    let img;
+    try { img = await loadPlanImage(file); } catch (e) { toast('That file is not an image.'); return; }
+    const data = shrinkPlanImage(img);
+    if (data.length > 1500000){ toast('The image is still too large. Use a smaller one.'); return; }
+    if (existing) existing.image = data;
+    else { const p = {id: 'pl' + rid(), name, site: $('#plSite').value, image: data, areas: []}; PLANS.push(p); planSel = p.id; }
+    planMode = 'view'; queueServerSave(); closeModal(); toast('Plan saved'); renderPlans();
+  };
+  if (!existing) $('#plName').focus();
+}
+function deletePlanModal(plan){
+  modal(`<div class="mh">Delete ${esc(plan.name)}?</div><div class="mb"><p class="note">The plan and its areas are removed. Devices placed on it stay in the inventory, but are no longer shown on a plan.</p></div>
+    <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="danger-text">Delete plan</button></div>`, 'sm');
+  $('#dpCancel').onclick = closeModal;
+  $('#dpOk').onclick = () => {
+    objs.forEach(o => { if (o.planPos && o.planPos.plan === plan.id) delete o.planPos; });
+    PLANS = PLANS.filter(p => p !== plan); planSel = null; planMode = 'view'; planPlace = null;
+    queueServerSave(); closeModal(); toast('Plan deleted'); renderPlans();
+  };
+}
 function render(){
   renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
   else if (st.tab === 'map') renderMap();
+  else if (st.tab === 'plans') renderPlans();
   else if (st.tab === 'net') renderNet();
   else if (st.tab === 'rack') renderRack();
   else if (st.tab === 'sw') renderSoftware();
@@ -1747,7 +1915,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -1877,6 +2045,7 @@ function applyState(d){
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
   SITES.splice(0, SITES.length, ...(d.sites || []));
+  PLANS.splice(0, PLANS.length, ...(d.plans || []));
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
