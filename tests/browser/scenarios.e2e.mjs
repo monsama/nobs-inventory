@@ -70,6 +70,24 @@ try {
   const dev = await idOf(p, 'SCEN-SW-1');
   await p.selectOption('#mdDev', dev); await p.fill('#mdU', '10'); await p.click('#mdOk');
   assert.equal(await state(p, d => byId(d).rack, dev), 'R-SRV', 'the device was not mounted in the rack');
+  // Delete a relation from the object page.
+  const before = await state(p, () => rels.length);
+  await openByName(p, 'ZH-NB-0201');
+  await p.locator('.relrow', { hasText: 'SW-ZH-2OG-01' }).locator('[data-delrel]').click();
+  assert.equal(await state(p, () => rels.length), before - 1, 'the relation was not removed');
+  assert.equal(await state(p, () => rels.some(r => r.from === byName('ZH-NB-0201').id && r.to === byName('SW-ZH-2OG-01').id)), false, 'the relation is still there');
+  // Move the mounted switch to the other rack, at U3, from its object page.
+  await openByName(p, 'SCEN-SW-1');
+  await p.selectOption('[data-rk=rack]', 'R-2OG'); await p.fill('[data-rk=u]', '3');
+  await p.click('#saveBtn');
+  await p.waitForFunction(() => byName('SCEN-SW-1').rack === 'R-2OG');
+  assert.equal(await state(p, () => byName('SCEN-SW-1').u), 3, 'the device did not move to U3');
+  // LDAP sync from Settings: the plan is shown, applied, and the new user is there.
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=ldap]');
+  await p.click('#ldapSync'); await p.waitForSelector('#ldapApply');
+  await p.click('#ldapApply');
+  await p.waitForFunction(() => USERS.some(u => u.login === 'a.frei'));
+  await p.click('#setClose');
   // CSV import through the dialog.
   await p.click('#tabsbar [data-tab=table]'); await p.click('#csvImp'); await p.waitForSelector('#csvText');
   await p.fill('#csvText', 'name,type,model\nCSV-A,pc,Model A\nCSV-B,sip,Model B');
@@ -94,6 +112,20 @@ try {
   if (await q.isVisible('#lgUser')) { await q.fill('#lgUser', 'admin'); await q.fill('#lgPw', 'adminpass123'); await q.click('#lgOk'); }
   await q.waitForFunction(() => typeof objs !== 'undefined' && objs.length > 0, null, { timeout: 10000 });
   assert.equal(await state(q, () => byName('KEEP-1').model), 'KEPT MODEL', 'the edit was not kept after reload');
+  // Feed: upload a Lansweeper export; a second export with a new IP updates the same object.
+  await q.click('#setBtn'); await q.click('#setTabs [data-st=feed]');
+  const csv = path.join(dir, 'feed1.csv');
+  fs.writeFileSync(csv, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.5,Windows 11\n');
+  await q.setInputFiles('#feedUp', csv);
+  await q.waitForFunction(() => /Import: 1 new/.test(document.querySelector('#toast').textContent));
+  await q.waitForFunction(() => objs.some(o => o.name === 'FEED-PC-1'));
+  assert.equal(await state(q, () => byName('FEED-PC-1').ip), '10.1.1.5', 'the feed did not set the IP');
+  const csv2 = path.join(dir, 'feed2.csv');   /* a new file name, so the input reports a change */
+  fs.writeFileSync(csv2, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.9,Windows 11\n');
+  await q.setInputFiles('#feedUp', csv2);
+  await q.waitForFunction(() => /1 updated/.test(document.querySelector('#toast').textContent));
+  assert.equal(await state(q, () => byName('FEED-PC-1').ip), '10.1.1.9', 'the feed did not update the IP');
+  await q.click('#setClose');
   await ctx2.close();
 
   assert.deepEqual(errors, [], 'page errors');
