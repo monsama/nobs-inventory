@@ -16,6 +16,7 @@
 
 .EXAMPLE
     .\Lansweeper-Push.ps1 -SetCredential                 # store the NOBS feed token (DPAPI)
+    .\Lansweeper-Push.ps1 -SetSqlCredential              # store a SQL login for the Lansweeper database (DPAPI)
     .\Lansweeper-Push.ps1 -DryRun                        # read Lansweeper, show the first records, send nothing
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
@@ -24,6 +25,7 @@
 param(
     [switch]$DryRun,
     [switch]$SetCredential,
+    [switch]$SetSqlCredential,
     [switch]$RegisterTask,
     [string]$TaskTime = '06:30'
 )
@@ -35,6 +37,7 @@ $Config = @{
     # Lansweeper database. LocalDB: run this script as the Windows user that installed Lansweeper.
     # Full SQL Server: e.g. 'Server=LSSERVER\SQLEXPRESS;Database=lansweeperdb;Integrated Security=True'
     SqlConnectionString = 'Server=(localdb)\.\LSInstance;Database=lansweeperdb;Integrated Security=True;Connect Timeout=30'
+    SqlUseStoredCredential = $false     # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
     NobsUrl             = 'https://inventory.example.ch'
@@ -74,6 +77,12 @@ function Get-StoredToken {
     $path = Join-Path $Config.DataDir 'cred-nobs.xml'
     if (-not (Test-Path $path)) { throw "No NOBS token stored - run: .\Lansweeper-Push.ps1 -SetCredential (as the account that runs the push)" }
     return (Import-Clixml $path).GetNetworkCredential().Password
+}
+
+function Get-StoredSqlCredential {
+    $path = Join-Path $Config.DataDir 'cred-sql.xml'
+    if (-not (Test-Path $path)) { throw "No SQL login stored - run: .\Lansweeper-Push.ps1 -SetSqlCredential (as the account that runs the push)" }
+    return (Import-Clixml $path)
 }
 
 function ConvertTo-Text($v) {
@@ -133,7 +142,14 @@ function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
 }
 
 function Get-LsRecords {
-    $conn = New-Object System.Data.SqlClient.SqlConnection $Config.SqlConnectionString
+    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString
+    if ($Config.SqlUseStoredCredential) {
+        $cred = Get-StoredSqlCredential
+        $csb['Integrated Security'] = $false
+        $csb['User ID'] = $cred.UserName
+        $csb['Password'] = $cred.GetNetworkCredential().Password
+    }
+    $conn = New-Object System.Data.SqlClient.SqlConnection $csb.ConnectionString
     $conn.Open()
     try {
         $schema = Initialize-Schema $conn
@@ -224,6 +240,12 @@ try {
         $tok = Read-Host -AsSecureString 'NOBS feed token (set on the server as NI_FEED_TOKEN)'
         (New-Object System.Management.Automation.PSCredential('nobs-feed', $tok)) | Export-Clixml -Path (Join-Path $Config.DataDir 'cred-nobs.xml')
         Write-PushLog "NOBS token stored for $env:USERNAME on $env:COMPUTERNAME"
+        exit 0
+    }
+    if ($SetSqlCredential) {
+        if (-not (Test-Path $Config.DataDir)) { New-Item -ItemType Directory -Path $Config.DataDir -Force | Out-Null }
+        Get-Credential -Message 'SQL login for the Lansweeper database (e.g. lansweeperuser)' | Export-Clixml -Path (Join-Path $Config.DataDir 'cred-sql.xml')
+        Write-PushLog "SQL login stored for $env:USERNAME on $env:COMPUTERNAME. Set SqlUseStoredCredential = `$true in the config to use it."
         exit 0
     }
     if ($RegisterTask) { Register-PushTask; exit 0 }
