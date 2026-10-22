@@ -196,6 +196,13 @@ test('a push without a port keeps the port set by hand', async () => {
   assert.equal(s.rels.find(r => r.from === pc.id).port, 12);
 });
 
+test('a hot desk device is not given a user by the push', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  mergeRecords(s, recordsFromJson([{ name: 'HD-1', ref: 'hd1', user: 'mueller' }]));
+  assert.equal(s.objs[0].user, undefined, 'the sync leaves a hot desk without a user');
+});
+
 test('a link Lansweeper stops reporting is removed; a link made by hand stays', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
