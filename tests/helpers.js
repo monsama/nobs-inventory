@@ -12,10 +12,10 @@ export function tempDataDir() {
 }
 
 /* Starts the app on a random port with its own database file. */
-export async function startServer({ dir = tempDataDir(), ldap = null } = {}) {
+export async function startServer({ dir = tempDataDir(), ldap = null, feedToken = null } = {}) {
   const db = openDb(path.join(dir, 'inventory.db'));
   bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-  const app = createApp({ db, ldap });
+  const app = createApp({ db, ldap, feedToken });
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   return {

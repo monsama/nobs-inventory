@@ -7,7 +7,7 @@
 # Creates (never overwrites existing values):
 #   .env                        non-secret settings (missing keys are added)
 #   secrets/admin_password      first admin password (generated, shown once at the end)
-#   secrets/ldap_service_password, secrets/ls_token   empty unless you fill them in
+#   secrets/ldap_service_password, secrets/ls_token, secrets/feed_token   empty unless you fill them in
 #
 # Then builds the image, starts app + Caddy, and waits until the app is healthy.
 #
@@ -84,7 +84,7 @@ step_secrets() {
     else
         info "secrets/admin_password exists - kept"
     fi
-    for s in ldap_service_password ls_token; do
+    for s in ldap_service_password ls_token feed_token; do
         [ -f "$BASE_DIR/secrets/$s" ] || { ( umask 077; : > "$BASE_DIR/secrets/$s" ); info "secrets/$s created (empty = unused)"; }
     done
     # The app runs as the 'node' user (UID 1000) in the container: it must own the files to read them.

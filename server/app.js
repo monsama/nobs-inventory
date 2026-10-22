@@ -6,7 +6,7 @@ import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
-import { mergeFeed } from './feed.js';
+import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
@@ -19,7 +19,7 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, secureCookie = false }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, feedToken = null, secureCookie = false }) {
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
   const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
@@ -195,6 +195,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let counts;
       try { counts = await syncLdapUsers(db, lc); }
       catch (e) { if (e instanceof HttpError) throw e; console.error('directory sync:', e.message); throw new HttpError(503, 'The directory could not be read. Check the service account.'); }
+      res.json({ counts });
+    } catch (e) { next(e); }
+  });
+
+  /* Lansweeper pushes its assets from a script on its own server (scripts/Lansweeper-Push.ps1), with the token the
+     administrator set (NI_FEED_TOKEN). Without a token set, this route refuses every request. */
+  app.post('/api/feed/push', (req, res, next) => {
+    try {
+      const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
+      const given = m ? Buffer.from(m[1]) : null;
+      const want = feedToken ? Buffer.from(feedToken) : null;
+      if (!want || !given || given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
+        throw new HttpError(401, 'The feed token is wrong, or none is set on the server.');
+      }
+      const records = req.body && req.body.records;
+      if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
+      if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
+      const s = loadState(db);
+      const counts = mergeRecords(s, recordsFromJson(records));
+      saveState(db, s);
+      audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { next(e); }
   });

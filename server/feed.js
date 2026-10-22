@@ -48,6 +48,16 @@ export function recordsFromCsv(text) {
   }));
 }
 
+const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref'];
+/* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
+export function recordsFromJson(list) {
+  return list.map(raw => {
+    const r = {};
+    for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, 200) : '';
+    return r;
+  });
+}
+
 export function mergeRecords(s, records, now = new Date()) {
   const policy = s.policy || {};
   const seen = stamp(now);

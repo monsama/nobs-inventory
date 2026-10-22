@@ -14,6 +14,7 @@ services:
       NI_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
       NI_LDAP_SERVICE_PASSWORD_FILE: /run/secrets/ldap_service_password
       NI_LS_TOKEN_FILE: /run/secrets/ls_token
+      NI_FEED_TOKEN_FILE: /run/secrets/feed_token
       # Caddy serves HTTPS, so the session cookie is sent only over HTTPS.
       NI_SECURE_COOKIE: ${NI_SECURE_COOKIE:-1}
       NI_LDAP_URL: ${NI_LDAP_URL:-}
@@ -32,6 +33,7 @@ services:
       - admin_password
       - ldap_service_password
       - ls_token
+      - feed_token
     volumes:
       - ni-data:/data
       - ./feed:/feed:ro
@@ -73,6 +75,8 @@ secrets:
     file: ./secrets/ldap_service_password
   ls_token:
     file: ./secrets/ls_token
+  feed_token:
+    file: ./secrets/feed_token
 
 volumes:
   ni-data:
