@@ -44,7 +44,7 @@ export function factoryReset(db, keepUserId) {
   const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
   db.exec('BEGIN');
   try {
-    db.exec('DELETE FROM docs; DELETE FROM revs;');
+    db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images;');
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
     if (me) db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)').run('user', String(me.id), JSON.stringify(me));

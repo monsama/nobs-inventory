@@ -28,13 +28,14 @@ try {
   await page.waitForTimeout(500);
   await page.click('#tabsbar [data-tab=plans]');
   await page.waitForSelector('#plNew2');
+  await page.evaluate(() => { SITES.push('Basel'); });
   await page.click('#plNew2');
   await page.fill('#plName', 'Ground floor');
   // a small PNG, generated in the browser so no file is needed
   const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 240; const g = c.getContext('2d'); g.fillStyle = '#eee'; g.fillRect(0, 0, 400, 240); g.fillStyle = '#999'; g.fillRect(40, 40, 120, 90); return c.toDataURL('image/png'); });
   await page.setInputFiles('#plFile', { name: 'plan.png', mimeType: 'image/png', buffer: Buffer.from(png.split(',')[1], 'base64') });
   await page.click('#plOk');
-  await page.waitForSelector('#plCanvas img');
+  await page.waitForFunction(() => { const i = document.querySelector('#plCanvas img'); return i && i.complete && i.naturalWidth > 0; });
   await page.click('#plArea');
   const box = await page.locator('#plCanvas').boundingBox();
   await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.1);
@@ -42,12 +43,18 @@ try {
   await page.fill('#arName', 'Open office'); await page.click('#arOk');
   await page.waitForSelector('.pl-area');
   await page.click('.pl-item:has-text("PC-PLAN")');
-  await page.click('#plCanvas', { position: { x: box.width * 0.7, y: box.height * 0.7 } });
+  await page.click('#plCanvas', { position: { x: box.width * 0.3, y: box.height * 0.3 } });
   await page.waitForSelector('.pl-pin:has-text("PC-PLAN")');
   await page.waitForTimeout(600);
   const saved = loadState(db);
   assert.equal(saved.plans.length, 1, 'the plan is saved on the server');
   assert.equal(saved.plans[0].areas[0].name, 'Open office', 'the area is saved');
+  assert.equal(saved.plans[0].image, undefined, 'the image is not in the inventory');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plan_images').get().n, 1, 'the image is stored apart');
+  assert.equal(saved.objs.find(o => o.name === 'PC-PLAN').loc, 'Basel / Open office', 'a device in an area takes the area as its location');
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(dir, 'plans-phone.png') });
+  console.log('phone screenshot: ' + path.join(dir, 'plans-phone.png'));
   assert.ok(saved.objs.find(o => o.name === 'PC-PLAN').planPos, 'the device is placed on the plan');
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   console.log('browser floor plans: all checks passed');

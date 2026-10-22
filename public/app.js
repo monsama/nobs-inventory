@@ -1725,6 +1725,23 @@ const planById = id => PLANS.find(p => p.id === id);
 const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
 const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
 const round1 = v => Math.round(v * 10) / 10;
+/* The image comes from the server (saved apart from the inventory); older plans may still carry it inline. */
+const planImgSrc = p => p.image || (p.imageAt ? `api/plans/${encodeURIComponent(p.id)}/image?v=${p.imageAt}` : '');
+const areaAt = (plan, x, y) => (plan.areas || []).find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
+/* An area is a location: "Site / Area". It is added to the locations the first time it is used. */
+function areaLoc(plan, area){
+  if (!SITES.includes(plan.site)) SITES.push(plan.site);
+  const v = `${plan.site} / ${area.name}`;
+  if (!LOCS.includes(v)) LOCS.push(v);
+  return v;
+}
+/* A device placed inside an area takes that area as its location. Returns the area's name, or null. */
+function locateOnPlan(plan, o, x, y){
+  const a = areaAt(plan, x, y);
+  if (!a || !plan.site) return null;
+  o.loc = areaLoc(plan, a);
+  return a.name;
+}
 function renderPlans(){
   const plan = planById(planSel) || PLANS[0] || null;
   planSel = plan ? plan.id : null;
@@ -1773,7 +1790,7 @@ function renderPlans(){
 function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
   return `<div class="pl-canvas" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
-    <img src="${plan.image}" alt="Floor plan ${esc(plan.name)}" draggable="false">
+    <img src="${planImgSrc(plan)}" alt="Floor plan ${esc(plan.name)}" draggable="false">
     ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
     ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
   </div>`;
@@ -1786,7 +1803,8 @@ function renderPlanList(plan){
 }
 function placeDevice(plan, o, x, y){
   o.planPos = {plan: plan.id, x, y};
-  hist(o, now(), `Placed on ${plan.name} by ${who()}`);
+  const area = locateOnPlan(plan, o, x, y);
+  hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   planPlace = null; queueServerSave(); renderPlans();
 }
 function drawPreview(){
@@ -1816,7 +1834,8 @@ document.addEventListener('pointerup', () => {
     const d = planDrag; planDrag = null;
     if (d.moved){
       const o = byId(d.id);
-      if (o && o.planPos){ o.planPos = {...o.planPos, x: round1(d.x), y: round1(d.y)}; hist(o, now(), `Moved on the plan by ${who()}`); queueServerSave(); }
+      const pl = o && o.planPos ? planById(o.planPos.plan) : null;
+      if (o && o.planPos){ o.planPos = {...o.planPos, x: round1(d.x), y: round1(d.y)}; const area = pl ? locateOnPlan(pl, o, d.x, d.y) : null; hist(o, now(), `Moved on the plan${area ? ' into ' + area : ''} by ${who()}`); queueServerSave(); }
       renderPlans();
     } else openObj(d.id);
   }
@@ -1832,7 +1851,9 @@ function areaModal(plan, rect){
   $('#arOk').onclick = () => {
     const name = $('#arName').value.trim();
     if (!name){ toast('Give the area a name.'); return; }
-    plan.areas = [...(plan.areas || []), {id: 'ar' + rid(), name, x: round1(rect.x), y: round1(rect.y), w: round1(rect.w), h: round1(rect.h)}];
+    const area = {id: 'ar' + rid(), name, x: round1(rect.x), y: round1(rect.y), w: round1(rect.w), h: round1(rect.h)};
+    plan.areas = [...(plan.areas || []), area];
+    if (plan.site) areaLoc(plan, area);
     planMode = 'view'; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
   };
   $('#arName').focus();
@@ -1870,8 +1891,11 @@ function planModal(existing){
     try { img = await loadPlanImage(file); } catch (e) { toast('That file is not an image.'); return; }
     const data = shrinkPlanImage(img);
     if (data.length > 1500000){ toast('The image is still too large. Use a smaller one.'); return; }
-    if (existing) existing.image = data;
-    else { const p = {id: 'pl' + rid(), name, site: $('#plSite').value, image: data, areas: []}; PLANS.push(p); planSel = p.id; }
+    const p = existing || {id: 'pl' + rid(), name, site: $('#plSite').value, areas: []};
+    const r = await fetch('api/plans/' + encodeURIComponent(p.id) + '/image', {method: 'PUT', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: data});
+    if (!r.ok){ const j = await r.json().catch(() => ({})); toast(j.error || 'The image could not be saved.'); return; }
+    delete p.image; p.imageAt = Date.now();
+    if (!existing){ PLANS.push(p); planSel = p.id; }
     planMode = 'view'; queueServerSave(); closeModal(); toast('Plan saved'); renderPlans();
   };
   if (!existing) $('#plName').focus();
@@ -1883,6 +1907,7 @@ function deletePlanModal(plan){
   $('#dpOk').onclick = () => {
     objs.forEach(o => { if (o.planPos && o.planPos.plan === plan.id) delete o.planPos; });
     PLANS = PLANS.filter(p => p !== plan); planSel = null; planMode = 'view'; planPlace = null;
+    fetch('api/plans/' + encodeURIComponent(plan.id) + '/image', {method: 'DELETE', credentials: 'same-origin'}).catch(() => {});
     queueServerSave(); closeModal(); toast('Plan deleted'); renderPlans();
   };
 }
