@@ -8,6 +8,7 @@ import { setPassword, checkLocalPassword, createSession, sessionUserId, endSessi
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
+import { takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
@@ -185,6 +186,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const ls = cfgLs();
       if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
+      takeBackup(db, 'before a Lansweeper sync');
       const counts = await syncLansweeper(db, ls);
       res.json({ counts });
     } catch (e) { next(e); }
@@ -210,6 +212,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
+      takeBackup(db, 'before a Lansweeper push');
       const s = loadState(db);
       const counts = mergeRecords(s, recordsFromJson(records));
       saveState(db, s);
@@ -248,6 +251,45 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
+  app.get('/api/backups', requireUser, requireAdmin, (req, res) => {
+    res.json({ backups: db.prepare('SELECT id, at, reason, objects, LENGTH(data) AS bytes FROM backups ORDER BY id DESC').all() });
+  });
+  app.post('/api/backups', requireUser, requireAdmin, (req, res, next) => {
+    try { const id = takeBackup(db, 'by hand'); audit(db, req.user.id, 'backup taken by hand'); res.json({ id }); }
+    catch (e) { next(e); }
+  });
+  app.get('/api/backups/:id/download', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const row = db.prepare('SELECT at, data FROM backups WHERE id = ?').get(Number(req.params.id));
+      if (!row) throw new HttpError(404, 'No such backup.');
+      res.attachment(`nobs-backup-${row.at.slice(0, 19).replace(/[:T]/g, '-')}.json`).type('application/json').send(row.data);
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backups/:id/restore', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const row = db.prepare('SELECT data FROM backups WHERE id = ?').get(Number(req.params.id));
+      if (!row) throw new HttpError(404, 'No such backup.');
+      takeBackup(db, 'before a restore');
+      restoreBackup(db, JSON.parse(row.data));
+      audit(db, req.user.id, 'restored backup ' + req.params.id);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backups/restore-file', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      let data;
+      try { data = JSON.parse(typeof req.body === 'string' ? req.body : ''); } catch (e) { throw new HttpError(400, 'This file is not a backup of NOBS Inventory.'); }
+      takeBackup(db, 'before a restore from file');
+      restoreBackup(db, data);
+      audit(db, req.user.id, 'restored a backup from a file');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/backups/:id', requireUser, requireAdmin, (req, res, next) => {
+    try { db.prepare('DELETE FROM backups WHERE id = ?').run(Number(req.params.id)); audit(db, req.user.id, 'backup deleted'); res.json({ ok: true }); }
+    catch (e) { next(e); }
+  });
   /* Floor-plan images are kept apart from the inventory, so they do not count against its size. */
   const planId = req => { if (!/^[A-Za-z0-9_-]{1,64}$/.test(req.params.id)) throw new HttpError(400, 'No such plan.'); return req.params.id; };
   app.put('/api/plans/:id/image', requireUser, requireAdmin, (req, res, next) => {
@@ -277,6 +319,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const text = typeof req.body === 'string' ? req.body : '';
       if (!text) throw new HttpError(400, 'Send the export as CSV text.');
+      takeBackup(db, 'before a Lansweeper import');
       const s = loadState(db);
       const counts = mergeFeed(s, text);
       saveState(db, s);

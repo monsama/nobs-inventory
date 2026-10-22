@@ -215,6 +215,32 @@ test('a plan image is stored apart from the inventory: admins save it, anyone si
   } finally { await srv.close(); }
 });
 
+test('backups: taken before an import; a restore puts the devices back, keeps the users, and never reuses a code', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], objs: [{ id: 'o5', code: 'INV-0005', type: 'server', name: 'SRV-1', serial: 'SRV1', ovr: {}, feed: null }], codeN: 5, seq: 105 }), cookie: admin.cookie });
+    const imp = await srv.call('POST', '/api/feed/import', { body: 'AssetName,Serial\nNEW-1,N1\n', type: 'csv', cookie: admin.cookie });
+    assert.equal(imp.status, 200);
+    const list = (await srv.call('GET', '/api/backups', { cookie: admin.cookie })).json.backups;
+    assert.equal(list.length, 1, 'a backup was taken before the import');
+    assert.equal(list[0].reason, 'before a Lansweeper import');
+    const dl = await srv.call('GET', `/api/backups/${list[0].id}/download`, { cookie: admin.cookie, type: 'text' });
+    assert.equal(dl.status, 200);
+    const restored = await srv.call('POST', `/api/backups/${list[0].id}/restore`, { cookie: admin.cookie });
+    assert.equal(restored.status, 200);
+    const back = (await srv.call('GET', '/api/state', { cookie: admin.cookie })).json;
+    assert.ok(!back.objs.some(o => o.name === 'NEW-1'), 'the imported device is gone after the restore');
+    assert.ok(back.objs.some(o => o.name === 'SRV-1'), 'the device from before is still there');
+    assert.ok(back.users.some(u => u.role === 'admin'), 'the users are kept');
+    assert.ok(back.codeN >= 6, 'the code counter is not turned back');
+    assert.equal((await srv.call('POST', '/api/backups/restore-file', { body: 'not json', type: 'text', cookie: admin.cookie })).status, 400);
+    const file = await srv.call('POST', '/api/backups/restore-file', { body: dl.text, type: 'text', cookie: admin.cookie });
+    assert.equal(file.status, 200, 'a downloaded backup can be restored from a file');
+    assert.equal((await srv.call('GET', '/api/backups', { cookie: admin.cookie })).json.backups.length >= 2, true);
+  } finally { await srv.close(); }
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
