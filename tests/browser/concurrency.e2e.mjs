@@ -26,6 +26,13 @@ const person = async () => {
   await p.waitForFunction(() => objs.length > 0);
   return p;
 };
+const person2 = async (ctx, login, password) => {
+  const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
+  await p.goto(base + '/'); await p.waitForSelector('#lgUser');
+  await p.fill('#lgUser', login); await p.fill('#lgPw', password); await p.click('#lgOk');
+  await p.waitForFunction(() => objs.length > 0);
+  return p;
+};
 const serverObj = name => loadState(db).objs.find(o => o.name === name);
 const waitServer = async (fn, what) => {
   for (let i = 0; i < 60; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); }
@@ -51,8 +58,19 @@ try {
   await waitServer(() => serverObj('SRV-ZH-HV01')?.model === 'A SERVER', 'A server edit');
   await editModel(b, 'SRV-ZH-HV01', 'B SERVER');
   await b.waitForFunction(() => /changed by someone else/.test(document.querySelector('#toast').textContent));
+  await b.waitForSelector('#rfKeep');
+  assert.ok((await b.textContent('#mdl')).includes('B SERVER'), 'the refused edit is not listed');
+  await b.click('#rfKeep');
   await b.waitForFunction(() => byName('SRV-ZH-HV01').model === 'A SERVER', null, { timeout: 5000 });
   assert.equal(serverObj('SRV-ZH-HV01').model, 'A SERVER', 'the refused edit reached the server');
+
+  // 2b. A refused edit can be applied again: B gets A's version, then applies B's own change.
+  await editModel(a, 'ZH-PC-0142', 'A FIRST');
+  await waitServer(() => serverObj('ZH-PC-0142')?.model === 'A FIRST', 'A edit');
+  await editModel(b, 'ZH-PC-0142', 'B SECOND');
+  await b.waitForSelector('#rfApply');
+  await b.click('#rfApply');
+  await waitServer(() => serverObj('ZH-PC-0142')?.model === 'B SECOND', 'the refused edit, applied again');
 
   // 3. A deletion reaches the other window when it looks for changes. A first looks for changes too, as it does every 15 seconds.
   await a.evaluate(() => checkForChanges());
@@ -76,6 +94,18 @@ try {
   await waitServer(() => serverObj('NEW-A') && serverObj('NEW-B'), 'both new objects');
   assert.notEqual(serverObj('NEW-A').code, serverObj('NEW-B').code, 'two objects share a code');
   assert.ok(serverObj('NEW-A').code && serverObj('NEW-B').code, 'a new object has no code');
+
+  // A viewer does not get Clear inventory.
+  const { setPassword } = await import('../../server/auth.js');
+  const { loadState: load2, saveState: save2 } = await import('../../server/state.js');
+  const st0 = load2(db);
+  st0.users.push({ id: 'u-viewer', login: 'viewer', name: 'Viewer', dept: '', groups: [], source: 'manual', active: true, role: 'viewer' });
+  save2(db, st0); setPassword(db, 'u-viewer', 'viewerpass123');
+  const vctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const v = await person2(vctx, 'viewer', 'viewerpass123');
+  await v.click('#setBtn');
+  assert.equal(await v.locator('#setReset').count(), 0, 'a viewer can see Clear inventory');
+  await vctx.close();
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('browser two users: all checks passed');

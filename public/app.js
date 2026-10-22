@@ -903,11 +903,12 @@ function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button id="setReset" style="margin-right:auto">Clear inventory</button><button id="setClose" class="primary">Done</button></div>`, 'settings');
+    <div class="mf">${canEdit() ? '<button id="setReset" style="margin-right:auto">Clear inventory</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
   let armed = false;
-  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } clearAll(); };
+  const sr = $('#setReset');
+  if (sr) sr.onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } clearAll(); };
   renderSetPane();
 }
 function renderSetPane(){
@@ -1318,7 +1319,7 @@ function newObjModal(pre={}){
       }
       hist(o, now(), 'Duplicated from ' + c.code);
     }
-    closeModal(); toast('Created ' + o.code + ' ' + name); openObj(o.id);
+    closeModal(); toast('Created ' + name); flushSave(); openObj(o.id);
   };
 }
 
@@ -1498,6 +1499,8 @@ function pendingChanges(){
   }
   return {puts, dels};
 }
+/* Saves now, without waiting for the pause after an edit: a new object gets its code straight away. */
+function flushSave(){ clearTimeout(SERVER.timer); sendChanges(); }
 function queueServerSave(){
   if (!SERVER.base) return;   /* nothing has been loaded yet */
   clearTimeout(SERVER.timer);
@@ -1516,6 +1519,7 @@ async function sendChanges(){
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); await reloadFromServer(); return; }
     for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
+    if (Object.keys(j.codes || {}).length) render();
     const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
     for (const [key, rev] of Object.entries(j.revs || {})){
       const c = sent.get(key); if (!c) continue;
@@ -1526,8 +1530,15 @@ async function sendChanges(){
     }
     if (j.conflicts && j.conflicts.length){
       const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : k.split('|')[0]; });
+      const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
+        .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
       toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
       await reloadFromServer();
+      const items = refused.map(r => {
+        const now = byId(r.id);
+        return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
+      }).filter(i => i.gone || i.fields.length);
+      if (items.length) refusedModal(items);
     }
   } catch(e) {
     toast('Not saved: the server cannot be reached.');
@@ -1535,6 +1546,25 @@ async function sendChanges(){
     SERVER.busy = false;
     if (SERVER.again){ SERVER.again = false; queueServerSave(); }
   }
+}
+/* The fields a person changed on an object, to offer them again after a refused save. */
+const NOT_EDITED = ['id', 'code', 'ovr', 'feed'];
+function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_EDITED.includes(k) && JSON.stringify(mine[k]) !== JSON.stringify((base || {})[k])); }
+const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
+/* Shows what a person changed and the newer version, so a refused edit is not lost. */
+function refusedModal(items){
+  modal(`<div class="mh">Not saved: changed by someone else</div>
+    <div class="mb"><p class="note">Someone else saved these records first, so your changes were not saved. The inventory shows their version. You can apply your changes again.</p>
+      ${items.map(it => `<div class="panelbox"><div class="hdr">${esc(it.name)}${it.gone ? ' <span class="muted">· deleted by someone else</span>' : ''}</div>
+        ${it.fields.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => `<tr><td>${esc(FIELD_LABEL[f.k] || f.k)}</td><td>${esc(shown(f.mine))}</td><td>${esc(shown(f.theirs))}</td></tr>`).join('')}</tbody></table>` : ''}
+      </div>`).join('')}</div>
+    <div class="mf"><button id="rfKeep">Keep theirs</button><button id="rfApply" class="primary">Apply mine again</button></div>`, 'wide');
+  $('#rfKeep').onclick = closeModal;
+  $('#rfApply').onclick = () => {
+    let n = 0;
+    for (const it of items){ const o = byId(it.id); if (!o || it.gone) continue; for (const f of it.fields){ o[f.k] = f.mine; n++; } }
+    closeModal(); saveData(); render(); toast(n ? 'Your changes are applied again' : 'Nothing to apply');
+  };
 }
 /* Loads the inventory and its revisions from the server, and makes it the base for the next save. */
 async function reloadFromServer(){

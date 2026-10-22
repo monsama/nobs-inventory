@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import ldap from 'ldapjs';
 import { startServer, signIn } from './helpers.js';
 import { syncLdapUsers } from '../server/ldap-sync.js';
+import { ldapListUsers } from '../server/ldap.js';
 import { loadState, saveState } from '../server/state.js';
 
 /* A directory stand-in. It checks passwords, applies the requested filter and returns every attribute. */
@@ -29,7 +30,7 @@ const person = (login, name, dept, groups, pw) => ({
 });
 
 const cfg = url => ({
-  url, bindTemplate: 'cn={login},ou=people,dc=test', searchBase: 'dc=test', loginAttr: 'sAMAccountName',
+  url, allowPlain: true, bindTemplate: 'cn={login},ou=people,dc=test', searchBase: 'dc=test', loginAttr: 'sAMAccountName',
   adminGroup: 'IT-Inventory', group: 'Inventory-Users', serviceDn: 'cn=svc,ou=service,dc=test', servicePassword: 'svc-secret', userFilter: '(objectClass=person)'
 });
 
@@ -104,4 +105,8 @@ test('directory sync refuses a change that would leave no active admin, and chan
   } finally {
     await srv.close(); await new Promise(r => dir.close(r));
   }
+});
+
+test('a plain ldap:// address is refused unless it is allowed, so passwords are not sent unencrypted', async () => {
+  await assert.rejects(ldapListUsers({ ...cfg('ldap://127.0.0.1:1'), allowPlain: false }), /unencrypted/);
 });
