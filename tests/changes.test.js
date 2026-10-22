@@ -93,3 +93,17 @@ test('the page cannot change the counters, and a preference saves without a revi
     assert.deepEqual((await load(srv, a.cookie)).sites, ['Basel'], 'a site is not kept');
   } finally { await srv.close(); }
 });
+
+test('a feed record whose name belongs to two objects is left alone; with one such object it is matched', async () => {
+  const { mergeRecords } = await import('../server/feed.js');
+  const s = { objs: [
+    { id: 'a', name: 'PC-DUP', serial: 'S1', ovr: {}, feed: null, code: 'INV-0001' },
+    { id: 'b', name: 'PC-DUP', serial: 'S2', ovr: {}, feed: null, code: 'INV-0002' },
+  ], policy: { ip: true }, feedOn: true, locs: [], seq: 100, codeN: 2 };
+  const ambiguous = mergeRecords(s, [{ name: 'PC-DUP', serial: '', ip: '10.0.0.9' }]);
+  assert.equal(ambiguous.ambiguous, 1);
+  assert.equal(s.objs.length, 2, 'a new object was made from an ambiguous name');
+  const single = { objs: [{ id: 'c', name: 'ONLY', serial: 'S3', ovr: {}, feed: null, code: 'INV-0003' }], policy: { ip: true }, feedOn: true, locs: [], seq: 100, codeN: 3 };
+  mergeRecords(single, [{ name: 'only', serial: '', ip: '10.0.0.7' }]);
+  assert.equal(single.objs[0].ip, '10.0.0.7', 'a single object of that name was not matched');
+});
