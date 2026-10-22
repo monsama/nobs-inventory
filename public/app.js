@@ -692,18 +692,31 @@ function fieldCtl(o, [k, label, kind], idp = 'f_'){
 }
 function fieldHtml(o, f){ return `<label for="f_${o.id}_${f[0]}">${f[1]}</label>${fieldCtl(o, f)}`; }
 const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
-/* Feed panel: link state, and per field whether the feed may overwrite it for this object. */
+/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
+   ticked; untick it to edit the value here. */
+function propRow(o, f){
+  const k = f[0];
+  const linked = !!o.feed && !!FIELD_LABEL[k];
+  const taken = linked && feedOwns(o, k);
+  let ctl = fieldCtl(o, f);
+  if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
+  const box = linked ? `<label class="pchk"><input type="checkbox" data-ovr="${k}" ${taken ? 'checked' : ''}> From feed</label>` : '';
+  return `<label for="f_${o.id}_${k}">${f[1]}</label><div class="ctlrow">${ctl}${box}</div>`;
+}
+/* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
+function extraRows(o, fields){
+  if (!o.feed) return '';
+  return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
+    .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
+}
+/* Source of the object: where it came from and when Lansweeper last saw it. */
 function feedPanel(o){
-  if (!o.feed) return `<div class="panelbox"><div class="hdr">Feed</div>
+  if (!o.feed) return `<div class="panelbox"><div class="hdr">Source</div>
     <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the Lansweeper sync does not change this object</dd>' : ''}</dl>
     <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
-  const keys = Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined);
-  return `<div class="panelbox"><div class="hdr">Feed <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
+  return `<div class="panelbox"><div class="hdr">Lansweeper <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
     <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
-    <table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Value</th><th style="width:150px">Take from feed</th></tr></thead><tbody>
-      ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${feedOwns(o,k) ? esc(fmtVal(k, o[k])) : fieldCtl(o, [k, FIELD_LABEL[k], fieldKind(k)], 'g_')}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> Take from feed</label></td></tr>`).join('')}
-    </tbody></table>
-    <div class="addrel"><span class="note" style="flex:1">Unchecked fields keep the value you set here. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
+    <div class="addrel"><span class="note" style="flex:1">Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
 }
 const SW_TYPES = ['pc','server'];
 function softwarePanel(o){
@@ -784,7 +797,7 @@ function renderObj(o){
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => fieldHtml(o, f)).join('')}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
         ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>` : ''}
         <label for="f_${o.id}_notes">Notes</label><textarea id="f_${o.id}_notes" data-k="notes" rows="3" placeholder="Anything that is not in a field: warranty, purchase order, quirks…">${esc(o.notes||'')}</textarea></div></div>
