@@ -44,7 +44,7 @@ $Config = @{
     # Lansweeper database. LocalDB: run this script as the Windows user that installed Lansweeper.
     # Full SQL Server: e.g. 'Server=LSSERVER\SQLEXPRESS;Database=lansweeperdb;Integrated Security=True'
     SqlConnectionString = 'Server=(localdb)\.\LSInstance;Database=lansweeperdb;Integrated Security=True;Connect Timeout=30'
-    SqlUseStoredCredential = $false     # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
+    SqlUseStoredCredential = $true      # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
     NobsUrl             = 'https://inventory.example.ch'
