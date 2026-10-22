@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { loadState, saveState } from './state.js';
+import { loadState, saveState, applyChanges } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, inGroup } from './ldap.js';
 import { mergeFeed } from './feed.js';
@@ -124,6 +124,19 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
       saveState(db, incoming);
       audit(db, req.user.id, 'save inventory');
       res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  /* The page saves only what changed. See applyChanges for how a conflict is handled. */
+  app.post('/api/changes', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const guard = s => {
+        if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
+        if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
+      };
+      const result = applyChanges(db, req.body, guard);
+      audit(db, req.user.id, 'save changes');
+      res.json(result);
     } catch (e) { next(e); }
   });
 

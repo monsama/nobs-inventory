@@ -115,7 +115,7 @@ try {
   fs.writeFileSync(csv2, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.9,Windows 11\n');
   await p.setInputFiles('#feedUp', csv2);
   await p.waitForFunction(() => /1 updated/.test(document.querySelector('#toast').textContent));
-  assert.equal(await state(p, () => byName('FEED-PC-1').ip), '10.1.1.9', 'the feed did not update the IP');
+  await p.waitForFunction(() => byName('FEED-PC-1').ip === '10.1.1.9', null, { timeout: 5000 });   /* the page reloads the new values just after the message */
   await p.click('#setClose');
   await ctx.close();
 
