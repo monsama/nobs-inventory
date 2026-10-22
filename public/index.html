@@ -40,10 +40,31 @@ button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--
 button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.iconpick{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-.iconpick button{width:34px;height:34px;padding:5px;display:inline-flex;align-items:center;justify-content:center}
-.iconpick button svg{width:20px;height:20px}
-.iconpick button.on{outline:2px solid var(--accent);outline-offset:1px;background:var(--panel2)}
+.locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;padding:14px}
+.locpanel .hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
+table.locs th,table.locs td{padding:8px 10px;white-space:nowrap}
+table.locs td input{width:100%;height:30px}
+table.locs td.n,table.locs th.n{text-align:right;color:var(--muted)}
+table.locs td.act{width:1%}
+table.locs td.site{color:var(--muted)}
+table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
+.addbar{display:flex;gap:8px;padding:12px;border-top:1px solid var(--bd2);align-items:center}
+.addbar input,.addbar select{flex:1;min-width:0;height:30px}
+.addbar select{flex:0 0 170px}
+.addbar button{height:30px;padding:0 14px;white-space:nowrap}
+.locpanel>.note{margin:0;padding:0 12px 12px}
+@media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
+.icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
+.icondd-btn,.icondd-item{display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;justify-content:flex-start;font-weight:400}
+.icondd-btn{width:100%}
+.icondd-btn svg,.icondd-item svg{width:18px;height:18px;flex:none}
+.icondd-btn span:nth-of-type(1){flex:1;text-align:left}
+.icondd-caret{color:var(--muted);font-size:11px}
+.icondd-list{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:100%;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
+.icondd-list[hidden]{display:none}
+.icondd-item{width:100%;border:0;background:transparent;box-shadow:none}
+.icondd-item:hover{background:var(--hover)}
+.icondd-item[aria-selected="true"]{background:var(--panel2);font-weight:600}
 button.danger-text{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg);font-weight:600}
 button.primary{background:var(--accent);color:var(--accentfg);border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 button.ghost{background:transparent;border-color:transparent}
