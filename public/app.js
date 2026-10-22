@@ -1178,22 +1178,26 @@ const siteOf = l => String(l || '').split(' / ')[0];
 function renderSetLocs(){
   const sites = SITES.map((x, i) => {
     const n = objs.filter(o => siteOf(o.loc) === x).length + RACKS.filter(r => siteOf(r.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
-    return `<tr><td><input data-si="${i}" value="${esc(x)}" style="width:100%" aria-label="Site name"></td><td class="n">${n}</td>
-      <td><button data-sd="${i}" ${n ? `disabled title="In use by ${n} rooms, objects or racks"` : ''}>Delete</button></td></tr>`;
+    return `<tr><td><input data-si="${i}" value="${esc(x)}" aria-label="Site name"></td><td class="n">${n}</td>
+      <td class="act"><button data-sd="${i}" ${n ? `disabled title="In use by ${n} rooms, objects or racks"` : ''}>Delete</button></td></tr>`;
   }).join('');
   const rooms = LOCS.map((l, i) => {
     const n = objs.filter(o => o.loc === l).length + RACKS.filter(r => r.loc === l).length;
-    return `<tr><td>${esc(siteOf(l))}</td><td><input data-lo="${i}" value="${esc(l.split(' / ').slice(1).join(' / '))}" style="width:100%" aria-label="Room in ${esc(siteOf(l))}"></td><td class="n">${n}</td>
-      <td><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></td></tr>`;
+    return `<tr><td class="site">${esc(siteOf(l))}</td><td><input data-lo="${i}" value="${esc(l.split(' / ').slice(1).join(' / '))}" aria-label="Room in ${esc(siteOf(l))}"></td><td class="n">${n}</td>
+      <td class="act"><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></td></tr>`;
   }).join('');
-  $('#setLocs').innerHTML = `<div class="panelbox"><div class="hdr">Sites</div>
-      <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Site</th><th>Used by</th><th></th></tr></thead><tbody>${sites || '<tr><td colspan="3" class="muted">No sites yet.</td></tr>'}</tbody></table></div>
-      <div class="addrel"><input id="nsName" placeholder="Site, e.g. Basel" style="flex:1;min-width:180px" aria-label="New site"><button id="nsAdd" class="primary">Add site</button></div>
-      <p class="note" id="nsMsg">A site is a town or a building. Its rooms are added below.</p></div>
-    <div class="panelbox"><div class="hdr">Rooms</div>
-      <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Site</th><th>Room</th><th>Used by</th><th></th></tr></thead><tbody>${rooms || '<tr><td colspan="4" class="muted">No rooms yet.</td></tr>'}</tbody></table></div>
-      <div class="addrel"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="Room, e.g. Lager" style="flex:1;min-width:150px" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
-      <p class="note" id="nlMsg">${SITES.length ? 'A room belongs to one site.' : 'Add a site first.'}</p></div>`;
+  $('#setLocs').innerHTML = `<div class="locgrid">
+    <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
+      <table class="grid locs"><thead><tr><th>Site</th><th class="n">Used by</th><th></th></tr></thead>
+        <tbody>${sites || '<tr><td colspan="3" class="empty-row">No sites yet. Add the first one below.</td></tr>'}</tbody></table>
+      <div class="addbar"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd" class="primary">Add site</button></div>
+      <p class="note" id="nsMsg">A site is a town or a building.</p></section>
+    <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
+      <table class="grid locs"><thead><tr><th>Site</th><th>Room</th><th class="n">Used by</th><th></th></tr></thead>
+        <tbody>${rooms || '<tr><td colspan="4" class="empty-row">No rooms yet.</td></tr>'}</tbody></table>
+      <div class="addbar"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
+      <p class="note" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
+  </div>`;
   const root = $('#setLocs');
   root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
   root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
@@ -1243,6 +1247,22 @@ function renameLoc(old, value){
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
 /* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in and no object has it. */
+/* Readable names for the icons, for the dropdown. */
+const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'SIP phone', mobile: 'Smartphone', tablet: 'Tablet',
+  monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
+  printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
+  ups: 'UPS', accesspoint: 'Access point', other: 'Other' };
+const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
+/* A dropdown that shows the icon and its name, for the object type's icon. */
+function iconChoice(k, t){
+  const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
+  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
+  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
+    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}</div></div>`;
+}
+function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
+document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconLists(); });
 function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
@@ -1251,7 +1271,7 @@ function renderSetTypes(){
       <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" style="width:90px" aria-label="Short name"></td>
-      <td><div class="iconpick" role="radiogroup" aria-label="Icon for ${esc(t.label)}">${Object.keys(ICON).map(n => `<button type="button" role="radio" aria-checked="${n === t.icon}" class="${n === t.icon ? 'on' : ''}" data-ic="${k}" data-icon="${n}" title="${n}">${iconSvg(n)}</button>`).join('')}${t.svgInner ? `<button type="button" role="radio" aria-checked="${t.icon === 'custom'}" class="${t.icon === 'custom' ? 'on' : ''}" data-ic="${k}" data-icon="custom" title="Uploaded icon"><svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg></button>` : ''}</div>
+      <td>${iconChoice(k, t)}
         <input type="file" accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}" style="width:150px;font-size:11px"></td>
       <td class="n">${n}</td>
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
@@ -1262,7 +1282,8 @@ function renderSetTypes(){
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
   root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = i.value.trim() || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
   root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = i.value.trim() || TYPES[i.dataset.ts].short; render(); });
-  root.querySelectorAll('[data-ic]').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
+  root.querySelectorAll('.icondd-btn').forEach(b => b.onclick = e => { e.stopPropagation(); const list = b.nextElementSibling, open = list.hidden; closeIconLists(); list.hidden = !open; b.setAttribute('aria-expanded', String(open)); });
+  root.querySelectorAll('.icondd-item').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
   root.querySelectorAll('[data-up]').forEach(f => f.onchange = async () => {
     const file = f.files[0]; if (!file) return;
     const clean = sanitizeSvg(await file.text());
