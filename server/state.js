@@ -1,9 +1,9 @@
 import { HttpError } from './errors.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
-export const PAGE_SETTINGS = ['locs', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'mapPos'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -20,7 +20,7 @@ export function revsOf(db) {
 
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
