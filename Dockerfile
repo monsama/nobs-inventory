@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY server ./server
 COPY public ./public
+COPY scripts/Lansweeper-Push.ps1 ./scripts/Lansweeper-Push.ps1
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]

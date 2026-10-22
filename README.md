@@ -56,7 +56,7 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
       NI_LS_TOKEN=... npm run lansweeper:introspect -- AssetResources
 
   The query in `server/lansweeper.js` is written from public examples and has not been checked against a live tenant. Correct its field names there if introspection shows different ones.
-- Push from the Lansweeper server (no API needed, works with a local install): write a long random value into `secrets/feed_token` and run `docker compose restart app` (the app reads it as `NI_FEED_TOKEN_FILE`). Copy `scripts/Lansweeper-Push.ps1` to the Lansweeper server and run it there as the user that installed Lansweeper. It reads the Lansweeper database and posts the assets to `/api/feed/push`. Store the token once with `.\Lansweeper-Push.ps1 -SetCredential`, test with `-DryRun`, then `-RegisterTask` for a daily run. Set `NobsUrl` in the script or in `Lansweeper-Push.config.ps1` next to it.
+- Push from the Lansweeper server (no API needed, works with a local install): in Settings → Feed, click **Create token** (admin), then **Download script**. Copy `Lansweeper-Push.ps1` to the Lansweeper server and run it there as the user that installed Lansweeper: `.\Lansweeper-Push.ps1 -SetCredential` (paste the token), `-DryRun` to check, then `-RegisterTask` for a daily run. The token is shown once; **Revoke** stops the script. The server also accepts a token set in `secrets/feed_token` (`NI_FEED_TOKEN`), but that is not needed.
 - Report file: upload a CSV under Settings → Feed, or set `NI_FEED_CSV=/feed/report.csv` with the report in `./feed`. Used when no token is set.
 - Matching is by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
 

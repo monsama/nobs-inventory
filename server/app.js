@@ -7,6 +7,7 @@ import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
+import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
@@ -204,11 +205,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/feed/push', (req, res, next) => {
     try {
       const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
-      const given = m ? Buffer.from(m[1]) : null;
-      const want = feedToken ? Buffer.from(feedToken) : null;
-      if (!want || !given || given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
-        throw new HttpError(401, 'The feed token is wrong, or none is set on the server.');
-      }
+      if (!feedTokenValid(db, m && m[1], feedToken)) throw new HttpError(401, 'The feed token is wrong, or none is set on the server.');
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
@@ -217,6 +214,34 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       saveState(db, s);
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
+    } catch (e) { next(e); }
+  });
+
+  /* The push token, made in Settings → Feed. Only its hash is kept. */
+  app.get('/api/feed/push-token', requireUser, requireAdmin, (req, res) => {
+    res.json({ info: feedTokenInfo(db) });
+  });
+  app.post('/api/feed/push-token', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const token = createFeedToken(db);
+      audit(db, req.user.id, 'feed push token created');
+      res.json({ token, info: feedTokenInfo(db) });
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/feed/push-token', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      revokeFeedToken(db);
+      audit(db, req.user.id, 'feed push token revoked');
+      res.json({ info: null });
+    } catch (e) { next(e); }
+  });
+  /* The push script, with this server's address already in it. */
+  app.get('/api/feed/push-script', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const text = fs.readFileSync(path.join(publicDir, '..', 'scripts', 'Lansweeper-Push.ps1'), 'utf8');
+      const origin = `${req.protocol}://${req.get('host')}`;
+      res.attachment('Lansweeper-Push.ps1').type('text/plain; charset=utf-8')
+        .send(text.replace(/NobsUrl(\s*)=\s*'[^']*'/, (_, sp) => `NobsUrl${sp}= '${origin}'`));
     } catch (e) { next(e); }
   });
 

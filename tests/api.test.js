@@ -183,6 +183,32 @@ test('feed push takes assets from a script with the feed token, and refuses ever
   } finally { await closed.close(); }
 });
 
+test('the push token is made in the app: only admins, shown once, works until revoked', async () => {
+  const srv = await startServer();
+  const push = (token, records) => fetch(srv.base + '/api/feed/push', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ records })
+  });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser] }), cookie: admin.cookie });
+    assert.equal((await srv.call('GET', '/api/feed/push-token', { cookie: admin.cookie })).json.info, null, 'no token yet');
+    const made = await srv.call('POST', '/api/feed/push-token', { cookie: admin.cookie });
+    assert.equal(made.status, 200);
+    const token = made.json.token;
+    assert.ok(token.length >= 30);
+    assert.ok(made.json.info.created);
+    assert.equal((await push(token, [{ name: 'PC-APP', serial: 'APP1' }])).status, 200, 'the new token works');
+    assert.equal((await push('wrong', [])).status, 401);
+    const script = await srv.call('GET', '/api/feed/push-script', { cookie: admin.cookie, type: 'text' });
+    assert.equal(script.status, 200);
+    assert.match(script.text, new RegExp("NobsUrl\\s*= '" + srv.base.replace(/[.]/g, '\\.') + "'"), 'the script has this server\'s address');
+    assert.equal((await fetch(srv.base + '/api/feed/push-script')).status, 401, 'the script needs a sign-in');
+    assert.equal((await srv.call('DELETE', '/api/feed/push-token', { cookie: admin.cookie })).status, 200);
+    assert.equal((await push(token, [])).status, 401, 'a revoked token stops working');
+    assert.equal((await srv.call('POST', '/api/feed/push-token', { cookie: admin.cookie })).status, 200);
+  } finally { await srv.close(); }
+});
+
 test('repeated failed sign-ins are throttled; the answer is the same for every failure', async () => {
   const srv = await startServer();
   try {
