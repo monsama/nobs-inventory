@@ -266,7 +266,8 @@ function Show-NobsCertificate {
     $tcp = New-Object System.Net.Sockets.TcpClient $uri.Host, $uri.Port
     try {
         $ssl = New-Object System.Net.Security.SslStream $tcp.GetStream(), $false, ([System.Net.Security.RemoteCertificateValidationCallback] { param($a, $b, $c, $d) $true })
-        $ssl.AuthenticateAsClient($uri.Host)
+        try { $ssl.AuthenticateAsClient($uri.Host, $null, [System.Security.Authentication.SslProtocols]::Tls12, $false) }
+        catch { throw "TLS handshake with $($uri.Host) failed: $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message })" }
         $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ssl.RemoteCertificate
         Write-PushLog "Certificate of $($uri.Host): $($cert.Subject)"
         Write-PushLog "Thumbprint: $($cert.Thumbprint)  (valid until $($cert.NotAfter.ToString('yyyy-MM-dd')))"
