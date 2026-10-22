@@ -36,6 +36,7 @@ const TYPES = {
   pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
+  accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
   sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
   tablet:{label:'Tablet', short:'Tablet', color:'#db2777', icon:'tablet'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
@@ -54,7 +55,7 @@ const TYPES = {
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 /* A copy of the built-in types, used when a server has none saved yet. */
 const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
-const BUILTIN = ['pc','server','vm','sip','tablet','monitor','switch','printer','patch','other'];
+const BUILTIN = ['pc','server','vm','accesspoint','sip','tablet','monitor','switch','printer','patch','other'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
@@ -706,6 +707,7 @@ const FIELDS = {
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
+  accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], smartphone:[], other:[]
 };
 function fieldCtl(o, [k, label, kind], idp = 'f_'){
