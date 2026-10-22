@@ -61,6 +61,9 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
 .ctlrow>:not(.pchk){flex:1;min-width:0}
 .ctlrow .pchk{white-space:nowrap;flex:none}
+.tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
+.tabmenu button:hover:not(:disabled){background:var(--hover)}
 .icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
 .icondd-btn,.icondd-item{display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;justify-content:flex-start;font-weight:400}
 .icondd-btn{width:100%}

@@ -189,6 +189,7 @@ function renderTabs(){
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); st.tab = id; render(); } });
     el.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('auxclick', e => { if (e.button === 1 && st.open.includes(id)) closeObjTab(id); });
+    if (st.open.includes(id)) el.addEventListener('contextmenu', e => showTabMenu(e, id));
   });
 }
 /* Moved the way NOBS SQL does it: after the target when moving right, before it when moving left. */
@@ -205,6 +206,32 @@ function closeObjTab(id){
   if (st.tab === id) st.tab = 'cards';
   render();
 }
+/* Closes every open object tab except `keep` (or all of them when keep is null). The views stay open. */
+function closeObjTabs(keep){
+  st.open = st.open.filter(x => x === keep);
+  st.tabIds = st.tabIds.filter(x => FIXED_TABS[x] || x === keep);
+  if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || 'cards';
+  render();
+}
+let tabMenu = null;
+function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
+function showTabMenu(e, id){
+  e.preventDefault(); hideTabMenu();
+  tabMenu = document.createElement('div');
+  tabMenu.className = 'tabmenu';
+  tabMenu.style.left = e.clientX + 'px'; tabMenu.style.top = e.clientY + 'px';
+  const others = st.open.some(x => x !== id);
+  tabMenu.innerHTML = `<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
+  document.body.appendChild(tabMenu);
+  tabMenu.addEventListener('click', ev => {
+    const a = ev.target.dataset.a; hideTabMenu();
+    if (a === 'close') closeObjTab(id);
+    if (a === 'others') closeObjTabs(id);
+    if (a === 'all') closeObjTabs(null);
+  });
+}
+document.addEventListener('click', hideTabMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTabMenu(); });
 $('#tabsbar').addEventListener('click', e => {
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
@@ -1412,13 +1439,16 @@ function daysSince(stamp){
   const m = /^(\d\d)\.(\d\d)\.(\d{4}) (\d\d):(\d\d)$/.exec(stamp || '');
   return m ? (Date.now() - new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5])) / 864e5 : 0;
 }
+/* A date for people: "22 Oct 2026, 18:03". */
+const pushDate = v => (v ? new Date(v).toLocaleString(undefined, {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '');
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 function pushStatus(){
   const c = pushLast ? pushLast.counts : null;
-  const last = c ? `Last push ${esc(new Date(pushLast.at).toLocaleString())}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.linked || 0} linked, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}.` : 'No push yet.';
+  const last = c ? `${pushDate(pushLast.at)}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}` : 'No push yet';
   const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
-  const stale = old.length ? `Not seen for 30 days or more: ${old.length} (${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}).` : 'Every linked device was seen in the last 30 days.';
-  return `<div class="note" style="padding:0 12px 10px">${last}<br>${stale}</div>`;
+  const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
+  return `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Last push</label><span>${last}</span></div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Not seen</label><span>${stale}</span></div>`;
 }
 function renderSetFeed(){
   if (!st.lansweeper) st.lansweeper = {};
@@ -1426,18 +1456,19 @@ function renderSetFeed(){
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = SERVER.lansweeper && edit;
   if (edit && pushInfo === undefined) loadPushInfo();
-  const pushPanel = edit ? `<div class="panelbox"><div class="hdr">Push from the Lansweeper server</div>
-    <div class="note" style="padding:10px 12px">Lansweeper sends its assets here with a PowerShell script that runs on its own server, so no API address is needed. ${pushInfo ? `A token is active since ${esc(pushInfo.created)}.` : 'No token is active yet.'} Download the script, copy it to the Lansweeper server and run it there (see the README for the steps).</div>
+  const pushPanel = edit ? `<div class="panelbox"><div class="hdr">Lansweeper push</div>
+    <p class="note" style="padding:10px 12px 6px">A PowerShell script on the Lansweeper server sends its assets here. No API address is needed.</p>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span></div>
     ${pushStatus()}
     ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
-    <div class="note" style="padding:0 12px 10px">Copy it now. It is not shown again. The script asks for it once (-SetCredential).</div>` : ''}
+    <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it with <code>-SetCredential</code>.</p>` : ''}
     <div class="addrel" style="padding:10px 12px">
-      <button id="pushNew" class="primary" ${pushInfo === undefined ? 'disabled' : ''}>${pushInfo ? 'New token' : 'Create token'}</button>
+      <button id="pushNew" class="primary" ${pushInfo === undefined ? 'disabled' : ''}>${pushInfo ? 'Replace token' : 'Create token'}</button>
       ${pushNew ? '<button id="pushCopy">Copy token</button>' : ''}
       ${pushInfo ? '<button id="pushRevoke" class="danger-text">Revoke</button>' : ''}
       <button id="pushScript" ${pushInfo ? '' : 'disabled title="Create a token first"'}>Download script</button>
       <span class="note" id="pushMsg">${esc(pushNote)}</span></div></div>` : '';
-  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox"><div class="hdr">Lansweeper API</div>
+  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox"><div class="hdr">Lansweeper API <span class="chip warn" title="Not yet verified against a live Lansweeper">Experimental</span></div>
     <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('endpoint', 'API address', 'https://api.lansweeper.com/api/v2/graphql')}
@@ -1445,7 +1476,7 @@ function renderSetFeed(){
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
-  <div class="panelbox"><div class="hdr">Export file</div>
+  <div class="panelbox"><div class="hdr">Export file <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
     <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
