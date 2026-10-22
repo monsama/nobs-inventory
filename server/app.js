@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
@@ -16,10 +17,13 @@ import crypto from 'node:crypto';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
+const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
 export function createApp({ db, ldap = null, lansweeper = null, secureCookie = false }) {
   const app = express();
   app.disable('x-powered-by');
+  /* Caddy is the only proxy in front of the app: its forwarded address is the client's, so login throttling is per user. */
+  app.set('trust proxy', 1);
   const throttle = createThrottle();
   /* Browser protections: the page's script is a file of its own, so no inline script runs. */
   app.use((req, res, next) => {
@@ -47,7 +51,7 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
   };
   const requireAdmin = (req, res, next) => (req.user.role === 'admin' ? next() : next(new HttpError(403, 'Only an admin can change this.')));
 
-  app.get('/api/health', (req, res) => res.json({ ok: true }));
+  app.get('/api/health', (req, res) => res.json({ ok: true, version: APP_VERSION }));
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);

@@ -1778,9 +1778,10 @@ document.addEventListener('keydown', e => {
 function welcome(){
   modal(`<div class="mh">Welcome to NOBS Inventory</div>
     <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own. The demo can be loaded again from Settings.</p></div>
-    <div class="mf"><button id="wEmpty">Start empty</button><button id="wDemo" class="primary">Load demo</button></div>`, 'sm');
+    <div class="mf"><button id="wEmpty">Start empty</button>${SERVER.on ? '' : '<button id="wDemo" class="primary">Load demo</button>'}</div>`, 'sm');
   const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); saveData(); };
-  $('#wDemo').onclick = () => {
+  if (SERVER.on) $('#wEmpty').classList.add('primary');
+  if ($('#wDemo')) $('#wDemo').onclick = () => {
     const d = JSON.parse(DEMO_STATE);
     const me0 = USERS.find(u => u.id === st.meId);
     if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
