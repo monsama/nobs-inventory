@@ -62,7 +62,11 @@ step_env() {
     else
         echo "NI_HOST=$host" >> "$env"
     fi
-    grep -q '^NI_IMAGE=' "$env" || echo "NI_IMAGE=ghcr.io/monsama/nobs-inventory:$VERSION" >> "$env"
+    # The image follows the release that was installed. A custom image name is kept as it is.
+    if grep -q '^NI_IMAGE=ghcr.io/monsama/nobs-inventory:' "$env" || ! grep -q '^NI_IMAGE=' "$env"; then
+        sed -i -E "/^NI_IMAGE=/d" "$env"
+        echo "NI_IMAGE=ghcr.io/monsama/nobs-inventory:$VERSION" >> "$env"
+    fi
     # Old installs kept secrets here; they move to ./secrets below
     sed -i -E '/^(NI_ADMIN_PASSWORD|NI_LDAP_SERVICE_PASSWORD|NI_LS_TOKEN)=/d' "$env"
     chmod 640 "$env"

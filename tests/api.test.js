@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, signIn, tempDataDir } from './helpers.js';
@@ -185,5 +186,17 @@ test('a new sign-in ends the earlier session of the same user; malformed JSON ge
     const bad = await fetch(srv.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
     assert.equal(bad.status, 400);
     assert.deepEqual(await bad.json(), { error: 'Send valid JSON.' });
+  } finally { await srv.close(); }
+});
+
+test('health reports the version; login throttling is per user, not shared by all clients behind the proxy', async () => {
+  const srv = await startServer();
+  try {
+    const h = await (await fetch(srv.base + '/api/health')).json();
+    assert.equal(h.version, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+    const attempt = (login, ip) => fetch(srv.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip }, body: JSON.stringify({ login, password: 'wrong' }) });
+    for (let i = 0; i < 8; i++) await attempt('admin', '203.0.113.5');
+    assert.equal((await attempt('admin', '203.0.113.5')).status, 429, 'the attacker is blocked');
+    assert.equal((await attempt('admin', '198.51.100.9')).status, 401, 'another client is not blocked by the attacker\'s failures');
   } finally { await srv.close(); }
 });
