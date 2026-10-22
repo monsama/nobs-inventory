@@ -10,6 +10,7 @@ const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'di
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
   [/virtual machine|\bvm\b/i, 'vm'],
+  [/access ?point|wireless|wi-?fi|\bwlan\b/i, 'accesspoint'],
   [/webserver|\bweb\b/i, 'other'],
   [/ipad|tablet/i, 'tablet'], [/iphone/i, 'iphone'], [/android/i, 'android'], [/smartphone|mobile/i, 'smartphone'],
   [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
