@@ -1,4 +1,6 @@
 /* ---------- icons ---------- */
+/* One icon by its name, for the picker in Settings. */
+const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
 const ICON = {
   pc:'<path d="M3 4h18v12H3z"/><path d="M8 20h8M12 16v4"/>',
   server:'<rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/>',
@@ -1210,7 +1212,7 @@ function renderSetTypes(){
       <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" style="width:90px" aria-label="Short name"></td>
-      <td><select data-ti="${k}" aria-label="Icon">${[...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])].map(i => `<option ${i===t.icon?'selected':''}>${i}</option>`).join('')}</select>
+      <td><div class="iconpick" role="radiogroup" aria-label="Icon for ${esc(t.label)}">${Object.keys(ICON).map(n => `<button type="button" role="radio" aria-checked="${n === t.icon}" class="${n === t.icon ? 'on' : ''}" data-ic="${k}" data-icon="${n}" title="${n}">${iconSvg(n)}</button>`).join('')}${t.svgInner ? `<button type="button" role="radio" aria-checked="${t.icon === 'custom'}" class="${t.icon === 'custom' ? 'on' : ''}" data-ic="${k}" data-icon="custom" title="Uploaded icon"><svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg></button>` : ''}</div>
         <input type="file" accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}" style="width:150px;font-size:11px"></td>
       <td class="n">${n}</td>
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
@@ -1221,7 +1223,7 @@ function renderSetTypes(){
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
   root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = i.value.trim() || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
   root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = i.value.trim() || TYPES[i.dataset.ts].short; render(); });
-  root.querySelectorAll('[data-ti]').forEach(i => i.onchange = () => { TYPES[i.dataset.ti].icon = i.value; renderSetTypes(); render(); });
+  root.querySelectorAll('[data-ic]').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
   root.querySelectorAll('[data-up]').forEach(f => f.onchange = async () => {
     const file = f.files[0]; if (!file) return;
     const clean = sanitizeSvg(await file.text());
