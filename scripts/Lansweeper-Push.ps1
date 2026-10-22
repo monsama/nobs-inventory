@@ -79,6 +79,7 @@ $script:Wanted = [ordered]@{
     tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace')
     tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
     tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
+    web50repvCenterVmwareGuestNetworks = @('AssetID', 'Host')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -204,6 +205,26 @@ function Get-SwitchLinks($conn) {
             if (-not $port) { $port = Get-Clean $reader['If'] }
             if (-not $map.ContainsKey($device)) { $map[$device] = New-Object System.Collections.Generic.List[object] }
             $map[$device].Add([ordered]@{ ref = $switch; kind = 'connected'; port = $port })
+        }
+    } finally { $reader.Close() }
+    return $map
+}
+
+# The host of each virtual machine, from the Lansweeper vCenter report. Keyed by the VM's AssetID.
+function Get-HostLinks($conn) {
+    $map = @{}
+    if (-not ((Test-Col 'web50repvCenterVmwareGuestNetworks' 'Host') -and (Test-Col 'web50repvCenterVmwareGuestNetworks' 'AssetID'))) { return $map }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT DISTINCT [AssetID], [Host] FROM [web50repvCenterVmwareGuestNetworks] WHERE [Host] IS NOT NULL'
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $vm = ConvertTo-Text $reader['AssetID']
+            $hostName = Get-Clean $reader['Host']
+            if (-not $vm -or -not $hostName) { continue }
+            if (-not $map.ContainsKey($vm)) { $map[$vm] = New-Object System.Collections.Generic.List[object] }
+            $map[$vm].Add([ordered]@{ name = $hostName; kind = 'hosted'; port = '' })
         }
     } finally { $reader.Close() }
     return $map
@@ -402,6 +423,8 @@ function Get-LsRecords {
         } finally { $reader.Close() }
         $links = Get-SwitchLinks $conn
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
+        $hostLinks = Get-HostLinks $conn
+        foreach ($rec in $list) { if ($hostLinks.ContainsKey($rec['ref'])) { $rec['links'] = @($rec['links']) + @($hostLinks[$rec['ref']]) } }
         $health = Get-HealthByAsset $conn
         foreach ($rec in $list) {
             $h = $health[$rec['ref']]
