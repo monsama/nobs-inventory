@@ -63,7 +63,7 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 
 `sudo ./scripts/update.sh` downloads the release (the archive and its checksum from GitHub), backs up, replaces the code files and starts the release image. It does not touch `.env`, `secrets/`, `certificates/`, `backup/` or the data volume. On a git clone it pulls `main` instead. The code from before the update is kept in `backup/code-before-update-*.tar.gz`.
 
-The update script needs `curl`, `sha256sum` and `tar` on the host. An install from 0.2.4 cannot update with the script yet, because that version only works with git. Extract the 0.2.10 archive once over the install folder (`tar -xzf nobs-inventory-0.2.10.tar.gz -C /opt/nobs-inventory --strip-components=1`), then run `sudo ./scripts/update.sh 0.2.10`. From 0.2.5 on, the script alone is enough.
+The update script needs `curl`, `sha256sum` and `tar` on the host. An install from 0.2.4 cannot update with the script yet, because that version only works with git. Extract the 0.2.11 archive once over the install folder (`tar -xzf nobs-inventory-0.2.11.tar.gz -C /opt/nobs-inventory --strip-components=1`), then run `sudo ./scripts/update.sh 0.2.11`. From 0.2.5 on, the script alone is enough.
 
 ## Backup
 
