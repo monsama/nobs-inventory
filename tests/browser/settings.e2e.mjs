@@ -29,6 +29,11 @@ try {
     assert.ok(len > 100, `Settings tab "${tab}" is empty`);
   }
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
+  // push token: created in the app, shown once, a download is offered
+  await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
+  await page.click('#pushNew'); await page.waitForSelector('#pushTok');
+  assert.ok((await page.inputValue('#pushTok')).length >= 30, 'a token is shown after creating it');
+  assert.equal(await page.isDisabled('#pushScript'), false, 'the script can be downloaded once a token exists');
   // clear the inventory: two clicks, devices gone, admin and settings kept
   saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-X', ovr: {}, feed: null }], rels: [], history: {} });
   await page.click('#setTabs [data-st=feed]');

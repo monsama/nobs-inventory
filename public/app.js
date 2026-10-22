@@ -1367,12 +1367,29 @@ function renderSetTypes(){
 /* Feed on the server: upload the report, and the server applies the policy and the merge rules. */
 /* Feed. The Lansweeper API settings are saved in the inventory; the token is on the server. A Lansweeper export
    can also be uploaded here. */
+/* The push token made in this panel. undefined until it is loaded; the new token is shown once, here. */
+let pushInfo, pushNew = '';
+async function loadPushInfo(){
+  const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
+  if (r.ok){ pushInfo = (await r.json()).info; if ($('#setFeed')) renderSetFeed(); }
+}
 function renderSetFeed(){
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = canEdit(), ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = SERVER.lansweeper && edit;
-  $('#setFeed').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper API</div>
+  if (edit && pushInfo === undefined) loadPushInfo();
+  const pushPanel = edit ? `<div class="panelbox"><div class="hdr">Push from the Lansweeper server</div>
+    <div class="note" style="padding:10px 12px">Lansweeper sends its assets here with a PowerShell script that runs on its own server, so no API address is needed. ${pushInfo ? `A token is active since ${esc(pushInfo.created)}.` : 'No token is active yet.'} Download the script, copy it to the Lansweeper server and run it there (see the README for the steps).</div>
+    ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
+    <div class="note" style="padding:0 12px 10px">Copy it now. It is not shown again. The script asks for it once (-SetCredential).</div>` : ''}
+    <div class="addrel" style="padding:10px 12px">
+      <button id="pushNew" class="primary" ${pushInfo === undefined ? 'disabled' : ''}>${pushInfo ? 'New token' : 'Create token'}</button>
+      ${pushNew ? '<button id="pushCopy">Copy token</button>' : ''}
+      ${pushInfo ? '<button id="pushRevoke" class="danger-text">Revoke</button>' : ''}
+      <button id="pushScript" ${pushInfo ? '' : 'disabled title="Create a token first"'}>Download script</button>
+      <span class="note" id="pushMsg"></span></div></div>` : '';
+  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox"><div class="hdr">Lansweeper API</div>
     <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('endpoint', 'API address', 'https://api.lansweeper.com/api/v2/graphql')}
@@ -1385,6 +1402,24 @@ function renderSetFeed(){
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
     <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
   $('#setFeed').querySelectorAll('[data-ls]').forEach(i => i.onchange = () => { st.lansweeper[i.dataset.ls] = i.value.trim(); queueServerSave(); renderSetFeed(); });
+  const pushMsg = t => { const m = $('#pushMsg'); if (m) m.textContent = t; };
+  if ($('#pushNew')) $('#pushNew').onclick = async () => {
+    const r = await fetch('api/feed/push-token', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ pushMsg(j.error || 'The token could not be made.'); return; }
+    pushNew = j.token; pushInfo = j.info; renderSetFeed();
+  };
+  if ($('#pushCopy')) $('#pushCopy').onclick = async () => {
+    const box = $('#pushTok'); box.select();
+    try { await navigator.clipboard.writeText(pushNew); pushMsg('Copied.'); } catch (e) { document.execCommand('copy'); pushMsg('Copied.'); }
+  };
+  if ($('#pushRevoke')) $('#pushRevoke').onclick = async () => {
+    if (!confirm('Revoke the token? The Lansweeper script stops working until you make a new one.')) return;
+    const r = await fetch('api/feed/push-token', {method: 'DELETE', credentials: 'same-origin'});
+    if (!r.ok){ pushMsg('The token could not be revoked.'); return; }
+    pushInfo = null; pushNew = ''; renderSetFeed();
+  };
+  if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
   $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
