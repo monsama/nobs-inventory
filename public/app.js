@@ -52,6 +52,8 @@ const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 const BUILTIN = ['pc','server','sip','tablet','monitor','switch','printer','patch','other'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 const LOCS = [];
+/* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
+const SITES = [];
 let RACKS = [];
 const FIELD_LABEL = {ip:'IP address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
@@ -142,8 +144,8 @@ function renderSide(){
   $('#typeList').innerHTML =
     `<button class="item ${!st.type?'sel':''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
     Object.entries(TYPES).map(([k,v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.type===k)}</span></button>`).join('');
-  const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
-  $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(o=>o.loc.startsWith(s))}</span></button>` +
+  const sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])];
+  $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(o=>String(o.loc||'').split(' / ')[0]===s)}</span></button>` +
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(o=>o.loc===l)}</span></button>`).join('')).join('');
   $('#statList').innerHTML = Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
@@ -1127,29 +1129,65 @@ function passwordModal(u){
   $('#pwNew').focus();
 }
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
+const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
+const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
+const siteOf = l => String(l || '').split(' / ')[0];
 function renderSetLocs(){
-  const rows = LOCS.map((l, i) => {
+  const sites = SITES.map((x, i) => {
+    const n = objs.filter(o => siteOf(o.loc) === x).length + RACKS.filter(r => siteOf(r.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
+    return `<tr><td><input data-si="${i}" value="${esc(x)}" style="width:100%" aria-label="Site name"></td><td class="n">${n}</td>
+      <td><button data-sd="${i}" ${n ? `disabled title="In use by ${n} rooms, objects or racks"` : ''}>Delete</button></td></tr>`;
+  }).join('');
+  const rooms = LOCS.map((l, i) => {
     const n = objs.filter(o => o.loc === l).length + RACKS.filter(r => r.loc === l).length;
-    return `<tr><td><input data-lo="${i}" value="${esc(l)}" style="width:100%" aria-label="Location name"></td><td class="n">${n}</td>
+    return `<tr><td>${esc(siteOf(l))}</td><td><input data-lo="${i}" value="${esc(l.split(' / ').slice(1).join(' / '))}" style="width:100%" aria-label="Room in ${esc(siteOf(l))}"></td><td class="n">${n}</td>
       <td><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></td></tr>`;
   }).join('');
-  $('#setLocs').innerHTML = `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Location (Site / Room)</th><th>Used by</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="nlName" placeholder="Site / Room, e.g. Basel / Lager" style="flex:1;min-width:180px" aria-label="New location"><button id="nlAdd" class="primary">Add location</button></div>
-    <p class="note" id="nlMsg">A location is a site and a room, written as Site / Room.</p>`;
+  $('#setLocs').innerHTML = `<div class="panelbox"><div class="hdr">Sites</div>
+      <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Site</th><th>Used by</th><th></th></tr></thead><tbody>${sites || '<tr><td colspan="3" class="muted">No sites yet.</td></tr>'}</tbody></table></div>
+      <div class="addrel"><input id="nsName" placeholder="Site, e.g. Basel" style="flex:1;min-width:180px" aria-label="New site"><button id="nsAdd" class="primary">Add site</button></div>
+      <p class="note" id="nsMsg">A site is a town or a building. Its rooms are added below.</p></div>
+    <div class="panelbox"><div class="hdr">Rooms</div>
+      <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Site</th><th>Room</th><th>Used by</th><th></th></tr></thead><tbody>${rooms || '<tr><td colspan="4" class="muted">No rooms yet.</td></tr>'}</tbody></table></div>
+      <div class="addrel"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="Room, e.g. Lager" style="flex:1;min-width:150px" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
+      <p class="note" id="nlMsg">${SITES.length ? 'A room belongs to one site.' : 'Add a site first.'}</p></div>`;
   const root = $('#setLocs');
-  root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => renameLoc(LOCS[+i.dataset.lo], i.value));
-  root.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => { LOCS.splice(+b.dataset.ld, 1); toast('Location deleted'); renderSetLocs(); render(); });
-  const addLoc = () => {
-    const name = cleanLoc($('#nlName').value);
-    const msg = $('#nlMsg');
-    if (!name){ msg.innerHTML = '<span style="color:var(--danger)">Write it as Site / Room, with a slash between them, e.g. Basel / Lager.</span>'; $('#nlName').focus(); return; }
-    if (LOCS.includes(name)){ msg.innerHTML = '<span style="color:var(--danger)">' + esc(name) + ' already exists.</span>'; return; }
-    LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
-  };
-  $('#nlAdd').onclick = addLoc;
-  $('#nlName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); addLoc(); } };
+  root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
+  root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
+  root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => { const old = LOCS[+i.dataset.lo]; renameLoc(old, siteOf(old) + ' / ' + i.value.trim()); });
+  root.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => { LOCS.splice(+b.dataset.ld, 1); toast('Room deleted'); renderSetLocs(); render(); });
+  const enter = (id, fn) => $(id).onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); fn(); } };
+  $('#nsAdd').onclick = addSite; enter('#nsName', addSite);
+  $('#nlAdd').onclick = addRoom; enter('#nlRoom', addRoom);
 }
-const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
+function addSite(){
+  const name = $('#nsName').value.trim(), msg = $('#nsMsg');
+  if (!name || name.includes(' / ')){ msg.innerHTML = warn('Write the site name, without a slash.'); $('#nsName').focus(); return; }
+  if (SITES.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
+  SITES.push(name); toast('Added site ' + name); renderSetLocs(); render();
+}
+function addRoom(){
+  const site = $('#nlSite') ? $('#nlSite').value : '', room = $('#nlRoom').value.trim(), msg = $('#nlMsg');
+  if (!site){ msg.innerHTML = warn('Add a site first.'); return; }
+  if (!room || room.includes(' / ')){ msg.innerHTML = warn('Write the room name, without a slash.'); $('#nlRoom').focus(); return; }
+  const name = site + ' / ' + room;
+  if (LOCS.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
+  LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
+}
+/* Renaming a site renames its rooms, the locations of the objects in them, and the racks. */
+function renameSite(old, value){
+  const name = value.trim();
+  if (!name || name.includes(' / ')){ toast('Write the site name, without a slash.'); renderSetLocs(); return; }
+  if (name === old) return;
+  if (SITES.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return; }
+  SITES[SITES.indexOf(old)] = name;
+  const move = l => (l === old || String(l || '').startsWith(old + ' / ')) ? name + String(l).slice(old.length) : l;
+  LOCS.forEach((l, i) => { LOCS[i] = move(l); });
+  objs.forEach(o => { if (o.loc) o.loc = move(o.loc); });
+  RACKS.forEach(r => { if (r.loc) r.loc = move(r.loc); });
+  if (st.loc) st.loc = move(st.loc);
+  renderSetLocs(); render();
+}
 function renameLoc(old, value){
   const name = cleanLoc(value);
   if (!name){ toast('Use the form Site / Room, e.g. Basel / Lager'); renderSetLocs(); return; }
@@ -1435,7 +1473,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
+  const settings = {locs: LOCS, sites: SITES, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -1535,6 +1573,8 @@ function applyState(d){
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
+  SITES.splice(0, SITES.length, ...(d.sites || []));
+  LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* a new server has no types saved yet: it gets the built-in ones */
     const t = Object.keys(d.types).length ? d.types : DEFAULT_TYPES;
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify(t)));

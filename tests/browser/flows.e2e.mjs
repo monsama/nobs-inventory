@@ -31,13 +31,16 @@ try {
   await p.evaluate(() => { closeModal(); });
   await p.evaluate(() => { const o = byName('ZH-PC-0142'); newObjModal({copy: o}); $('#nName').value = 'COPY-CHECK'; $('#nOk').click(); });
   assert.ok(await p.evaluate(() => !!byName('COPY-CHECK')), 'duplicating an object did not create it');
-  // Locations: a name without a room is explained inline; Enter adds a good one.
+  // Sites and rooms: a site is added on its own, a room is added under a site, and the sidebar shows both.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=locations]');
-  await p.fill('#nlName', 'rrr'); await p.click('#nlAdd');
-  assert.match(await p.textContent('#nlMsg'), /Site \/ Room/, 'the location format is not explained');
-  await p.fill('#nlName', 'Basel / Lager'); await p.press('#nlName', 'Enter');
-  assert.equal(await p.evaluate(() => LOCS.includes('Basel / Lager')), true, 'Enter did not add the location');
+  await p.fill('#nsName', 'Basel / X'); await p.click('#nsAdd');
+  assert.match(await p.textContent('#nsMsg'), /without a slash/, 'a slash in a site name is not refused');
+  await p.fill('#nsName', 'Basel'); await p.press('#nsName', 'Enter');
+  assert.equal(await p.evaluate(() => SITES.includes('Basel')), true, 'Enter did not add the site');
+  await p.selectOption('#nlSite', 'Basel'); await p.fill('#nlRoom', 'Lager'); await p.click('#nlAdd');
+  assert.equal(await p.evaluate(() => LOCS.includes('Basel / Lager')), true, 'the room was not added under the site');
   await p.click('#setClose');
+  assert.ok((await p.textContent('#locList')).includes('Basel'), 'the sidebar does not show the site');
   assert.deepEqual(await p.evaluate(() => parseCsv('Name,Type\nX1,pc')), [['Name', 'Type'], ['X1', 'pc']], 'CSV parsing');
   await ctx.close();
 

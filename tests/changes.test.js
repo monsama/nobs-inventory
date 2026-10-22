@@ -87,5 +87,9 @@ test('the page cannot change the counters, and a preference saves without a revi
     const pref = await put(srv, a.cookie, { puts: [{ kind: 'setting', id: 'mapPos', value: { x: 1 }, base: null }], dels: [] });
     assert.equal(pref.status, 200);
     assert.deepEqual((await load(srv, a.cookie)).mapPos, { x: 1 });
+    const siteRev = (await load(srv, a.cookie)).revs['setting|sites'] ?? 0;
+    const site = await put(srv, a.cookie, { puts: [{ kind: 'setting', id: 'sites', value: ['Basel'], base: siteRev }], dels: [] });
+    assert.equal(site.status, 200);
+    assert.deepEqual((await load(srv, a.cookie)).sites, ['Basel'], 'a site is not kept');
   } finally { await srv.close(); }
 });
