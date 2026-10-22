@@ -742,6 +742,24 @@ function patchPanel(o){
   return `<div class="panelbox"><div class="hdr">Ports <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${used(o)} of ${o.ports} in use${trunk ? ' · trunk to ' + esc(byId(trunk.to).name) + ' port ' + esc(portLabel(byId(trunk.to), trunk.port)) : ''}</span></div>
     <div class="pp">${ports.join('')}</div></div>`;
 }
+/* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
+function purgeModal(o){
+  modal(`<div class="mh">Delete ${esc(o.name)}?</div>
+    <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p></div>
+    <div class="mf"><button id="pgCancel">Cancel</button><button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
+  $('#pgCancel').onclick = closeModal;
+  $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
+}
+function deleteObject(id){
+  const i = objs.findIndex(x => x.id === id); if (i < 0) return;
+  objs.splice(i, 1);
+  for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
+  objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
+  delete history[id];
+  st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
+  if (st.tab === id) st.tab = 'table';
+  render();
+}
 function renderObj(o){
   const rs = relsOf(o);
   const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
@@ -750,7 +768,7 @@ function renderObj(o){
   const rk = o.rack ? RACKS.find(r => r.id === o.rack) : null;
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button></div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => fieldHtml(o, f)).join('')}
@@ -843,6 +861,7 @@ function renderObj(o){
   };
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by v.ljuca'); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
+  const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
 
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by v.ljuca'); toast(o.name + ' is now a manual object'); render(); };
 }
