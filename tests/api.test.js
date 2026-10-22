@@ -186,6 +186,16 @@ test('pushed links join objects: a device to its switch port, a monitor to its P
   assert.equal(s.rels.length, 2, 'a second push does not add the links again');
 });
 
+test('a push without a port keeps the port set by hand', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  mergeRecords(s, recordsFromJson([{ name: 'SW1', ref: 'sw1', assetType: 'Switch' }, { name: 'PC1', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected' }] }]));
+  const pc = s.objs.find(o => o.name === 'PC1');
+  s.rels.find(r => r.from === pc.id).port = 12;
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected' }] }]));
+  assert.equal(s.rels.find(r => r.from === pc.id).port, 12);
+});
+
 test('a link Lansweeper stops reporting is removed; a link made by hand stays', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
