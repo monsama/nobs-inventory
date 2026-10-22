@@ -1,7 +1,3 @@
-#!/usr/bin/env sh
-# Updates the running inventory: fetches the latest code, rebuilds the image and restarts the container.
-set -e
-cd "$(dirname "$0")"
-git pull --ff-only
-docker compose up -d --build
-docker compose ps
+#!/bin/sh
+# Kept for older instructions: the update is scripts/update.sh.
+cd "$(dirname "$0")" && exec ./scripts/update.sh "$@"

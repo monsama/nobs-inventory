@@ -1,6 +1,6 @@
 {
   "name": "nobs-inventory",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "description": "Inventory for PCs, servers, phones, network gear and racks, with a small API and SQLite storage.",
   "type": "module",
@@ -9,7 +9,7 @@
     "start": "node server/index.js",
     "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js tests/secrets.test.js",
     "lansweeper:introspect": "node tools/lansweeper-introspect.js",
-    "test:browser": "node tests/browser/users.e2e.mjs && node tests/browser/settings.e2e.mjs && node tests/browser/signin.e2e.mjs"
+    "test:browser": "node tests/browser/users.e2e.mjs && node tests/browser/settings.e2e.mjs && node tests/browser/signin.e2e.mjs && node tests/browser/demo.e2e.mjs"
   },
   "engines": {
     "node": ">=22.13"

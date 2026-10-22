@@ -49,12 +49,8 @@ const TYPES = {
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 const BUILTIN = ['pc','server','sip','tablet','monitor','switch','printer','patch','other'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
-const LOCS = ['Zürich HQ / Serverraum UG','Zürich HQ / Büro 2.OG','Zürich HQ / Empfang','Zürich HQ / Lager','Bern / Büro'];
-const RACKS = [
-  {id:'R-SRV', name:'ZH-SRV-RACK-01', loc:LOCS[0], units:42},
-  {id:'R-2OG', name:'ZH-2OG-WALL-01', loc:LOCS[1], units:12},
-  {id:'R-BE', name:'BE-WALL-01', loc:'Bern / Büro', units:6}
-];
+const LOCS = [];
+let RACKS = [];
 const FIELD_LABEL = {ip:'IP address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
@@ -72,103 +68,24 @@ const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','si
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 let seq = 100, codeN = 0;
-const nextCode = () => 'INV-' + String(++codeN).padStart(4, '0');
-const F = (ref, seen) => ({sys:'Lansweeper', ref, seen});
-const O = (type, name, f) => ({id:'o'+(++seq), code:nextCode(), type, name, status:'active', feed:null, ovr:{}, ...f});
 
-const objs = [
-  O('switch','SW-ZH-CORE-01',{model:'Cisco Catalyst C9300-48P',serial:'FOC2741X0AB',ip:'10.10.0.2',mac:'70:b3:17:4a:00:01',loc:LOCS[0],ports:48,pfx:'Gi1/0/',sfp:4,os:'IOS-XE 17.12.3',feed:F('1042','21.10.2026 05:58')}),
-  O('switch','SW-ZH-2OG-01',{model:'HPE Aruba 2930F-24G-PoE+',serial:'SG21KZP0Q4',ip:'10.10.0.12',mac:'94:60:d5:11:2c:00',loc:LOCS[1],ports:24,pfx:'1/',sfp:4,os:'ArubaOS WC.16.11',feed:F('1043','21.10.2026 05:58')}),
-  O('switch','SW-BE-01',{model:'HPE Aruba 2930F-24G-PoE+',serial:'SG21KZP1B7',ip:'10.20.0.2',mac:'94:60:d5:19:7e:00',loc:LOCS[4],ports:24,pfx:'1/',sfp:4,os:'ArubaOS WC.16.11',feed:F('1101','21.10.2026 05:59')}),
-  O('patch','PP-ZH-SRV-01',{model:'Cat6A patch panel, 24 ports',serial:'PPZH0001',loc:LOCS[0],ports:24}),
-  O('patch','PP-ZH-2OG-01',{model:'Cat6 patch panel, 24 ports',serial:'PPZH0002',loc:LOCS[1],ports:24}),
-  O('server','SRV-ZH-HV01',{model:'Dell PowerEdge R750',serial:'7GXK2Q3',ip:'10.10.1.11',mac:'b0:7b:25:a1:10:01',loc:LOCS[0],os:'Windows Server 2022 Datacenter',cpu:'2× Xeon Silver 4314',ram:'512 GB',feed:F('2001','21.10.2026 05:41')}),
-  O('server','SRV-ZH-HV02',{model:'Dell PowerEdge R750',serial:'7GXK2Q4',ip:'10.10.1.12',mac:'b0:7b:25:a1:10:02',loc:LOCS[0],os:'Windows Server 2022 Datacenter',cpu:'2× Xeon Silver 4314',ram:'512 GB',feed:F('2002','21.10.2026 05:41')}),
-  O('server','SRV-ZH-FS01',{model:'HPE ProLiant DL380 Gen10',serial:'CZJ93104LM',ip:'10.10.1.20',mac:'98:f2:b3:2e:41:aa',loc:LOCS[0],os:'Windows Server 2019 Standard',feed:F('2003','21.10.2026 05:42')}),
-  O('server','SRV-BE-DC01',{model:'Dell PowerEdge R450',serial:'3HLQ9R2',ip:'10.20.1.10',mac:'b0:7b:25:c4:08:11',loc:LOCS[4],os:'Windows Server 2022 Standard',feed:F('2050','21.10.2026 05:44')}),
-  O('pc','ZH-PC-0142',{model:'HP EliteDesk 800 G9 Mini',serial:'CZC3217KQ1',ip:'10.10.20.42',mac:'64:4e:d7:3a:91:0c',loc:LOCS[1],user:'M. Keller',os:'Windows 11 Pro 23H2',feed:F('3142','21.10.2026 05:12')}),
-  O('pc','ZH-PC-0143',{model:'HP EliteDesk 800 G9 Mini',serial:'CZC3217KQ7',ip:'10.10.20.43',mac:'64:4e:d7:3a:94:b2',loc:LOCS[1],user:'S. Brunner',os:'Windows 11 Pro 23H2',feed:F('3143','21.10.2026 05:13')}),
-  O('pc','ZH-PC-0150',{model:'Lenovo ThinkCentre M70q Gen 4',serial:'MJ0K8T2X',ip:'10.10.20.50',mac:'8c:16:45:0e:77:31',loc:LOCS[2],user:'Empfang',os:'Windows 11 Pro 23H2',feed:F('3150','21.10.2026 05:20')}),
-  O('pc','ZH-NB-0201',{model:'Lenovo ThinkPad T14 Gen 4',serial:'PF4R2K9D',ip:'10.10.30.117',mac:'a4:c3:f0:52:1b:e9',loc:LOCS[1],user:'L. Meier',os:'Windows 11 Pro 23H2',feed:F('3201','20.10.2026 17:48')}),
-  O('pc','BE-PC-0031',{model:'HP EliteDesk 800 G6 Mini',serial:'CZC1094XRT',ip:'10.20.20.31',mac:'9c:7b:ef:44:02:8d',loc:LOCS[4],user:'R. Schmid',os:'Windows 10 Pro 22H2',feed:F('3531','21.10.2026 05:31')}),
-  O('monitor','MON-0412',{model:'Dell P2422H 24"',serial:'CN0G7K2Y-FCC00',loc:LOCS[1],feed:F('3142-m1','21.10.2026 05:12')}),
-  O('monitor','MON-0413',{model:'Dell P2422H 24"',serial:'CN0G7K2Y-FCC01',loc:LOCS[1],feed:F('3142-m2','21.10.2026 05:12')}),
-  O('monitor','MON-0420',{model:'Dell U2723QE 27" 4K',serial:'CN0HH3MR-74261',loc:LOCS[1],feed:F('3143-m1','21.10.2026 05:13')}),
-  O('monitor','MON-0431',{model:'Lenovo ThinkVision T24i-30',serial:'V30A8K2L',loc:LOCS[1],feed:F('3201-m1','20.10.2026 17:48')}),
-  O('monitor','MON-0433',{model:'Dell P2422H 24"',serial:'CN0G7K2Y-FCC33',loc:LOCS[3],status:'stock'}),
-  O('monitor','MON-0440',{model:'HP E24 G5',serial:'CNC2440TRL',loc:LOCS[4],feed:F('3531-m1','21.10.2026 05:31')}),
-  O('sip','SIP-ZH-2101',{model:'Yealink T54W',serial:'801541E09A31',ip:'10.10.40.101',mac:'80:5e:c0:41:09:a3',loc:LOCS[1],user:'M. Keller',ext:'2101',fw:'96.86.0.70',feed:F('4101','21.10.2026 05:50')}),
-  O('sip','SIP-ZH-2102',{model:'Yealink T54W',serial:'801541E09A55',ip:'10.10.40.102',mac:'80:5e:c0:41:09:a5',loc:LOCS[1],user:'S. Brunner',ext:'2102',fw:'96.86.0.70',feed:F('4102','21.10.2026 05:50')}),
-  O('sip','SIP-ZH-2000',{model:'Yealink T58W Pro',serial:'801588E10B02',ip:'10.10.40.100',mac:'80:5e:c0:58:10:b0',loc:LOCS[2],user:'Empfang',ext:'2000',fw:'150.86.0.32',feed:F('4100','21.10.2026 05:50')}),
-  O('sip','SIP-BE-3101',{model:'Snom D785',serial:'000413A8C5F2',ip:'10.20.40.101',mac:'00:04:13:a8:c5:f2',loc:LOCS[4],user:'R. Schmid',ext:'3101',fw:'10.1.159.12',feed:F('4301','21.10.2026 05:52')}),
-  O('tablet','TAB-ZH-01',{model:'Apple iPad (10th gen) 64 GB',serial:'F9FXK2LQ0D',ip:'10.10.30.201',mac:'3c:22:fb:7a:10:4e',loc:LOCS[2],user:'Empfang (Check-in)',os:'iPadOS 18.6',feed:F('5001','21.10.2026 04:10')}),
-  O('tablet','TAB-ZH-02',{model:'Samsung Galaxy Tab S9 FE',serial:'R52W40ABCDX',mac:'b4:ef:39:22:6c:01',loc:LOCS[3],user:'Aussendienst',os:'Android 14',status:'repair',feed:F('5002','02.10.2026 11:32')}),
-  O('tablet','TAB-BE-01',{model:'Apple iPad Air (M2)',serial:'H7KQ2M0P11',ip:'10.20.30.201',mac:'3c:22:fb:9e:33:07',loc:LOCS[4],user:'R. Schmid',os:'iPadOS 18.6',feed:F('5050','20.10.2026 16:05')}),
-  O('printer','PRN-ZH-2OG',{model:'HP LaserJet Enterprise M507dn',serial:'PHBQK18342',ip:'10.10.50.21',mac:'f8:b4:6a:0c:21:9e',loc:LOCS[1],feed:F('6001','21.10.2026 05:55')}),
-  O('server','VM-ZH-DC01',{kind:'vm',model:'Windows Server 2022 Standard',os:'Windows Server 2022 Standard',ip:'10.10.1.5',mac:'00:50:56:a1:00:05',loc:LOCS[0],cpu:'4 vCPU',ram:'8 GB'}),
-  O('server','VM-ZH-APP01',{kind:'vm',model:'Debian 12',os:'Debian 12',ip:'10.10.1.6',mac:'00:50:56:a1:00:06',loc:LOCS[0],cpu:'8 vCPU',ram:'32 GB'}),
-  O('storage','NAS-ZH-2OG',{model:'Synology DS224+',serial:'SYN224A17', ip:'10.10.2.11', mac:'00:11:32:5c:0a:11', loc:LOCS[1], cap:'8 TB', proto:'SMB · NFS'}),
-  O('storage','STO-ZH-01',{model:'QNAP TS-h1290FX',serial:'Q1290FX0042',ip:'10.10.2.10',mac:'24:5e:be:11:00:01',loc:LOCS[0],cap:'24 TB',proto:'iSCSI · NFS'}),
-  O('firewall','FW-ZH-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0001',ip:'10.10.0.1',mac:'08:5b:0e:11:22:01',loc:LOCS[0],os:'FortiOS 7.4'}),
-  O('firewall','FW-BE-01',{model:'Fortinet FortiGate 60F',serial:'FGT60F0002',ip:'10.20.0.1',mac:'08:5b:0e:11:22:02',loc:LOCS[4],os:'FortiOS 7.4'}),
-  O('smartphone','PH-ZH-KELLER',{model:'Apple iPhone 15',serial:'DNQ4K2L7P9',loc:LOCS[1],user:'M. Keller',os:'iOS 18.6',mac:'a8:88:08:14:5c:21'}),
-  O('smartphone','PH-BE-SCHMID',{model:'Samsung Galaxy S24',serial:'R5CX3ABC901',loc:LOCS[4],user:'R. Schmid',os:'Android 15',mac:'f4:7b:5e:90:12:0d'}),
-  O('other','BEAMER-ZH-2OG',{model:'Epson EB-X51 projector',serial:'X5ABC24019',loc:LOCS[1],ip:'10.10.50.30',mac:'00:26:ab:3c:10:77'})
-];
+const objs = [];
 const byName = n => objs.find(o => o.name === n);
 const byId = id => objs.find(o => o.id === id);
 
-/* Rack placement: u is the lowest unit the device occupies, h the height in units. Units count from the bottom. */
-const place = (name, rack, u, h = 1) => Object.assign(byName(name), {rack, u, h});
-place('SW-ZH-CORE-01','R-SRV',40); place('PP-ZH-SRV-01','R-SRV',38);
-place('SRV-ZH-HV01','R-SRV',34,2); place('SRV-ZH-HV02','R-SRV',32,2); place('SRV-ZH-FS01','R-SRV',28,2);
-place('SW-ZH-2OG-01','R-2OG',10); place('PP-ZH-2OG-01','R-2OG',8);
-Object.assign(byName('NAS-ZH-2OG'), {rack:'R-2OG', ontop:byName('SW-ZH-2OG-01').id});
-place('SW-BE-01','R-BE',6); place('SRV-BE-DC01','R-BE',4);
-place('STO-ZH-01','R-SRV',20,4);
-place('FW-ZH-01','R-SRV',42); place('FW-BE-01','R-BE',5);
-
 let rseq = 0;
 const rels = [];
-const R = (from, kind, to, port, vlan) => rels.push({id:'r'+(++rseq), from:byName(from).id, kind, to:byName(to).id, port:port ?? null, vlan:vlan ?? null});
-R('SW-ZH-2OG-01','uplink','SW-ZH-CORE-01',48);
-R('SW-ZH-CORE-01','downlink','SW-ZH-2OG-01',25);
-R('PP-ZH-SRV-01','connected','SW-ZH-CORE-01',20,'10 Server');
-R('SRV-ZH-HV01','patched','PP-ZH-SRV-01','P01','10 Server');
-R('SRV-ZH-HV02','patched','PP-ZH-SRV-01','P02','10 Server');
-R('SRV-ZH-FS01','patched','PP-ZH-SRV-01','P03','10 Server');
-R('SRV-BE-DC01','connected','SW-BE-01',1,'10 Server');
-R('SIP-ZH-2000','connected','SW-ZH-CORE-01',14,'40 Voice');
-R('ZH-PC-0150','connected','SIP-ZH-2000','PC port','20 Clients');
-R('PP-ZH-2OG-01','connected','SW-ZH-2OG-01',2,'trunk');
-R('SIP-ZH-2101','patched','PP-ZH-2OG-01','P01','40 Voice');
-R('ZH-PC-0142','connected','SIP-ZH-2101','PC port','20 Clients');
-R('SIP-ZH-2102','patched','PP-ZH-2OG-01','P02','40 Voice');
-R('ZH-PC-0143','connected','SIP-ZH-2102','PC port','20 Clients');
-R('PRN-ZH-2OG','connected','SW-ZH-2OG-01',21,'50 Print');
-R('MON-0412','attached','ZH-PC-0142','DP 1'); R('MON-0413','attached','ZH-PC-0142','DP 2');
-R('MON-0420','attached','ZH-PC-0143','USB-C');
-R('ZH-NB-0201','docked','MON-0431','USB-C');
-R('MON-0431','connected','SW-ZH-2OG-01',9,'20 Clients');
-R('SIP-BE-3101','connected','SW-BE-01',5,'40 Voice');
-R('BE-PC-0031','connected','SIP-BE-3101','PC port','20 Clients');
-R('MON-0440','attached','BE-PC-0031','DP 1');
-R('VM-ZH-DC01','hosted','SRV-ZH-HV01'); R('VM-ZH-APP01','hosted','SRV-ZH-HV02');
-R('STO-ZH-01','connected','SW-ZH-CORE-01',24,'10 Server');
-R('SW-ZH-CORE-01','uplink','FW-ZH-01','wan1','WAN'); R('SW-BE-01','uplink','FW-BE-01','wan1','WAN');
-R('SRV-ZH-HV01','connected','STO-ZH-01','iSCSI'); R('SRV-ZH-HV02','connected','STO-ZH-01','iSCSI');
-
 const history = {};
 const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
-objs.forEach(o => { if (o.feed) hist(o, '14.03.2025 09:12', 'Created by feed sync'); else hist(o, '02.09.2026 14:30', 'Created manually by v.ljuca'); });
-hist(byName('TAB-ZH-02'), '03.10.2026 10:15', 'Status changed In use → In repair by v.ljuca');
 
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:byName('SW-ZH-2OG-01').id, netPort:3,
-  rackId:'R-SRV', setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
-  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}};
+const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:null, netPort:3,
+  rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
+  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false},
+  ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}};
+let APP_VERSION = '';
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
@@ -651,7 +568,8 @@ window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(
 /* ---------- switch ports ---------- */
 function renderNet(){
   const sws = objs.filter(o => o.type === 'switch');
-  const sw = byId(st.netSw);
+  if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No switches yet. Add a switch object to see its ports.</div>'; return; }
+  const sw = byId(st.netSw) || sws[0];
   $('#toolbar').innerHTML = `<label class="muted" for="swSel">Switch</label><select id="swSel">${sws.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="swOpen">Open switch</button>`;
   $('#swSel').value = sw.id;
@@ -698,6 +616,7 @@ function renderNet(){
 /* ---------- racks ---------- */
 function renderRack(){
   const R_ = RACKS.find(r => r.id === st.rackId) || RACKS[0];
+  if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet.</div>'; return; }
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${RACKS.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
@@ -952,7 +871,7 @@ function bindPolicy(root){
 
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields']];
+const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['about','About']];
 function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -973,35 +892,50 @@ function renderSetPane(){
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div>',
     ldap: '<div id="setLdap"></div>',
-    policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:0 12px 10px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`
+    policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:0 12px 10px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
+    about: '<div id="setAbout"></div>'
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}})[st.setTab]();
+  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
+/* About, as in NOBS SQL Editor: the version comes from the server, the licence text is the same. */
+async function renderSetAbout(){
+  const version = await loadVersion();
+  $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
+    <div class="muted" style="font-size:12px;line-height:1.6">
+      <b style="font-size:14px">NOBS Inventory</b><br>
+      Version ${esc(version || 'unknown')}<br>
+      An inventory of PCs, servers, phones, switches and other devices, with their relations.<br>
+      <i>No BS, just inventory.</i><br>
+      Copyright &copy; 2026 Viktor Ljuca
+    </div>
+    <div class="hdr" style="margin:14px -14px 8px">License</div>
+    <div class="muted" style="font-size:12px;line-height:1.6">
+      This program is free software: you may redistribute and/or modify it under the terms of the
+      <b>GNU General Public License version 2</b>, or (at your option) any later version.<br>
+      It is distributed in the hope that it will be useful, but <b>WITHOUT ANY WARRANTY</b> - without
+      even the implied warranty of merchantability or fitness for a particular purpose. See the
+      GNU General Public License for details.
+    </div>
+    <div class="hdr" style="margin:14px -14px 8px">Links</div>
+    <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:12px;line-height:1.7;overflow-wrap:anywhere">
+      <span class="muted">Website</span><span>https://monsama.ch</span>
+      <span class="muted">Source</span><span>https://github.com/monsama/nobs-inventory</span>
+      <span class="muted">License</span><span>https://www.gnu.org/licenses/old-licenses/gpl-2.0.html</span>
+    </div>
+    <div class="hdr" style="margin:14px -14px 8px">Third party</div>
+    <div class="muted" style="font-size:11px;line-height:1.6">
+      Built with Node.js, Express and ldapjs. Each keeps its own licence.
+    </div>
+  </div>`;
+}
+
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
-let USERS = [
-  {login:'m.keller', name:'M. Keller', dept:'Finance', groups:['Finance'], source:'ldap', active:true},
-  {login:'s.brunner', name:'S. Brunner', dept:'Sales', groups:['Sales'], source:'ldap', active:true},
-  {login:'r.schmid', name:'R. Schmid', dept:'Operations', groups:['Bern'], source:'ldap', active:true},
-  {login:'l.meier', name:'L. Meier', dept:'IT', groups:['IT'], source:'manual', active:true},
-  {login:'', name:'Empfang', dept:'Reception', groups:[], source:'manual', active:true},
-  {login:'', name:'Aussendienst', dept:'Sales', groups:[], source:'manual', active:true},
-  {login:'', name:'Empfang (Check-in)', dept:'Reception', groups:[], source:'manual', active:true}
-];
-USERS = USERS.map((u, i) => ({id:'u' + (i + 1), role: u.login === 'l.meier' ? 'admin' : 'viewer', ...u}));
-/* What the directory returns for the search base in the settings. Mock data for this mockup. */
-const LDAP_SAMPLE = [
-  {login:'a.frei', name:'A. Frei', dept:'IT', groups:['IT']},
-  {login:'m.keller', name:'M. Keller', dept:'Finance', groups:['Finance']},
-  {login:'r.schmid', name:'R. Schmid', dept:'Sales', groups:['Sales']},
-  {login:'k.weber', name:'K. Weber', dept:'Facility', groups:['Facility']}
-];
-st.ldap = {url:'ldaps://dc01.monsama.ch:636', bindDn:'CN=nobs-sync,OU=Service,DC=monsama,DC=ch', base:'OU=Users,DC=monsama,DC=ch',
-  filter:'(&(objectClass=user)(!(objectCategory=computer)))', group:'CN=IT-Inventory,OU=Groups,DC=monsama,DC=ch',
-  nightly:true, disable:true, last:null};
+let USERS = [];
+let LDAP_SAMPLE = [];
 const devicesOf = name => objs.filter(o => o.user === name).length;
 /* Demo roles. Admins can change everything; viewers can look but not change. No password is checked here:
    the server login will do that and enforce the roles itself. */
@@ -1052,13 +986,7 @@ function bindUser(o){
     enumerable: true, configurable: true
   });
 }
-objs.forEach(bindUser);
 /* Software on PCs and servers. */
-byName('ZH-PC-0142').software = [{name:'Microsoft Office',version:'2024'},{name:'Google Chrome',version:'129'},{name:'Adobe Acrobat Reader',version:'24.3'}];
-byName('ZH-PC-0143').software = [{name:'Microsoft Office',version:'2021'},{name:'Google Chrome',version:'129'}];
-byName('ZH-NB-0201').software = [{name:'Microsoft Office',version:'2024'}];
-byName('SRV-ZH-HV01').software = [{name:'Hyper-V',version:'Server 2022'}];
-byName('SRV-ZH-HV02').software = [{name:'Hyper-V',version:'Server 2022'}];
 
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
 const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
@@ -1411,25 +1339,10 @@ function newObjModal(pre={}){
 
 /* ---------- feed wizard (initial sync, then kept in sync) ----------
    The feed is a feeder: it proposes values, and st.policy / o.ovr decide which ones land. */
-const FEED_MAP = [
-  ['Windows (workstation OS)','pc',412],['Windows (server OS)','server',38],['Linux','server',11],['VoIP phone','sip',96],
-  ['iPad / iOS','tablet',22],['Android','tablet',9],['Monitor (from WMI)','monitor',503],['Switch','switch',14],['Printer','printer',27],['Patch panel','patch',0],['Router / Firewall','',6],['Unknown','',41]
-];
+let FEED_MAP = [];
 /* Feed records. Existing objects are matched by serial number; a new one is created with its own code. */
-const FEED_EXISTING = [
-  {name:'ZH-PC-0142', rec:{ip:'10.10.20.57'}},
-  {name:'BE-PC-0031', rec:{os:'Windows 11 Pro 24H2'}},
-  {name:'TAB-ZH-02', rec:{status:'active'}},
-  {name:'MON-0433', ref:'3150-m2', rec:{}}
-];
-const FEED_NEW = [
-  {name:'SIP-ZH-2103', type:'sip', ref:'4103', seen:SYNC_TIME, rec:{model:'Yealink T54W', serial:'801541E09A77', ip:'10.10.40.103', mac:'80:5e:c0:41:09:a7', ext:'2103', fw:'96.86.0.70', user:'A. Frei', loc:LOCS[1]},
-    rel:{kind:'patched', to:'PP-ZH-2OG-01', port:'P03', vlan:'40 Voice'}, detail:'Ext. 2103 · 10.10.40.103 · patched to PP-ZH-2OG-01 P03'},
-  {name:'ZH-PC-0144', type:'pc', ref:'3144', seen:SYNC_TIME, rec:{model:'HP EliteDesk 800 G9 Mini', serial:'CZC3217KR2', ip:'10.10.20.44', mac:'64:4e:d7:3a:98:11', os:'Windows 11 Pro 23H2', user:'A. Frei', loc:LOCS[1]},
-    rel:{kind:'connected', to:'SIP-ZH-2103', port:'PC port', vlan:'20 Clients'}, detail:'Windows 11 Pro · 10.10.20.44'},
-  {name:'MON-0445', type:'monitor', ref:'3144-m1', seen:SYNC_TIME, rec:{model:'Dell P2423D 24"', serial:'CN0R7W1K-QDC12', loc:LOCS[1]},
-    rel:{kind:'attached', to:'ZH-PC-0144', port:'DP 1', vlan:null}, detail:'Attached to ZH-PC-0144'}
-];
+let FEED_EXISTING = [];
+let FEED_NEW = [];
 
 /* The plan is computed from the current policy, so the preview always matches what the run will do. */
 function buildPlan(){
@@ -1698,10 +1611,9 @@ function render(){
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it; without a server it stays in this browser. */
-const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
+const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, racks: RACKS, types: TYPES,
   policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
 const SERVER = {on: false, ldap: false, lansweeper: false, last: null, timer: null};
-let DEMO_STATE = null;   /* the sample inventory as the page starts, for Load demo */
 function saveData(){
   if (SERVER.on){ queueServerSave(); return; }
   try { localStorage.setItem('ni-data', JSON.stringify({...snapshot(), meId: st.meId})); } catch(e) {}
@@ -1726,8 +1638,8 @@ function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
-  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
-  Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types);
+  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
+  if (d.types){ Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types); }   /* the demo keeps the built-in types */
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
@@ -1752,7 +1664,7 @@ async function resetDemo(){
     } catch(e) { toast('Not cleared: the server cannot be reached.'); return; }
     closeModal(); toast('Inventory cleared on the server'); render(); return;
   }
-  try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); } catch(e) {}
+  try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); localStorage.removeItem('ni-started'); } catch(e) {}
   location.reload();
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
@@ -1777,21 +1689,43 @@ document.addEventListener('keydown', e => {
 /* First run: choose demo or an empty inventory. Once chosen, it is not asked again. */
 function welcome(){
   modal(`<div class="mh">Welcome to NOBS Inventory</div>
-    <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own. The demo can be loaded again from Settings.</p></div>
+    <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own.</p></div>
     <div class="mf"><button id="wEmpty">Start empty</button>${SERVER.on ? '' : '<button id="wDemo" class="primary">Load demo</button>'}</div>`, 'sm');
   const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); saveData(); };
   if (SERVER.on) $('#wEmpty').classList.add('primary');
-  if ($('#wDemo')) $('#wDemo').onclick = () => {
-    const d = JSON.parse(DEMO_STATE);
-    const me0 = USERS.find(u => u.id === st.meId);
-    if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
-    applyState(d);
-    done();
-  };
+  if ($('#wDemo')) $('#wDemo').onclick = () => startDemo().then(done);
   $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = USERS.filter(u => u.id === st.meId); done(); };
 }
+/* The sample inventory is in demo.js. It is loaded only when a browser asks for the demo, never on a server. */
+function loadDemo(){
+  return new Promise((ok, fail) => {
+    if (window.NI_DEMO) return ok();
+    const s = document.createElement('script');
+    s.src = 'demo.js';
+    s.onload = ok;
+    s.onerror = () => fail(new Error('demo.js could not be loaded'));
+    document.head.append(s);
+  });
+}
+async function startDemo(){
+  try { await loadDemo(); } catch(e) { toast('The demo could not be loaded.'); return; }
+  const d = window.NI_DEMO();
+  const me0 = USERS.find(u => u.id === st.meId);
+  if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
+  applyState(d);
+  FEED_MAP = d.feedMap; FEED_EXISTING = d.feedExisting; FEED_NEW = d.feedNew; LDAP_SAMPLE = d.ldapSample;
+  if (!st.meId) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
+}
+/* The version comes from the server. It is shown in the footer and in Settings → About. */
+async function loadVersion(){
+  if (!APP_VERSION){
+    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) APP_VERSION = (await r.json()).version || ''; } catch(e) {}
+  }
+  const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
+  return APP_VERSION;
+}
 async function boot(){
-  DEMO_STATE = JSON.stringify(snapshot());
+  loadVersion();
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch(e) { info = null; }
   if (!info){
@@ -1805,9 +1739,9 @@ async function boot(){
   if (!info.user){ clearInventory(); render(); loginModal(); return; }
   await loadFromServer(info.user);
 }
-/* Before sign-in the page holds no inventory: the sample data built into this file is removed from memory. */
+/* Before sign-in the page holds no inventory. */
 function clearInventory(){
-  objs.length = 0; rels.length = 0; LOCS.length = 0; USERS = [];
+  objs.length = 0; rels.length = 0; LOCS.length = 0; RACKS.length = 0; USERS = [];
   Object.keys(history).forEach(k => delete history[k]);
   st.open = []; st.tab = 'cards';
 }

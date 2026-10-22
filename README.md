@@ -1,6 +1,6 @@
 # NOBS Inventory
 
-Inventory for PCs, servers, storage, phones, network gear, patch panels and racks. A small Node/Express API stores everything in one SQLite file. The page in `public/` is the same file as the mockup: without a server it keeps its data in the browser, with the server it signs in and saves there.
+Inventory for PCs, servers, storage, phones, network gear, patch panels and racks. A small Node/Express API stores everything in one SQLite file. The page is `public/index.html` with `public/app.js`. With a server it signs in and saves there. Without a server it keeps its data in the browser. The demo inventory is in `public/demo.js` and is loaded only when someone asks for it; a server never sends it.
 
 ## Releases
 
@@ -29,7 +29,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 
 | Task | Command |
 | --- | --- |
-| Update to the latest code | `sudo ./scripts/update.sh` (backs up first; rolls back automatically if unhealthy) |
+| Update to the latest release | `sudo ./scripts/update.sh` (backs up first; rolls back automatically if unhealthy) |
 | Update to a release | `sudo ./scripts/update.sh 0.3.0` |
 | Current version | `cat VERSION` and `grep NI_IMAGE .env` |
 | Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days) |
@@ -45,6 +45,7 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Active Directory sign-in: set `NI_LDAP_URL`, `NI_LDAP_BIND`, `NI_LDAP_BASE`, `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP`. People sign in with their directory password, which is never stored. Only members of `NI_LDAP_GROUP` may sign in; members of `NI_LDAP_ADMIN_GROUP` are admins, everyone else is a viewer.
 - Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs nightly at 06:00, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
+- Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
 
 ## Lansweeper
 
@@ -58,7 +59,9 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 
 ## Updating
 
-Run `./update.sh` from this folder. It pulls the latest code, rebuilds and restarts. The data stays in the `ni-data` volume.
+`sudo ./scripts/update.sh` downloads the release (the archive and its checksum from GitHub), backs up, replaces the code files and starts the release image. It does not touch `.env`, `secrets/`, `certificates/`, `backup/` or the data volume. On a git clone it pulls `main` instead. The code from before the update is kept in `backup/code-before-update-*.tar.gz`.
+
+The update script needs `curl`, `sha256sum` and `tar` on the host. An install from 0.2.5 cannot update with the script yet, because that version only works with git. Extract the 0.2.6 archive once over the install folder (`tar -xzf nobs-inventory-0.2.6.tar.gz -C /opt/nobs-inventory --strip-components=1`), then run `sudo ./scripts/update.sh 0.2.6`. From 0.2.6 on, the script alone is enough.
 
 ## Backup
 

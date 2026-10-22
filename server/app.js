@@ -94,8 +94,7 @@ export function createApp({ db, ldap = null, lansweeper = null, secureCookie = f
         throw new HttpError(401, FAILED);
       }
       throttle.clearFailures(keys);
-      /* One session per user: signing in again ends the earlier sessions, so a stolen token stops working. */
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+      /* Each sign-in gets its own session (up to a few per user); the oldest end when the limit is passed. */
       const token = createSession(db, user.id);
       audit(db, user.id, 'sign in');
       res.setHeader('Set-Cookie', cookie(token, 43200));
