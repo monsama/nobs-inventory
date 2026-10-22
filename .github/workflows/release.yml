@@ -21,9 +21,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The unit tests gate the release. The browser tests run in CI on every push to main, so they are not repeated here.
       - run: npm test
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
 
   publish:
     needs: test
