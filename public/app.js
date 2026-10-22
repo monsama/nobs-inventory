@@ -782,6 +782,7 @@ function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => fieldHtml(o, f)).join('')}
         ${rackFields(o)}
+        ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>` : ''}
         <label for="f_${o.id}_notes">Notes</label><textarea id="f_${o.id}_notes" data-k="notes" rows="3" placeholder="Anything that is not in a field: warranty, purchase order, quirks…">${esc(o.notes||'')}</textarea></div></div>
       ${feedPanel(o)}
     </div>
