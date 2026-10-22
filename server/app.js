@@ -159,6 +159,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const u = userDoc(req.params.id);
       if (!u) throw new HttpError(404, 'No such user.');
+      if (u.source === 'ldap') throw new HttpError(400, 'Directory users sign in with their directory password.');
       const password = String(req.body?.password ?? '');
       if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
       if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');

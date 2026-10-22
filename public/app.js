@@ -1103,11 +1103,12 @@ function renderSetUsers(){
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
-      <td>${SERVER.on && u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
+      <td>${SERVER.on && u.login && u.source !== 'ldap' ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="nuName" placeholder="Name, e.g. A. Frei" style="min-width:150px" aria-label="Name"><input id="nuDept" placeholder="Department" style="min-width:130px" aria-label="Department"><button id="nuAdd" class="primary">Add user</button></div></div>
+    <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. 8)" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
@@ -1119,11 +1120,21 @@ function renderSetUsers(){
     u.role = sel.value; toast(u.name + ' is now ' + roleLabel(u).toLowerCase()); renderSetUsers();
   });
   root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const u = USERS[+b.dataset.del]; USERS.splice(+b.dataset.del, 1); toast(u.name + ' removed'); renderSetUsers(); });
-  $('#nuAdd').onclick = () => {
-    const name = $('#nuName').value.trim();
-    if (!name){ toast('Give the user a name first.'); return; }
+  $('#nuAdd').onclick = async () => {
+    const first = $('#nuFirst').value.trim(), last = $('#nuLast').value.trim();
+    const name = [first, last].filter(Boolean).join(' ');
+    const login = $('#nuLogin').value.trim(), pw = $('#nuPw').value;
+    if (!name){ toast('Give the user a first or last name.'); return; }
     if (USERS.some(u => u.name.toLowerCase() === name.toLowerCase())){ toast(name + ' is already a user.'); return; }
-    USERS.push({id:userId(), login:'', name, dept:$('#nuDept').value.trim(), groups:[], source:'manual', active:true});
+    if (login && USERS.some(u => (u.login || '').toLowerCase() === login.toLowerCase())){ toast('That login is already used.'); return; }
+    if (login && pw.length < 8){ toast('The password needs at least 8 characters.'); return; }
+    const u = {id:userId(), login, first, last, name, dept:$('#nuDept').value.trim(), role:$('#nuRole').value, groups:[], source:'manual', active:true};
+    USERS.push(u); queueServerSave();
+    if (login){
+      await flushSave();
+      const r = await fetch('api/users/' + encodeURIComponent(u.id) + '/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({password: pw})});
+      if (!r.ok){ toast('Added ' + name + ', but the password was not set. Use Password in the list.'); renderSetUsers(); return; }
+    }
     toast('Added ' + name); renderSetUsers();
   };
 }
