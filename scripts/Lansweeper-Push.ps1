@@ -252,6 +252,13 @@ function Get-MonitorRecords($conn) {
     return , $list.ToArray()
 }
 
+# The logged-on user, unless it is a service account.
+function Get-UserText($v) {
+    $u = Get-Clean $v
+    if ($u -match '^(system|local service|network service|administrator)$') { return '' }
+    return $u
+}
+
 # Memory in MB (Lansweeper) as text in GB, e.g. "16 GB".
 function Get-RamText($v) {
     $mb = ConvertTo-Text $v
@@ -321,7 +328,7 @@ function Get-LsRecords {
                     assetType = Get-Clean $reader['ty__AssetTypename']
                     cpu = Get-Clean $reader['a__Processor']
                     ram = Get-RamText $reader['a__Memory']
-                    user = $(if ($u = Get-Clean $reader['a__Username']; $u -and $u -notmatch '^(system|local service|network service|administrator)$') { $u } else { '' })
+                    user = Get-UserText $reader['a__Username']
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
