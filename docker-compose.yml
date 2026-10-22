@@ -3,7 +3,7 @@ name: nobs-inventory
 
 services:
   app:
-    container_name: nobs-inventory-app
+    container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
     image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.2.1}
     build: .
@@ -48,16 +48,17 @@ services:
         max-file: "5"
 
   caddy:
-    container_name: nobs-inventory-caddy
+    container_name: nobs-inventory-proxy
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      NI_HOST: ${NI_HOST:?Set NI_HOST in .env, the address people type}
+      NI_HOST: ${NI_HOST:-}
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certificates:/certs:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

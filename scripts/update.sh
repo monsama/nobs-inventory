@@ -8,7 +8,7 @@
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 REGISTRY_IMAGE=ghcr.io/monsama/nobs-inventory
-APP=nobs-inventory-app
+APP=nobs-inventory
 TARGET="${1:-}"
 
 get_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }

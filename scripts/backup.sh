@@ -5,7 +5,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 VOLUME=nobs-inventory-data
-APP=nobs-inventory-app
+APP=nobs-inventory
 mkdir -p backup && chmod 700 backup
 exec 9>backup/.lock
 flock -n 9 || { echo "[ERROR] Another backup is running." >&2; exit 1; }
@@ -29,6 +29,7 @@ echo "[INFO]  Settings and secrets ..."
 mkdir -p "$WORK/config"
 cp .env "$WORK/config/" 2>/dev/null || true
 cp Caddyfile docker-compose.yml "$WORK/config/"
+cp -a certificates "$WORK/certificates" 2>/dev/null || true
 cp -a secrets "$WORK/secrets"
 
 ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"

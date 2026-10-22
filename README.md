@@ -15,7 +15,13 @@ On a Linux server with Docker and the Compose plugin:
 
 The script creates `.env` (settings) and `secrets/` (admin password, LDAP service password, Lansweeper token), builds the image, starts the app and Caddy, and waits until everything is healthy. It shows the first admin password once. Change it after the first sign-in (Settings → Users).
 
-Requirements: Docker Engine with the Compose plugin, ports 80 and 443 reachable (Caddy needs them for the certificate), and the DNS name pointing at the server. For a name that only exists inside the network, use a DNS challenge or Caddy's internal CA in the Caddyfile.
+Requirements: Docker Engine with the Compose plugin, ports 80 and 443 reachable, and a DNS name (internal or public) pointing at the server.
+
+Certificates: the install creates a self-signed certificate in `certificates/`, so the site works at once with a browser warning. To replace it with your company certificate (PEM, with its key):
+
+    sudo ./scripts/install-cert.sh inventory.pem inventory.key [chain.pem]
+    sudo ./scripts/install-cert.sh --info
+
 
 Secrets live in `secrets/` and are mounted into the app container as files. They are never in `.env`, and `docker inspect` does not show them. Add the LDAP service password or the Lansweeper token by writing the value into the matching file in `secrets/`, then `docker compose restart app`.
 
@@ -31,7 +37,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
 | Logs | `docker compose logs -f` |
 
-Backups contain the database, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; settings and secrets are restored only with `RESTORE_SECRETS=yes`.
+Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; settings and secrets are restored only with `RESTORE_SECRETS=yes`.
 
 ## Accounts and directory
 

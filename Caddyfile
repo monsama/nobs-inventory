@@ -1,8 +1,22 @@
-# HTTPS for NOBS Inventory. Caddy gets and renews the certificate itself.
-# NI_HOST is the address people type, for example inventory.monsama.ch.
-# For a name that only exists inside the network, use a real DNS name with a DNS challenge or the internal CA.
-{$NI_HOST:localhost} {
-	encode gzip
-	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
-	reverse_proxy app:8080
+# NOBS Inventory proxy. Certificates come from ./certificates (not from Let's Encrypt),
+# so this works for internal names. Replace them with scripts/install-cert.sh.
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}
+
+:443 {
+	tls /certs/nobs.crt /certs/nobs.key
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# Strict-Transport-Security "max-age=31536000"   (enable once the certificate is trusted)
+	}
+	reverse_proxy nobs-inventory:8080
 }
