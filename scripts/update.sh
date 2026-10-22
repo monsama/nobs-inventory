@@ -1,7 +1,7 @@
 #!/bin/bash
 # Update to a released version. Works for a git clone and for an archive install (no .git).
 #   sudo ./scripts/update.sh            the latest release (archive install), or the latest code on main (git clone)
-#   sudo ./scripts/update.sh 0.2.9      that release
+#   sudo ./scripts/update.sh 0.2.10      that release
 #
 # Backs up first. If the new version is not healthy, it switches back to the previous
 # version automatically (code and image), so a failed update never leaves the app down.
@@ -70,7 +70,7 @@ if [ -d .git ]; then
 else
   TARGET="${TARGET:-$(latest_release)}"
   TARGET="${TARGET#v}"
-  [ -n "$TARGET" ] || { echo "[ERROR] Could not find the latest release. Give the version: sudo ./scripts/update.sh 0.2.9" >&2; exit 1; }
+  [ -n "$TARGET" ] || { echo "[ERROR] Could not find the latest release. Give the version: sudo ./scripts/update.sh 0.2.10" >&2; exit 1; }
   WORK="$(mktemp -d)"
   trap 'rm -rf "$WORK"' EXIT
   echo "[INFO]  Downloading release v$TARGET ..."
