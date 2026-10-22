@@ -914,7 +914,7 @@ function bindPolicy(root){
 
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['about','About']];
+const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['maintenance','Maintenance'],['about','About']];
 function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -936,11 +936,12 @@ function renderSetPane(){
     users: '<div id="setUsers"></div>',
     ldap: '<div id="setLdap"></div>',
     policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:0 12px 10px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
+    maintenance: '<div id="setMaint"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, about: renderSetAbout})[st.setTab]();
+  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, maintenance: renderSetMaint, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -1102,6 +1103,31 @@ function showDevicesOf(name){
 }
 
 /* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
+/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
+function renderSetMaint(){
+  const edit = canEdit();
+  $('#setMaint').innerHTML = `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
+    <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings. Only your own account stays, with its password, so you can sign in again.</div>
+    <div class="note" style="padding:0 12px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
+    <div class="addrel" style="padding:0 12px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
+  if (edit) $('#frReset').onclick = factoryResetModal;
+}
+function factoryResetModal(){
+  modal(`<div class="mh">Factory reset?</div>
+    <div class="mb"><p class="note">Everything is removed, except your own account. This cannot be undone: only a backup brings the data back.</p>
+      <label class="note" for="frWord" style="display:block;margin-top:6px">Type FACTORY RESET to confirm</label><input id="frWord" autocomplete="off" aria-label="Type FACTORY RESET" style="width:100%"></div>
+    <div class="mf"><button id="frCancel">Cancel</button><button id="frOk" class="danger-text" disabled>Factory reset</button></div>`, 'sm');
+  $('#frWord').oninput = () => { $('#frOk').disabled = $('#frWord').value.trim() !== 'FACTORY RESET'; };
+  $('#frWord').focus();
+  $('#frCancel').onclick = closeModal;
+  $('#frOk').onclick = async () => {
+    clearTimeout(SERVER.timer);
+    const r = await fetch('api/factory-reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({confirm: 'FACTORY RESET'})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'The reset did not run.'); return; }
+    location.reload();
+  };
+}
 /* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
    account's password is not stored there: the server reads it from its environment. */
 function renderSetLdap(){

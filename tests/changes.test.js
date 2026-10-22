@@ -107,3 +107,26 @@ test('a feed record whose name belongs to two objects is left alone; with one su
   mergeRecords(single, [{ name: 'only', serial: '', ip: '10.0.0.7' }]);
   assert.equal(single.objs[0].ip, '10.0.0.7', 'a single object of that name was not matched');
 });
+
+test('factory reset removes every record, setting and other account; the admin who asked can sign in again', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'x'), base: 0 }], dels: [] });
+    const v = { id: 'u-view', login: 'viewer', name: 'Viewer', role: 'viewer', active: true, groups: [], dept: '', source: 'manual' };
+    await put(srv, a.cookie, { puts: [{ kind: 'user', id: v.id, value: v, base: 0 }], dels: [] });
+    await srv.call('POST', `/api/users/${v.id}/password`, { cookie: a.cookie, body: { password: 'viewerpass123' } });
+    await put(srv, a.cookie, { puts: [{ kind: 'setting', id: 'sites', value: ['Basel'], base: 0 }], dels: [] });
+    const refused = await srv.call('POST', '/api/factory-reset', { cookie: a.cookie, body: { confirm: 'reset' } });
+    assert.equal(refused.status, 400, 'the reset ran without the typed word');
+    assert.equal((await load(srv, a.cookie)).objs.length, 1);
+    const done = await srv.call('POST', '/api/factory-reset', { cookie: a.cookie, body: { confirm: 'FACTORY RESET' } });
+    assert.equal(done.status, 200);
+    const now = await load(srv, a.cookie);
+    assert.equal(now.objs.length, 0, 'devices are still there');
+    assert.deepEqual(now.sites, [], 'settings are still there');
+    assert.deepEqual(now.users.map(u => u.login), ['admin'], 'other accounts are still there');
+    assert.equal((await signIn(srv, 'viewer', 'viewerpass123')).status, 401, 'a removed account can still sign in');
+    assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 200, 'the admin cannot sign in again');
+  } finally { await srv.close(); }
+});

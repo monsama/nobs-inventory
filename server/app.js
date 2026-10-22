@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { loadState, saveState, applyChanges } from './state.js';
+import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { mergeFeed } from './feed.js';
@@ -19,7 +19,8 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, secureCookie = false }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, secureCookie = false }) {
+  const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
   const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
   const app = express();
@@ -57,7 +58,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
-    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!lansweeper });
+    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs() });
   });
 
   /* One answer for every failed sign-in: wrong login, wrong password, deactivated, not in the group. This keeps
@@ -130,6 +131,16 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* Factory reset: the whole inventory, and every account but the one asking, is removed. Needs the typed word. */
+  app.post('/api/factory-reset', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      if (!req.body || req.body.confirm !== 'FACTORY RESET') throw new HttpError(400, 'Type FACTORY RESET to confirm.');
+      audit(db, req.user.id, 'factory reset');
+      factoryReset(db, req.user.id);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
   /* The page saves only what changed. See applyChanges for how a conflict is handled. */
   app.post('/api/changes', requireUser, requireAdmin, (req, res, next) => {
     try {
@@ -170,8 +181,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.post('/api/feed/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
-      if (!lansweeper) throw new HttpError(400, 'No Lansweeper API is configured. Set NI_LS_TOKEN on the server.');
-      const counts = await syncLansweeper(db, lansweeper);
+      const ls = cfgLs();
+      if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
+      const counts = await syncLansweeper(db, ls);
       res.json({ counts });
     } catch (e) { next(e); }
   });
