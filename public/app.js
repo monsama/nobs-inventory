@@ -681,15 +681,14 @@ function fieldHtml(o, [k, label, kind]){
 }
 /* Feed panel: link state, and per field whether the feed may overwrite it for this object. */
 function feedPanel(o){
-  if (!st.feedOn && o.feed) return `<div class="panelbox"><div class="hdr">Feed</div><dl class="lsbox"><dt>Feed</dt><dd style="font-family:inherit">Disconnected. Values are kept as entered.</dd></dl><div class="addrel"><button id="linkFeed">Connect a feed…</button></div></div>`;
   if (!o.feed) return `<div class="panelbox"><div class="hdr">Feed</div>
     <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd></dl>
-    <div class="addrel"><button id="linkFeed">Link to a feed record…</button></div></div>`;
+    <p class="note" style="padding:0 12px 10px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
   const keys = Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined);
   return `<div class="panelbox"><div class="hdr">Feed <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
-    <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd><dt>Sync</dt><dd style="font-family:inherit">${st.feedSync ? 'Nightly at 06:00' : 'Manual only'}</dd></dl>
+    <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd></dl>
     <table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Value</th><th style="width:150px">Take from feed</th></tr></thead><tbody>
-      ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${esc(fmtVal(k, o[k]))}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> ${k in o.ovr ? 'override' : '<span class="muted">default</span>'}</label></td></tr>`).join('')}
+      ${keys.map(k => `<tr><td>${FIELD_LABEL[k]}</td><td class="mono" style="white-space:normal">${esc(fmtVal(k, o[k]))}</td><td><label class="pchk"><input type="checkbox" data-ovr="${k}" ${feedOwns(o,k)?'checked':''}> Take from feed</label></td></tr>`).join('')}
     </tbody></table>
     <div class="addrel"><span class="note" style="flex:1">Unchecked fields keep the value you set here. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
 }
@@ -844,7 +843,7 @@ function renderObj(o){
   };
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by v.ljuca'); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
-  const lf = $('#linkFeed'); if (lf) lf.onclick = () => feedModal(1, o);
+
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by v.ljuca'); toast(o.name + ' is now a manual object'); render(); };
 }
 
@@ -882,11 +881,11 @@ function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button id="setReset" style="margin-right:auto">${SERVER.on ? 'Clear inventory' : 'Reset demo data'}</button><button id="setClose" class="primary">Done</button></div>`, 'settings');
+    <div class="mf"><button id="setReset" style="margin-right:auto">Clear inventory</button><button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
   let armed = false;
-  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } resetDemo(); };
+  $('#setReset').onclick = e => { if (!armed){ armed = true; e.target.textContent = 'Click again to clear'; return; } clearAll(); };
   renderSetPane();
 }
 function renderSetPane(){
@@ -942,10 +941,7 @@ async function renderSetAbout(){
 
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
 let USERS = [];
-let LDAP_SAMPLE = [];
 const devicesOf = name => objs.filter(o => o.user === name).length;
-/* Demo roles. Admins can change everything; viewers can look but not change. No password is checked here:
-   the server login will do that and enforce the roles itself. */
 const me = () => USERS.find(u => u.id === st.meId);
 const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
@@ -963,16 +959,6 @@ function applyRole(){
     if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
     if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   }));
-}
-function signInModal(){
-  modal(`<div class="mh">Sign in</div>
-    <div class="mb">
-      <p class="note"><b>Demo.</b> Nothing is checked here: anyone who can open this file can pick any user. The server login will check passwords or LDAP and enforce the roles itself.</p>
-      <div class="srcs">${USERS.filter(u => u.active).map(u => `<label class="src"><input type="radio" name="who" value="${u.id}" ${u.id === st.meId ? 'checked' : ''}><span><b>${esc(u.name)}</b><small>${roleLabel(u) === 'Admin' ? 'Admin · can change everything' : 'Viewer · can look, not change'}</small></span></label>`).join('') || '<span class="muted">No active users yet. Add them under Settings → Users.</span>'}</div>
-    </div>
-    <div class="mf"><button id="siOut">Sign out</button><button id="siOk" class="primary">Sign in</button></div>`, 'sm free');
-  $('#siOk').onclick = () => { const v = document.querySelector('input[name=who]:checked'); st.meId = v ? v.value : null; closeModal(); render(); };
-  $('#siOut').onclick = () => { st.meId = null; closeModal(); render(); };
 }
 const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 function ensureUser(name){
@@ -1075,81 +1061,23 @@ function showDevicesOf(name){
   render();
 }
 
-/* LDAP sync: read the directory, show what would change, apply on confirmation. Users are deactivated, never deleted. */
-function ldapPlan(){
-  const plan = [];
-  LDAP_SAMPLE.forEach(e => {
-    const u = USERS.find(x => x.login === e.login);
-    if (!u) plan.push({act:'new', e});
-    else if (u.name !== e.name || u.dept !== e.dept) plan.push({act:'changed', u, e});
-  });
-  if (st.ldap.disable) USERS.filter(u => u.source === 'ldap' && u.active && !LDAP_SAMPLE.some(e => e.login === u.login))
-    .forEach(u => plan.push({act:'off', u}));
-  return plan;
-}
-function applyLdap(plan){
-  plan.forEach(p => {
-    if (p.act === 'new') USERS.push({id:userId(), login:p.e.login, name:p.e.name, dept:p.e.dept, groups:p.e.groups, source:'ldap', active:true});
-    if (p.act === 'changed'){
-      Object.assign(p.u, {name:p.e.name, dept:p.e.dept, groups:p.e.groups});
-    }
-    if (p.act === 'off') p.u.active = false;
-  });
-  st.ldap.last = SYNC_TIME;
-  toast(`LDAP sync applied: ${plan.length} change${plan.length === 1 ? '' : 's'}`);
-  renderSetPane(); render();
-}
+/* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
 function renderSetLdap(){
-  const L = st.ldap || {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null};
+  const L = st.ldap || {};
   $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${L.last ? 'Last sync ' + esc(L.last) : 'Never synced'}</span></div>
-    <div class="form" style="grid-template-columns:150px minmax(0,1fr)">
-      <label for="lk_url">Server</label><input id="lk_url" class="mono" data-lk="url" value="${esc(L.url)}">
-      <label for="lk_bind">Bind account</label><input id="lk_bind" class="mono" data-lk="bindDn" value="${esc(L.bindDn)}">
-      <label for="lk_pw">Password</label><input id="lk_pw" type="password" value="mockup" aria-label="Bind password">
-      <label for="lk_base">Search base</label><input id="lk_base" class="mono" data-lk="base" value="${esc(L.base)}">
-      <label for="lk_filter">User filter</label><input id="lk_filter" class="mono" data-lk="filter" value="${esc(L.filter)}">
-      <label for="lk_group">Only group</label><input id="lk_group" class="mono" data-lk="group" value="${esc(L.group)}">
-    </div>
-    <div class="optrow" style="padding:0 12px 10px"><label><input type="checkbox" data-lk="nightly" ${L.nightly ? 'checked' : ''}> Sync nightly at 06:00</label><label><input type="checkbox" data-lk="disable" ${L.disable ? 'checked' : ''}> Deactivate users no longer in LDAP</label></div>
-    <div class="addrel"><button id="ldapTest">Test connection</button><button id="ldapSync" class="primary">Sync now…</button><span class="note" id="ldapMsg"></span></div>
-  </div>
-  <div id="ldapPlan"></div>
-  <p class="note">Attributes read: login sAMAccountName, name displayName, department, groups memberOf. Users are never deleted by a sync.</p>`;
-  const root = $('#setLdap');
-  if (SERVER.on){
-    $('#ldapPlan').innerHTML = '<p class="note">The sync reads the directory on the server. Users who left are deactivated, not deleted.</p>';
-    $('#ldapSync').textContent = 'Sync now';
-    $('#ldapSync').onclick = async () => {
-      $('#ldapSync').disabled = true;
-      const r = await fetch('api/ldap/sync', {method: 'POST', credentials: 'same-origin'});
-      const j = await r.json().catch(() => ({}));
-      $('#ldapSync').disabled = false;
-      if (!r.ok){ $('#ldapMsg').textContent = j.error || 'The sync failed.'; return; }
-      const c = j.counts;
-      $('#ldapMsg').textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated`;
-      const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); }
-    };
-    $('#ldapTest').onclick = () => { $('#ldapMsg').textContent = 'Connection is tested when the sync runs.'; };
-    return;
-  }
-  root.querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.type === 'checkbox' ? i.checked : i.value; });
-  $('#ldapTest').onclick = () => { $('#ldapMsg').textContent = 'Connected · ' + LDAP_SAMPLE.length + ' users in scope'; };
-  $('#ldapSync').onclick = () => {
-    const plan = ldapPlan();
-    $('#ldapPlan').innerHTML = plan.length ? `<div class="panelbox"><div class="hdr">Changes from LDAP</div>
-      <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Action</th><th>User</th><th>What changes</th></tr></thead><tbody>
-      ${plan.map(p => p.act === 'new'
-        ? `<tr><td><span class="chip ok">New</span></td><td>${esc(p.e.name)}</td><td>${esc(p.e.dept)} · ${esc(p.e.login)}</td></tr>`
-        : p.act === 'changed'
-        ? `<tr><td><span class="chip info">Update</span></td><td>${esc(p.u.name)}</td><td>${p.u.name !== p.e.name ? `<span class="diff"><del>${esc(p.u.name)}</del> <ins>${esc(p.e.name)}</ins></span> ` : ''}${p.u.dept !== p.e.dept ? `<span class="diff"><del>${esc(p.u.dept)}</del> <ins>${esc(p.e.dept)}</ins></span>` : ''}</td></tr>`
-        : `<tr><td><span class="chip kept">Deactivate</span></td><td>${esc(p.u.name)}</td><td class="muted">No longer in LDAP. Devices keep the name.</td></tr>`).join('')}
-      </tbody></table></div>
-      <div class="addrel"><button id="ldapApply" class="primary">Apply ${plan.length} change${plan.length === 1 ? '' : 's'}</button><button id="ldapCancel">Cancel</button></div></div>`
-      : '<p class="note">Nothing to change. The users match LDAP.</p>';
-    if (plan.length){
-      $('#ldapApply').onclick = () => applyLdap(plan);
-      $('#ldapCancel').onclick = () => { $('#ldapPlan').innerHTML = ''; };
-    }
+    <div class="note" style="padding:10px 12px">${SERVER.ldap
+      ? 'Connected. The server reads the directory with the NI_LDAP_* settings. Users who left are deactivated, not deleted.'
+      : 'Not connected. Set NI_LDAP_URL, NI_LDAP_BIND, NI_LDAP_BASE and NI_LDAP_GROUP on the server to sign people in with their directory password.'}</div>
+    <div class="addrel" style="padding:0 12px 10px"><button id="ldapSync" class="primary" ${SERVER.ldap ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  $('#ldapSync').onclick = async () => {
+    $('#ldapSync').disabled = true;
+    const r = await fetch('api/ldap/sync', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    $('#ldapSync').disabled = false;
+    if (!r.ok){ $('#ldapMsg').textContent = j.error || 'The sync failed.'; return; }
+    const c = j.counts;
+    $('#ldapMsg').textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated`;
+    const r2 = await fetch('api/state', {credentials: 'same-origin'}); if (r2.ok){ applyState(await r2.json()); SERVER.last = JSON.stringify(snapshot()); }
   };
 }
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
@@ -1249,7 +1177,7 @@ function renderSetTypes(){
   };
 }
 /* Feed on the server: upload the report, and the server applies the policy and the merge rules. */
-function renderSetFeedServer(){
+function renderSetFeed(){
   $('#setFeed').innerHTML = `<div class="hdr">Feed</div>
     <div class="note" style="padding:10px 12px">Upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed, and what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:110px minmax(0,1fr)"><label for="feedUp">Export</label><input id="feedUp" type="file" accept=".csv,text/csv"></div>
@@ -1276,20 +1204,6 @@ function renderSetFeedServer(){
   };
 }
 /* The feed is optional: without one, every object is entered and kept by hand. */
-function renderSetFeed(){
-  if (SERVER.on) return renderSetFeedServer();
-  const n = objs.filter(o => o.feed).length;
-  $('#setFeed').innerHTML = st.feedOn ? `<div class="hdr">Feed</div>
-    <dl class="lsbox"><dt>Connection</dt><dd style="font-family:inherit">Connected · site HQ Zürich</dd><dt>Last sync</dt><dd style="font-family:inherit">${SYNC_TIME}</dd><dt>Covers</dt><dd style="font-family:inherit">${n} objects</dd></dl>
-    <div class="optrow" style="padding:0 12px 10px"><label><input type="checkbox" id="setSync" ${st.feedSync?'checked':''}> Keep in sync nightly at 06:00</label></div>
-    <div class="addrel"><button id="setSyncNow">Sync now</button><button id="setSetup">Change connection…</button><div class="grow"></div><button id="setOff">Disconnect</button></div>`
-  : `<div class="hdr">Feed</div><p class="note" style="padding:10px 12px">No feed connected. Objects are entered and edited by hand, and every value stays as you set it. A feed can be connected at any time and will only fill the fields you allow.</p>
-    <div class="addrel"><button id="setSetup" class="primary">Connect a feed…</button></div>`;
-  const sy = $('#setSync'); if (sy) sy.onchange = e => { st.feedSync = e.target.checked; toast(st.feedSync ? 'Nightly sync on' : 'Nightly sync off'); };
-  const sn = $('#setSyncNow'); if (sn) sn.onclick = () => toast('Mockup: runs the same sync as the nightly run');
-  $('#setSetup').onclick = () => feedModal(1);
-  const off = $('#setOff'); if (off) off.onclick = () => { st.feedOn = false; toast('Feed disconnected. Values stay as they are.'); renderSetFeed(); render(); };
-}
 
 /* ---------- new object ---------- */
 function newObjModal(pre={}){
@@ -1344,150 +1258,14 @@ function newObjModal(pre={}){
   };
 }
 
-/* ---------- feed wizard (initial sync, then kept in sync) ----------
-   The feed is a feeder: it proposes values, and st.policy / o.ovr decide which ones land. */
-let FEED_MAP = [];
-/* Feed records. Existing objects are matched by serial number; a new one is created with its own code. */
-let FEED_EXISTING = [];
-let FEED_NEW = [];
 
-/* The plan is computed from the current policy, so the preview always matches what the run will do. */
-function buildPlan(){
-  const plan = FEED_NEW.map(n => ({act:'new', name:n.name, type:n.type, ref:n.ref, seen:n.seen, rec:n.rec, rel:n.rel, detail:n.detail, changes:[]}));
-  FEED_EXISTING.forEach(e => {
-    const o = byName(e.name);
-    const link = !!e.ref && !o.feed;
-    const changes = Object.entries(e.rec).filter(([k,v]) => o[k] !== v)
-      .map(([k,v]) => ({k, label:FIELD_LABEL[k], from:o[k], to:v, owned:feedOwns(o, k, link || !!o.feed)}));
-    const act = link ? 'link' : changes.some(c => c.owned) ? 'update' : changes.length ? 'kept' : null;
-    if (act) plan.push({act, o, name:o.name, type:o.type, ref:e.ref, seen:SYNC_TIME, changes});
-  });
-  return plan;
-}
-const ACT = {new:['New','ok'], update:['Update','info'], link:['Link','info'], kept:['Kept local','kept']};
 
-function feedModal(startStep = 1, forObj = null){
-  let step = startStep;
-  let plan = [];
-  const counts = () => ['new','update','link','kept'].map(a => [a, plan.filter(p => p.act === a).length]);
-  const draw = () => {
-    const stepsHtml = ['Connect','Match & fields','Preview','Initial sync'].map((s,i) => `<span class="${step===i+1?'on':step>i+1?'done':''}"><b>${step>i+1?'✓':i+1}</b>${s}</span>`).join('');
-    let body = '';
-    if (step === 1) body = `
-      <div class="srcs">
-        <label class="src"><input type="radio" name="src" value="cloud" checked><span><b>Lansweeper Sites API</b><small>Cloud or hybrid site. Reads assets over the GraphQL API with an access token.</small></span></label>
-        <label class="src"><input type="radio" name="src" value="sql"><span><b>On-prem database</b><small>Lansweeper Classic. Reads the <span class="mono">lansweeperdb</span> SQL Server database with a read-only login.</small></span></label>
-        <label class="src"><input type="radio" name="src" value="csv"><span><b>Report export</b><small>A CSV or XLSX export. No connection needed. Good for a one-off sync.</small></span></label>
-      </div>
-      <div class="form" style="padding:0" id="srcForm"></div>
-      <div class="optrow"><label><input type="checkbox" id="optSched" ${st.feedSync?'checked':''}> Keep in sync nightly at 06:00</label></div>
-      <p class="note">The feed only proposes values. Which fields it may overwrite is set in the next step and on each object.</p>`;
-    if (step === 2) body = `
-      <p class="note">Feed asset types map to object types here. Types set to <b>Ignore</b> are not imported.</p>
-      <div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Asset type in feed</th><th style="width:90px">Assets</th><th>Becomes</th></tr></thead><tbody>
-        ${FEED_MAP.map(([ls,t,n]) => `<tr><td>${ls}</td><td class="n">${n}</td><td><select aria-label="Type for ${esc(ls)}" style="height:24px"><option value="">Ignore</option>${Object.entries(TYPES).map(([k,v]) => `<option value="${k}" ${k===t?'selected':''}>${v.label}</option>`).join('')}</select></td></tr>`).join('')}
-      </tbody></table></div>
-      <div class="form" style="padding:0">
-        <label for="mKey">Match on</label><select id="mKey"><option>Serial number, then MAC address, then name</option><option>Feed asset ID only</option><option>Name only</option></select>
-        <label for="mLoc">Location from</label><select id="mLoc"><option>Feed location field</option><option>IP range → location table</option><option>Do not set</option></select>
-      </div>
-      <p class="note"><b>Fields the feed may overwrite</b> (default for all objects)</p>
-      ${policyGrid()}`;
-    if (step === 3){
-      plan = buildPlan();
-      body = `
-      <div class="summary">${counts().map(([a,n]) => `<span class="chip ${ACT[a][1]}">${n} ${ACT[a][0].toLowerCase()}</span>`).join('')}</div>
-      <div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Action</th><th>Object</th><th>Type</th><th>What changes</th></tr></thead><tbody>
-        ${plan.map(p => `<tr><td><span class="chip ${ACT[p.act][1]}">${ACT[p.act][0]}</span></td><td class="n">${p.o ? esc(p.o.code) + ' ' : ''}${esc(p.name)}</td><td><span class="tdot"><span class="tsw" style="background:${tcol(p.type)}"></span>${TYPES[p.type].short}</span></td>
-          <td style="white-space:normal">${p.act === 'new' ? esc(p.detail) : p.act === 'link' ? 'Linked by serial number' : ''}
-            ${p.changes.map(c => c.owned
-              ? `<div class="diff">${esc(c.label)}: <del>${esc(fmtVal(c.k,c.from))}</del> <ins>${esc(fmtVal(c.k,c.to))}</ins></div>`
-              : `<div class="muted">${esc(c.label)}: kept as set here</div>`).join('')}</td></tr>`).join('')}
-      </tbody></table></div>
-      <p class="note">Nothing is written until the sync runs. Fields kept here are never touched by the feed. Change which fields the feed may overwrite in step 2, or per object.</p>`;
-    }
-    if (step === 4) body = `<div class="bar2"><i id="prog"></i></div><div class="console" id="log" role="log" aria-live="polite"></div>`;
-    $('#mdl .box').innerHTML = `<div class="mh"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>${forObj ? 'Link ' + esc(forObj.code) + ' to a feed record' : 'Feed sync'}</div>
-      <div class="steps">${stepsHtml}</div><div class="mb">${body}</div>
-      <div class="mf">${step===1?'<button id="testBtn" style="margin-right:auto">Test connection</button>':''}<span id="testRes" class="muted" style="margin-right:auto"></span>
-        ${step<4?'<button id="iCancel">Cancel</button>':''}${step>1&&step<4?'<button id="iBack">Back</button>':''}
-        <button id="iNext" class="primary">${step===3?'Start sync':step===4?'Close':'Next'}</button></div>`;
-    bindPolicy($('#mdl'));
-    applyRole();
-    if (step === 1){
-      const srcForm = () => {
-        const v = document.querySelector('input[name=src]:checked').value;
-        $('#srcForm').innerHTML = v === 'cloud'
-          ? `<label for="lsSite">Site</label><input id="lsSite" value="HQ Zürich (site id 6f2c…a91e)"><label for="lsTok">Access token</label><input id="lsTok" type="password" value="token-mockup"><label for="lsUrl">API endpoint</label><input id="lsUrl" class="mono" value="https://api.lansweeper.com/api/v2/graphql">`
-          : v === 'sql'
-          ? `<label for="lsHost">SQL Server</label><input id="lsHost" class="mono" value="LS-SRV01\\SQLEXPRESS"><label for="lsDb">Database</label><input id="lsDb" class="mono" value="lansweeperdb"><label for="lsUser">Login</label><input id="lsUser" class="mono" value="nobs_inventory_ro"><label for="lsPw">Password</label><input id="lsPw" type="password" value="mockup">`
-          : `<label for="lsFile">File</label><input id="lsFile" type="file" accept=".csv,.xlsx" style="padding:2px"><label>Columns</label><span class="note">AssetName, AssetType, Serial, Mac, IPAddress, Model, Location, LastSeen</span>`;
-      };
-      document.querySelectorAll('input[name=src]').forEach(r => r.onchange = srcForm); srcForm();
-      $('#optSched').onchange = e => st.feedSync = e.target.checked;
-      $('#testBtn').onclick = () => { $('#testRes').textContent = 'Connecting…'; setTimeout(() => $('#testRes').innerHTML = '<span class="dot"></span> Connected · 1 179 assets on site', 600); };
-    }
-    if (step === 4) runSync(plan, () => $('#iNext').disabled = false);
-    const c = $('#iCancel'); if (c) c.onclick = closeModal;
-    const b = $('#iBack'); if (b) b.onclick = () => { step--; draw(); };
-    $('#iNext').onclick = () => { if (step === 4){ closeModal(); render(); return; } step++; draw(); };
-    if (step === 4) $('#iNext').disabled = true;
-  };
-  modal('');
-  draw();
-}
 
-function runSync(plan, done){
-  const log = $('#log'), prog = $('#prog');
-  const lines = [['m', `[${SYNC_TIME.slice(11)}] `, 'Connecting to feed · site HQ Zürich'], ['', '', `Matched on serial / MAC / name … ${objs.length - plan.filter(p => p.act !== 'new').length} unchanged`]];
-  plan.forEach(p => {
-    const sym = {new:'+', update:'~', link:'=', kept:'·'}[p.act];
-    const cls = {new:'g', update:'b', link:'b', kept:'m'}[p.act];
-    const owned = p.changes.filter(c => c.owned).map(c => c.label);
-    const kept = p.changes.filter(c => !c.owned).map(c => c.label);
-    const text = p.act === 'new' ? `created ${p.type}` : p.act === 'link' ? 'linked by serial' : owned.length ? 'updated ' + owned.join(', ') : 'no field changes';
-    lines.push([cls, sym + ' ' + p.name.padEnd(14), text + (kept.length ? ' · kept: ' + kept.join(', ') : '')]);
-  });
-  lines.push(['g', 'Done.', `${plan.filter(p=>p.act==='new').length} created, ${plan.filter(p=>p.act==='update'||p.act==='link').length} updated, ${plan.filter(p=>p.act==='kept').length} kept local.`]);
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let i = 0;
-  const tick = () => {
-    if (i >= lines.length){ applyPlan(plan); done(); return; }
-    const [cls, head, text] = lines[i];
-    const s = document.createElement('span'); if (cls) s.className = cls;
-    s.textContent = (head || '') + (text || '') + '\n';
-    log.appendChild(s); log.scrollTop = log.scrollHeight;
-    i++; prog.style.width = Math.round(i / lines.length * 100) + '%';
-    setTimeout(tick, reduce ? 0 : 160);
-  };
-  tick();
-}
 
-function applyPlan(plan){
-  st.feedOn = true;
-  plan.forEach(p => {
-    if (p.act === 'new'){
-      const o = O(p.type, p.name, {...p.rec, feed:F(p.ref, p.seen)});
-      objs.push(o); bindUser(o); hist(o, SYNC_TIME, 'Created by feed sync');
-    }
-  });
-  FEED_NEW.forEach(n => {
-    if (!n.rel) return;
-    const from = byName(n.name), to = byName(n.rel.to);
-    rels.push({id:'r'+(++rseq), from:from.id, to:to.id, kind:n.rel.kind, port:n.rel.port, vlan:n.rel.vlan ?? null});
-  });
-  plan.filter(p => p.act !== 'new').forEach(p => {
-    if (p.act === 'link'){ p.o.feed = F(p.ref, SYNC_TIME); hist(p.o, SYNC_TIME, 'Linked to feed record by serial number'); }
-    const owned = p.changes.filter(c => c.owned);
-    owned.forEach(c => p.o[c.k] = c.to);
-    if (owned.length) hist(p.o, SYNC_TIME, 'Feed sync: ' + owned.map(c => c.label).join(', '));
-  });
-  render();
-}
 
 /* ---------- top bar ---------- */
 $('#newBtn').onclick = () => newObjModal();
-$('#whoBtn').onclick = () => (SERVER.on ? (me() ? signOut() : loginModal()) : signInModal());
+$('#whoBtn').onclick = () => (me() ? signOut() : loginModal());
 $('#setBtn').onclick = openSettings;
 $('#themeBtn').onclick = () => {
   const root = document.documentElement;
@@ -1617,14 +1395,11 @@ function render(){
   saveData();
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
-/* The inventory as one object. The server stores it; without a server it stays in this browser. */
+/* The inventory as one object. The server stores it. */
 const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, racks: RACKS, types: TYPES,
   policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
 const SERVER = {on: false, ldap: false, lansweeper: false, last: null, timer: null};
-function saveData(){
-  if (SERVER.on){ queueServerSave(); return; }
-  try { localStorage.setItem('ni-data', JSON.stringify({...snapshot(), meId: st.meId})); } catch(e) {}
-}
+function saveData(){ queueServerSave(); }
 function queueServerSave(){
   if (!SERVER.last) return;   /* nothing has been loaded yet */
   clearTimeout(SERVER.timer);
@@ -1655,27 +1430,18 @@ function applyState(d){
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
-function loadData(){
-  let d = null; try { d = JSON.parse(localStorage.getItem('ni-data') || 'null'); } catch(e) {}
-  if (!d) return;
-  applyState(d);
-  st.meId = d.meId ?? null;
-}
 /* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
    for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
-async function resetDemo(){
-  if (SERVER.on){
-    if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
-    objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]);
-    try {
-      const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(snapshot())});
-      if (!r.ok){ toast('Not cleared: ' + ((await r.json().catch(() => ({}))).error || r.status)); return; }
-      SERVER.last = JSON.stringify(snapshot());
-    } catch(e) { toast('Not cleared: the server cannot be reached.'); return; }
-    closeModal(); toast('Inventory cleared on the server'); render(); return;
-  }
-  try { localStorage.removeItem('ni-data'); localStorage.removeItem('ni-cols'); localStorage.removeItem('ni-started'); } catch(e) {}
-  location.reload();
+/* Clears the devices, relations and history on the server for everyone. Users, locations, types and settings stay. */
+async function clearAll(){
+  if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
+  objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]);
+  try {
+    const r = await fetch('api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(snapshot())});
+    if (!r.ok){ toast('Not cleared: ' + ((await r.json().catch(() => ({}))).error || r.status)); return; }
+    SERVER.last = JSON.stringify(snapshot());
+  } catch(e) { toast('Not cleared: the server cannot be reached.'); return; }
+  closeModal(); toast('Inventory cleared'); render();
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];
@@ -1696,36 +1462,6 @@ document.addEventListener('keydown', e => {
   if (tab){ st.tab = tab; render(); }
 });
 
-/* First run: choose demo or an empty inventory. Once chosen, it is not asked again. */
-function welcome(){
-  modal(`<div class="mh">Welcome to NOBS Inventory</div>
-    <div class="mb"><p class="note">Start with a demo inventory to see how the app works, or with an empty one to enter your own.</p></div>
-    <div class="mf"><button id="wEmpty">Start empty</button>${SERVER.on ? '' : '<button id="wDemo" class="primary">Load demo</button>'}</div>`, 'sm');
-  const done = () => { try { localStorage.setItem('ni-started', '1'); } catch(e) {} closeModal(); render(); saveData(); };
-  if (SERVER.on) $('#wEmpty').classList.add('primary');
-  if ($('#wDemo')) $('#wDemo').onclick = () => startDemo().then(done);
-  $('#wEmpty').onclick = () => { objs.length = 0; rels.length = 0; Object.keys(history).forEach(k => delete history[k]); USERS = USERS.filter(u => u.id === st.meId); done(); };
-}
-/* The sample inventory is in demo.js. It is loaded only when a browser asks for the demo, never on a server. */
-function loadDemo(){
-  return new Promise((ok, fail) => {
-    if (window.NI_DEMO) return ok();
-    const s = document.createElement('script');
-    s.src = 'demo.js';
-    s.onload = ok;
-    s.onerror = () => fail(new Error('demo.js could not be loaded'));
-    document.head.append(s);
-  });
-}
-async function startDemo(){
-  try { await loadDemo(); } catch(e) { toast('The demo could not be loaded.'); return; }
-  const d = window.NI_DEMO(SYNC_TIME);
-  const me0 = USERS.find(u => u.id === st.meId);
-  if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
-  applyState(d);
-  FEED_MAP = d.feedMap; FEED_EXISTING = d.feedExisting; FEED_NEW = d.feedNew; LDAP_SAMPLE = d.ldapSample;
-  if (!st.meId) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
-}
 /* The version comes from the server. It is shown in the footer and in Settings → About. */
 async function loadVersion(){
   if (!APP_VERSION){
@@ -1738,16 +1474,17 @@ async function boot(){
   loadVersion();
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch(e) { info = null; }
-  if (!info){
-    loadData();
-    if (!st.meId && USERS.length) st.meId = (USERS.find(u => u.role === 'admin') || USERS[0]).id;
-    if (!localStorage.getItem('ni-started') && !localStorage.getItem('ni-data')) welcome();
-    render();
-    return;
-  }
+  if (!info){ showUnreachable(); return; }
   SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper;
   if (!info.user){ clearInventory(); render(); loginModal(); return; }
   await loadFromServer(info.user);
+}
+/* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
+function showUnreachable(){
+  document.body.classList.add('signed-out');
+  modal(`<div class="mh">NOBS Inventory</div><div class="mb"><p class="note" style="color:var(--danger)">The inventory server cannot be reached. Check that it is running, then try again.</p></div>
+    <div class="mf"><button id="unTry" class="primary">Try again</button></div>`, 'sm free locked');
+  $('#unTry').onclick = () => location.reload();
 }
 /* Before sign-in the page holds no inventory. */
 function clearInventory(){
@@ -1764,7 +1501,7 @@ async function loadFromServer(user){
   document.body.classList.remove('signed-out');
   st.meId = user.id;
   SERVER.last = JSON.stringify(snapshot());
-  if (!objs.length && !localStorage.getItem('ni-started')) welcome();
+
   render();
 }
 /* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */

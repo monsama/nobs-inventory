@@ -1,93 +1,72 @@
-/* Browser test of the empty start and the demo: no sample data before sign-in, a fresh server starts empty,
-   About shows the version and licence, and the demo is loaded only when a browser asks for it. */
+/* Browser test of the start: the sign-in screen shows no inventory even when the server has one, an
+   unreachable server says so, a new server starts empty, and About shows the version and licence. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
+import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 
 const SAMPLE_DEVICE = 'SRV-ZH-HV01';
-const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;   /* the release being tested */
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-demo-'));
-const db = openDb(path.join(dir, 'inventory.db'));
-bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-const app = createApp({ db });
-const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
-const base = `http://127.0.0.1:${server.address().port}`;
+const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+
+const serve = async (seed) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-start-'));
+  const db = openDb(path.join(dir, 'inventory.db'));
+  bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
+  if (seed) seedBasics(db);
+  const server = await new Promise(r => { const s = createApp({ db }).listen(0, '127.0.0.1', () => r(s)); });
+  return { base: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(r => { server.close(() => { db.close(); r(); }); }) };
+};
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
-/* Opens each Settings tab and checks it draws. */
-const walkSettings = async (p) => {
-  await p.waitForSelector('#setTabs');
-  for (const tab of ['feed', 'locations', 'types', 'users', 'ldap', 'policy', 'about']) {
-    await p.click(`#setTabs [data-st=${tab}]`); await p.waitForTimeout(120);
-    assert.ok((await p.locator('#setPane').innerHTML()).length > 50, `Settings tab "${tab}" is empty`);
-  }
-};
-const newPage = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); return p; };
-try {
-  // 1. A server: the sign-in screen shows no inventory, and a fresh server starts empty.
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const page = await newPage(ctx);
-  await page.goto(base + '/'); await page.waitForSelector('#lgUser');
-  assert.ok(!(await page.textContent('body')).includes(SAMPLE_DEVICE), 'sample data is visible before sign-in');
-  assert.equal(await page.isVisible('#tabsbar'), false, 'the app is drawn behind the sign-in dialog');
-  await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
-  await page.waitForSelector('#wEmpty');
-  assert.equal(await page.isVisible('#tabsbar'), true, 'the app is shown after sign-in');
-  assert.equal(await page.locator('#wDemo').count(), 0, 'the server offers no demo');
-  await page.click('#wEmpty');
-  await page.waitForTimeout(200);
-  assert.ok(!(await page.textContent('#view')).includes(SAMPLE_DEVICE), 'a fresh server shows sample devices');
+const page = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); return p; };
+const signIn = async (p) => { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); };
 
-  // 2. About: the version from the server and the licence text.
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=about]');
-  await page.waitForSelector('#setAbout:has-text("Version")');
-  const about = await page.textContent('#setAbout');
+try {
+  // 1. A server that has devices: the sign-in screen shows none of them, and the app is hidden.
+  const full = await serve(true);
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const p = await page(ctx);
+  await p.goto(full.base + '/'); await p.waitForSelector('#lgUser');
+  assert.ok(!(await p.textContent('body')).includes(SAMPLE_DEVICE), 'devices are visible before sign-in');
+  assert.equal(await p.isVisible('#tabsbar'), false, 'the app is drawn behind the sign-in dialog');
+  await signIn(p);
+  await p.waitForFunction(() => objs.length > 0);
+  assert.ok((await p.textContent('#view')).length > 0 && await p.isVisible('#tabsbar'), 'the app is not shown after sign-in');
+  // About: the version from the server and the licence text.
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=about]');
+  await p.waitForSelector('#setAbout:has-text("Version")');
+  const about = await p.textContent('#setAbout');
   assert.ok(about.includes(`Version ${VERSION}`), 'About shows the version');
   assert.match(about, /GNU General Public License version 3/, 'About shows the licence');
   assert.match(about, /Copyright © 2026 Viktor Ljuca/);
-  await page.click('#setClose');
-  assert.equal(await page.textContent('#verFoot'), `NOBS Inventory ${VERSION}`, 'the footer shows the version');
+  await p.click('#setClose');
+  assert.equal(await p.textContent('#verFoot'), `NOBS Inventory ${VERSION}`, 'the footer shows the version');
+  await ctx.close(); await full.close();
 
-  // 3. Without a server (the page opened as a file) the demo is loaded only on request.
-  const file = 'file://' + path.join(fileURLToPath(new URL('../../public/index.html', import.meta.url)));
+  // 2. A server the page cannot reach: the page says so and offers to try again.
+  const down = await serve(false);
   const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const local = await newPage(ctx2);
-  await local.goto(file); await local.waitForSelector('#wEmpty');
-  assert.equal(await local.evaluate(() => typeof window.NI_DEMO), 'undefined', 'the demo is loaded before it is asked for');
-  assert.ok(!(await local.textContent('body')).includes(SAMPLE_DEVICE), 'sample data is visible before the demo is loaded');
-  await local.click('#wDemo');
-  await local.waitForFunction(() => typeof window.NI_DEMO === 'function');
-  await local.waitForSelector(`text=${SAMPLE_DEVICE}`);
-  assert.ok((await local.textContent('body')).includes(SAMPLE_DEVICE), 'the demo did not show its devices');
-  await local.waitForFunction(() => !document.querySelector('#mdl'));
-  /* a new object gets its own code (this used to fail: the helper was only in demo.js) */
-  await local.click('#newBtn'); await local.waitForSelector('#nName');
-  await local.fill('#nName', 'CREATE-CHECK-1'); await local.click('#nOk');
-  await local.waitForSelector('text=CREATE-CHECK-1');
-  assert.ok((await local.textContent('body')).includes('INV-'), 'the new object has no code');   /* the welcome dialog closes once the demo is in */
-  await local.click('#setBtn');
-  await walkSettings(local);
-  await local.click('#setClose');
-  for (const tab of ['net', 'rack', 'map', 'table']) { await local.click(`#tabsbar [data-tab=${tab}]`); await local.waitForTimeout(100); }
-  await ctx2.close();
+  const q = await page(ctx2);
+  await q.route('**/api/me', r => r.abort());
+  await q.goto(down.base + '/'); await q.waitForSelector('#unTry');
+  assert.match(await q.textContent('#mdl'), /cannot be reached/, 'an unreachable server is not reported');
+  await ctx2.close(); await down.close();
 
-  // 4. The empty browser start: every Settings tab and the switch and rack views draw without an error.
+  // 3. A new server with no devices: it starts empty and asks nothing.
+  const empty = await serve(false);
   const ctx3 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const empty = await newPage(ctx3);
-  await empty.goto(file); await empty.waitForSelector('#wEmpty');
-  await empty.click('#wEmpty');
-  await empty.click('#setBtn');
-  await walkSettings(empty);
-  await empty.click('#setClose');
-  for (const tab of ['net', 'rack', 'map']) { await empty.click(`#tabsbar [data-tab=${tab}]`); await empty.waitForTimeout(100); }
-  await ctx3.close();
+  const r = await page(ctx3);
+  await r.goto(empty.base + '/'); await r.waitForSelector('#lgUser');
+  await signIn(r);
+  await r.waitForSelector('text=The inventory is empty');
+  assert.equal(await r.locator('#mdl').count(), 0, 'a dialog opens on a new server');
+  await ctx3.close(); await empty.close();
 
   assert.deepEqual(errors, [], 'page errors');
-  console.log('browser demo and empty start: all checks passed');
+  console.log('browser start and about: all checks passed');
 } finally {
-  await browser.close(); await new Promise(r => server.close(r)); db.close();
+  await browser.close();
 }

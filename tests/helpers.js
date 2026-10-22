@@ -4,6 +4,8 @@ import path from 'node:path';
 import { openDb } from '../server/db.js';
 import { createApp } from '../server/app.js';
 import { bootstrap } from '../server/index.js';
+import { loadState, saveState } from '../server/state.js';
+import vm from 'node:vm';
 
 export function tempDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ni-test-'));
@@ -38,4 +40,23 @@ export async function startServer({ dir = tempDataDir(), ldap = null } = {}) {
 export async function signIn(srv, login, password) {
   const r = await srv.call('POST', '/api/login', { body: { login, password } });
   return { status: r.status, cookie: r.cookie, user: r.json?.user };
+}
+
+/* A small inventory for the browser tests: the devices, ports and racks the checks use. Nothing here is shipped. */
+export function seedBasics(db) {
+  const loc = 'Zürich HQ / Büro 2.OG';
+  const base = (id, type, name, extra = {}) => ({ id, code: 'INV-' + id.slice(1).padStart(4, '0'), type, name, status: 'active', feed: null, ovr: {}, model: 'Test model', serial: 'SN-' + name, loc, ...extra });
+  const objs = [
+    base('o1', 'switch', 'SW-ZH-2OG-01', { ports: 24, pfx: '1/', sfp: 4, ip: '10.10.0.12' }),
+    base('o2', 'pc', 'ZH-NB-0201'),
+    base('o3', 'pc', 'ZH-PC-0142'),
+    base('o4', 'monitor', 'MON-0433', { status: 'stock' }),
+    base('o5', 'server', 'SRV-ZH-HV01', { os: 'Windows Server 2022' }),
+  ];
+  const history = {};
+  objs.forEach(o => { history[o.id] = [{ t: '02.09.2026 14:30', msg: 'Created manually' }]; });
+  const racks = [{ id: 'R-SRV', name: 'ZH-SRV-RACK-01', loc, units: 42 }, { id: 'R-2OG', name: 'ZH-2OG-WALL-01', loc, units: 12 }];
+  const s = loadState(db);
+  const admin = s.users.find(u => u.login === 'admin');
+  saveState(db, { objs, rels: [], history, users: admin ? [admin] : [], locs: [loc], racks, types: {}, policy: null, ldap: null, mapPos: {}, feedOn: true, feedSync: true, seq: 100 + objs.length, codeN: objs.length, rseq: 0 });
 }
