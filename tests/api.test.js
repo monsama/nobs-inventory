@@ -155,6 +155,34 @@ test('feed import over HTTP saves the merge', async () => {
   } finally { await srv.close(); }
 });
 
+test('feed push takes assets from a script with the feed token, and refuses everything else', async () => {
+  const srv = await startServer({ feedToken: 'push-secret-123' });
+  const push = (auth, body) => fetch(srv.base + '/api/feed/push', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) }, body: JSON.stringify(body)
+  });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({
+      users: [adminUser],
+      objs: [{ id: 'o5', code: 'INV-0005', type: 'server', name: 'SRV-1', serial: 'SRV1', ip: '10.0.0.1', ovr: {}, feed: null }], codeN: 5, seq: 105
+    }), cookie: admin.cookie });
+    assert.equal((await push(null, { records: [] })).status, 401, 'no token');
+    assert.equal((await push('Bearer wrong-token', { records: [] })).status, 401, 'wrong token');
+    assert.equal((await push('Bearer push-secret-123', { records: 'x' })).status, 400, 'records must be a list');
+    const ok = await push('Bearer push-secret-123', { records: [{ name: 'SRV-1', serial: 'SRV1', ip: '10.0.0.2', assetType: 'Linux', ref: '7' }, { name: 'PC-NEW', serial: 'N1', assetType: 'Windows' }] });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).counts.linked, 1);
+    const back = (await srv.call('GET', '/api/state', { cookie: admin.cookie })).json;
+    assert.equal(back.objs.find(o => o.name === 'SRV-1').ip, '10.0.0.2');
+    assert.equal(back.objs.find(o => o.name === 'PC-NEW').type, 'pc');
+  } finally { await srv.close(); }
+  const closed = await startServer();
+  try {
+    const r = await fetch(closed.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer anything' }, body: '{"records":[]}' });
+    assert.equal(r.status, 401, 'with no token set on the server the route is closed');
+  } finally { await closed.close(); }
+});
+
 test('repeated failed sign-ins are throttled; the answer is the same for every failure', async () => {
   const srv = await startServer();
   try {

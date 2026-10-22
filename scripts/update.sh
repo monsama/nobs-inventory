@@ -98,6 +98,9 @@ rollback() {
   exit 1
 }
 
+# Secrets added in newer versions: Compose refuses to start when a declared secret file is missing, so create it (empty = unused).
+[ -f secrets/feed_token ] || { ( umask 077; : > secrets/feed_token ); chown 1000:1000 secrets/feed_token; chmod 400 secrets/feed_token; }
+
 echo "[INFO]  Image: $NEW_IMAGE"
 docker pull "$NEW_IMAGE" >/dev/null || rollback "The image $NEW_IMAGE cannot be pulled"
 set_env NI_IMAGE "$NEW_IMAGE"

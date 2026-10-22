@@ -69,13 +69,13 @@ export function start(env = process.env) {
   const dataDir = env.NI_DATA || path.resolve('data');
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'inventory.db'));
-  const resolved = { ...env, NI_ADMIN_PASSWORD: readSecret(env, 'NI_ADMIN_PASSWORD'), NI_LDAP_SERVICE_PASSWORD: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), NI_LS_TOKEN: readSecret(env, 'NI_LS_TOKEN') };
+  const resolved = { ...env, NI_ADMIN_PASSWORD: readSecret(env, 'NI_ADMIN_PASSWORD'), NI_LDAP_SERVICE_PASSWORD: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), NI_LS_TOKEN: readSecret(env, 'NI_LS_TOKEN'), NI_FEED_TOKEN: readSecret(env, 'NI_FEED_TOKEN') };
   bootstrap(db, resolved);
   const ldapConfig = () => ldapConfigOf(db, resolved);
   const lansweeperConfig = () => lansweeperConfigOf(db, resolved);
   /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
-  const app = createApp({ db, ldapConfig, lansweeperConfig, secureCookie: secure });
+  const app = createApp({ db, ldapConfig, lansweeperConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
   const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig });
