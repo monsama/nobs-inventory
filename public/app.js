@@ -47,6 +47,8 @@ const TYPES = {
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
+/* A copy of the built-in types, used when a server has none saved yet. */
+const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 const BUILTIN = ['pc','server','sip','tablet','monitor','switch','printer','patch','other'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 const LOCS = [];
@@ -478,7 +480,7 @@ function mapBox(L){
   return {x0, y0, x1, y1};
 }
 function mapFit(){
-  const L = MAP.L; if (!L || !L.list.length) return;
+  const L = MAP.L; if (!L || !L.list.length || !$('#mapSvg')) return;
   const svg = $('#mapSvg'), W = svg.clientWidth, H = svg.clientHeight, b = mapBox(L);
   const z = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.y1 - b.y0), 1.2);
   MAP.zoom = z; MAP.px = (W - (b.x0 + b.x1) * z) / 2; MAP.py = (H - (b.y0 + b.y1) * z) / 2; mapApply();
@@ -907,6 +909,7 @@ function renderSetPane(){
 /* About, as in NOBS SQL Editor: the version comes from the server, the licence text is the same. */
 async function renderSetAbout(){
   const version = await loadVersion();
+  if (!$('#setAbout')) return;   /* Settings was closed while the version was loading */
   $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
     <div class="muted" style="font-size:12px;line-height:1.6">
       <b style="font-size:14px">NOBS Inventory</b><br>
@@ -1642,7 +1645,10 @@ function applyState(d){
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
-  if (d.types){ Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, d.types); }   /* the demo keeps the built-in types */
+  if (d.types){   /* a new server has no types saved yet: it gets the built-in ones */
+    const t = Object.keys(d.types).length ? d.types : DEFAULT_TYPES;
+    Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify(t)));
+  }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
@@ -1712,7 +1718,7 @@ function loadDemo(){
 }
 async function startDemo(){
   try { await loadDemo(); } catch(e) { toast('The demo could not be loaded.'); return; }
-  const d = window.NI_DEMO();
+  const d = window.NI_DEMO(SYNC_TIME);
   const me0 = USERS.find(u => u.id === st.meId);
   if (me0 && !d.users.some(u => u.id === me0.id)) d.users.push(me0);   /* keep the signed-in user in the list */
   applyState(d);
