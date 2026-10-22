@@ -106,12 +106,33 @@ step_build_start() {
     info "Waiting for the app to be healthy ..."
     local i status
     for i in $(seq 1 30); do
-        status="$(docker inspect -f '{{.State.Health.Status}}' "$PROJECT-app" 2>/dev/null || echo starting)"
+        status="$(docker inspect -f '{{.State.Health.Status}}' "$PROJECT" 2>/dev/null || echo starting)"
         [ "$status" = healthy ] && { info "App healthy"; return 0; }
-        [ "$status" = unhealthy ] && { docker logs --tail 20 "$PROJECT-app" 2>&1 | sed 's/^/        /'; fail "The app is unhealthy. See the log above."; }
+        [ "$status" = unhealthy ] && { docker logs --tail 20 "$PROJECT" 2>&1 | sed 's/^/        /'; fail "The app is unhealthy. See the log above."; }
         sleep 3
     done
     fail "The app did not become healthy. Check: docker compose logs app"
+}
+
+step_certificate() {
+    echo; echo "Step 3b: TLS certificate (./certificates)"
+    local crt="$BASE_DIR/certificates/nobs.crt" key="$BASE_DIR/certificates/nobs.key"
+    local host; host="$(grep '^NI_HOST=' "$BASE_DIR/.env" | cut -d= -f2-)"
+    mkdir -p "$BASE_DIR/certificates"; chmod 750 "$BASE_DIR/certificates"
+    if [ -s "$crt" ] && [ -s "$key" ]; then
+        info "Certificate exists - kept ($(openssl x509 -in "$crt" -noout -enddate | cut -d= -f2))"
+        return
+    fi
+    local sans="DNS:$host"
+    local short="${host%%.*}"; [ "$short" != "$host" ] && sans="$sans,DNS:$short"
+    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"; [ -n "$ip" ] && sans="$sans,IP:$ip"
+    ( umask 077
+      openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 825 -keyout "$key" -out "$crt" \
+        -subj "/CN=$host" -addext "subjectAltName=$sans" \
+        -addext "basicConstraints=critical,CA:FALSE" -addext "extendedKeyUsage=serverAuth" 2>/dev/null )
+    chmod 644 "$crt"; chmod 600 "$key"
+    info "Self-signed certificate created for: $sans"
+    warn "Browsers will warn until you install your company certificate: sudo ./scripts/install-cert.sh <cert.pem> <key.pem>"
 }
 
 step_check() {
@@ -164,6 +185,7 @@ summary() {
 step_preflight
 step_env
 step_secrets
+step_certificate
 step_build_start
 step_check
 step_cron
