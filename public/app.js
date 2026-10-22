@@ -1257,12 +1257,12 @@ function renderSetLocs(){
   }).join('');
   $('#setLocs').innerHTML = `<div class="locgrid">
     <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
-      <table class="grid locs"><thead><tr><th>Site</th><th class="n">Used by</th><th></th></tr></thead>
+      <table class="grid locs"><colgroup><col><col style="width:96px"><col style="width:92px"></colgroup><thead><tr><th>Site</th><th class="n">Used by</th><th></th></tr></thead>
         <tbody>${sites || '<tr><td colspan="3" class="empty-row">No sites yet. Add the first one below.</td></tr>'}</tbody></table>
       <div class="addbar"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd" class="primary">Add site</button></div>
       <p class="note" id="nsMsg">A site is a town or a building.</p></section>
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
-      <table class="grid locs"><thead><tr><th>Site</th><th>Room</th><th class="n">Used by</th><th></th></tr></thead>
+      <table class="grid locs"><colgroup><col style="width:28%"><col><col style="width:96px"><col style="width:92px"></colgroup><thead><tr><th>Site</th><th>Room</th><th class="n">Used by</th><th></th></tr></thead>
         <tbody>${rooms || '<tr><td colspan="4" class="empty-row">No rooms yet.</td></tr>'}</tbody></table>
       <div class="addbar"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
