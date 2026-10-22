@@ -66,6 +66,11 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .pl-bar select{height:30px;min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
 .pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
+.pl-zoom{display:inline-flex;gap:0}
+.pl-zoom button{border-radius:0;min-width:30px}
+.pl-zoom button:first-child{border-radius:var(--r-s) 0 0 var(--r-s)}
+.pl-zoom button:last-child{border-radius:0 var(--r-s) var(--r-s) 0}
+.pl-zv{min-width:58px;font-variant-numeric:tabular-nums}
 .pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 190px);min-height:360px}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}

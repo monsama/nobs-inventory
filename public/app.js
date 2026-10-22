@@ -1720,7 +1720,7 @@ new MutationObserver(() => document.querySelectorAll('table.grid').forEach(setup
 /* ---------- render ---------- */
 /* ---------- floor plans ---------- */
 /* An image per site or room, areas drawn on it, and devices placed by position (in percent of the image). */
-let planSel = null, planMode = 'view', planPlace = null, planDraw = null, planDrag = null;
+let planSel = null, planMode = 'view', planPlace = null, planDraw = null, planDrag = null, planZoom = 1;
 const planById = id => PLANS.find(p => p.id === id);
 const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
 const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
@@ -1734,7 +1734,8 @@ function renderPlans(){
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plReplace">Replace image</button>
-        <button id="plDel" class="danger-text">Delete plan</button>` : ''}
+        <button id="plDel" class="danger-text">Delete plan</button>
+        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} areas · ${planDevices(plan).length} devices</span>` : ''}
     </div>`;
@@ -1748,9 +1749,11 @@ function renderPlans(){
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));
-  const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; renderPlans(); };
+  const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planZoom = 1; renderPlans(); };
   on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; renderPlans(); });
   on('#plReplace', () => planModal(plan));
+  const zoom = v => { planZoom = Math.max(0.5, Math.min(3, Math.round(v * 100) / 100)); renderPlans(); };
+  on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
   on('#plDel', () => deletePlanModal(plan));
   if (!plan) return;
   renderPlanList(plan);
@@ -1769,7 +1772,7 @@ function renderPlans(){
 }
 function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
-  return `<div class="pl-canvas" id="plCanvas" style="cursor:${cursor}">
+  return `<div class="pl-canvas" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     <img src="${plan.image}" alt="Floor plan ${esc(plan.name)}" draggable="false">
     ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
     ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
