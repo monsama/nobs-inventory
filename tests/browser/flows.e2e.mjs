@@ -41,6 +41,14 @@ try {
   assert.equal(await p.evaluate(() => LOCS.includes('Basel / Lager')), true, 'the room was not added under the site');
   await p.click('#setClose');
   assert.ok((await p.textContent('#locList')).includes('Basel'), 'the sidebar does not show the site');
+  // Feed: the Lansweeper address is kept after a reload; Sync now waits for a token on the server.
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
+  await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
+  await p.waitForTimeout(1200);
+  await p.evaluate(() => reloadFromServer());
+  assert.equal(await p.evaluate(() => st.lansweeper.endpoint), 'https://lansweeper.example.ch/api/v2/graphql', 'the Lansweeper address was not kept');
+  assert.equal(await p.isDisabled('#lsSync'), true, 'Sync now is on without a token');
+  await p.click('#setClose');
   // Object types: adding a custom type keeps the built-in ones after a reload from the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
   await p.fill('#ntName', 'Note'); await p.click('#ntAdd');

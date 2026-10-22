@@ -94,7 +94,7 @@ const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
 const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','net','rack','sw'], swSel:null, cardsGroup:'none', netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false},
-  ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}};
+  ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 let APP_VERSION = '';
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
 
@@ -1329,20 +1329,37 @@ function renderSetTypes(){
   };
 }
 /* Feed on the server: upload the report, and the server applies the policy and the merge rules. */
+/* Feed. The Lansweeper API settings are saved in the inventory; the token is on the server. A Lansweeper export
+   can also be uploaded here. */
 function renderSetFeed(){
-  $('#setFeed').innerHTML = `<div class="hdr">Feed</div>
-    <div class="note" style="padding:10px 12px">Upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed, and what you set by hand stays.</div>
-    <div class="form" style="grid-template-columns:110px minmax(0,1fr)"><label for="feedUp">Export</label><input id="feedUp" type="file" accept=".csv,text/csv"></div>
-    <div class="note" style="padding:0 12px 10px">The server can also import this export every night from a file your administrator sets up.</div>
-    ${SERVER.lansweeper ? '<div class="addrel"><button id="feedApi" class="primary">Sync from the Lansweeper API now</button></div>' : ''}`;
-  const fa = $('#feedApi'); if (fa) fa.onclick = async () => {
-    fa.disabled = true;
+  if (!st.lansweeper) st.lansweeper = {};
+  const L = st.lansweeper, edit = canEdit(), ro = edit ? '' : 'disabled';
+  const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
+  const ready = SERVER.lansweeper && edit;
+  $('#setFeed').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper API</div>
+    <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+      ${field('endpoint', 'API address', 'https://api.lansweeper.com/api/v2/graphql')}
+      ${field('site', 'Site ID', 'empty: the first site of the token')}
+      ${field('authScheme', 'Authorization', 'Token')}
+    </div>
+    <div class="addrel" style="padding:0 12px 10px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
+  <div class="panelbox"><div class="hdr">Export file</div>
+    <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
+    <div class="note" style="padding:0 12px 10px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
+  $('#setFeed').querySelectorAll('[data-ls]').forEach(i => i.onchange = () => { st.lansweeper[i.dataset.ls] = i.value.trim(); queueServerSave(); renderSetFeed(); });
+  const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
+  $('#lsSync').onclick = async () => {
+    const msg = $('#lsMsg'), btn = $('#lsSync');
+    btn.disabled = true; msg.textContent = 'Syncing…';
+    await flushSave();
     const r = await fetch('api/feed/sync', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
-    fa.disabled = false;
-    if (!r.ok){ toast(j.error || 'The sync failed.'); return; }
+    btn.disabled = false;
+    if (!r.ok){ msg.innerHTML = bad(j.error || 'The sync failed.'); return; }
     const c = j.counts;
-    toast(`Lansweeper: ${c.assets} assets, ${c.created} new, ${c.updated} updated, ${c.linked} linked`);
+    msg.textContent = `${c.assets} assets: ${c.created} new, ${c.updated} updated, ${c.linked} linked${c.excluded ? ', ' + c.excluded + ' excluded' : ''}${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}.`;
     await reloadFromServer();
   };
   $('#feedUp').onchange = async e => {
@@ -1351,7 +1368,7 @@ function renderSetFeed(){
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The export could not be imported.'); return; }
     const c = j.counts;
-    toast(`Import: ${c.created} new, ${c.updated} updated, ${c.linked} linked, ${c.unchanged} unchanged`);
+    toast(`Import: ${c.created} new, ${c.updated} updated, ${c.linked} linked, ${c.unchanged} unchanged${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}`);
     await reloadFromServer();
   };
 }
@@ -1562,7 +1579,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -1697,7 +1714,7 @@ function applyState(d){
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
-  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}});
+  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
