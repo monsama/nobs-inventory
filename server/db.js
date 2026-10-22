@@ -12,6 +12,7 @@ export function openDb(file) {
     CREATE TABLE IF NOT EXISTS credentials (user_id TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS feed_token (id INTEGER PRIMARY KEY CHECK (id = 1), hash TEXT NOT NULL, created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS plan_images (id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT, action TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
     CREATE INDEX IF NOT EXISTS sessions_expires ON sessions (expires);

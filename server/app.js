@@ -248,6 +248,31 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* Floor-plan images are kept apart from the inventory, so they do not count against its size. */
+  const planId = req => { if (!/^[A-Za-z0-9_-]{1,64}$/.test(req.params.id)) throw new HttpError(400, 'No such plan.'); return req.params.id; };
+  app.put('/api/plans/:id/image', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const id = planId(req);
+      const data = typeof req.body === 'string' ? req.body : '';
+      if (!/^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(data)) throw new HttpError(400, 'Send a PNG, JPEG, GIF or WebP image.');
+      if (data.length > 2000000) throw new HttpError(413, 'The image is too large.');
+      db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data').run(id, data);
+      audit(db, req.user.id, 'plan image saved');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  app.get('/api/plans/:id/image', requireUser, (req, res, next) => {
+    try {
+      const row = db.prepare('SELECT data FROM plan_images WHERE id = ?').get(planId(req));
+      if (!row) throw new HttpError(404, 'No image for this plan.');
+      const m = /^data:(image\/[a-z]+);base64,(.*)$/.exec(row.data);
+      res.type(m[1]).set('Cache-Control', 'private, max-age=3600').send(Buffer.from(m[2], 'base64'));
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/plans/:id/image', requireUser, requireAdmin, (req, res, next) => {
+    try { db.prepare('DELETE FROM plan_images WHERE id = ?').run(planId(req)); audit(db, req.user.id, 'plan image removed'); res.json({ ok: true }); }
+    catch (e) { next(e); }
+  });
   app.post('/api/feed/import', requireUser, requireAdmin, (req, res, next) => {
     try {
       const text = typeof req.body === 'string' ? req.body : '';

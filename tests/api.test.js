@@ -196,6 +196,25 @@ test('a push without a port keeps the port set by hand', async () => {
   assert.equal(s.rels.find(r => r.from === pc.id).port, 12);
 });
 
+test('a plan image is stored apart from the inventory: admins save it, anyone signed in reads it', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    const put = (body, cookie) => fetch(srv.base + '/api/plans/pl1/image', { method: 'PUT', headers: { 'Content-Type': 'text/plain', ...(cookie ? { Cookie: cookie } : {}) }, body });
+    assert.equal((await put(png)).status, 401, 'no sign-in, no save');
+    assert.equal((await put('not an image', admin.cookie)).status, 400, 'only images are stored');
+    assert.equal((await put(png, admin.cookie)).status, 200);
+    const got = await fetch(srv.base + '/api/plans/pl1/image', { headers: { Cookie: admin.cookie } });
+    assert.equal(got.status, 200);
+    assert.equal(got.headers.get('content-type'), 'image/png');
+    assert.equal((await got.arrayBuffer()).byteLength, 8);
+    assert.equal((await fetch(srv.base + '/api/plans/pl1/image')).status, 401, 'reading needs a sign-in');
+    assert.equal((await fetch(srv.base + '/api/plans/pl1/image', { method: 'DELETE', headers: { Cookie: admin.cookie } })).status, 200);
+    assert.equal((await fetch(srv.base + '/api/plans/pl1/image', { headers: { Cookie: admin.cookie } })).status, 404);
+  } finally { await srv.close(); }
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
