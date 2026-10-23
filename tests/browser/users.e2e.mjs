@@ -43,10 +43,13 @@ try {
   assert.equal(rows, 3, 'three users are listed');
   await page.locator('[data-role="1"]').selectOption('admin');
   await page.waitForFunction(() => document.querySelector('[data-role="1"]').value === 'admin');
-  await page.waitForTimeout(700);
-  // read through the page's own session: a second sign-in would end it (one session per user)
-  const after = await page.evaluate(async () => (await fetch('api/state', { credentials: 'same-origin' })).json());
-  assert.equal(after.users.find(u => u.login === 'anna').role, 'admin', 'the promotion is saved on the server');
+  // read through the page's own session (a second sign-in would end it, one session per user), until the save has landed
+  let role = null;
+  for (let i = 0; i < 50 && role !== 'admin'; i++) {
+    await page.waitForTimeout(100);
+    role = await page.evaluate(async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).users.find(u => u.login === 'anna')?.role);
+  }
+  assert.equal(role, 'admin', 'the promotion is saved on the server');
 
   await page.locator('[data-pw="1"]').click();
   await page.fill('#pwNew', 'short');

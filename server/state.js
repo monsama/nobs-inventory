@@ -56,7 +56,7 @@ export function factoryReset(db, keepUserId) {
 }
 
 /* The rules a whole inventory must follow before it is stored. */
-/* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/app.js. */
+/* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
 const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other'];
 const STATUSES = ['active', 'stock', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'patched', 'uplink', 'downlink', 'docked'];
