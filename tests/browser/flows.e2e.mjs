@@ -27,7 +27,7 @@ try {
   const ids = await p.evaluate(() => objs.map(o => o.id));
   for (const id of ids) await p.evaluate(id => { st.open = [id]; st.tab = id; render(); }, id);
   for (const t of ['cards', 'table', 'map', 'net', 'rack', 'sw']) await p.evaluate(t => { st.tab = t; render(); }, t);
-  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'about']) await p.evaluate(tab => { st.setTab = tab; openSettings(); }, tab);
+  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) await p.evaluate(tab => { st.setTab = tab; openSettings(); }, tab);
   await p.evaluate(() => { closeModal(); });
   await p.evaluate(() => { const o = byName('ZH-PC-0142'); newObjModal({copy: o}); $('#nName').value = 'COPY-CHECK'; $('#nOk').click(); });
   assert.ok(await p.evaluate(() => !!byName('COPY-CHECK')), 'duplicating an object did not create it');

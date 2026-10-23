@@ -1120,7 +1120,7 @@ function bindPolicy(root){
 
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['about','About']];
+const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -1189,12 +1189,13 @@ function renderSetPane(){
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
-    maintenance: '<div id="setMaint"></div><div id="setLog"></div>',
+    maintenance: '<div id="setMaint"></div>',
+    log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: () => { renderSetMaint(); renderSetLog(); }, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -1427,12 +1428,12 @@ async function loadBackups(){
 }
 function backupPanel(edit){
   const list = BACKUPS || [];
-  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n">${b.objects}</td><td class="n">${(b.bytes / 1048576).toFixed(1)} MB</td>
+  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
     <p class="note" style="padding:10px 12px">A backup is taken before every Lansweeper sync, push and import. Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
-    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n">Devices</th><th class="n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
+    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
 function wireBackups(edit){
