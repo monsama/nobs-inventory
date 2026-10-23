@@ -18,7 +18,15 @@ export let planParts = [];
 let planAreaDrag = null;
 export let planZoom = 1;
 export const planById = id => PLANS.find(p => p.id === id);
-export const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
+/* Where a device sits on a plan: its own place, or, for a device already in the location of an area, the centre of that area. */
+export const planPosOf = (plan, o) => {
+  if (o.planPos) return o.planPos.plan === plan.id ? o.planPos : null;
+  /* A device taken off this plan stays off until it is placed again. */
+  if (o.planOff === plan.id) return null;
+  const a = plan.site ? (plan.areas || []).find(a => areaLoc(plan, a) === o.loc) : null;
+  return a ? {plan: plan.id, x: round1(a.x + a.w / 2), y: round1(a.y + a.h / 2), auto: true} : null;
+};
+export const planDevices = plan => objs.filter(o => planPosOf(plan, o));
 export const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
 export const round1 = v => Math.round(v * 10) / 10;
 /* The image comes from the server (saved apart from the inventory); older plans may still carry it inline. */
@@ -98,16 +106,19 @@ export function renderPlans(){
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
     if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
-    if (planPlace && canEdit()) placeDevice(plan, planPlace, round1(x), round1(y));
+    if (planPlace && canEdit()){
+      if (!areaAt(plan, x, y)){ toast('A device goes inside an area. Draw the area first.'); return; }
+      placeDevice(plan, planPlace, round1(x), round1(y));
+    }
   };
-  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]')) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0}; });
+  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]')) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
   /* × takes the device off the plan. Its place on the plan is cleared; the device itself stays in the inventory. */
   c.querySelectorAll('[data-unpin]').forEach(x => {
     x.onpointerdown = e => e.stopPropagation();
     x.onclick = e => {
       e.stopPropagation();
       const o = byId(x.dataset.unpin); if (!o) return;
-      delete o.planPos; hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave();
+      delete o.planPos; o.planOff = plan.id; hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave();
       toast(o.name + ' is off the plan'); renderPlans();
     };
   });
@@ -118,8 +129,8 @@ export function renderPlans(){
     const area = plan.areas.find(a => a.id === el.dataset.areaDrag); if (!area) return;
     e.stopPropagation();
     const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
-    const pins = planDevices(plan).filter(o => rects.some(q => inRect(q, o.planPos.x, o.planPos.y))).map(o => ({id: o.id, x: o.planPos.x, y: o.planPos.y}));
-    planAreaDrag = {area, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
+    const pins = planDevices(plan).map(o => ({o, pos: planPosOf(plan, o)})).filter(({pos}) => rects.some(q => inRect(q, pos.x, pos.y))).map(({o, pos}) => ({id: o.id, x: pos.x, y: pos.y}));
+    planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
 }
 export function planCanvas(plan){
@@ -130,7 +141,7 @@ export function planCanvas(plan){
     ${src ? `<img src="${src}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaRects(a).map((r, i) => `<div class="pl-area${planMode === 'view' ? ' movable' : ''}" data-area-drag="${a.id}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%">${i ? '' : `<span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}`}</div>`).join('')).join('')}
     ${planParts.map(r => `<div class="pl-area pending" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%"></div>`).join('')}
-    ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span></button>`).join('')}
+    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}${pos.auto ? '' : `<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span>`}</button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -140,7 +151,7 @@ export function renderPlanList(plan){
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
 export function placeDevice(plan, o, x, y){
-  o.planPos = {plan: plan.id, x, y};
+  o.planPos = {plan: plan.id, x, y}; delete o.planOff;
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   planPlace = null; queueServerSave(); renderPlans();
@@ -181,7 +192,7 @@ document.addEventListener('pointerup', () => {
     if (d.moved){
       d.area.rects = shiftRects(d.rects, d.dx, d.dy).rects.map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}));
       const box = boxOf(d.area.rects); Object.assign(d.area, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
-      d.pins.forEach(p => { const o = byId(p.id); if (!o || !o.planPos) return; o.planPos = {...o.planPos, x: round1(p.x + d.dx), y: round1(p.y + d.dy)}; hist(o, now(), `Moved with the area ${d.area.name} by ${who()}`); });
+      d.pins.forEach(p => { const o = byId(p.id); if (!o) return; o.planPos = {plan: d.planId, x: round1(p.x + d.dx), y: round1(p.y + d.dy)}; hist(o, now(), `Moved with the area ${d.area.name} by ${who()}`); });
       queueServerSave(); renderPlans();
     }
   }
@@ -189,8 +200,12 @@ document.addEventListener('pointerup', () => {
     const d = planDrag; planDrag = null;
     if (d.moved){
       const o = byId(d.id);
-      const pl = o && o.planPos ? planById(o.planPos.plan) : null;
-      if (o && o.planPos){ o.planPos = {...o.planPos, x: round1(d.x), y: round1(d.y)}; const area = pl ? locateOnPlan(pl, o, d.x, d.y) : null; hist(o, now(), `Moved on the plan${area ? ' into ' + area : ''} by ${who()}`); queueServerSave(); }
+      const pl = planById(planSel);
+      if (o && pl){
+        const area = areaAt(pl, d.x, d.y);
+        if (!area){ if (d.orig) o.planPos = d.orig; else delete o.planPos; toast('A device stays inside an area. Drop it inside one.'); }
+        else { o.planPos = {plan: pl.id, x: round1(d.x), y: round1(d.y)}; delete o.planOff; locateOnPlan(pl, o, d.x, d.y); hist(o, now(), `Moved on the plan into ${area.name} by ${who()}`); queueServerSave(); }
+      }
       renderPlans();
     } else openObj(d.id);
   }
