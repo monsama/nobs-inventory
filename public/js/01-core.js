@@ -1,0 +1,167 @@
+/* ---------- icons ---------- */
+/* One icon by its name, for the picker in Settings. */
+const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
+const ICON = {
+  pc:'<path d="M3 4h18v12H3z"/><path d="M8 20h8M12 16v4"/>',
+  server:'<rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/>',
+  sip:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 5h8v5H8z"/><path d="M9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01"/>',
+  tablet:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>',
+  rack:'<rect x="3" y="2" width="18" height="20" rx="1"/><path d="M3 7h18M3 12h18M3 17h18M7 4.5h.01M7 9.5h.01"/>',
+  monitor:'<rect x="2" y="3" width="20" height="13" rx="1"/><path d="M9 21h6M12 16v5"/>',
+  switch:'<rect x="2" y="7" width="20" height="10" rx="1"/><path d="M6 11h1M9 11h1M12 11h1M15 11h1M6 14h1M9 14h1M12 14h1M15 14h1M19 12h.01"/>',
+  printer:'<path d="M6 9V2h12v7"/><rect x="2" y="9" width="20" height="8" rx="1"/><path d="M6 14h12v8H6z"/>',
+  patch:'<rect x="2" y="8" width="20" height="8" rx="1"/><path d="M5 11h.01M8 11h.01M11 11h.01M14 11h.01M17 11h.01M5 14h.01M8 14h.01M11 14h.01M14 14h.01M17 14h.01"/>',
+  router:'<rect x="2" y="13" width="20" height="6" rx="1"/><path d="M6 13V7M12 13V4M18 13V9"/><path d="M5 16h.01M8 16h.01"/>',
+  firewall:'<path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/><path d="M9 12h6"/>',
+  nas:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M7 6h.01M7 12h.01M7 18h.01"/>',
+  ups:'<rect x="3" y="5" width="16" height="14" rx="2"/><path d="M19 9h2v6h-2M11 8l-2 5h4l-2 4"/>',
+  accesspoint:'<path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="14" r="1.2"/><path d="M12 15.5V21"/>',
+  camera:'<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>',
+  laptop:'<rect x="4" y="5" width="16" height="11" rx="1"/><path d="M2 19h20"/>',
+  mobile:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+  scanner:'<rect x="2" y="9" width="20" height="8" rx="1"/><path d="M6 9V4h12v5M6 17v3h12v-3"/>',
+  projector:'<rect x="2" y="7" width="16" height="10" rx="2"/><path d="M18 10l4-2v8l-4-2M6 10h.01"/>',
+  storage:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  modem:'<rect x="3" y="12" width="18" height="7" rx="1"/><path d="M7 12V5M12 19v2M16 15h.01M19 15h.01"/>',
+  other:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/>'
+};
+const svg = (t, cls='i') => {
+  const T = TYPES[t] || {};
+  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${T.svgView}">${T.svgInner}</svg>`;
+  return `<svg class="${cls}" viewBox="0 0 24 24">${ICON[T.icon] || ICON.other}</svg>`;
+};
+
+/* ---------- reference data ---------- */
+/* Object types are data: name, short name, colour and icon. Edited in Settings → Object types. */
+const TYPES = {
+  pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
+  server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
+  vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
+  accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
+  sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
+  monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
+  switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
+  printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
+  patch:{label:'Patch panel', short:'Patch', color:'#0f766e', icon:'patch'},
+  router:{label:'Router', short:'Router', color:'#1e3a8a', icon:'router'},
+  firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
+  modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
+  storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
+  android:{label:'Android Device', short:'Android', color:'#84cc16', icon:'mobile'},
+  ios:{label:'IOS Device', short:'iOS', color:'#65a30d', icon:'mobile'},
+  mobile:{label:'Other Mobile Device', short:'Mobile', color:'#0d9488', icon:'mobile'},
+  rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
+  other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
+};
+/* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
+/* A copy of the built-in types, used when a server has none saved yet. */
+const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
+const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
+const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
+const LOCS = [];
+/* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
+const SITES = [];
+/* Racks are objects of type rack. Their height is the units field. */
+const racksList = () => objs.filter(o => o.type === 'rack');
+const rackUnits = r => r.units || 42;
+let PLANS = [];
+/* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
+const LS_ON = () => st.useLansweeper !== false;
+/* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
+const PW_MIN = 12;
+const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
+/* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
+const KINDS = {
+  attached:{fwd:'attached to', rev:'has attached'},
+  connected:{fwd:'connected to', rev:'connects'},
+  patched:{fwd:'patched to', rev:'patched from'},
+  uplink:{fwd:'uplink to', rev:'downlink from'},
+  downlink:{fwd:'downlink to', rev:'uplink from'},
+  docked:{fwd:'docked at', rev:'docks'},
+  hosted:{fwd:'hosted on', rev:'hosts'}
+};
+const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+
+/* ---------- ids ----------
+   Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
+/* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
+const rid = () => Math.random().toString(36).slice(2, 10);
+const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
+
+const objs = [];
+const byId = id => objs.find(o => o.id === id);
+/* The browser tests look objects up by name; the page itself finds them by id. */
+// eslint-disable-next-line no-unused-vars
+const byName = n => objs.find(o => o.name === n);
+
+const rels = [];
+const HISTORY = {};
+const hist = (o, t, msg) => (HISTORY[o.id] ??= []).unshift({t, msg});
+
+/* ---------- state ----------
+   policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
+   Each object can override these on its own page (o.ovr). */
+const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
+  rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
+  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false},
+  ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
+let APP_VERSION = '';
+try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+
+/* Where an object stands with Lansweeper. The card, the table and the Source panel all read this, so they always agree. */
+function syncOf(o){
+  if (!LS_ON()) return null;
+  if (o.excluded) return {k: 'excluded', label: 'Not synced · excluded', cls: 'kept'};
+  if (o.detached) return {k: 'detached', label: 'Not synced · detached', cls: 'warn'};
+  if (!o.feed) return {k: 'manual', label: 'Not in Lansweeper', cls: 'kept'};
+  if (!o.feed.seen) return {k: 'waiting', label: 'Attached · waiting for sync', cls: 'info'};
+  if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
+  return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
+}
+const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
+
+/* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
+const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tcol = t => TYPES[t]?.color || '#888';
+const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
+const pad2 = n => String(n).padStart(2, '0');
+/* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
+const pfxOf = o => o.pfx ?? '';
+const portLabel = (target, p) => {
+  if (p == null) return '';
+  if (typeof p === 'number' && target.type === 'switch') return pfxOf(target) + p;
+  return String(p);
+};
+const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
+  const out = r.from === o.id;
+  const other = byId(out ? r.to : r.from);
+  return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: portLabel(byId(r.to), r.port)};
+});
+const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
+const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
+const isUplink = k => k === 'uplink' || k === 'downlink';
+
+function filtered(){
+  const q = st.q.trim().toLowerCase();
+  /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
+  const scoped = !(st.searchAll && q);
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || o.loc.startsWith(st.loc)) && (!st.status || o.status === st.status)))
+    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
+}
+
+/* The way up from a device to the core: follow outgoing relations. */
+function pathUp(o){
+  const chain = [{o}]; const seen = new Set([o.id]); let cur = o;
+  for (let i = 0; i < 8; i++){
+    const r = rels.find(r => r.from === cur.id && r.kind !== 'downlink' && !seen.has(r.to));
+    if (!r) break;
+    const nx = byId(r.to); chain.push({o:nx, via:r}); seen.add(nx.id); cur = nx;
+  }
+  return chain;
+}
+

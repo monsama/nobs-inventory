@@ -13,7 +13,7 @@
     "test:browser:a": "node tests/browser/users.e2e.mjs && node tests/browser/settings.e2e.mjs && node tests/browser/plans.e2e.mjs && node tests/browser/signin.e2e.mjs && node tests/browser/demo.e2e.mjs && node tests/browser/plans-draw.e2e.mjs && node tests/browser/contrast.e2e.mjs && node tests/browser/layout.e2e.mjs && node tests/browser/a11y.e2e.mjs",
     "test:browser:b": "node tests/browser/flows.e2e.mjs && node tests/browser/scenarios.e2e.mjs && node tests/browser/concurrency.e2e.mjs && node tests/browser/exclude.e2e.mjs && node tests/browser/reset.e2e.mjs",
     "test:browser:c": "node tests/browser/columns.e2e.mjs && node tests/browser/phone.e2e.mjs && node tests/browser/rack-form.e2e.mjs && node tests/browser/panels.e2e.mjs && node tests/browser/account.e2e.mjs && node tests/browser/table-tools.e2e.mjs && node tests/browser/delete.e2e.mjs",
-    "lint": "eslint server tests scripts public/app.js eslint.config.js"
+    "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs"
   },
   "engines": {
     "node": ">=22.13"

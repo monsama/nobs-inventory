@@ -1,14 +1,9 @@
-// Lint for the front end (a classic script that shares one global scope) and the server (ES modules).
+// Lint for the server, the tests and the scripts. The front end is linted by scripts/lint-front.mjs, as one script.
 import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
   js.configs.recommended,
-  {
-    files: ['public/app.js'],
-    languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals: { ...globals.browser } },
-    rules: { 'no-undef': 'error', 'no-unused-vars': ['warn', { args: 'none' }] },
-  },
   {
     /* Browser tests run code inside the page as well as in node, so both sets of globals apply. */
     files: ['tests/browser/**/*.mjs'],
@@ -16,7 +11,7 @@ export default [
     rules: { 'no-undef': 'error', 'no-unused-vars': ['warn', { args: 'none' }] },
   },
   {
-    files: ['server/**/*.js', 'tests/**/*.js', 'scripts/**/*.mjs'],
+    files: ['server/**/*.js', 'tests/**/*.js', 'scripts/**/*.mjs', 'eslint.config.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'module', globals: { ...globals.node } },
     rules: { 'no-undef': 'error', 'no-unused-vars': ['warn', { args: 'none' }] },
   },
