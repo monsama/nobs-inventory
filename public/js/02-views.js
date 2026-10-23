@@ -594,7 +594,7 @@ export function renderPorts(){
   const groups0 = sw.portGroups || [];
   const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }
   const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
-  const usedN = rels.filter(r => r.to === sw.id && typeof r.port === 'number').length + rels.filter(r => r.from === sw.id && typeof r.port === 'number').length;
+  const usedN = used(sw);
 
   /* Everything plugged into the switch, with what hangs behind each device (a PC behind a phone, monitors behind a PC). */
   const behind = (o, depth=0) => rels.filter(r => r.to === o.id && !isUplink(r.kind)).map(r => { const d = byId(r.from); return {d, r, depth, kids: depth < 3 ? behind(d, depth+1) : []}; });
@@ -637,6 +637,7 @@ export function renderPorts(){
     if (!name){ toast('Give the group a name.'); return; }
     if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
     if (groups0.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
+    if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to)){ toast('A device is on one of these ports. Move it first.'); return; }
     const lag = $('#pgLag').checked;
     sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})}];
     queueServerSave(); toast('Port group added'); render();

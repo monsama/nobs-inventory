@@ -118,12 +118,13 @@ export function renderPlans(){
       placeDevice(plan, planPlace, round1(x), round1(y));
     }
   };
-  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]')) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
+  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]') || !canEdit()) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
   /* × takes the device off the plan. Its place on the plan is cleared; the device itself stays in the inventory. */
   c.querySelectorAll('[data-unpin]').forEach(x => {
     x.onpointerdown = e => e.stopPropagation();
     x.onclick = e => {
       e.stopPropagation();
+      if (!canEdit()) return;
       const o = byId(x.dataset.unpin); if (!o) return;
       delete o.planPos; o.planOff = plan.id; hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave();
       toast(o.name + ' is off the plan'); renderPlans();
@@ -132,7 +133,7 @@ export function renderPlans(){
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
-    if (e.button !== 0 || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
+    if (e.button !== 0 || !canEdit() || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
     const area = plan.areas.find(a => a.id === el.dataset.areaDrag); if (!area) return;
     e.stopPropagation();
     const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
@@ -148,7 +149,7 @@ export function planCanvas(plan){
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaRects(a).map((r, i) => `<div class="pl-area${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}" data-area-drag="${a.id}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%">${i ? '' : `<span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}`}</div>`).join('')).join('')}
     ${planParts.map(r => `<div class="pl-area pending" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%"></div>`).join('')}
-    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}${pos.auto ? '' : `<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span>`}</button>`; }).join('')}
+    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -524,7 +525,8 @@ export async function clearAll(){
   /* Objects excluded from sync are kept, unless the box to delete protected objects is ticked. Relations and history of
      the removed objects go with them; relations between kept objects stay. */
   const deleteAll = !!($('#clrAll') && $('#clrAll').checked);
-  const removed = new Set(d.objs.filter(o => deleteAll || !o.excluded).map(o => o.id));
+  /* Racks stay, as the dialog says: they are objects, so they are kept here as well. */
+  const removed = new Set(d.objs.filter(o => o.type !== 'rack' && (deleteAll || !o.excluded)).map(o => o.id));
   const kept = d.objs.length - removed.size;
   const dels = [
     ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),

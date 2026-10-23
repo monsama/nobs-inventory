@@ -1,5 +1,5 @@
-import { KIND_HINTS, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
-import { render } from './07-render-plans.js';
+import { KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 /* ---------- racks ---------- */
@@ -129,7 +129,7 @@ export function renderSoftware(){
   const map = {};
   objs.forEach(o => (o.software || []).forEach(p => {
     (map[p.name] ??= {name: p.name, versions: new Set(), devices: []});
-    map[p.name].versions.add(p.version || '—'); map[p.name].devices.push(o);
+    map[p.name].versions.add(p.version || '—'); if (!map[p.name].devices.includes(o)) map[p.name].devices.push(o);
   }));
   const rows = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
   const sel = rows.find(r => r.name === st.portsDevice);
@@ -283,7 +283,7 @@ export function renderObj(o){
       const tl = (to.portGroups || []).find(g => g.lag && g.name === lagTo), fl = (o.portGroups || []).find(g => g.lag && g.name === lagFrom);
       if (!fl){ toast('Choose the LAG on this device first.'); return; }
       if (tl.to - tl.from !== fl.to - fl.from){ toast(`The LAGs have different numbers of ports: ${fl.to - fl.from + 1} and ${tl.to - tl.from + 1}.`); return; }
-      if (rels.some(r => (r.to === to.id && r.lag === lagTo) || (r.from === o.id && r.fromLag === lagFrom))){ toast('One of these LAGs is already linked. A LAG links one other LAG.'); return; }
+      if (rels.some(r => (r.to === to.id && r.lag === lagTo) || (r.from === o.id && r.fromLag === lagFrom) || (r.from === to.id && r.fromLag === lagTo) || (r.to === o.id && r.lag === lagFrom))){ toast('One of these LAGs is already linked. A LAG links one other LAG.'); return; }
       rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:null, lag:lagTo, fromLag:lagFrom, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
       hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" (LAG ${lagTo}) added by ${who()}`);
       toast('LAG link added'); render(); return;
@@ -294,9 +294,9 @@ export function renderObj(o){
     if (hasPorts(to) && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
     if (hasPorts(to) && typeof port === 'number') releaseRetiredPort(to, port);
     if (hasPorts(to) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
-    if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }
+    if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
-    const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
+    const finalPort = port === '' ? null : (to.type === 'patch' ? patchPort(port) : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (hasPorts(to) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
@@ -309,7 +309,7 @@ export function renderObj(o){
     const to = byId(r.to); let p = i.value.trim();
     if (!p){ toast('A connection to this device needs a port.'); render(); return; }
     if (hasPorts(to) && /^\d+$/.test(p)) p = +p;
-    if (to.type === 'patch') p = p.toUpperCase();
+    if (to.type === 'patch') p = patchPort(p);
     if (hasPorts(to) && typeof p === 'number' && to.ports && p > to.ports){ toast(`${p} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); render(); return; }
     releaseRetiredPort(to, p);
     if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
@@ -332,6 +332,14 @@ export function renderObj(o){
     const checked = addrs.map(el => ({ el, c: checkAddress(el.dataset.k, el.value) }));
     const wrong = checked.find(x => !x.c.ok);
     if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return; }
+    /* A rack with devices in it stays a rack; and the ports cannot shrink below the connections that use them. */
+    const typeEl = $('#view').querySelector('[data-k="type"]');
+    if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return; }
+    const pEl = $('#view').querySelector('[data-k="ports"]'), sEl = $('#view').querySelector('[data-k="sfp"]');
+    if (pEl && sEl){
+      const total = (+pEl.value || 0) + (+sEl.value || 0);
+      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return; }
+    }
     checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
     let place = null;
@@ -353,7 +361,7 @@ export function renderObj(o){
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){ hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`); }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
-      if (feedLinked(o) && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
+      if (feedLinked(o) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
     });
     if (place){
@@ -364,6 +372,7 @@ export function renderObj(o){
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : ''));
+    queueServerSave();
     if (rerender) render(); else $('#saveBtn').disabled = true;
   };
   $('#saveBtn').onclick = () => saveObj();
