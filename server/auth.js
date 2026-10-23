@@ -1,8 +1,23 @@
 import crypto from 'node:crypto';
 
-const SESSION_HOURS = 12;
+const SESSION_HOURS = 12;   /* a session ends this long after sign-in... */
+const IDLE_MINUTES = 120;   /* ...or after this long without any use */
+const TOUCH_EVERY_MS = 60e3; /* how often a session's last use is written: not on every request */
 const MAX_SESSIONS = 5;   /* per user: a sign-in from another browser does not end this one */
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
+
+/* The rule for a new password: at least 10 characters, not one of the most common passwords, and not the login name.
+   Passwords set before this rule stay as they are until they are changed. */
+export const PASSWORD_MIN = 12;
+const COMMON = ['password', 'password1', 'password123', '12345678', '123456789', '1234567890', 'qwertyuiop', 'qwerty123', 'iloveyou', 'letmein123', 'welcome123', 'admin123', 'adminadmin', 'changeme', 'changeme1', 'inventory1', 'nobsinventory'];
+export function passwordProblem(password, login = '') {
+  if (password.length < PASSWORD_MIN) return `Use at least ${PASSWORD_MIN} characters.`;
+  if (password.length > 256) return 'Use at most 256 characters.';
+  const p = password.toLowerCase();
+  if (COMMON.includes(p)) return 'That password is too common. Choose another.';
+  if (login && p.includes(String(login).toLowerCase()) && String(login).length >= 4) return 'The password must not contain the login name.';
+  return '';
+}
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -26,10 +41,10 @@ export function checkLocalPassword(db, userId, password) {
   return crypto.timingSafeEqual(h, Buffer.from(c.hash, 'hex'));
 }
 
-export function createSession(db, userId) {
+export function createSession(db, userId, agent = '') {
   const token = crypto.randomBytes(32).toString('base64url');
   db.prepare('DELETE FROM sessions WHERE expires < ?').run(Date.now());
-  db.prepare('INSERT INTO sessions (token_hash, user_id, expires) VALUES (?, ?, ?)').run(sha(token), userId, Date.now() + SESSION_HOURS * 3600e3);
+  db.prepare('INSERT INTO sessions (token_hash, user_id, expires, last, agent) VALUES (?, ?, ?, ?, ?)').run(sha(token), userId, Date.now() + SESSION_HOURS * 3600e3, Date.now(), String(agent).slice(0, 160));
   /* Keep the newest few; the oldest end when a user goes past the limit. */
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY expires DESC LIMIT ?)')
     .run(userId, userId, MAX_SESSIONS);
@@ -38,9 +53,24 @@ export function createSession(db, userId) {
 
 export function sessionUserId(db, token) {
   if (!token) return null;
-  const row = db.prepare('SELECT user_id, expires FROM sessions WHERE token_hash = ?').get(sha(token));
-  if (!row || row.expires < Date.now()) return null;
+  const now = Date.now();
+  const row = db.prepare('SELECT token_hash, user_id, expires, last FROM sessions WHERE token_hash = ?').get(sha(token));
+  if (!row || row.expires < now) return null;
+  /* Idle for too long: the session ends, and the next sign-in starts a new one. */
+  if (row.last != null && now - row.last > IDLE_MINUTES * 60e3){ db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(row.token_hash); return null; }
+  if (row.last == null || now - row.last > TOUCH_EVERY_MS) db.prepare('UPDATE sessions SET last = ? WHERE token_hash = ?').run(now, row.token_hash);
   return row.user_id;
+}
+
+/* The sessions of one user, for the account screen. The id is a short part of the stored hash, never the token itself. */
+export function listSessions(db, userId, currentToken) {
+  const current = currentToken ? sha(currentToken) : '';
+  return db.prepare('SELECT token_hash, expires, last, agent FROM sessions WHERE user_id = ? AND expires > ? ORDER BY last DESC').all(String(userId), Date.now())
+    .map(r => ({ id: r.token_hash.slice(0, 16), last: r.last, expires: r.expires, agent: r.agent || 'Unknown browser', current: r.token_hash === current }));
+}
+export function endSessionById(db, userId, id) {
+  const r = db.prepare('DELETE FROM sessions WHERE user_id = ? AND substr(token_hash, 1, 16) = ?').run(String(userId), String(id));
+  return r.changes > 0;
 }
 
 /* Ends every session of a user except the one given: a new password signs the old sessions out. */

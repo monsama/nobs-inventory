@@ -71,8 +71,8 @@ test('a viewer cannot save changes; the admin cannot remove themselves or the la
     assert.equal(noAuth.status, 401);
     const viewer = { id: 'u-view', login: 'viewer', name: 'Viewer', role: 'viewer', active: true, groups: [], dept: '', source: 'manual' };
     assert.equal((await put(srv, a.cookie, { puts: [{ kind: 'user', id: viewer.id, value: viewer, base: 0 }], dels: [] })).status, 200);
-    await srv.call('POST', `/api/users/${viewer.id}/password`, { cookie: a.cookie, body: { password: 'viewerpass123' } });
-    const v = await signIn(srv, 'viewer', 'viewerpass123');
+    await srv.call('POST', `/api/users/${viewer.id}/password`, { cookie: a.cookie, body: { password: 'lantern-harbor-9' } });
+    const v = await signIn(srv, 'viewer', 'lantern-harbor-9');
     const denied = await put(srv, v.cookie, { puts: [{ kind: 'object', id: 'oV', value: pc('oV', 'NOPE', ''), base: 0 }], dels: [] });
     assert.equal(denied.status, 403, 'a viewer could save');
   } finally { await srv.close(); }
@@ -115,7 +115,7 @@ test('factory reset removes every record, setting and other account; the admin w
     await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'x'), base: 0 }], dels: [] });
     const v = { id: 'u-view', login: 'viewer', name: 'Viewer', role: 'viewer', active: true, groups: [], dept: '', source: 'manual' };
     await put(srv, a.cookie, { puts: [{ kind: 'user', id: v.id, value: v, base: 0 }], dels: [] });
-    await srv.call('POST', `/api/users/${v.id}/password`, { cookie: a.cookie, body: { password: 'viewerpass123' } });
+    await srv.call('POST', `/api/users/${v.id}/password`, { cookie: a.cookie, body: { password: 'lantern-harbor-9' } });
     await put(srv, a.cookie, { puts: [{ kind: 'setting', id: 'sites', value: ['Basel'], base: 0 }], dels: [] });
     const refused = await srv.call('POST', '/api/factory-reset', { cookie: a.cookie, body: { confirm: 'reset' } });
     assert.equal(refused.status, 400, 'the reset ran without the typed word');
@@ -126,7 +126,7 @@ test('factory reset removes every record, setting and other account; the admin w
     assert.equal(now.objs.length, 0, 'devices are still there');
     assert.deepEqual(now.sites, [], 'settings are still there');
     assert.deepEqual(now.users.map(u => u.login), ['admin'], 'other accounts are still there');
-    assert.equal((await signIn(srv, 'viewer', 'viewerpass123')).status, 401, 'a removed account can still sign in');
+    assert.equal((await signIn(srv, 'viewer', 'lantern-harbor-9')).status, 401, 'a removed account can still sign in');
     assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 200, 'the admin cannot sign in again');
   } finally { await srv.close(); }
 });

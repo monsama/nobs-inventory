@@ -6,7 +6,7 @@ export function readSecret(env, name) {
   const file = env[name + '_FILE'];
   if (file) {
     try { return fs.readFileSync(file, 'utf8').trim(); }
-    catch (e) { throw new Error(`${name}_FILE points at a file that cannot be read.`); }
+    catch { throw new Error(`${name}_FILE points at a file that cannot be read.`); }
   }
   return (env[name] || '').trim();
 }

@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
-import { loadState, saveState } from '../../server/state.js';
+import { loadState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 

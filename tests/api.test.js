@@ -70,9 +70,9 @@ test('a viewer can read but cannot save or import; an admin can', async () => {
     const admin = await signIn(srv, 'admin', 'adminpass123');
     const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true }];
     assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
-    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw123' }, cookie: admin.cookie })).status, 200);
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw12345' }, cookie: admin.cookie })).status, 200);
 
-    const viewer = await signIn(srv, 'anna', 'viewerpw123');
+    const viewer = await signIn(srv, 'anna', 'viewerpw12345');
     assert.equal(viewer.user.role, 'viewer');
     assert.equal((await srv.call('GET', '/api/state', { cookie: viewer.cookie })).status, 200);
     assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: viewer.cookie })).status, 403);
@@ -529,8 +529,8 @@ test('a viewer does not receive sign-in names or directory groups of the other u
     const admin = await signIn(srv, 'admin', 'adminpass123');
     const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true, groups: ['Staff'] }];
     assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
-    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw123' }, cookie: admin.cookie })).status, 200);
-    const viewer = await signIn(srv, 'anna', 'viewerpw123');
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw12345' }, cookie: admin.cookie })).status, 200);
+    const viewer = await signIn(srv, 'anna', 'viewerpw12345');
     const state = await srv.call('GET', '/api/state', { cookie: viewer.cookie });
     const anna = state.json.users.find(u => u.id === 'u-anna');
     assert.equal(anna.name, 'Anna');
@@ -562,14 +562,14 @@ test('setting a password signs the user out everywhere else; the admin keeps the
     const admin = await signIn(srv, 'admin', 'adminpass123');
     const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true }];
     assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
-    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'oldpass123' }, cookie: admin.cookie })).status, 200);
-    const first = await signIn(srv, 'anna', 'oldpass123');
-    const second = await signIn(srv, 'anna', 'oldpass123');
-    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'newpass123' }, cookie: admin.cookie })).status, 200);
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'oldpass12345' }, cookie: admin.cookie })).status, 200);
+    const first = await signIn(srv, 'anna', 'oldpass12345');
+    const second = await signIn(srv, 'anna', 'oldpass12345');
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'newpass12345' }, cookie: admin.cookie })).status, 200);
     assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 401, 'an old session still works');
     assert.equal((await srv.call('GET', '/api/state', { cookie: second.cookie })).status, 401, 'an old session still works');
     assert.equal((await srv.call('GET', '/api/state', { cookie: admin.cookie })).status, 200, 'the admin lost their own session');
-    assert.equal((await signIn(srv, 'anna', 'newpass123')).status, 200);
+    assert.equal((await signIn(srv, 'anna', 'newpass12345')).status, 200);
   } finally { await srv.close(); }
 });
 

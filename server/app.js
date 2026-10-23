@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
-import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, readCookie } from './auth.js';
+import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -13,8 +13,6 @@ import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
-import { DUMMY } from './password.js';
-import crypto from 'node:crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -101,7 +99,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       }
       throttle.clearFailures(keys);
       /* Each sign-in gets its own session (up to a few per user); the oldest end when the limit is passed. */
-      const token = createSession(db, user.id);
+      const token = createSession(db, user.id, req.get('user-agent') || '');
       audit(db, user.id, 'sign in');
       res.setHeader('Set-Cookie', cookie(token, 43200));
       res.json({ user: me(user) });
@@ -124,6 +122,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ ok: true, me: me(u) });
     } catch (e) { next(e); }
   });
+  app.get('/api/me/sessions', requireUser, (req, res) => {
+    res.json({ sessions: listSessions(db, req.user.id, readCookie(req.headers.cookie, COOKIE)) });
+  });
+  /* Ends one of your sessions. Ending the one you are using signs you out. */
+  app.delete('/api/me/sessions/:id', requireUser, (req, res, next) => {
+    try {
+      if (!endSessionById(db, req.user.id, req.params.id)) throw new HttpError(404, 'No such session.');
+      audit(db, req.user.id, 'ended a session');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
   app.post('/api/me/password', requireUser, (req, res, next) => {
     try {
       const u = userDoc(req.user.id);
@@ -133,8 +142,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (throttle.blocked(keys)) throw new HttpError(429, 'Too many tries. Try again in 15 minutes.');
       if (!checkLocalPassword(db, u.id, String(req.body?.current ?? ''))){ throttle.recordFailure(keys); throw new HttpError(400, 'The current password is not right.'); }
       const password = String(req.body?.password ?? '');
-      if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
-      if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');
+      const problem = passwordProblem(password, u.login);
+      if (problem) throw new HttpError(400, problem);
       setPassword(db, u.id, password);
       endOtherSessions(db, u.id, readCookie(req.headers.cookie, COOKIE));
       audit(db, u.id, 'changed own password');
@@ -198,8 +207,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!u) throw new HttpError(404, 'No such user.');
       if (u.source === 'ldap') throw new HttpError(400, 'Directory users sign in with their directory password.');
       const password = String(req.body?.password ?? '');
-      if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
-      if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');
+      const problem = passwordProblem(password, u.login);
+      if (problem) throw new HttpError(400, problem);
       setPassword(db, u.id, password);
       endOtherSessions(db, u.id, readCookie(req.headers.cookie, COOKIE));
       audit(db, req.user.id, 'set password for ' + u.login);
@@ -334,7 +343,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/backups/restore-file', requireUser, requireAdmin, (req, res, next) => {
     try {
       let data;
-      try { data = JSON.parse(typeof req.body === 'string' ? req.body : ''); } catch (e) { throw new HttpError(400, 'This file is not a backup of NOBS Inventory.'); }
+      try { data = JSON.parse(typeof req.body === 'string' ? req.body : ''); } catch { throw new HttpError(400, 'This file is not a backup of NOBS Inventory.'); }
       takeBackup(db, 'before a restore from file');
       restoreBackup(db, data);
       audit(db, req.user.id, 'restored a backup from a file');

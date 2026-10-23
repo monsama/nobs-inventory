@@ -46,7 +46,7 @@ export async function graphql(cfg, query, variables = {}, fetchImpl = fetch) {
       body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(30_000)
     });
-  } catch (e) {
+  } catch {
     throw new HttpError(502, 'Lansweeper cannot be reached from the server. Check the network and NI_LS_URL.');
   }
   if (r.status === 401 || r.status === 403) throw new HttpError(502, 'Lansweeper refused the token. Check NI_LS_TOKEN and NI_LS_AUTH_SCHEME.');

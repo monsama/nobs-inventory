@@ -67,12 +67,12 @@ const rackUnits = r => r.units || 42;
 let PLANS = [];
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 const LS_ON = () => st.useLansweeper !== false;
+/* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
+const PW_MIN = 12;
 const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
-const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
-  hosted:{fwd:'runs on', rev:'hosts'},
   connected:{fwd:'connected to', rev:'connects'},
   patched:{fwd:'patched to', rev:'patched from'},
   uplink:{fwd:'uplink to', rev:'downlink from'},
@@ -84,20 +84,19 @@ const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connect
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
-let seq = 100, codeN = 0;
 /* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
 const rid = () => Math.random().toString(36).slice(2, 10);
-const F = (ref, seen) => ({sys:'Lansweeper', ref, seen});
 const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
 const objs = [];
-const byName = n => objs.find(o => o.name === n);
 const byId = id => objs.find(o => o.id === id);
+/* The browser tests look objects up by name; the page itself finds them by id. */
+// eslint-disable-next-line no-unused-vars
+const byName = n => objs.find(o => o.name === n);
 
-let rseq = 0;
 const rels = [];
-const history = {};
-const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
+const HISTORY = {};
+const hist = (o, t, msg) => (HISTORY[o.id] ??= []).unshift({t, msg});
 
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
@@ -107,7 +106,7 @@ const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 let APP_VERSION = '';
-try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
+try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 
 /* Where an object stands with Lansweeper. The card, the table and the Source panel all read this, so they always agree. */
 function syncOf(o){
@@ -129,7 +128,6 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tcol = t => TYPES[t]?.color || '#888';
 const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
-const fmtVal = (k, v) => k === 'status' ? (STATUS[v]?.label ?? v) : (v ?? '');
 const pad2 = n => String(n).padStart(2, '0');
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
 const pfxOf = o => o.pfx ?? '';
@@ -351,13 +349,13 @@ const TABLE_COLS = [
 const DEFAULT_HIDDEN_COLS = ['rack'];
 function hiddenCols(){
   if (!st.hiddenCols){
-    try { st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS; } catch(e) { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
+    try { st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS; } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
 }
 function setHiddenCols(list){
   st.hiddenCols = list;
-  try { localStorage.setItem('ni-hidden-cols', JSON.stringify(list)); } catch(e) {}
+  try { localStorage.setItem('ni-hidden-cols', JSON.stringify(list)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 }
 function columnsMenu(){
   const hidden = hiddenCols();
@@ -777,8 +775,6 @@ function renderRack(){
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   $('#rkMount').onclick = mountModal;
-  const rows = [];
-  let u = rackUnits(R_);
   const cells = [];
   for (let n = rackUnits(R_); n >= 1; n--){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
@@ -828,7 +824,6 @@ function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
   return ctl;
 }
-function fieldHtml(o, f){ return `<label for="f_${o.id}_${f[0]}">${f[1]}</label>${fieldCtl(o, f)}`; }
 const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
@@ -932,20 +927,19 @@ function deleteObject(id){
   objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
   /* A deleted rack leaves its devices unmounted; they stay in the inventory. */
   objs.forEach(x => { if (x.rack === id) { delete x.rack; delete x.u; delete x.h; delete x.ontop; } });
-  delete history[id];
+  delete HISTORY[id];
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
   if (st.tab === id) st.tab = 'table';
   render();
 }
 const COLLAPSED_KEY = 'ni-collapsed-panels';
-const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch (e) { return {}; } };
-const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch (e) { /* not kept: the panel opens as before */ } };
+const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch { return {}; } };
+const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch { /* not kept: the panel opens as before */ } };
 function renderObj(o){
   const rs = relsOf(o);
   const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
   const chain = pathUp(o);
   const targets = objs.filter(x => x.id !== o.id);
-  const rk = o.rack ? rackOf(o.rack) : null;
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
@@ -969,7 +963,7 @@ function renderObj(o){
       <div class="panelbox"><div class="hdr">Path to the network</div>
         <div class="chain">${chain.length > 1 ? chain.map((n, i) => (i ? `<div class="hop"><span class="arrow">↑</span>${esc(KINDS[n.via.kind].fwd)}${n.via.port!=null ? ` <b class="mono">${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : '') + `<button class="node ${i===0?'me':''}" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('') : '<span class="muted">This object does not hang off anything.</span>'}</div>
       </div>
-      <div class="panelbox"><div class="hdr">History</div><ul class="hist">${(history[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul></div>
+      <div class="panelbox"><div class="hdr">History</div><ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul></div>
     </div></div>`;
 
   bindSoftware(o);
@@ -1098,7 +1092,9 @@ function renderObj(o){
 /* ---------- modals ---------- */
 function modal(html, cls=''){
   if (!$('#mdl')) modalOpener = document.activeElement;
-  $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
+  /* The dialog is named by its heading, so a screen reader says what it is. */
+  const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
+  $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">${html}</div></div>`;
   if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
   const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
@@ -1361,7 +1357,7 @@ function renderSetUsers(){
     if (!name){ toast('Give the user a first or last name.'); return; }
     if (USERS.some(u => u.name.toLowerCase() === name.toLowerCase())){ toast(name + ' is already a user.'); return; }
     if (login && USERS.some(u => (u.login || '').toLowerCase() === login.toLowerCase())){ toast('That login is already used.'); return; }
-    if (login && pw.length < 8){ toast('The password needs at least 8 characters.'); return; }
+    if (login && pw.length < PW_MIN){ toast(`The password needs at least ${PW_MIN} characters.`); return; }
     const u = {id:userId(), login, first, last, name, dept:$('#nuDept').value.trim(), role:$('#nuRole').value, groups:[], source:'manual', active:true};
     USERS.push(u); queueServerSave();
     if (login){
@@ -1377,7 +1373,7 @@ function userLoginModal(u){
   modal(`<div class="mh">Login for ${esc(u.name)}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="lgNew">Login</label><input id="lgNew" class="mono" autocomplete="off">
-      <label for="lgNewPw">Password</label><input id="lgNewPw" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+      <label for="lgNewPw">Password</label><input id="lgNewPw" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
     </div><p class="note" id="lgNewErr">The login and password let ${esc(u.name)} sign in.</p></div>
     <div class="mf"><button id="lgNewCancel">Cancel</button><button id="lgNewOk" class="primary">Save</button></div>`, 'sm');
   $('#lgNew').focus();
@@ -1387,7 +1383,7 @@ function userLoginModal(u){
     const fail = msg => { $('#lgNewErr').textContent = msg; };
     if (!login) return fail('Write a login.');
     if (USERS.some(x => x !== u && (x.login || '').toLowerCase() === login.toLowerCase())) return fail('That login is already used.');
-    if (pw.length < 8) return fail('The password needs at least 8 characters.');
+    if (pw.length < PW_MIN) return fail(`The password needs at least ${PW_MIN} characters.`);
     u.login = login; queueServerSave(); await flushSave();
     const r = await fetch('api/users/' + encodeURIComponent(u.id) + '/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({password: pw})});
     closeModal();
@@ -1564,7 +1560,7 @@ function sanitizeSvg(text){
 function passwordModal(u){
   modal(`<div class="mh">Password for ${esc(u.name)}</div>
     <div class="mb"><div class="form" style="padding:0"><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHint"></div>
-    <p class="note" id="pwHint">At least 8 characters. The server stores only a salted hash.</p></div>
+    <p class="note" id="pwHint">At least ${PW_MIN} characters, not a common password. The server stores only a salted hash.</p></div>
     <div class="mf"><button id="pwCancel">Cancel</button><button id="pwOk" class="primary">Set password</button></div>`, 'sm');
   $('#pwCancel').onclick = closeModal;
   $('#pwOk').onclick = async () => {
@@ -1802,7 +1798,7 @@ function renderSetFeed(){
   if ($('#pushCopy')) $('#pushCopy').onclick = async () => {
     const box = $('#pushTok'); box.select();
     let copied = false;
-    try { await navigator.clipboard.writeText(pushNew); copied = true; } catch (e) { copied = document.execCommand('copy'); }
+    try { await navigator.clipboard.writeText(pushNew); copied = true; } catch { copied = document.execCommand('copy'); }
     if (!copied){ pushMsg('Could not copy. Select the token and copy it by hand.'); return; }
     pushNew = ''; pushNote = 'Copied. The token is hidden now. Make a new one if you need it again.'; renderSetFeed();
   };
@@ -1928,7 +1924,7 @@ $('#themeBtn').onclick = () => {
   const root = document.documentElement;
   const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
   root.dataset.theme = dark ? 'light' : 'dark';
-  try { localStorage.setItem('ni-theme', root.dataset.theme); } catch(e) {}
+  try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
 $('#searchAll').addEventListener('change', e => { st.searchAll = e.target.checked; render(); });
 $('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; render(); });
@@ -1937,8 +1933,8 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-open
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
 let TBL = {};
-try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch(e) { TBL = {}; }
-const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch(e) {} };
+try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch { TBL = {}; }
+const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
 function tableKey(t){
   const scope = t.closest('#mdl') || $('#view');
   return (t.closest('#mdl') ? 'modal' : 'view') + ':' + st.tab + ':' + [...scope.querySelectorAll('table.grid')].indexOf(t);
@@ -2212,7 +2208,7 @@ function planModal(existing){
     if (!name){ toast('Give the plan a name.'); return; }
     if (!file){ toast('Choose an image.'); return; }
     let img;
-    try { img = await loadPlanImage(file); } catch (e) { toast('That file is not an image.'); return; }
+    try { img = await loadPlanImage(file); } catch { toast('That file is not an image.'); return; }
     const data = shrinkPlanImage(img);
     if (data.length > 1500000){ toast('The image is still too large. Use a smaller one.'); return; }
     const p = existing || {id: 'pl' + rid(), name, site: $('#plSite').value, areas: []};
@@ -2252,8 +2248,6 @@ function render(){
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
-const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
-  policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
 const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
 function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
@@ -2266,7 +2260,7 @@ function documents(){
   rels.forEach(r => m.set('rel|' + r.id, {kind:'rel', id:String(r.id), value:r}));
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
-  Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
+  Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
   const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
@@ -2331,7 +2325,7 @@ async function sendChanges(){
       }).filter(i => i.gone || i.fields.length);
       if (items.length) refusedModal(items);
     }
-  } catch(e) {
+  } catch {
     toast('Not saved: the server cannot be reached.');
   } finally {
     SERVER.busy = false;
@@ -2394,7 +2388,7 @@ async function checkForChanges(){
 function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
-  Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
+  Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
@@ -2406,7 +2400,6 @@ function applyState(d){
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
-  seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
 /* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
@@ -2470,7 +2463,7 @@ document.addEventListener('keydown', e => {
 /* The version comes from the server. It is shown in the footer and in Settings → About. */
 async function loadVersion(){
   if (!APP_VERSION){
-    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) APP_VERSION = (await r.json()).version || ''; } catch(e) {}
+    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) APP_VERSION = (await r.json()).version || ''; } catch { /* no version is shown when it cannot be read */ }
   }
   const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
   return APP_VERSION;
@@ -2478,7 +2471,7 @@ async function loadVersion(){
 async function boot(){
   loadVersion();
   let info = null;
-  try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch(e) { info = null; }
+  try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
   SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper;
   if (!info.user){ clearInventory(); render(); loginModal(); return; }
@@ -2494,7 +2487,7 @@ function showUnreachable(){
 /* Before sign-in the page holds no inventory. */
 function clearInventory(){
   objs.length = 0; rels.length = 0; LOCS.length = 0; USERS = [];
-  Object.keys(history).forEach(k => delete history[k]);
+  Object.keys(HISTORY).forEach(k => delete HISTORY[k]);
   st.open = []; st.tab = 'cards';
 }
 async function loadFromServer(user){
@@ -2524,6 +2517,23 @@ function loginModal(err = '', login = ''){
   $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });
   (login ? $('#lgPw') : $('#lgUser')).focus();
 }
+/* The browsers this account is signed in on. A session ends on its own after two hours without use. */
+const browserName = ua => {
+  const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? b + ' on ' + os : b;
+};
+async function loadMySessions(){
+  const box = $('#acSessions'); if (!box) return;
+  const r = await fetch('api/me/sessions', {credentials: 'same-origin'});
+  if (!r.ok){ box.innerHTML = '<p class="note">The sessions could not be loaded.</p>'; return; }
+  const list = (await r.json()).sessions;
+  const others = list.filter(x => !x.current).length;
+  box.innerHTML = `${list.map(x => `<div class="addrel" style="padding:4px 0;border:0"><span style="flex:1">${esc(browserName(x.agent))}${x.current ? ' <span class="chip info">This browser</span>' : ''}<br><span class="note">Last used ${esc(pushDate(x.last))}</span></span>${x.current ? '' : `<button data-endsess="${esc(x.id)}">End</button>`}</div>`).join('')}
+    <div class="addrel" style="padding:8px 0 0;border:0"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>`;
+  box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
+  $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
+}
 /* Your own account: name and department, and the password. Directory users keep their name and password in the directory. */
 function accountModal(){
   const u = me(), ldap = u.source === 'ldap';
@@ -2538,11 +2548,14 @@ function accountModal(){
     ${ldap ? '<p class="note">Your name and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
     <div class="form" style="padding:0">
       <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
-      <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+      <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
       <label for="acNew2">Repeat</label><input id="acNew2" type="password" autocomplete="new-password">
     </div>`}
+    <div class="hdr" style="margin:14px -14px 8px">Signed-in browsers</div>
+    <div id="acSessions"><p class="note">Loading…</p></div>
     <p class="note" id="acErr"></p></div>
     <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary">Save</button></div>`, 'sm');
+  loadMySessions();
   const fail = msg => { $('#acErr').textContent = msg; };
   $('#acClose').onclick = closeModal;
   $('#acSave').onclick = async () => {
@@ -2556,7 +2569,7 @@ function accountModal(){
   $('#acPw').onclick = async () => {
     const cur = $('#acCur').value, pw = $('#acNew').value;
     if (!cur) return fail('Type your current password.');
-    if (pw.length < 8) return fail('The new password needs at least 8 characters.');
+    if (pw.length < PW_MIN) return fail(`The new password needs at least ${PW_MIN} characters.`);
     if (pw !== $('#acNew2').value) return fail('The two new passwords are not the same.');
     const r = await fetch('api/me/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({current: cur, password: pw})});
     if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The password was not changed.');
