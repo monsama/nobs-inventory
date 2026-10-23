@@ -424,7 +424,7 @@ function importCsvModal(){
    written on it. Hover a box to light up its lines. Drag a box to move it, drag the background to pan, Ctrl + wheel to zoom. */
 const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
 const MAP_W = 200, MAP_STEP = 340;
-const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? o.ports + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
+const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
 const mapH = () => 91;
 
@@ -685,7 +685,7 @@ function renderRack(){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
-      const sub = top.type === 'patch' ? top.ports + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? top.ports + '+' + top.sfp + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? top.cap + ' · ' + top.proto : top.model;
+      const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? top.ports + '+' + top.sfp + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? top.cap + ' · ' + top.proto : top.model;
       cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${R_.units - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
         <span class="nm">${esc(top.name)}</span><span class="sub">${esc(top.code)} · ${esc(sub)}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
