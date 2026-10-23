@@ -87,6 +87,13 @@ export const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
   hosted:{fwd:'runs on', rev:'hosts'}
 };
+/* What each kind means, shown as a tooltip in the relation dropdown. */
+export const KIND_HINTS = {
+  connected:'A device on a port of a switch, router, firewall or patch panel. Give its port number.',
+  uplink:'A switch, router or firewall connected to the upstream device above it. Give the port on that upstream device.',
+  attached:'A monitor or accessory attached to a PC, docking station or server.',
+  hosted:'A virtual machine that runs on this physical server.'
+};
 export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
 
 /* ---------- ids ----------

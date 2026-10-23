@@ -72,6 +72,14 @@ try {
   await p.click('#typeList [data-type=router]');
   assert.equal(await p.textContent(`#locList [data-loc="${rtSite}"] .cnt`), '1', 'the site of the router counts the one router');
   await p.click('#clearF');
+  // The relation dropdown explains the kind it has chosen, and each option has its explanation as a tooltip.
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.waitForSelector('#arKind');
+  await p.selectOption('#arKind', 'connected');
+  assert.match(await p.getAttribute('#arKind', 'title'), /port of a switch, router, firewall or patch panel/, 'the connected tooltip');
+  await p.selectOption('#arKind', 'uplink');
+  assert.match(await p.getAttribute('#arKind', 'title'), /upstream device/, 'the uplink tooltip follows the choice');
+  assert.ok(await p.$eval('#arKind option[value=hosted]', o => o.title.length > 0), 'every kind has its tooltip');
   // Linking an existing object hides the detail fields, and they come back for a new object.
   await p.click('#newBtn'); await p.waitForSelector('#nExist');
   const pick = await p.$eval('#nExist', sel => [...sel.options].find(o => o.value)?.value);
