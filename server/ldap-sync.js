@@ -18,13 +18,17 @@ export async function syncLdapUsers(db, config) {
       s.users.push({ id: 'ldap-' + p.login.toLowerCase(), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
     } else if (u.source === 'ldap') {
-      Object.assign(u, { name: p.name, dept: p.dept, groups: p.groups, active: true, role });
-      counts.updated++;
+      const next = { name: p.name, dept: p.dept, groups: p.groups, role };
+      const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
+      Object.assign(u, next);
+      /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
+      if (u.syncOff) { u.active = true; delete u.syncOff; }
+      if (changed) counts.updated++;
     }
     // A local account with the same login is left alone; it is not taken over by the directory.
   }
   for (const u of s.users) {
-    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; counts.deactivated++; }
+    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; counts.deactivated++; }
   }
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');

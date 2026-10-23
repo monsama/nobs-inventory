@@ -35,6 +35,7 @@ export function restoreBackup(db, data) {
     if (!im || typeof im.id !== 'string' || typeof im.data !== 'string' || im.data.length > 2000000 || !/^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(im.data))
       throw new HttpError(400, 'The backup has a plan picture that is not a PNG, JPEG, GIF or WebP image.');
   }
+  if (new Set(images.map(im => im.id)).size !== images.length) throw new HttpError(400, 'The backup has two plan pictures for the same plan.');
   const cur = loadState(db);
   const st = b.settings || {};
   const s = { ...cur, objs: b.objs, rels: b.rels, history: b.history, types: b.types };

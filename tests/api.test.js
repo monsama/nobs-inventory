@@ -112,9 +112,9 @@ test('the session cookie is HttpOnly and SameSite=Strict', async () => {
   } finally { await srv.close(); }
 });
 
-test('CSV parsing handles quotes, semicolons and CRLF', () => {
-  const rows = parseCsv('a,b;c\r\n"x, y",2,"say ""hi"""\r\n');
-  assert.deepEqual(rows, [['a', 'b', 'c'], ['x, y', '2', 'say "hi"']]);
+test('CSV parsing handles quotes and CRLF, and the delimiter the header uses', () => {
+  assert.deepEqual(parseCsv('a;b;c\r\n"x, y";2;"say ""hi"""\r\n'), [['a', 'b', 'c'], ['x, y', '2', 'say "hi"']]);
+  assert.deepEqual(parseCsv('a,b,c\r\n"x, y",Windows 10; Pro,2\r\n'), [['a', 'b', 'c'], ['x, y', 'Windows 10; Pro', '2']], 'a semicolon in a comma file stays in its value');
 });
 
 test('a Lansweeper export: matched by serial, only allowed fields move, new assets get codes', () => {
