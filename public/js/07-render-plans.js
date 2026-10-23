@@ -80,7 +80,17 @@ export function renderPlans(){
     if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
     if (planPlace && canEdit()) placeDevice(plan, planPlace, round1(x), round1(y));
   };
-  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0}; });
+  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]')) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0}; });
+  /* × takes the device off the plan. Its place on the plan is cleared; the device itself stays in the inventory. */
+  c.querySelectorAll('[data-unpin]').forEach(x => {
+    x.onpointerdown = e => e.stopPropagation();
+    x.onclick = e => {
+      e.stopPropagation();
+      const o = byId(x.dataset.unpin); if (!o) return;
+      delete o.planPos; hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave();
+      toast(o.name + ' is off the plan'); renderPlans();
+    };
+  });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
 }
 export function planCanvas(plan){
@@ -90,7 +100,7 @@ export function planCanvas(plan){
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? `<img src="${src}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
-    ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
+    ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span></button>`).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
