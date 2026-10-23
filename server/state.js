@@ -59,7 +59,7 @@ export function factoryReset(db, keepUserId) {
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
 const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx'];
 const STATUSES = ['active', 'stock', 'repair', 'retired'];
-const REL_KINDS = ['attached', 'hosted', 'connected', 'patched', 'uplink', 'downlink', 'docked'];
+const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 export function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
