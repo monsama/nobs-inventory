@@ -30,7 +30,8 @@ export function newObjModal(pre={}){
   /* Picking an existing object turns the dialog into a link: its details are not changed, only where it is plugged. */
   $('#nExist').onchange = e => {
     const link = !!e.target.value;
-    ['#nType', '#nName', '#nModel', '#nSerial', '#nLoc'].forEach(sel => { $(sel).disabled = link; });
+    /* The details of a linked object are not shown, so only the plug and port are left to fill in. */
+    ['nType', 'nName', 'nModel', 'nSerial', 'nLoc'].forEach(id => { $('#' + id).hidden = link; document.querySelector(`label[for="${id}"]`).hidden = link; });
     $('#nOk').textContent = link ? 'Link' : 'Create';
   };
   $('#nOk').onclick = () => {

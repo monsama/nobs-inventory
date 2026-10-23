@@ -55,6 +55,16 @@ try {
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');
   assert.ok(rows.some(t => t.includes('1.2')), 'the PC row has its version');
+  // Linking an existing object hides the detail fields, and they come back for a new object.
+  await p.click('#newBtn'); await p.waitForSelector('#nExist');
+  const pick = await p.$eval('#nExist', sel => [...sel.options].find(o => o.value)?.value);
+  assert.ok(pick, 'there is an existing object to link');
+  await p.selectOption('#nExist', pick);
+  assert.equal(await p.isVisible('#nName'), false, 'the name is hidden when linking');
+  assert.equal(await p.isVisible('#nUp'), true, 'the plug is still shown when linking');
+  await p.selectOption('#nExist', '');
+  assert.equal(await p.isVisible('#nName'), true, 'the name is shown again for a new object');
+  await p.click('#nCancel');
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
