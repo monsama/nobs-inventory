@@ -1018,11 +1018,21 @@ function openSettings(){
 function renderLsToggle(){
   const host = $('#setLsToggle'); if (!host) return;
   const ro = canEdit() ? '' : 'disabled';
+  const on = LS_ON(), api = st.lsSource === 'api';
   host.innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper</div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="useLs">Connect Lansweeper</label>
-    <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${LS_ON() ? 'checked' : ''} ${ro}> ${LS_ON() ? 'On. Lansweeper data is pulled in and shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div></div></div>`;
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+      <label for="useLs">Connect Lansweeper</label>
+      <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${on ? 'checked' : ''} ${ro}> ${on ? 'On. Lansweeper data is pulled in and shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div>
+      <label for="lsSource">Data comes from</label>
+      <div><select id="lsSource" ${ro} ${on ? '' : 'disabled'} aria-label="Where the Lansweeper data comes from">
+        <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
+        <option value="api" ${api ? 'selected' : ''}>Lansweeper API: this server fetches the data</option></select>
+        <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
+    </div></div>`;
   const c = $('#useLs');
   if (c && canEdit()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
+  const src = $('#lsSource');
+  if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
 /* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
 function renderTypeMap(){
@@ -1601,7 +1611,7 @@ function renderSetFeed(){
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = SERVER.lansweeper && edit;
   if (edit && pushInfo === undefined) loadPushInfo();
-  const pushPanel = edit ? `<div class="panelbox"><div class="hdr">Lansweeper push</div>
+  const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
     <p class="note" style="padding:10px 12px 6px">A PowerShell script on the Lansweeper server sends its assets here. No API address is needed.</p>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span></div>
     ${pushStatus()}
@@ -1613,7 +1623,7 @@ function renderSetFeed(){
       ${pushInfo ? '<button id="pushRevoke" class="danger-text">Revoke</button>' : ''}
       <button id="pushScript" ${pushInfo ? '' : 'disabled title="Create a token first"'}>Download script</button>
       <span class="note" id="pushMsg">${esc(pushNote)}</span></div></div>` : '';
-  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox"><div class="hdr">Lansweeper API <span class="chip warn" title="Not yet verified against a live Lansweeper">Experimental</span></div>
+  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox" id="lsApiPanel"><div class="hdr">Lansweeper API <span class="chip warn" title="Not yet verified against a live Lansweeper">Experimental</span></div>
     <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('endpoint', 'API address', 'https://api.lansweeper.com/api/v2/graphql')}
@@ -1625,6 +1635,9 @@ function renderSetFeed(){
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
     <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
+  /* One source at a time: show the script push or the API panel, never both. */
+  if ($('#lsPushPanel')) $('#lsPushPanel').hidden = st.lsSource === 'api';
+  if ($('#lsApiPanel')) $('#lsApiPanel').hidden = st.lsSource !== 'api';
   $('#setFeed').querySelectorAll('[data-ls]').forEach(i => i.onchange = () => { st.lansweeper[i.dataset.ls] = i.value.trim(); queueServerSave(); renderSetFeed(); });
   const pushMsg = t => { const m = $('#pushMsg'); if (m) m.textContent = t; };
   if ($('#pushNew')) $('#pushNew').onclick = async () => {
@@ -2073,7 +2086,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -2204,7 +2217,7 @@ function applyState(d){
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
-  st.useLansweeper = d.useLansweeper !== false;
+  st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.typeMap = d.typeMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */

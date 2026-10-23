@@ -50,12 +50,13 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     const key = now.toDateString();
     if (now.getHours() !== 6 || now.getMinutes() !== 0 || lastRun === key) return;
     lastRun = key;
-    const lsOn = loadState(db).useLansweeper !== false;
-    const ls = lansweeperConfig && lsOn ? lansweeperConfig() : null;
+    const cur = loadState(db);
+    const lsOn = cur.useLansweeper !== false;
+    const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
     takeBackup(db, 'before the nightly sync');
     if (ls) {
       try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
-    } else if (env.NI_FEED_CSV && lsOn) {
+    } else if (env.NI_FEED_CSV && lsOn && cur.lsSource !== 'api') {
       try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
     }
     const lc = ldapConfig ? ldapConfig() : null;

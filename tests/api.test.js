@@ -286,6 +286,20 @@ test('with Lansweeper turned off, pushes and imports are refused', async () => {
   } finally { await srv.close(); }
 });
 
+test('one Lansweeper source at a time: script push or API sync, the other is refused', async () => {
+  const srv = await startServer({ feedToken: 'one-source-123' });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], lsSource: 'push' }), cookie: admin.cookie });
+    assert.equal((await srv.call('POST', '/api/feed/sync', { cookie: admin.cookie })).status, 403, 'API sync is refused while the script push is the source');
+    const pushOk = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer one-source-123' }, body: '{"records":[]}' });
+    assert.equal(pushOk.status, 200, 'the script push works');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], lsSource: 'api' }), cookie: admin.cookie });
+    const pushNo = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer one-source-123' }, body: '{"records":[]}' });
+    assert.equal(pushNo.status, 403, 'the script push is refused while the API is the source');
+  } finally { await srv.close(); }
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };

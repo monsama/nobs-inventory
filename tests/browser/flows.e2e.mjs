@@ -54,6 +54,7 @@ try {
   assert.equal(await p.evaluate(() => byName('SRV-ZH-HV01').mac), 'aa:bb:cc:dd:ee:ff', 'the MAC address was not stored with colons');
   // Feed: the Lansweeper address is kept after a reload; Sync now waits for a token on the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
+  await p.selectOption('#lsSource', 'api');
   await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
   await p.waitForTimeout(1200);
   await p.evaluate(() => reloadFromServer());
