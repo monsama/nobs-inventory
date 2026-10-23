@@ -1,7 +1,7 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, me, pushDate, who } from './04-settings.js';
+import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderNet, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
@@ -24,6 +24,8 @@ export const areaAt = (plan, x, y) => (plan.areas || []).find(a => x >= a.x && x
 /* An area is a location: "Site / Area". It is added to the locations the first time it is used. */
 export function areaLoc(plan, area){
   if (!SITES.includes(plan.site)) SITES.push(plan.site);
+  /* An area that was given an existing room keeps that room; otherwise the room is named after the area. */
+  if (area.room && LOCS.includes(area.room)) return area.room;
   const v = `${plan.site} / ${area.name}`;
   if (!LOCS.includes(v)) LOCS.push(v);
   return v;
@@ -140,14 +142,23 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; renderPlans(); }
 });
 export function areaModal(plan, rect){
-  modal(`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0"><label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60"></div>
-    <p class="note">An area is a named place on this plan. Devices placed inside it are in that place.</p></div>
+  /* The rooms that already exist on this plan's site. */
+  const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
+  modal(`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
+      <label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60">
+      <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="">A new room, named like the area</option>${rooms.map(l => `<option value="${esc(l)}">${esc(l.split(' / ').slice(1).join(' / '))}</option>`).join('')}</select>
+    </div>
+    <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. Choose a room that already exists, or leave it to create one.</p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
   $('#arCancel').onclick = () => { closeModal(); renderPlans(); };
+  /* Picking an existing room names the area after it, unless a name is typed. */
+  $('#arRoom').onchange = e => { if (e.target.value && !$('#arName').value.trim()) $('#arName').value = e.target.value.split(' / ').slice(1).join(' / '); };
   $('#arOk').onclick = () => {
-    const name = $('#arName').value.trim();
+    const room = $('#arRoom').value || null;
+    const name = $('#arName').value.trim() || (room ? room.split(' / ').slice(1).join(' / ') : '');
     if (!name){ toast('Give the area a name.'); return; }
     const area = {id: 'ar' + rid(), name, x: round1(rect.x), y: round1(rect.y), w: round1(rect.w), h: round1(rect.h)};
+    if (room) area.room = room;
     plan.areas = [...(plan.areas || []), area];
     if (plan.site) areaLoc(plan, area);
     planMode = 'view'; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
