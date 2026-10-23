@@ -442,6 +442,14 @@ function mapLayout(nodes){
   const depth = {}, q = list.filter(o => ['firewall','router','switch'].includes(o.type) && !edges.some(r => r.kind === 'uplink' && r.from === o.id)).map(o => o.id);
   q.forEach(id => depth[id] = 0);
   for (let i = 0; i < q.length; i++) (adj[q[i]] || []).forEach(n => { if (!(n in depth)){ depth[n] = depth[q[i]] + 1; q.push(n); } });
+  /* Groups without a switch, router or firewall (a PC with its monitors) start from their best-connected object, so the
+     monitors sit one column to the right of their PC instead of beside it. */
+  list.filter(o => (adj[o.id] || []).length && !(o.id in depth)).sort((a, b) => adj[b.id].length - adj[a.id].length).forEach(o => {
+    if (o.id in depth) return;
+    depth[o.id] = 0;
+    const qq = [o.id];
+    for (let i = 0; i < qq.length; i++) (adj[qq[i]] || []).forEach(n => { if (!(n in depth)){ depth[n] = depth[qq[i]] + 1; qq.push(n); } });
+  });
   const maxD = Math.max(0, ...Object.values(depth));
   list.forEach(o => { if (!(o.id in depth)) depth[o.id] = maxD + 1; });
   const cols = {};
