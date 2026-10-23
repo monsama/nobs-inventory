@@ -13,7 +13,7 @@ const TYPE_WORDS = [
   [/access ?point|wireless|wi-?fi|\bwlan\b/i, 'accesspoint'],
   [/webserver|\bweb\b/i, 'other'],
   [/ipad|iphone|\bios\b/i, 'ios'], [/android/i, 'android'], [/tablet|smartphone|mobile/i, 'mobile'],
-  [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
+  [/telefonanlage|pbx|phone system|pabx/i, 'pbx'], [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
   [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
   [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
 ];
@@ -108,7 +108,7 @@ function applyLinks(s, pairs, counts) {
       const port = l.port || null;
       wanted.add(to.id + '|' + l.kind);
       /* A port that another device already uses is not taken: the link is left out and counted, and the push goes on. */
-      if (port != null && ['switch', 'patch', 'router', 'firewall', 'server'].includes(to.type) && s.rels.some(x => x.to === to.id && String(x.port) === String(port) && x.from !== obj.id)){
+      if (port != null && (to.type === 'patch' || to.ports > 0) && s.rels.some(x => x.to === to.id && String(x.port) === String(port) && x.from !== obj.id)){
         counts.portConflict = (counts.portConflict || 0) + 1; continue;
       }
       const existing = s.rels.find(x => x.from === obj.id && x.to === to.id && x.kind === l.kind);

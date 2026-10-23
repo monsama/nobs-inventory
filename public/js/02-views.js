@@ -1,4 +1,4 @@
-import { PORTED, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { hasPorts, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -97,7 +97,7 @@ $('#tabsbar').addEventListener('click', e => {
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
   /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
-  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && PORTED.includes(byId(st.tab).type)) st.netSw = st.tab; st.tab = t.dataset.tab; render(); }
+  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.netSw = st.tab; st.tab = t.dataset.tab; render(); }
 });
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
@@ -112,7 +112,7 @@ export function cardHtml(o){
   if (o.type === 'storage') lines.push(['Capacity', `${esc(o.cap)} · ${esc(o.proto)}`]);
   if (o.type === 'switch') lines.push(['Ports', `${o.ports} + ${o.sfp} SFP · ${used(o)} used`]);
   else if (o.type === 'patch') lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
-  else if (PORTED.includes(o.type) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
+  else if (hasPorts(o) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
   else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
   lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
   if (o.user) lines.push(['User', esc(o.user)]);
@@ -568,7 +568,7 @@ window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(
 
 /* ---------- switch ports ---------- */
 export function renderNet(){
-  const sws = objs.filter(o => PORTED.includes(o.type));
+  const sws = objs.filter(o => hasPorts(o));
   if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
   const sw = byId(st.netSw) || sws[0];
   $('#toolbar').innerHTML = `<label class="muted" for="swSel">Device</label><select id="swSel">${sws.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
