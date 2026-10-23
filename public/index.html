@@ -374,7 +374,11 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .diff del{color:var(--danger);text-decoration:line-through}
 .diff ins{color:var(--used);text-decoration:none}
 
-.maplegend{position:absolute;right:12px;bottom:10px;max-width:280px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:8px 10px;font-size:11px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.maplegend{position:absolute;right:12px;bottom:10px;max-width:280px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.maplegend>summary{list-style:none;cursor:pointer;padding:6px 10px;font-weight:600;color:var(--fg);user-select:none;white-space:nowrap}
+.maplegend>summary::-webkit-details-marker{display:none}
+.maplegend>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r-m)}
+.maplegend .lgbody{display:flex;flex-direction:column;gap:4px;padding:0 10px 8px;border-top:1px solid var(--bd2);margin-top:0;padding-top:8px}
 .maplegend .lgtypes{display:flex;flex-wrap:wrap;gap:4px 10px}
 .maplegend .lgtypes span{display:inline-flex;align-items:center;gap:4px}
 .maplegend .lgtext{color:var(--muted);line-height:1.4}
