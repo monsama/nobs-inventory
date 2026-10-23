@@ -1,4 +1,4 @@
-import { $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, toast } from './01-core.js';
+import { PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, toast } from './01-core.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render-plans.js';
@@ -18,7 +18,7 @@ export function newObjModal(pre={}){
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nLoc">Location</label><select id="nLoc">${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
-      <label for="nUp">Plug into</label><select id="nUp"><option value="">Nothing yet</option>${objs.filter(o => ['switch','sip','pc','patch'].includes(o.type)).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
+      <label for="nUp">Plug into</label><select id="nUp"><option value="">Nothing yet</option>${objs.filter(o => [...PORTED, 'sip', 'pc', 'patch'].includes(o.type)).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
       <label for="nPort">Port</label><input id="nPort" class="mono" placeholder="e.g. 12, or P04 on a patch panel">
     </div><p class="note">The object gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
@@ -41,7 +41,7 @@ export function newObjModal(pre={}){
       const t = byId(upId);
       if (e.id === t.id){ toast('An object cannot be plugged into itself.'); return; }
       if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already plugged into ${t.name}.`); return; }
-      const val = pp ? (t.type === 'patch' ? pp.toUpperCase() : (t.type === 'switch' && /^\d+$/.test(pp) ? +pp : pp)) : null;
+      const val = pp ? (t.type === 'patch' ? pp.toUpperCase() : (PORTED.includes(t.type) && /^\d+$/.test(pp) ? +pp : pp)) : null;
       if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
       rels.push({id:'r'+rid(), from:e.id, to:t.id, kind: e.type === 'monitor' ? 'attached' : 'connected', port: val, vlan:null});
       hist(e, now(), `Plugged into ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
@@ -52,20 +52,21 @@ export function newObjModal(pre={}){
     const upId = $('#nUp').value;
     if (upId && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();
-      const val = t.type === 'patch' ? pp.toUpperCase() : (t.type === 'switch' && /^\d+$/.test(pp) ? +pp : pp);
+      const val = t.type === 'patch' ? pp.toUpperCase() : (PORTED.includes(t.type) && /^\d+$/.test(pp) ? +pp : pp);
       if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
     }
     const o = O($('#nType').value, name, {model:$('#nModel').value || '—', serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
+    else if (PORTED.includes(o.type)) o.ports = o.type === 'server' ? 4 : 8;
     if (o.type === 'patch') o.ports = 24;
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who());
     const up = $('#nUp').value;
-    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && t.type === 'switch') p = +p;
+    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && PORTED.includes(t.type)) p = +p;
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && o[k] === undefined) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
-      rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: ['switch','patch'].includes(byId(r.to).type) ? null : r.port}));
+      rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: [...PORTED, 'patch'].includes(byId(r.to).type) ? null : r.port}));
       if (c.rack && rackOf(c.rack) && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){

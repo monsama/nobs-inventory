@@ -56,6 +56,8 @@ export const TYPES = {
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 /* A copy of the built-in types, used when a server has none saved yet. */
 export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
+/* Types that show a port grid in Ports: a switch, router, firewall or physical server. Patch panels have their own view. */
+export const PORTED = ['switch', 'router', 'firewall', 'server'];
 export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
@@ -82,7 +84,7 @@ export const KINDS = {
   docked:{fwd:'docked at', rev:'docks'},
   hosted:{fwd:'hosted on', rev:'hosts'}
 };
-export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch','router','firewall','server'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -135,7 +137,7 @@ export const pad2 = n => String(n).padStart(2, '0');
 export const pfxOf = o => o.pfx ?? '';
 export const portLabel = (target, p) => {
   if (p == null) return '';
-  if (typeof p === 'number' && target.type === 'switch') return pfxOf(target) + p;
+  if (typeof p === 'number' && PORTED.includes(target.type)) return pfxOf(target) + p;
   return String(p);
 };
 export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {

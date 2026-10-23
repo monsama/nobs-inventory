@@ -107,7 +107,7 @@ export function checkState(s) {
   for (const r of s.rels) {
     if (r.port == null) continue;
     const t = byId.get(r.to);
-    if (!['switch', 'patch'].includes(t.type)) continue;
+    if (!['switch', 'patch', 'router', 'firewall', 'server'].includes(t.type)) continue;
     const key = r.to + '|' + String(r.port);
     if (taken.has(key)) bad(`Port ${r.port} on ${t.name} is used twice.`);
     taken.add(key);
