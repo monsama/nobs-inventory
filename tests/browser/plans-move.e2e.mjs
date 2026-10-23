@@ -46,6 +46,17 @@ try {
   assert.equal(area.x, 20, 'the box of the area moved too');
   const pc = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'o2').planPos);
   assert.deepEqual([pc.x, pc.y], [22, 30], 'the device inside the area moved with it');
+  // A clicked area takes more rectangles: Add rectangle draws one, Done widens the area to take it.
+  const [cx, cy] = at(25, 17);
+  await p.mouse.move(cx, cy); await p.mouse.down(); await p.mouse.up();
+  await p.waitForSelector('#plAreaAdd');
+  await p.click('#plAreaAdd');
+  const [dx0, dy0] = at(60, 60), [dx1, dy1] = at(70, 70);
+  await p.mouse.move(dx0, dy0); await p.mouse.down(); await p.mouse.move(dx1, dy1, { steps: 4 }); await p.mouse.up();
+  await p.click('#plAreaDone');
+  await until(p, async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0].rects.length === 3);
+  const grown = (await p.evaluate(async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0]));
+  assert.ok(grown.w >= 49, 'the area is widened to take the new rectangle: width ' + grown.w);
   assert.deepEqual(errors, [], 'page errors');
   console.log('plan areas: moving an area moves its devices, all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); }
