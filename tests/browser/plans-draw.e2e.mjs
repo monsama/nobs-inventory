@@ -43,6 +43,7 @@ try {
   await p.mouse.up();
   await p.waitForTimeout(300);
   assert.equal(await p.isVisible('#arName'), true, 'the area dialog did not open');
+  assert.equal(await p.evaluate(() => document.querySelector('#toolbar').textContent.trim()), '', 'the toolbar of another tab is still shown on the plans');
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }

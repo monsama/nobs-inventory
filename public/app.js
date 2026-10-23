@@ -2043,6 +2043,7 @@ function locateOnPlan(plan, o, x, y){
   return a.name;
 }
 function renderPlans(){
+  $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
   planSel = plan ? plan.id : null;
   const bar = `<div class="pl-bar">
