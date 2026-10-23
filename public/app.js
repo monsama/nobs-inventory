@@ -131,9 +131,11 @@ const tcol = t => TYPES[t]?.color || '#888';
 const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
 const fmtVal = (k, v) => k === 'status' ? (STATUS[v]?.label ?? v) : (v ?? '');
 const pad2 = n => String(n).padStart(2, '0');
+/* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
+const pfxOf = o => o.pfx ?? '';
 const portLabel = (target, p) => {
   if (p == null) return '';
-  if (typeof p === 'number' && target.type === 'switch') return target.pfx + p;
+  if (typeof p === 'number' && target.type === 'switch') return pfxOf(target) + p;
   return String(p);
 };
 const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
@@ -689,7 +691,7 @@ function renderNet(){
     const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : null;
     const isUp = !!up || (inc[0] && isUplink(inc[0].kind));
     const poe = dev && (dev.type === 'sip');
-    const tip = sw.pfx + p + (dev ? ' → ' + dev.name : ' · free');
+    const tip = pfxOf(sw) + p + (dev ? ' → ' + dev.name : ' · free');
     return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.netPort===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups = []; for (let g = 0; g < sw.ports; g += 12){ const ps = []; for (let p = g+1; p <= g+12; p++) ps.push(p); groups.push(ps); }
@@ -711,9 +713,9 @@ function renderNet(){
         <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span><span>Ports ${sw.ports+1}–${sw.ports+sw.sfp} are SFP+</span></div>
     </div>
-    ${st.netPort != null ? `<div class="panelbox"><div class="hdr">Port ${esc(sw.pfx + st.netPort)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
+    ${st.netPort != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.netPort)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(sw.pfx + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? (x.r.kind === 'downlink' ? 'Downlink' : 'Uplink') : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? (x.r.kind === 'downlink' ? 'Downlink' : 'Uplink') : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.netPort = +b.dataset.port; render(); });
@@ -949,7 +951,7 @@ function renderObj(o){
     if (!to){ toast('Choose what to connect to first.'); return; }
     let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && to.type === 'switch') port = +port;
     if (to.type === 'switch' && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
-    if (to.type === 'switch' && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(to.pfx + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
+    if (to.type === 'switch' && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
     const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
@@ -1755,10 +1757,15 @@ function renderSetFeed(){
 /* The feed is optional: without one, every object is entered and kept by hand. */
 
 /* ---------- new object ---------- */
+/* Objects that can be plugged in: everything except racks and virtual machines. */
+const linkCandidates = () => objs.filter(o => o.type !== 'rack' && !(o.type === 'server' && o.kind === 'vm'));
+/* The device an object is plugged into (its first connection), if any. */
+const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached','patched'].includes(x.kind)); return r ? byId(r.to) : null; };
 function newObjModal(pre={}){
   const c = pre.copy;
   modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>
     <div class="mb"><div class="form" style="padding:0">
+      <label for="nExist">Existing object</label><div class="ctlrow"><select id="nExist"><option value="">None: create a new object</option>${linkCandidates().map(o => { const p = plugOf(o); return `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${p ? ' · on ' + esc(p.name) : ''}</option>`; }).join('')}</select></div>
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
@@ -1773,7 +1780,26 @@ function newObjModal(pre={}){
   if (pre.name) $('#nName').value = pre.name;
   $('#nName').focus();
   $('#nCancel').onclick = closeModal;
+  /* Picking an existing object turns the dialog into a link: its details are not changed, only where it is plugged. */
+  $('#nExist').onchange = e => {
+    const link = !!e.target.value;
+    ['#nType', '#nName', '#nModel', '#nSerial', '#nLoc'].forEach(sel => { $(sel).disabled = link; });
+    $('#nOk').textContent = link ? 'Link' : 'Create';
+  };
   $('#nOk').onclick = () => {
+    const ex = $('#nExist').value;
+    if (ex){
+      const e = byId(ex), upId = $('#nUp').value, pp = $('#nPort').value.trim();
+      if (!upId){ toast('Pick what it is plugged into first.'); return; }
+      const t = byId(upId);
+      if (e.id === t.id){ toast('An object cannot be plugged into itself.'); return; }
+      if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already plugged into ${t.name}.`); return; }
+      const val = pp ? (t.type === 'patch' ? pp.toUpperCase() : (t.type === 'switch' && /^\d+$/.test(pp) ? +pp : pp)) : null;
+      if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
+      rels.push({id:'r'+rid(), from:e.id, to:t.id, kind: e.type === 'monitor' ? 'attached' : 'connected', port: val, vlan:null});
+      hist(e, now(), `Plugged into ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
+      closeModal(); toast(e.name + ' is plugged into ' + t.name); render(); return;
+    }
     const name = $('#nName').value.trim();
     if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
     const upId = $('#nUp').value;
