@@ -848,19 +848,19 @@ function feedPanel(o){
   if (!LS_ON()) return '';
   const s = syncOf(o);
   const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
-  const dl = `<dl class="lsbox"><dt>Status</dt><dd>${syncChip(o)}</dd>
+  const dl = (extra = '') => `<dl class="lsbox"><dt>Status</dt><dd>${syncChip(o)}</dd>
     ${o.feed ? `<dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen || 'not yet')}</dd>` : ''}
-    <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd></dl>`;
+    <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd>${extra}</dl>`;
   if (!o.feed){
     const note = o.detached ? 'Detached: the sync leaves this object alone and its fields are yours. Attach it to let the sync fill it in again.'
       : 'Entered by hand. The next sync links it when its serial number or unique name matches a Lansweeper record.';
-    return `<div class="panelbox">${head}${dl}<div class="addrel"><span class="note" style="flex:1">${note}</span>${o.detached ? '<button id="attachFeed" class="primary">Attach</button>' : ''}</div></div>`;
+    return `<div class="panelbox">${head}${dl()}<div class="addrel"><span class="note" style="flex:1">${note}</span>${o.detached ? '<button id="attachFeed" class="primary">Attach</button>' : ''}</div></div>`;
   }
   const note = o.excluded ? 'Excluded from the sync, so Lansweeper does not change this object. Include it again from the More menu.'
     : 'Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.';
-  return `<div class="panelbox">${head}${dl}
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Software</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="software" ${o.ovr && o.ovr.software === false ? '' : 'checked'}> From Lansweeper</label></div>
-      <label>Links</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="links" ${o.ovr && o.ovr.links === false ? '' : 'checked'}> From Lansweeper (switch ports, monitors, hosts)</label></div></div>
+  /* Software and Links sit in the same list as the rest, so their boxes line up with the values above. */
+  const takenBox = (k, text) => `<label class="pchk lsbox-check"><input type="checkbox" data-ovr="${k}" ${o.ovr && o.ovr[k] === false ? '' : 'checked'}> ${text}</label>`;
+  return `<div class="panelbox">${head}${dl(`<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (switch ports, monitors, hosts)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
 const SW_TYPES = ['pc','server'];
