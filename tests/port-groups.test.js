@@ -24,3 +24,8 @@ test('port groups: a name is required', () => {
   const s = base({ portGroups: [{ name: '  ', from: 1, to: 2 }] });
   assert.throws(() => checkState(s), /needs a name/);
 });
+
+test('port groups: a link aggregate is marked as a flag, true or false', () => {
+  assert.doesNotThrow(() => checkState(base({ portGroups: [{ name: 'Uplink LAG', from: 25, to: 26, lag: true }] })));
+  assert.throws(() => checkState(base({ portGroups: [{ name: 'Uplink LAG', from: 25, to: 26, lag: 'yes' }] })), /link aggregate/);
+});

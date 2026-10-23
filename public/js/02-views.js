@@ -1,4 +1,4 @@
-import { hasPorts, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -97,6 +97,8 @@ $('#tabsbar').addEventListener('click', e => {
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
   /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
+  /* Back to Cards from Ports shows the device the ports were of. */
+  if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
   if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; st.tab = t.dataset.tab; render(); }
 });
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
@@ -582,7 +584,7 @@ export function renderPorts(){
     const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : null;
     const isUp = !!up || (inc[0] && isUplink(inc[0].kind));
     const poe = dev && (dev.type === 'sip');
-    const tip = pfxOf(sw) + p + (groupOf(p) ? ' · ' + groupOf(p).name : '') + (dev ? ' → ' + dev.name : ' · free');
+    const tip = pfxOf(sw) + p + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
     return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
@@ -608,10 +610,10 @@ export function renderPorts(){
     </div>
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
-      <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><button id="pgAdd">Add group</button></div></div>
+      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
+      <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag"> LAG</label><button id="pgAdd">Add group</button></div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });
@@ -622,7 +624,8 @@ export function renderPorts(){
     if (!name){ toast('Give the group a name.'); return; }
     if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
     if (groups0.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
-    sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {})}];
+    const lag = $('#pgLag').checked;
+    sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})}];
     queueServerSave(); toast('Port group added'); render();
   };
   const ab = $('#assignBtn'); if (ab) ab.onclick = () => newObjModal({sw: sw.id, port: st.portNo});

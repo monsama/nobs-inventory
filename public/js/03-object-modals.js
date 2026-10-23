@@ -1,4 +1,4 @@
-import { KIND_HINTS, feedLinked, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { KIND_HINTS, VLANS, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -198,10 +198,10 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       <div class="panelbox"><div class="hdr">Relations <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${rs.length}</span></div>
-        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${(hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(x.r.vlan)}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
+        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${(hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
-          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><input id="arVlan" placeholder="VLAN" style="width:90px" aria-label="VLAN"><button id="arAdd">Add</button></div>
+          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? '' : ' <span class="muted">none</span>'}</summary>
         <div class="chain">${chain.length > 1 ? chain.map((n, i) => (i ? `<div class="hop"><span class="arrow">↑</span>${esc(KINDS[n.via.kind].fwd)}${n.via.port!=null ? ` <b class="mono">${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : '') + `<button class="node ${i===0?'me':''}" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('') : '<span class="muted">This object does not hang off anything.</span>'}</div>
@@ -212,7 +212,9 @@ export function renderObj(o){
   bindSoftware(o);
   const objView = $('#view').querySelector('.obj');
   const dirty = () => { $('#saveBtn').disabled = false; };
-  objView.addEventListener('input', dirty); objView.addEventListener('change', dirty);
+  objView.addEventListener('input', dirty);
+  /* A field saves when it is left: the whole object is saved, without a redraw, except for a type change, which changes the fields. */
+  objView.addEventListener('change', e => { dirty(); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type'); });
   /* A panel stays open or closed as the person left it. The choice is kept in this browser, by the panel's title. */
   $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
@@ -224,6 +226,11 @@ export function renderObj(o){
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
+  /* A device with ports but no port count yet cannot have its port checked: say so, but let the connection be made. */
+  const portHint = () => {
+    const to = $('#arTo').value ? byId($('#arTo').value) : null;
+    $('#arHint').textContent = to && hasPorts(to) && !(to.ports > 0) ? `${to.name} has no port count yet. Set its ports in its details, so the port can be checked.` : '';
+  };
   const fitTargets = () => {
     const k = $('#arKind').value;
     $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
@@ -233,7 +240,8 @@ export function renderObj(o){
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
-  $('#arKind').onchange = () => { fitTargets(); kindHint(); };
+  $('#arKind').onchange = () => { fitTargets(); kindHint(); portHint(); };
+  $('#arTo').onchange = portHint;
   $('#arAdd').onclick = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     if (!to){ toast('Choose what to connect to first.'); return; }
@@ -245,7 +253,7 @@ export function renderObj(o){
     const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (hasPorts(to) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
-    rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value.trim() || null});
+    rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);
     toast('Relation added'); render();
   };
@@ -271,7 +279,7 @@ export function renderObj(o){
   /* The U position only matters for a device in a rack, and not for one sitting on another device. */
   const mountRow = () => { const mr = $('.rk-mount'); if (mr) mr.hidden = !$('#rk_rack').value || !!$('#rk_top').value; };
   if ($('#rk_rack')){ $('#rk_rack').onchange = mountRow; $('#rk_top').onchange = mountRow; }
-  $('#saveBtn').onclick = () => {
+  const saveObj = (rerender = true) => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
     const addrs = [...$('#view').querySelectorAll('[data-k="ip"],[data-k="ip6"],[data-k="mac"]')];
     const checked = addrs.map(el => ({ el, c: checkAddress(el.dataset.k, el.value) }));
@@ -307,8 +315,10 @@ export function renderObj(o){
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
-    toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '')); render();
+    toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : ''));
+    if (rerender) render(); else $('#saveBtn').disabled = true;
   };
+  $('#saveBtn').onclick = () => saveObj();
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
@@ -342,6 +352,7 @@ export function modal(html, cls=''){
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">${html}</div></div>`;
   if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
+  fullTextTooltips($('#mdl'));
   const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
   applyRole();
 }

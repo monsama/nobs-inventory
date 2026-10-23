@@ -4,6 +4,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
+import { loadState } from '../../server/state.js';
 import { until } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -80,6 +81,19 @@ try {
   await p.selectOption('#arKind', 'uplink');
   assert.match(await p.getAttribute('#arKind', 'title'), /upstream device/, 'the uplink tooltip follows the choice');
   assert.ok(await p.$eval('#arKind option[value=hosted]', o => o.title.length > 0), 'every kind has its tooltip');
+  // A field saves when it is left, without the Save button.
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.waitForSelector('[data-k=model]');
+  await p.fill('[data-k=model]', 'RTR-2000'); await p.press('[data-k=model]', 'Tab');
+  for (let i = 0; i < 150 && !(loadState(db).objs.find(o => o.id === 'rt1') || {}).model; i++) await new Promise(r => setTimeout(r, 100));
+  assert.equal((loadState(db).objs.find(o => o.id === 'rt1') || {}).model, 'RTR-2000', 'the field is saved when it is left');
+  // A switch with no port count: attaching to it shows a hint, and the connection can still be made.
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.objs.push({ id: 'sw0', code: 'INV-9002', type: 'switch', name: 'SW-NOPORTS', status: 'active', loc: core.objs[0].loc, ovr: {}, feed: null }); });
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o2'); });
+  await p.waitForSelector('#arKind');
+  await p.selectOption('#arKind', 'connected');
+  await p.selectOption('#arTo', 'sw0');
+  assert.match(await p.textContent('#arHint'), /SW-NOPORTS has no port count yet/, 'the hint for a switch without ports');
   // Linking an existing object hides the detail fields, and they come back for a new object.
   await p.click('#newBtn'); await p.waitForSelector('#nExist');
   const pick = await p.$eval('#nExist', sel => [...sel.options].find(o => o.value)?.value);

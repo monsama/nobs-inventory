@@ -2,9 +2,9 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
-export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -21,7 +21,7 @@ export function revsOf(db) {
 
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
@@ -62,6 +62,19 @@ const STATUSES = ['active', 'stock', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 export function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
+  /* The VLAN list: one entry per VLAN ID (1 to 4094), with a name. */
+  if (s.vlans !== undefined) {
+    if (!Array.isArray(s.vlans)) bad('The VLAN list must be a list.');
+    else {
+      const seen = new Set();
+      for (const v of s.vlans) {
+        if (!Number.isInteger(v.vid) || v.vid < 1 || v.vid > 4094) bad(`VLAN ID ${v.vid} is not a number from 1 to 4094.`);
+        if (seen.has(v.vid)) bad(`VLAN ${v.vid} is listed twice.`);
+        seen.add(v.vid);
+        if (typeof v.name !== 'string' || !v.name.trim() || v.name.length > 60) bad(`VLAN ${v.vid} needs a name of up to 60 characters.`);
+      }
+    }
+  }
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
@@ -102,6 +115,7 @@ export function checkState(s) {
           if (!g || typeof g.name !== 'string' || !g.name.trim() || g.name.length > 60) bad(`${o.name}: a port group needs a name of up to 60 characters.`);
           if (!Number.isInteger(g.from) || !Number.isInteger(g.to) || g.from < 1 || g.to < g.from || g.to > total) bad(`${o.name}: port group ${g && g.name} is not a range of its ports.`);
           if (g.kind !== undefined && (typeof g.kind !== 'string' || g.kind.length > 20)) bad(`${o.name}: the kind of a port group is text of up to 20 characters.`);
+          if (g.lag !== undefined && typeof g.lag !== 'boolean') bad(`${o.name}: a port group is marked as a link aggregate or not.`);
           if (o.portGroups.slice(0, i).some(p => g.from <= p.to && g.to >= p.from)) bad(`${o.name}: port groups ${g.name} and another overlap.`);
         });
       }
@@ -113,6 +127,7 @@ export function checkState(s) {
   for (const r of s.rels) {
     if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
     if (!REL_KINDS.includes(r.kind)) bad(`A relation has an unknown kind: ${r.kind}.`);
+    if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) bad(`A connection uses VLAN ${r.vlan}, which is not in the VLAN list.`);
     if (r.from === r.to) bad('An object cannot be related to itself.');
   }
   /* One device per port of a switch or patch panel. */
