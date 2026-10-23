@@ -330,28 +330,65 @@ function addSearchHits(){
 }
 
 /* ---------- table ---------- */
+/* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
+const TABLE_COLS = [
+  {k:'code', label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
+  {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b></td>`},
+  {k:'type', label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
+  {k:'model', label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
+  {k:'ip', label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
+  {k:'mac', label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
+  {k:'serial', label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
+  {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
+  {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
+  {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink','patched'].includes(r.kind)); const t = up && byId(up.to);
+    return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
+  {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
+  {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
+];
+/* Rack is hidden until it is wanted: most devices do not go in a rack. */
+const DEFAULT_HIDDEN_COLS = ['rack'];
+function hiddenCols(){
+  if (!st.hiddenCols){
+    try { st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS; } catch(e) { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
+  }
+  return st.hiddenCols;
+}
+function setHiddenCols(list){
+  st.hiddenCols = list;
+  try { localStorage.setItem('ni-hidden-cols', JSON.stringify(list)); } catch(e) {}
+}
+function columnsMenu(){
+  const hidden = hiddenCols();
+  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${TABLE_COLS.map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
+}
+
 function renderTable(){
   const list = filtered();
+  const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk ??= new Set();
   st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted">${list.length} rows</span><span class="tbsep"></span>
     ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select><button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
-    <button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
+  if (colOpen) $('#colMenu').open = true;
+  $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
+    const k = c.dataset.col, hidden = hiddenCols();
+    setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);
+    renderTable();
+  });
   $('#csvBtn').onclick = () => exportCsv(list);
   $('#csvImp').onclick = importCsvModal;
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => { if (!bk.value) return; st.bulk.forEach(id => { const o = byId(id); o.loc = bk.value; hist(o, now(), 'Moved to ' + bk.value + ' (bulk)'); }); toast(n + ' moved to ' + bk.value); renderTable(); render(); };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
+  const shown = TABLE_COLS.filter(c => c.fixed || !hiddenCols().includes(c.k));
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
     <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    <th>Code</th><th>Name</th><th>Type</th><th>Model</th><th>IP</th><th>MAC</th><th>Serial</th><th>Location</th><th>Rack</th><th>User</th><th>Connected to</th><th>Status</th><th>Lansweeper</th></tr></thead><tbody>
-    ${list.map(o => { const up = rels.find(r => r.from === o.id && (r.kind === 'connected' || r.kind === 'uplink' || r.kind === 'patched')); const t = up && byId(up.to);
-      const rk = o.rack && o.u != null ? rackOf(o.rack).name + ' · U' + o.u : '';
-      return `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>
-      <td class="code">${esc(o.code)}</td><td class="n"><b>${esc(o.name)}</b></td><td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>
-      <td>${esc(o.model)}</td><td class="n">${esc(o.ip||'')}</td><td class="n">${esc(o.mac||'')}</td><td class="n">${esc(o.serial)}</td><td>${esc(o.loc)}</td><td class="n">${esc(rk)}</td><td>${esc(o.user||'')}</td>
-      <td class="n">${t ? esc(t.name) + (up.port!=null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td><td>${STATUS[o.status].label}</td><td>${syncChip(o) || '—'}</td></tr>`; }).join('')}
+    ${shown.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
+    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o)).join('')}</tr>`).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
@@ -1176,6 +1213,7 @@ async function renderSetAbout(){
       <span class="muted">Source</span><span>https://github.com/monsama/nobs-inventory</span>
       <span class="muted">License</span><span>https://www.gnu.org/licenses/gpl-3.0.html</span>
     </div>
+    <div style="margin-top:12px"><a class="btnlike" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="If NOBS Inventory saves you some time">Buy me a coffee</a></div>
     <div class="hdr" style="margin:14px -14px 8px">Third party</div>
     <div class="muted" style="font-size:11px;line-height:1.6">
       Built with Node.js, Express and ldapjs. Each keeps its own licence.
