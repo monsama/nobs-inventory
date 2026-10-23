@@ -130,7 +130,7 @@ export function renderPlans(){
       toast(o.name + ' is off the plan'); renderPlans();
     };
   });
-  c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
+  c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
     if (e.button !== 0 || !canEdit() || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
@@ -230,6 +230,14 @@ export function addPartsToArea(plan){
   const box = boxOf(rects);
   Object.assign(area, {rects, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
   queueServerSave(); toast('Area changed'); renderPlans();
+}
+/* Removing an area asks first. Devices placed by hand stay where they are; devices shown only because of its location leave the plan. */
+export function areaRemoveModal(plan, area){
+  modal(`<div class="mh">Remove ${esc(area.name)}?</div>
+    <div class="mb"><p class="note">Devices placed by hand inside it stay where they are on the plan. Devices that were only shown there, because they are in its location, leave the plan.</p></div>
+    <div class="mf"><button id="arrCancel">Cancel</button><button id="arrOk" class="danger-text">Remove area</button></div>`, 'sm');
+  $('#arrCancel').onclick = closeModal;
+  $('#arrOk').onclick = () => { plan.areas = plan.areas.filter(a => a.id !== area.id); queueServerSave(); closeModal(); toast('Area removed'); renderPlans(); };
 }
 export function areaModal(plan, rects){
   /* The rooms that already exist on this plan's site. */
@@ -384,8 +392,13 @@ export function batches(puts, dels){
   if (cur.puts.length || cur.dels.length) out.push(cur);
   return out;
 }
-export async function sendChanges(){
-  if (SERVER.busy){ SERVER.again = true; return; }
+/* A save that asks while another is in progress waits for that one, so the caller knows what was sent. */
+export function sendChanges(){
+  if (SERVER.busy){ SERVER.again = true; return SERVER.inflight; }
+  SERVER.inflight = sendNow();
+  return SERVER.inflight;
+}
+async function sendNow(){
   if (!canEdit()) return;
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
@@ -408,7 +421,8 @@ export async function sendChanges(){
         SERVER.base.set(key, JSON.stringify(v));
       }
       if (j.conflicts && j.conflicts.length){
-        const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : k.split('|')[0]; });
+        const KIND_NAME = { object: 'an object', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'an object type', history: 'a history entry' };
+      const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });
         const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
           .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
         toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');

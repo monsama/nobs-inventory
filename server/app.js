@@ -37,8 +37,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
-  app.use(express.json({ limit: '6mb' }));
-  app.use(express.text({ type: ['text/plain', 'text/csv'], limit: '6mb' }));
+  /* A backup can be larger than a normal save; the largest is a full backup with its history and plan pictures. */
+  app.use(express.json({ limit: '30mb' }));
+  app.use(express.text({ type: ['text/plain', 'text/csv'], limit: '30mb' }));
 
   const userDoc = id => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(id); return r ? JSON.parse(r.data) : null; };
   /* A deactivated user loses access at once, even with a session that is still open. */

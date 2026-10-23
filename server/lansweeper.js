@@ -91,6 +91,9 @@ export async function fetchAssets(cfg, fetchImpl = fetch) {
 
 /* One sync: fetch every asset for the site and merge them with the same rules as a file import. */
 export async function syncLansweeper(db, cfg, now = new Date(), fetchImpl = fetch) {
+  /* The token is sent to this address, so a remote one must be encrypted. A Lansweeper on this machine may be plain. */
+  const ep = new URL(cfg.endpoint || DEFAULT_ENDPOINT);
+  if (ep.protocol !== 'https:' && !['127.0.0.1', 'localhost', '[::1]'].includes(ep.hostname)) throw new HttpError(400, 'The Lansweeper address must start with https://.');
   const records = await fetchAssets(cfg, fetchImpl);
   const s = loadState(db);
   const counts = mergeRecords(s, records, now);

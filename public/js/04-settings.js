@@ -225,15 +225,26 @@ export function renderSetUsers(){
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
-  root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => { USERS[+c.dataset.act].active = c.checked; renderSetUsers(); });
+  /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
+  const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
+  root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => {
+    const u = USERS[+c.dataset.act];
+    if (!c.checked && u.role === 'admin' && activeAdmins() <= 1){ toast('At least one active admin is needed.'); c.checked = true; return; }
+    u.active = c.checked; queueServerSave(); renderSetUsers();
+  });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
-    const u = USERS[+sel.dataset.role], admins = USERS.filter(x => x.role === 'admin').length;
-    if (u.role === 'admin' && sel.value !== 'admin' && admins <= 1){ toast('At least one admin is needed.'); renderSetUsers(); return; }
-    u.role = sel.value; toast(u.name + ' is now ' + roleLabel(u).toLowerCase()); renderSetUsers();
+    const u = USERS[+sel.dataset.role];
+    if (u.role === 'admin' && sel.value !== 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); renderSetUsers(); return; }
+    u.role = sel.value; queueServerSave(); toast(u.name + ' is now ' + roleLabel(u).toLowerCase()); renderSetUsers();
   });
-  root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const u = USERS[+b.dataset.del]; USERS.splice(+b.dataset.del, 1); toast(u.name + ' removed'); renderSetUsers(); });
+  root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const u = USERS[+b.dataset.del];
+    if (me() && String(u.id) === String(me().id)){ toast("You can't remove yourself."); return; }
+    if (u.role === 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); return; }
+    USERS.splice(+b.dataset.del, 1); queueServerSave(); toast(u.name + ' removed'); renderSetUsers();
+  });
   $('#nuAdd').onclick = async () => {
     const first = $('#nuFirst').value.trim(), last = $('#nuLast').value.trim();
     const name = [first, last].filter(Boolean).join(' ');
