@@ -2089,8 +2089,10 @@ function renderPlans(){
 }
 function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
-  return `<div class="pl-canvas" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
-    <img src="${planImgSrc(plan)}" alt="Floor plan ${esc(plan.name)}" draggable="false">
+  const src = planImgSrc(plan);
+  /* Without a picture the plan still has room to draw on, with a line saying what to do. */
+  return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
+    ${src ? `<img src="${src}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
     ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
   </div>`;
