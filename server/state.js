@@ -57,7 +57,7 @@ export function factoryReset(db, keepUserId) {
 
 /* The rules a whole inventory must follow before it is stored. */
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
-const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other'];
+const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx'];
 const STATUSES = ['active', 'stock', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'patched', 'uplink', 'downlink', 'docked'];
 export function checkState(s) {
@@ -107,7 +107,7 @@ export function checkState(s) {
   for (const r of s.rels) {
     if (r.port == null) continue;
     const t = byId.get(r.to);
-    if (!['switch', 'patch', 'router', 'firewall', 'server'].includes(t.type)) continue;
+    if (t.type !== 'patch' && !(t.ports > 0)) continue;
     const key = r.to + '|' + String(r.port);
     if (taken.has(key)) bad(`Port ${r.port} on ${t.name} is used twice.`);
     taken.add(key);

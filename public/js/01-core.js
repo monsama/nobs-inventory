@@ -4,6 +4,7 @@ export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] 
 export const ICON = {
   pc:'<path d="M3 4h18v12H3z"/><path d="M8 20h8M12 16v4"/>',
   server:'<rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/>',
+  pbx:'<rect x="2" y="5" width="20" height="12" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01"/><path d="M8 21h8M12 17v4"/>',
   sip:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 5h8v5H8z"/><path d="M9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01"/>',
   tablet:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>',
   rack:'<rect x="3" y="2" width="18" height="20" rx="1"/><path d="M3 7h18M3 12h18M3 17h18M7 4.5h.01M7 9.5h.01"/>',
@@ -39,6 +40,7 @@ export const TYPES = {
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
   sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
+  pbx:{label:'Telephone system', short:'PBX', color:'#0f766e', icon:'pbx'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
   switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
   printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
@@ -58,7 +60,9 @@ export const TYPES = {
 export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 /* Types that show a port grid in Ports: a switch, router, firewall or physical server. Patch panels have their own view. */
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
-export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
+/* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
+export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
+export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx'];
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
@@ -84,7 +88,7 @@ export const KINDS = {
   docked:{fwd:'docked at', rev:'docks'},
   hosted:{fwd:'hosted on', rev:'hosts'}
 };
-export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch','router','firewall','server'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch','router','firewall','server','pbx'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -137,7 +141,7 @@ export const pad2 = n => String(n).padStart(2, '0');
 export const pfxOf = o => o.pfx ?? '';
 export const portLabel = (target, p) => {
   if (p == null) return '';
-  if (typeof p === 'number' && PORTED.includes(target.type)) return pfxOf(target) + p;
+  if (typeof p === 'number' && hasPorts(target)) return pfxOf(target) + p;
   return String(p);
 };
 export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
