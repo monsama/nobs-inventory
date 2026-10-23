@@ -21,14 +21,14 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   assert.equal(await p.isVisible('#signOutBtn'), true, 'there is no Sign out button of its own');
   await p.click('#whoBtn');
   await p.waitForSelector('#acFirst');
   await p.fill('#acFirst', 'Viktor'); await p.fill('#acLast', 'Ljuca'); await p.fill('#acDept', 'IT');
   await p.click('#acSave');
   await p.waitForFunction(() => /Viktor Ljuca/.test(document.querySelector('#whoBtn').textContent), null, { timeout: 5000 });
-  assert.equal(await p.evaluate(() => USERS.find(u => u.login === 'admin').dept), 'IT', 'the department was not saved');
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/04-settings.js')]); return (__mods[0].USERS.find(u => u.login === 'admin').dept); }), 'IT', 'the department was not saved');
   // Password: a wrong current password is refused and nothing changes.
   await p.click('#whoBtn'); await p.waitForSelector('#acPw');
   await p.fill('#acCur', 'wrong-pass'); await p.fill('#acNew', 'newpass12345'); await p.fill('#acNew2', 'newpass12345');

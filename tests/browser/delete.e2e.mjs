@@ -21,25 +21,25 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   // A server in a rack, another on top of it, a PC on the switch, and the switch on a plan.
-  await p.evaluate(() => {
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]);
     const base = {status:'active', loc:'', notes:'', ports:0, ovr:{}, history:[]};
-    objs.push({...base, id:'s1', code:'S1', name:'SRV-A', type:'server', rack:'R-SRV', u:3, h:2});
-    objs.push({...base, id:'s2', code:'S2', name:'SRV-B', type:'server', rack:'R-SRV', ontop:'s1'});
-    rels.push({id:'x1', from:'o2', to:'o1', kind:'connected', port:4, vlan:null});
-    rels.push({id:'x2', from:'s1', to:'o1', kind:'connected', port:null, vlan:null});
-    byId('o1').planPos = {plan:'pl1', x:10, y:10};
-    PLANS.push({id:'pl1', name:'EG', site:'Zürich HQ', areas:[]});
-    st.tab = 'cards'; render();
+    __mods[0].objs.push({...base, id:'s1', code:'S1', name:'SRV-A', type:'server', rack:'R-SRV', u:3, h:2});
+    __mods[0].objs.push({...base, id:'s2', code:'S2', name:'SRV-B', type:'server', rack:'R-SRV', ontop:'s1'});
+    __mods[0].rels.push({id:'x1', from:'o2', to:'o1', kind:'connected', port:4, vlan:null});
+    __mods[0].rels.push({id:'x2', from:'s1', to:'o1', kind:'connected', port:null, vlan:null});
+    __mods[0].byId('o1').planPos = {plan:'pl1', x:10, y:10};
+    __mods[0].PLANS.push({id:'pl1', name:'EG', site:'Zürich HQ', areas:[]});
+    __mods[0].st.tab = 'cards'; __mods[1].render();
   });
-  await p.evaluate(() => { deleteObject('o1'); queueServerSave(); });
-  await p.evaluate(() => flushSave());
-  const after = await p.evaluate(() => ({ rels: rels.filter(r => r.to === 'o1' || r.from === 'o1').length, o1: !!byId('o1'), ontop: byId('s2').ontop ?? null }));
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js'), import('/js/07-render-plans.js')]); __mods[0].deleteObject('o1'); __mods[1].queueServerSave(); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].flushSave()); });
+  const after = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return ({ rels: __mods[0].rels.filter(r => r.to === 'o1' || r.from === 'o1').length, o1: !!__mods[0].byId('o1'), ontop: __mods[0].byId('s2').ontop ?? null }); });
   assert.equal(after.o1, false, 'the object was not deleted');
   assert.equal(after.rels, 0, 'relations to the deleted object are still there');
-  await p.evaluate(() => reloadFromServer());
-  assert.equal(await p.evaluate(() => !!byId('o1')), false, 'the deleted object came back after a reload: the save was refused');
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].reloadFromServer()); });
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byId('o1')); }), false, 'the deleted object came back after a reload: the save was refused');
   assert.deepEqual(errors, [], 'page errors');
   console.log('delete: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

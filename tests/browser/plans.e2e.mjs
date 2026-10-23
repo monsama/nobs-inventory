@@ -28,7 +28,7 @@ try {
   await page.waitForTimeout(500);
   await page.click('#tabsbar [data-tab=plans]');
   await page.waitForSelector('#plNew2');
-  await page.evaluate(() => { SITES.push('Basel'); });
+  await page.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); __mods[0].SITES.push('Basel'); });
   await page.click('#plNew2');
   await page.fill('#plName', 'Ground floor');
   // a small PNG, generated in the browser so no file is needed

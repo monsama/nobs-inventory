@@ -19,7 +19,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
   // Measures the text colour of each element against the colour behind it.
   const measure = () => p.evaluate(() => {
@@ -39,9 +39,9 @@ try {
     return out;
   });
   const screens = [
-    ['cards', async () => p.evaluate(() => { st.tab = 'cards'; render(); })],
-    ['table', async () => p.evaluate(() => { st.tab = 'table'; render(); })],
-    ['object', async () => p.evaluate(() => { st.tab = 'cards'; render(); openObj('o1'); })],
+    ['cards', async () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); })],
+    ['table', async () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); })],
+    ['object', async () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/02-views.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o1'); })],
     ['settings', async () => { await p.evaluate(() => { document.querySelector('#setBtn').click(); }); await p.waitForSelector('#setTabs'); }],
   ];
   const failures = [];

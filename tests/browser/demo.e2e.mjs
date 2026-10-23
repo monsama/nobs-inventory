@@ -33,7 +33,7 @@ try {
   assert.ok(!(await p.textContent('body')).includes(SAMPLE_DEVICE), 'devices are visible before sign-in');
   assert.equal(await p.isVisible('#tabsbar'), false, 'the app is drawn behind the sign-in dialog');
   await signIn(p);
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   assert.ok((await p.textContent('#view')).length > 0 && await p.isVisible('#tabsbar'), 'the app is not shown after sign-in');
   // About: the version from the server and the licence text.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=about]');
