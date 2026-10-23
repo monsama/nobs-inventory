@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { openDb, audit } from './db.js';
 import { createApp } from './app.js';
 import { loadState, saveState } from './state.js';
-import { setPassword, hasPassword } from './auth.js';
+import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
 import { takeBackup } from './backup.js';
@@ -27,6 +27,8 @@ export function bootstrap(db, env, log = console.log) {
   }
   if (!hasPassword(db, admin.id)) {
     const pw = env.NI_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
+    const weak = env.NI_ADMIN_PASSWORD ? passwordProblem(pw, admin.login) : null;
+    if (weak) log(`Warning: NI_ADMIN_PASSWORD does not meet the password rules (${weak}). Change it under Settings → Users.`);
     setPassword(db, admin.id, pw);
     audit(db, null, 'admin account created');
     if (!env.NI_ADMIN_PASSWORD) log(`First start: admin password is ${pw} (change it under Settings → Users).`);
