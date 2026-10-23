@@ -43,8 +43,9 @@ test('the inventory is saved and comes back the same, and survives a restart', a
   const admin = await signIn(srv, 'admin', 'adminpass123');
   const state = baseState({
     users: [adminUser],
-    objs: [{ id: 'o101', code: 'INV-0001', type: 'pc', name: 'ZH-PC-0200', serial: 'SN200', ip: '10.10.20.200', ovr: {}, feed: null }],
-    rels: [{ id: 'r1', from: 'o101', to: 'o101', kind: 'connected', port: null, vlan: null }],
+    objs: [{ id: 'o101', code: 'INV-0001', type: 'pc', name: 'ZH-PC-0200', serial: 'SN200', ip: '10.10.20.200', ovr: {}, feed: null },
+      { id: 'o102', code: 'INV-0002', type: 'switch', name: 'SW-0200', ports: 24, pfx: '1/', ovr: {}, feed: null }],
+    rels: [{ id: 'r1', from: 'o101', to: 'o102', kind: 'connected', port: 5, vlan: null }],
     history: { o101: [{ t: 'now', msg: 'created' }] },
     types: { pc: { label: 'PC', short: 'PC', color: '#000', icon: 'pc' } }
   });
@@ -57,6 +58,7 @@ test('the inventory is saved and comes back the same, and survives a restart', a
     const back = (await srv.call('GET', '/api/state', { cookie: again.cookie })).json;
     assert.equal(back.objs[0].name, 'ZH-PC-0200');
     assert.equal(back.rels.length, 1);
+    assert.equal(back.rels[0].port, 5);
     assert.equal(back.history.o101[0].msg, 'created');
     assert.equal(back.types.pc.label, 'PC');
   } finally { await srv.close(); }
@@ -584,5 +586,24 @@ test('a full save checks addresses and field limits, the same as an incremental 
     assert.equal((await put({ u: 0 })).status, 400, 'a rack position out of range was saved');
     assert.equal((await put({ mac: 'AA-BB-CC-DD-EE-FF' })).status, 200);
     assert.equal((await srv.call('GET', '/api/state', { cookie: admin.cookie })).json.objs[0].mac, 'aa:bb:cc:dd:ee:ff');
+  } finally { await srv.close(); }
+});
+
+test('a relation to itself, an unknown kind, two devices on one port or in one U are refused', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const put = (objs, rels = [], extra = {}) => srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], objs, rels, ...extra }), cookie: admin.cookie });
+    const pc = (id, name) => ({ id, type: 'pc', name, status: 'active' });
+    const sw = { id: 'sw', type: 'switch', name: 'SW1', status: 'active', ports: 24, pfx: '1/' };
+    assert.equal((await put([pc('a', 'A')], [{ id: 'r', from: 'a', to: 'a', kind: 'connected' }])).status, 400, 'a relation to itself was saved');
+    assert.equal((await put([pc('a', 'A'), pc('b', 'B')], [{ id: 'r', from: 'a', to: 'b', kind: 'friends' }])).status, 400, 'an unknown kind was saved');
+    assert.equal((await put([pc('a', 'A'), pc('b', 'B'), sw], [{ id: 'r1', from: 'a', to: 'sw', kind: 'connected', port: 3 }, { id: 'r2', from: 'b', to: 'sw', kind: 'connected', port: 3 }])).status, 400, 'two devices on one port were saved');
+    const rack = { id: 'rk', type: 'rack', name: 'Rack', status: 'active', units: 42 };
+    const srv1 = { id: 's1', type: 'server', name: 'S1', status: 'active', rack: 'rk', u: 3, h: 2 };
+    const srv2 = { id: 's2', type: 'server', name: 'S2', status: 'active', rack: 'rk', u: 4, h: 2 };
+    assert.equal((await put([rack, srv1, srv2])).status, 400, 'two devices in the same U were saved');
+    assert.equal((await put([rack, { ...srv2, u: 5 }, srv1])).status, 200, 'devices in separate U positions were refused');
+    assert.equal((await put([srv1, { ...srv2, u: 5 }])).status, 400, 'a device in a rack that does not exist was saved');
   } finally { await srv.close(); }
 });
