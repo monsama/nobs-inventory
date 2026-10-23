@@ -245,8 +245,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
      administrator set (NI_FEED_TOKEN). Without a token set, this route refuses every request. */
   app.post('/api/feed/push', (req, res, next) => {
     try {
+      /* Wrong tokens count against the address, the same way wrong passwords do, so a token cannot be guessed by trying. */
+      const keys = ['push:' + (req.ip || '')];
+      if (throttle.blocked(keys)) throw new HttpError(429, 'Too many wrong feed tokens. Try again in 15 minutes.');
       const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
-      if (!feedTokenValid(db, m && m[1], feedToken)) throw new HttpError(401, 'The feed token is wrong, or none is set on the server.');
+      if (!feedTokenValid(db, m && m[1], feedToken)){ throttle.recordFailure(keys); throw new HttpError(401, 'The feed token is wrong, or none is set on the server.'); }
       lsRequire('push');
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');

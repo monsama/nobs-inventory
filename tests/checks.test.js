@@ -73,3 +73,33 @@ test('a floor plan picture must be a PNG, JPEG, GIF or WebP, and no larger than 
     assert.equal(Buffer.from(await r.arrayBuffer()).subarray(1, 4).toString(), 'PNG', 'the picture bytes were not kept');
   } finally { await srv.close(); }
 });
+
+test('wrong feed tokens are throttled per address, so a token cannot be guessed by trying', async () => {
+  const srv = await startServer({ feedToken: 'real-push-token-123456' });
+  try {
+    let status = 0;
+    for (let i = 0; i < 40 && status !== 429; i++) {
+      status = (await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer guess-' + i }, body: '{"records":[]}' })).status;
+    }
+    assert.equal(status, 429, 'wrong tokens were never throttled');
+    const right = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer real-push-token-123456' }, body: '{"records":[]}' });
+    assert.equal(right.status, 429, 'a throttled address was let in');
+  } finally { await srv.close(); }
+});
+
+test('a viewer cannot make themselves an admin through their account, and cannot read the log or the backups', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true }];
+    await srv.call('PUT', '/api/state', { body: { objs: [], rels: [], users, types: {}, history: {}, locs: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 }, cookie: admin.cookie });
+    await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw123' }, cookie: admin.cookie });
+    const viewer = await signIn(srv, 'anna', 'viewerpw123');
+    const put = await srv.call('PUT', '/api/me', { body: { first: 'Anna', last: 'X', dept: 'Y', role: 'admin' }, cookie: viewer.cookie });
+    assert.equal(put.status, 200);
+    assert.equal(put.json.me.role, 'viewer', 'a viewer became an admin through their account');
+    assert.equal((await srv.call('GET', '/api/log', { cookie: viewer.cookie })).status, 403, 'a viewer read the log');
+    assert.equal((await srv.call('GET', '/api/backups', { cookie: viewer.cookie })).status, 403, 'a viewer listed the backups');
+    assert.equal((await srv.call('GET', '/api/feed/push-token', { cookie: viewer.cookie })).status, 403, 'a viewer saw the push token status');
+  } finally { await srv.close(); }
+});
