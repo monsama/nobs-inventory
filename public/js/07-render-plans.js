@@ -13,6 +13,9 @@ export let planMode = 'view';
 export let planPlace = null;
 export let planDraw = null;
 export let planDrag = null;
+/* The rectangles of an area being drawn, before Done. */
+export let planParts = [];
+let planAreaDrag = null;
 export let planZoom = 1;
 export const planById = id => PLANS.find(p => p.id === id);
 export const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
@@ -20,7 +23,21 @@ export const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client 
 export const round1 = v => Math.round(v * 10) / 10;
 /* The image comes from the server (saved apart from the inventory); older plans may still carry it inline. */
 export const planImgSrc = p => p.image || (p.imageAt ? `api/plans/${encodeURIComponent(p.id)}/image?v=${p.imageAt}` : '');
-export const areaAt = (plan, x, y) => (plan.areas || []).find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
+/* An area is one or more rectangles, drawn one after the other; x, y, w, h keep the box around them. */
+export const areaRects = a => a.rects && a.rects.length ? a.rects : [{x: a.x, y: a.y, w: a.w, h: a.h}];
+export const boxOf = rects => {
+  const x0 = Math.min(...rects.map(r => r.x)), y0 = Math.min(...rects.map(r => r.y));
+  const x1 = Math.max(...rects.map(r => r.x + r.w)), y1 = Math.max(...rects.map(r => r.y + r.h));
+  return {x: x0, y: y0, w: x1 - x0, h: y1 - y0};
+};
+const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+export const areaAt = (plan, x, y) => (plan.areas || []).find(a => areaRects(a).some(r => inRect(r, x, y)));
+/* Moves rectangles by dx, dy (in percent of the image), stopping them at the edge of the plan. */
+const shiftRects = (rects, dx, dy) => {
+  const b = boxOf(rects);
+  const k = Math.max(-b.x, Math.min(100 - b.x - b.w, dx)), j = Math.max(-b.y, Math.min(100 - b.y - b.h, dy));
+  return {dx: k, dy: j, rects: rects.map(r => ({...r, x: r.x + k, y: r.y + j}))};
+};
 /* An area is a location: "Site / Area". It is added to the locations the first time it is used. */
 export function areaLoc(plan, area){
   if (!SITES.includes(plan.site)) SITES.push(plan.site);
@@ -46,6 +63,7 @@ export function renderPlans(){
       <button id="plNew" class="primary">New plan</button>
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
+        ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
         <button id="plReplace">Replace image</button>
         <button id="plDel" class="danger-text">Delete plan</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
@@ -62,8 +80,10 @@ export function renderPlans(){
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));
-  const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planZoom = 1; renderPlans(); };
-  on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; renderPlans(); });
+  const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planParts = []; planZoom = 1; renderPlans(); };
+  on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; planParts = []; renderPlans(); });
+  on('#plAreaDone', () => areaModal(plan, planParts));
+  on('#plAreaDiscard', () => { planParts = []; renderPlans(); });
   on('#plReplace', () => planModal(plan));
   const zoom = v => { planZoom = Math.max(0.5, Math.min(3, Math.round(v * 100) / 100)); renderPlans(); };
   on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
@@ -92,6 +112,15 @@ export function renderPlans(){
     };
   });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
+  /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
+  c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
+    if (e.button !== 0 || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
+    const area = plan.areas.find(a => a.id === el.dataset.areaDrag); if (!area) return;
+    e.stopPropagation();
+    const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
+    const pins = planDevices(plan).filter(o => rects.some(q => inRect(q, o.planPos.x, o.planPos.y))).map(o => ({id: o.id, x: o.planPos.x, y: o.planPos.y}));
+    planAreaDrag = {area, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
+  });
 }
 export function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
@@ -99,7 +128,8 @@ export function planCanvas(plan){
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? `<img src="${src}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => `<div class="pl-area" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%"><span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}</div>`).join('')}
+    ${(plan.areas || []).map(a => areaRects(a).map((r, i) => `<div class="pl-area${planMode === 'view' ? ' movable' : ''}" data-area-drag="${a.id}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%">${i ? '' : `<span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}`}</div>`).join('')).join('')}
+    ${planParts.map(r => `<div class="pl-area pending" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%"></div>`).join('')}
     ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span></button>`).join('')}
   </div>`;
 }
@@ -125,6 +155,13 @@ export function drawPreview(){
 document.addEventListener('pointermove', e => {
   const c = $('#plCanvas'); if (!c) return;
   if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
+  if (planAreaDrag){
+    const r = c.getBoundingClientRect(), d = planAreaDrag;
+    const sh = shiftRects(d.rects, pctOf(e.clientX, r.left, r.width) - d.x0, pctOf(e.clientY, r.top, r.height) - d.y0);
+    d.dx = sh.dx; d.dy = sh.dy; d.moved = d.moved || Math.abs(sh.dx) + Math.abs(sh.dy) > 0.2;
+    c.querySelectorAll(`[data-area-drag="${d.area.id}"]`).forEach((el, i) => { el.style.left = sh.rects[i].x + '%'; el.style.top = sh.rects[i].y + '%'; });
+    d.pins.forEach(p => { const pin = c.querySelector(`[data-pin="${p.id}"]`); if (pin){ pin.style.left = p.x + d.dx + '%'; pin.style.top = p.y + d.dy + '%'; } });
+  }
   if (planDrag){
     const r = c.getBoundingClientRect();
     planDrag.x = pctOf(e.clientX, r.left, r.width); planDrag.y = pctOf(e.clientY, r.top, r.height); planDrag.moved = true;
@@ -136,7 +173,17 @@ document.addEventListener('pointerup', () => {
   if (planDraw){
     const d = planDraw; planDraw = null;
     const rect = {x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0)};
-    if (rect.w > 2 && rect.h > 2 && planById(planSel)) areaModal(planById(planSel), rect); else renderPlans();
+    if (rect.w > 2 && rect.h > 2) planParts = [...planParts, rect];
+    renderPlans();
+  }
+  if (planAreaDrag){
+    const d = planAreaDrag; planAreaDrag = null;
+    if (d.moved){
+      d.area.rects = shiftRects(d.rects, d.dx, d.dy).rects.map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}));
+      const box = boxOf(d.area.rects); Object.assign(d.area, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
+      d.pins.forEach(p => { const o = byId(p.id); if (!o || !o.planPos) return; o.planPos = {...o.planPos, x: round1(p.x + d.dx), y: round1(p.y + d.dy)}; hist(o, now(), `Moved with the area ${d.area.name} by ${who()}`); });
+      queueServerSave(); renderPlans();
+    }
   }
   if (planDrag){
     const d = planDrag; planDrag = null;
@@ -149,9 +196,9 @@ document.addEventListener('pointerup', () => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; renderPlans(); }
+  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; planParts = []; renderPlans(); }
 });
-export function areaModal(plan, rect){
+export function areaModal(plan, rects){
   /* The rooms that already exist on this plan's site. */
   const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
   modal(`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
@@ -167,11 +214,12 @@ export function areaModal(plan, rect){
     const room = $('#arRoom').value || null;
     const name = $('#arName').value.trim() || (room ? room.split(' / ').slice(1).join(' / ') : '');
     if (!name){ toast('Give the area a name.'); return; }
-    const area = {id: 'ar' + rid(), name, x: round1(rect.x), y: round1(rect.y), w: round1(rect.w), h: round1(rect.h)};
+    const box = boxOf(rects);
+    const area = {id: 'ar' + rid(), name, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h), rects: rects.map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}))};
     if (room) area.room = room;
     plan.areas = [...(plan.areas || []), area];
     if (plan.site) areaLoc(plan, area);
-    planMode = 'view'; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
+    planMode = 'view'; planParts = []; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
   };
   $('#arName').focus();
 }
