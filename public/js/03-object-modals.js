@@ -154,6 +154,14 @@ export function patchPanel(o){
     <div class="pp">${ports.join('')}</div></div>`;
 }
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
+/* Retiring keeps the record: the object stays with its relations, ports and rack place, and is no longer offered as a target. */
+export function retireModal(o){
+  modal(`<div class="mh">Retire ${esc(o.name)}?</div>
+    <div class="mb"><p class="note">It stays in the inventory for the record, with its connections, port and rack place. It is no longer offered when connecting something. You can bring it back by changing its status.</p></div>
+    <div class="mf"><button id="rtCancel">Cancel</button><button id="rtOk" class="danger-text">Retire</button></div>`, 'sm');
+  $('#rtCancel').onclick = closeModal;
+  $('#rtOk').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); closeModal(); toast(o.name + ' is retired. It stays in the inventory for the record.'); render(); };
+}
 export function purgeModal(o){
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
     <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p></div>
@@ -188,7 +196,7 @@ export function renderObj(o){
   const netPath = `<ol class="netpath">${chain.map((n, i) => `<li class="ps${i === 0 ? ' me' : ''}">
       ${i ? `<div class="ps-hop">${esc(KINDS[n.via.kind].fwd)}${n.via.port != null ? ` <b>${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : ''}
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
-  const targets = objs.filter(x => x.id !== o.id);
+  const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
@@ -358,7 +366,7 @@ export function renderObj(o){
   };
   $('#saveBtn').onclick = () => saveObj();
   $('#dupBtn').onclick = () => newObjModal({copy: o});
-  $('#delBtn').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); toast(o.name + ' marked as retired. It stays in the inventory for the record.'); render(); };
+  $('#delBtn').onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
   const eb = $('#exclBtn');
