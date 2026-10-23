@@ -755,8 +755,8 @@ function feedPanel(o){
     <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
   return `<div class="panelbox"><div class="hdr">Lansweeper <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
     <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Software</label><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="software" ${o.ovr && o.ovr.software === false ? '' : 'checked'}> From Lansweeper</label>
-      <label>Links</label><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="links" ${o.ovr && o.ovr.links === false ? '' : 'checked'}> From Lansweeper (switch ports, monitors, hosts)</label></div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Software</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="software" ${o.ovr && o.ovr.software === false ? '' : 'checked'}> From Lansweeper</label></div>
+      <label>Links</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="links" ${o.ovr && o.ovr.links === false ? '' : 'checked'}> From Lansweeper (switch ports, monitors, hosts)</label></div></div>
     <div class="addrel"><span class="note" style="flex:1">Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
 }
 const SW_TYPES = ['pc','server'];
@@ -840,8 +840,8 @@ function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
-        ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>` : ''}
-        <label for="f_${o.id}_notes">Notes</label><textarea id="f_${o.id}_notes" data-k="notes" rows="3" placeholder="Anything that is not in a field: warranty, purchase order, quirks…">${esc(o.notes||'')}</textarea></div></div>
+        ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><div class="ctlrow"><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
+        <label for="f_${o.id}_notes">Notes</label><div class="ctlrow"><textarea id="f_${o.id}_notes" data-k="notes" rows="3" placeholder="Anything that is not in a field: warranty, purchase order, quirks…">${esc(o.notes||'')}</textarea>${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
     <div class="col">
