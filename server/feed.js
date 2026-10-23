@@ -123,6 +123,14 @@ function applyLinks(s, pairs) {
   return n;
 }
 
+/* The app type for a Lansweeper type name: the table in Settings first (names match without case), then the built-in rules. */
+export function typeFor(s, name) {
+  const text = String(name || '');
+  const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
+  if (own && s.typeMap[own]) return s.typeMap[own];
+  return (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
+}
+
 export function mergeRecords(s, records, now = new Date()) {
   const policy = s.policy || {};
   const seen = stamp(now);
@@ -138,6 +146,8 @@ export function mergeRecords(s, records, now = new Date()) {
   for (const raw of records) {
     const r = clean(raw);
     if (!r.name && !r.serial) continue;
+    /* With "skip IP-only devices" on, a device named only by its IP address (no serial number) is left out. */
+    if (s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial){ counts.skippedIp = (counts.skippedIp || 0) + 1; continue; }
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     const sameName = r.name ? s.objs.filter(o => o.name.toLowerCase() === r.name.toLowerCase()) : [];
@@ -148,7 +158,7 @@ export function mergeRecords(s, records, now = new Date()) {
     if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
-      const type = (TYPE_WORDS.find(([re]) => re.test(r.assetType || '')) || [null, 'other'])[1];
+      const type = typeFor(s, r.assetType);
       s.codeN = (s.codeN || 0) + 1;
       s.seq = (s.seq || 100) + 1;
       const obj = {

@@ -256,13 +256,10 @@ function cardHtml(o){
   lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
   if (o.user) lines.push(['User', esc(o.user)]);
   const s = STATUS[o.status];
-  const shown = rs.slice(0, 3);
   return `<button class="card" data-open="${o.id}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="rels">${shown.length ? shown.map(x => `<div class="r"><span class="k">${x.out?'→':'←'} ${x.label}</span><span class="t">${esc(x.other.name)}</span>${x.port && x.out ? `<span class="p">${esc(x.port)}</span>` : ''}</div>`).join('') : '<span class="none">No relations yet</span>'}
-      ${rs.length > 3 ? `<div class="r"><span class="k">+ ${rs.length-3} more</span></div>` : ''}</div>
     <div class="cf"><span class="code">${esc(o.code)}</span>${o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : ''}<span class="grow"></span>${rs.length} relations</div>
   </button>`;
 }
@@ -1000,7 +997,7 @@ function bindPolicy(root){
 
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['about','About']];
 function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -1012,23 +1009,48 @@ function openSettings(){
   if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
 }
+/* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
+function renderTypeMap(){
+  if (!$('#setTypeMap')) return;
+  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const entries = Object.entries(st.typeMap || {});
+  const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
+  const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
+    <select data-tmt="${i}" aria-label="Object type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
+  $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
+    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes when a device is first created. Names are matched without case. Names not listed here use the built-in rules.</p>
+    <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
+      ${rows || '<p class="note lempty">No names yet.</p>'}</div>
+    <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
+    <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${ro}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
+  const put = list => { st.typeMap = Object.fromEntries(list.filter(([n]) => n)); queueServerSave(); renderTypeMap(); };
+  if (!edit) return;
+  $('#setTypeMap').querySelectorAll('[data-tmn]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmn][0] = i.value.trim(); put(l); });
+  $('#setTypeMap').querySelectorAll('[data-tmt]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmt][1] = i.value; put(l); });
+  $('#setTypeMap').querySelectorAll('[data-tmd]').forEach(b => b.onclick = () => { const l = entries.slice(); l.splice(+b.dataset.tmd, 1); put(l); });
+  $('#tmAdd').onclick = () => {
+    const name = $('#tmName').value.trim();
+    if (!name){ toast('Give the Lansweeper name first.'); return; }
+    if (entries.some(([n]) => n.toLowerCase() === name.toLowerCase())){ toast(name + ' is already in the table.'); return; }
+    put([...entries, [name, $('#tmType').value]]);
+  };
+  $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
+}
 function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
+  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div class="panelbox" id="setFeed"></div>',
+    feed: '<div class="panelbox" id="setFeed"></div><div id="setTypeMap"></div>' + policyPane,
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
-    users: '<div id="setUsers"></div>',
-    ldap: '<div id="setLdap"></div>',
-    policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
-    maintenance: '<div id="setMaint"></div>',
-    log: '<div id="setLog"></div>',
+    users: '<div id="setUsers"></div><div id="setLdap"></div>',
+    maintenance: '<div id="setMaint"></div><div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: () => { renderSetMaint(); renderSetLog(); }, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -1208,12 +1230,14 @@ const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push
 const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
 async function renderSetLog(){
   const pane = $('#setLog');
+  if (!pane) return;
   if (!canEdit()){ pane.innerHTML = '<div class="panelbox"><div class="hdr">Log</div><p class="note" style="padding:12px">Only administrators can see the log.</p></div>'; return; }
   const r = await fetch('api/log?limit=500', {credentials: 'same-origin'});
   if (!$('#setLog')) return;
   const j = r.ok ? await r.json() : {entries: []};
   const entries = j.entries.filter(e => LOG_FILTER === 'all' || (LOG_FILTER === 'errors' ? e.level === 'error' : logKind(e) === LOG_FILTER));
   const errors = j.entries.filter(e => e.level === 'error').length;
+  if (!$('#setLog')) return;
   $('#setLog').innerHTML = `<div class="panelbox"><div class="hdr">Log <span class="cnt">${j.entries.length}</span>${errors ? ` <span class="chip warn">${errors} error${errors === 1 ? '' : 's'}</span>` : ''}</div>
     <div class="addrel" style="padding:10px 12px;border-top:0">
       ${LOG_KINDS.map(([k, l]) => `<button class="tab ${LOG_FILTER === k ? 'active' : ''}" data-logf="${k}">${l}</button>`).join('')}
@@ -1235,7 +1259,8 @@ function backupPanel(edit){
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n">${b.objects}</td><td class="n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:10px 12px">A backup is taken before every Lansweeper sync, push and import, and the last 10 are kept. Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before the restore, so it can be restored again.</p>
+    <p class="note" style="padding:10px 12px">A backup is taken before every Lansweeper sync, push and import. Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
+    <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n">Devices</th><th class="n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
@@ -1252,6 +1277,7 @@ function wireBackups(edit){
   });
   document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
   const file = $('#bkFile');
+  if ($('#bkKeep')) $('#bkKeep').onchange = () => { const v = Math.max(1, Math.min(100, Math.floor(+$('#bkKeep').value) || 10)); st.backupKeep = v; queueServerSave(); toast('Keeping the last ' + v + ' backups'); renderSetMaint(); };
   if (file) file.onchange = async () => {
     const f = file.files[0]; if (!f) return;
     const text = await f.text();
@@ -2030,7 +2056,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -2161,6 +2187,7 @@ function applyState(d){
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
+  st.typeMap = d.typeMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));

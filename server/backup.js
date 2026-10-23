@@ -3,11 +3,12 @@ import { HttpError } from './errors.js';
 
 /* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images and the users
    (never the passwords). Taken before every Lansweeper sync, push and import, and by hand. The newest are kept. */
-const KEEP = 10;
+const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
 
 export function takeBackup(db, reason) {
   const s = loadState(db);
+  const keep = Number(s.backupKeep) > 0 ? Math.min(100, Math.floor(Number(s.backupKeep))) : KEEP_DEFAULT;
   const settings = Object.fromEntries(SETTING_KEYS.filter(k => s[k] !== undefined).map(k => [k, s[k]]));
   const data = {
     version: 1,
@@ -17,7 +18,7 @@ export function takeBackup(db, reason) {
     planImages: db.prepare('SELECT id, data FROM plan_images').all()
   };
   const info = db.prepare('INSERT INTO backups (at, reason, objects, data) VALUES (?, ?, ?, ?)').run(data.created, reason, s.objs.length, JSON.stringify(data));
-  db.prepare('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)').run(KEEP);
+  db.prepare('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)').run(keep);
   return Number(info.lastInsertRowid);
 }
 
