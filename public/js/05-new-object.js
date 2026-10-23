@@ -5,7 +5,8 @@ import { flushSave, render } from './07-render-plans.js';
 import { openObj } from './02-views.js';
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */
-export const linkCandidates = () => objs.filter(o => o.type !== 'rack' && !(o.type === 'server' && o.kind === 'vm'));
+/* A retired device is kept for the record, so it is not offered as something to connect to. */
+export const linkCandidates = () => objs.filter(o => o.type !== 'rack' && o.status !== 'retired' && !(o.type === 'server' && o.kind === 'vm'));
 /* The device an object is plugged into (its first connection), if any. */
 export const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached'].includes(x.kind)); return r ? byId(r.to) : null; };
 export function newObjModal(pre={}){
@@ -67,7 +68,8 @@ export function newObjModal(pre={}){
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && o[k] === undefined) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
-      rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: (hasPorts(byId(r.to)) || byId(r.to).type === 'patch') ? null : r.port}));
+      /* A LAG belongs to one device, so a LAG link is not copied; a single port is not copied to a port that is taken. */
+      rels.filter(r => r.from === c.id && r.lag == null && r.fromLag == null).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: (hasPorts(byId(r.to)) || byId(r.to).type === 'patch') ? null : r.port}));
       if (c.rack && rackOf(c.rack) && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){

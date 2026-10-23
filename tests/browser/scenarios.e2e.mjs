@@ -78,7 +78,7 @@ try {
   assert.equal(await state(p, async id => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].rels.some(r => r.from === id || r.to === id)); }, sipId), false, 'the deleted object still has relations');
   // Retire an object.
   await openByName(p, 'MON-0433');
-  await p.click('details.menu > summary'); await p.click('#delBtn');
+  await p.click('details.menu > summary'); await p.click('#delBtn'); await p.click('#rtOk');
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433').status); }), 'retired', 'the object was not retired');
 
   // Rack: a new switch is mounted at U10, then moved to the other rack at U3 from its object page.
