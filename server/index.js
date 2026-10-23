@@ -53,13 +53,13 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     const ls = lansweeperConfig ? lansweeperConfig() : null;
     takeBackup(db, 'before the nightly sync');
     if (ls) {
-      try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); }
+      try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
     } else if (env.NI_FEED_CSV) {
-      try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); }
+      try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
     }
     const lc = ldapConfig ? ldapConfig() : null;
     if (lc) {
-      try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); }
+      try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
     }
   }, 30_000);
 }

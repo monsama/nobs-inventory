@@ -189,7 +189,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       takeBackup(db, 'before a Lansweeper sync');
       const counts = await syncLansweeper(db, ls);
       res.json({ counts });
-    } catch (e) { next(e); }
+    } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
 
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
@@ -218,7 +218,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       saveState(db, s);
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
-    } catch (e) { next(e); }
+    } catch (e) { audit(db, null, 'feed push failed: ' + e.message); next(e); }
   });
 
   /* The push token, made in Settings → Feed. Only its hash is kept. */
@@ -251,6 +251,16 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* The log: what was synced, saved, restored and signed in, and what failed. Admins only. */
+  app.get('/api/log', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const limit = Math.max(1, Math.min(1000, Number(req.query.limit) || 300));
+      const names = new Map(loadState(db).users.map(u => [String(u.id), u.name || u.login || '']));
+      const rows = db.prepare('SELECT at, user_id, action FROM audit ORDER BY id DESC LIMIT ?').all(limit);
+      const isError = /fail|refus|error|throttl|denied|wrong|could not|not set|not allowed/i;
+      res.json({ entries: rows.map(r => ({ at: r.at, who: r.user_id ? (names.get(String(r.user_id)) || 'Unknown user') : 'Server', action: r.action, level: isError.test(r.action) ? 'error' : 'info' })) });
+    } catch (e) { next(e); }
+  });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
   app.get('/api/backups', requireUser, requireAdmin, (req, res) => {
     res.json({ backups: db.prepare('SELECT id, at, reason, objects, LENGTH(data) AS bytes FROM backups ORDER BY id DESC').all() });
@@ -325,7 +335,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       saveState(db, s);
       audit(db, req.user.id, 'feed import: ' + JSON.stringify(counts));
       res.json({ counts });
-    } catch (e) { next(e); }
+    } catch (e) { audit(db, null, 'Lansweeper import failed: ' + e.message); next(e); }
   });
 
   /* The page itself is never cached, so an update is seen at once; scripts and styles are cached and revalidated. */

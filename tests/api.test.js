@@ -241,6 +241,23 @@ test('backups: taken before an import; a restore puts the devices back, keeps th
   } finally { await srv.close(); }
 });
 
+test('the log shows what happened, and a refused push is an error', async () => {
+  const srv = await startServer({ feedToken: 'log-token-123' });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser] }), cookie: admin.cookie });
+    const refused = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong' }, body: '{"records":[]}' });
+    assert.equal(refused.status, 401);
+    await srv.call('POST', '/api/feed/import', { body: 'AssetName,Serial\nLOG-1,L1\n', type: 'csv', cookie: admin.cookie });
+    const log = (await srv.call('GET', '/api/log', { cookie: admin.cookie })).json.entries;
+    const failed = log.find(e => /feed push failed/.test(e.action));
+    assert.ok(failed, 'the refused push is in the log');
+    assert.equal(failed.level, 'error');
+    assert.ok(log.some(e => /feed import/.test(e.action) && e.level === 'info'), 'the import is in the log as information');
+    assert.equal((await fetch(srv.base + '/api/log')).status, 401, 'the log needs a sign-in');
+  } finally { await srv.close(); }
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
