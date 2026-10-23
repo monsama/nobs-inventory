@@ -1,4 +1,4 @@
-import { hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { feedLinked, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -70,7 +70,7 @@ export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x =>
    ticked; untick it to edit the value here. */
 export function propRow(o, f){
   const k = f[0];
-  const linked = LS_ON() && !!o.feed && !!FIELD_LABEL[k];
+  const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
@@ -100,7 +100,7 @@ export function feedPanel(o){
     : 'Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.';
   /* Software and Links sit in the same list as the rest, so their boxes line up with the values above. */
   const takenBox = (k, text) => `<label class="pchk lsbox-check"><input type="checkbox" data-ovr="${k}" ${o.ovr && o.ovr[k] === false ? '' : 'checked'}> ${text}</label>`;
-  return `<div class="panelbox">${head}${dl(`<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (switch ports, monitors, hosts)')}</dd>`)}
+  return `<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : `<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (switch ports, monitors, hosts)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
 export const SW_TYPES = ['pc','server'];
@@ -223,11 +223,11 @@ export function renderObj(o){
     h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
-  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device is patched to a panel. */
+  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
     $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
-    $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port no.' : k === 'patched' ? 'Panel port, e.g. P04' : 'Port (opt.)';
+    $('#arPort').placeholder = k === 'connected' ? 'Port no., or P04 on a patch panel' : k === 'uplink' ? 'Port no.' : 'Port (opt.)';
   };
   $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.fwd}</option>`).join('');
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets();
@@ -295,7 +295,7 @@ export function renderObj(o){
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){ hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`); }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
-      if (o.feed && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
+      if (feedLinked(o) && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
     });
     if (place){

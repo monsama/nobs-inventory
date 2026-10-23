@@ -184,7 +184,7 @@ export const TABLE_COLS = [
   {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
   {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
-  {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink','patched'].includes(r.kind)); const t = up && byId(up.to);
+  {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
@@ -334,9 +334,7 @@ export function mapLayout(nodes){
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
   const list = st.mapOnly ? nodes.filter(o => connected.has(o.id)) : nodes;
   const inList = new Set(list.map(o => o.id));
-  /* A cable stored from both ends is drawn once: the downlink is the uplink seen from the other switch. */
-  const mirrored = r => r.kind === 'downlink' && E.some(u => u.kind === 'uplink' && u.from === r.to && u.to === r.from);
-  const edges = E.filter(r => inList.has(r.from) && inList.has(r.to) && !mirrored(r));
+  const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
   const adj = {}; edges.forEach(r => { (adj[r.from] ??= []).push(r.to); (adj[r.to] ??= []).push(r.from); });
   const depth = {}, q = list.filter(o => ['firewall','router','switch'].includes(o.type) && !edges.some(r => r.kind === 'uplink' && r.from === o.id)).map(o => o.id);
@@ -425,7 +423,7 @@ export function mapRoutes(L){
     return {d, A, B, lx, ly, anchor: it.sb === 'L' ? 'end' : 'start'};
   });
 }
-export const MAP_SHORT = {attached:'attached', connected:'connected', patched:'patched', uplink:'uplink', downlink:'downlink', docked:'docked', hosted:'hosted'};
+export const MAP_SHORT = {attached:'attached', connected:'connected', uplink:'uplink', hosted:'runs on'};
 
 /* The drawing as SVG markup. The same markup is used on screen and in the export.
    Line labels are hidden until a line is hovered, or until Labels is switched on. */
@@ -613,7 +611,7 @@ export function renderPorts(){
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
       <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><button id="pgAdd">Add group</button></div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? (x.r.kind === 'downlink' ? 'Downlink' : 'Uplink') : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });

@@ -79,16 +79,15 @@ export const LS_ON = () => st.useLansweeper !== false;
 export const PW_MIN = 12;
 export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
+/* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
+   attached (a monitor or accessory on a PC or docking station) and hosted (a virtual machine on its host, shown as "runs on"). */
 export const KINDS = {
-  attached:{fwd:'attached to', rev:'has attached'},
   connected:{fwd:'connected to', rev:'connects'},
-  patched:{fwd:'patched to', rev:'patched from'},
-  uplink:{fwd:'uplink to', rev:'downlink from'},
-  downlink:{fwd:'downlink to', rev:'uplink from'},
-  docked:{fwd:'docked at', rev:'docks'},
-  hosted:{fwd:'hosted on', rev:'hosts'}
+  uplink:{fwd:'uplink to', rev:'uplink from'},
+  attached:{fwd:'attached to', rev:'has attached'},
+  hosted:{fwd:'runs on', rev:'hosts'}
 };
-export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch','router','firewall','server','pbx'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -129,7 +128,9 @@ export function syncOf(o){
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
-export const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+/* An object excluded from the sync, or detached, is not linked to Lansweeper: its fields are its own. */
+export const feedLinked = o => !!o.feed && !o.excluded && !o.detached;
+export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
 export const $ = s => document.querySelector(s);
@@ -152,7 +153,7 @@ export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).ma
 export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 export function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
 export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
-export const isUplink = k => k === 'uplink' || k === 'downlink';
+export const isUplink = k => k === 'uplink';
 
 export function filtered(){
   const q = st.q.trim().toLowerCase();
@@ -166,7 +167,7 @@ export function filtered(){
 export function pathUp(o){
   const chain = [{o}]; const seen = new Set([o.id]); let cur = o;
   for (let i = 0; i < 8; i++){
-    const r = rels.find(r => r.from === cur.id && r.kind !== 'downlink' && !seen.has(r.to));
+    const r = rels.find(r => r.from === cur.id && !seen.has(r.to));
     if (!r) break;
     const nx = byId(r.to); chain.push({o:nx, via:r}); seen.add(nx.id); cur = nx;
   }

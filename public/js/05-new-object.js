@@ -7,7 +7,7 @@ import { openObj } from './02-views.js';
 /* Objects that can be plugged in: everything except racks and virtual machines. */
 export const linkCandidates = () => objs.filter(o => o.type !== 'rack' && !(o.type === 'server' && o.kind === 'vm'));
 /* The device an object is plugged into (its first connection), if any. */
-export const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached','patched'].includes(x.kind)); return r ? byId(r.to) : null; };
+export const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached'].includes(x.kind)); return r ? byId(r.to) : null; };
 export function newObjModal(pre={}){
   const c = pre.copy;
   modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>

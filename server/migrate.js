@@ -17,5 +17,19 @@ export function migrateState(s) {
     changed = true;
   }
   if (Array.isArray(s.racks) && s.racks.length) { s.racks = []; changed = true; }
+  /* Relation kinds: patched is a connection to a patch panel, docked is attached, and a downlink is the uplink seen from its
+     other end, so it is stored as that uplink. A downlink whose uplink is already there is dropped. Its port is not kept. */
+  if (Array.isArray(s.rels)) {
+    const kinds = { patched: 'connected', docked: 'attached' };
+    for (const r of s.rels) if (kinds[r.kind]) { r.kind = kinds[r.kind]; changed = true; }
+    const uplinks = new Set(s.rels.filter(r => r.kind === 'uplink').map(r => r.from + '|' + r.to));
+    s.rels = s.rels.flatMap(r => {
+      if (r.kind !== 'downlink') return [r];
+      changed = true;
+      if (uplinks.has(r.to + '|' + r.from)) return [];
+      uplinks.add(r.to + '|' + r.from);
+      return [{ ...r, from: r.to, to: r.from, kind: 'uplink', port: null }];
+    });
+  }
   return changed;
 }
