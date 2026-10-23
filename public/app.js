@@ -6,6 +6,7 @@ const ICON = {
   server:'<rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/>',
   sip:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 5h8v5H8z"/><path d="M9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01"/>',
   tablet:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>',
+  rack:'<rect x="3" y="2" width="18" height="20" rx="1"/><path d="M3 7h18M3 12h18M3 17h18M7 4.5h.01M7 9.5h.01"/>',
   monitor:'<rect x="2" y="3" width="20" height="13" rx="1"/><path d="M9 21h6M12 16v5"/>',
   switch:'<rect x="2" y="7" width="20" height="10" rx="1"/><path d="M6 11h1M9 11h1M12 11h1M15 11h1M6 14h1M9 14h1M12 14h1M15 14h1M19 12h.01"/>',
   printer:'<path d="M6 9V2h12v7"/><rect x="2" y="9" width="20" height="8" rx="1"/><path d="M6 14h12v8H6z"/>',
@@ -38,7 +39,6 @@ const TYPES = {
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
   sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
-  tablet:{label:'Tablet', short:'Tablet', color:'#db2777', icon:'tablet'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
   switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
   printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
@@ -47,20 +47,23 @@ const TYPES = {
   firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
   modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
   storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
-  iphone:{label:'iPhone', short:'iPhone', color:'#65a30d', icon:'mobile'},
-  android:{label:'Android phone', short:'Android', color:'#84cc16', icon:'mobile'},
-  smartphone:{label:'Other smartphone', short:'Phone', color:'#65a30d', icon:'mobile'},
+  android:{label:'Android Device', short:'Android', color:'#84cc16', icon:'mobile'},
+  ios:{label:'IOS Device', short:'iOS', color:'#65a30d', icon:'mobile'},
+  mobile:{label:'Other Mobile Device', short:'Mobile', color:'#0d9488', icon:'mobile'},
+  rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 /* A copy of the built-in types, used when a server has none saved yet. */
 const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
-const BUILTIN = ['pc','server','vm','accesspoint','sip','tablet','monitor','switch','printer','patch','other'];
+const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
 const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 const SITES = [];
-let RACKS = [];
+/* Racks are objects of type rack. Their height is the units field. */
+const racksList = () => objs.filter(o => o.type === 'rack');
+const rackUnits = r => r.units || 42;
 let PLANS = [];
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 const LS_ON = () => st.useLansweeper !== false;
@@ -77,7 +80,7 @@ const KINDS = {
   docked:{fwd:'docked at', rev:'docks'},
   hosted:{fwd:'hosted on', rev:'hosts'}
 };
-const KIND_TARGETS = {attached:['pc','tablet','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -719,40 +722,41 @@ function renderNet(){
 
 /* ---------- racks ---------- */
 function renderRack(){
-  const R_ = RACKS.find(r => r.id === st.rackId) || RACKS[0];
-  if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet.</div>'; return; }
+  const racks = racksList();
+  const R_ = racks.find(r => r.id === st.rackId) || racks[0];
+  if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet. Add an object and pick the type Rack.</div>'; return; }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
-  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${RACKS.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(R_.loc)} · ${R_.units}U · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${R_.units} U used</span><div class="grow"></div>
+  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+    <span class="muted hide-n">${esc(R_.loc)} · ${rackUnits(R_)}U · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   $('#rkMount').onclick = mountModal;
   const rows = [];
-  let u = R_.units;
+  let u = rackUnits(R_);
   const cells = [];
-  for (let n = R_.units; n >= 1; n--){
+  for (let n = rackUnits(R_); n >= 1; n--){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? top.ports + '+' + top.sfp + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? top.cap + ' · ' + top.proto : top.model;
-      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${R_.units - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
+      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
         <span class="nm">${esc(top.name)}</span><span class="sub">${esc(top.code)} · ${esc(sub)}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
   }
-  for (let n = R_.units; n >= 1; n--){
-    const row = R_.units - n + 1;
+  for (let n = rackUnits(R_); n >= 1; n--){
+    const row = rackUnits(R_) - n + 1;
     const occupied = inRack.some(o => n >= o.u && n <= o.u + (o.h || 1) - 1);
     cells.push(`<div class="uno" style="grid-row:${row};grid-column:1">U${n}</div>`);
     if (!occupied) cells.push(`<div class="slot" style="grid-row:${row};grid-column:2"></div>`);
   }
   $('#view').innerHTML = `<div class="rackbox">
-    <div class="rack" style="grid-template-rows:repeat(${R_.units},24px)">${cells.join('')}</div>
+    <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells.join('')}</div>
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${esc(R_.name)}</div>
-        <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${R_.units} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
+        <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
         <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
       </div>
     </div></div>`;
@@ -763,11 +767,11 @@ const FIELDS = {
   base:[['name','Name','mono'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
-  sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
+  sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
   accesspoint:[['ssid','Wi-Fi networks']],
-  monitor:[], printer:[], smartphone:[], other:[]
+  monitor:[], printer:[], other:[]
 };
 function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
@@ -882,6 +886,8 @@ function deleteObject(id){
   objs.splice(i, 1);
   for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
   objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
+  /* A deleted rack leaves its devices unmounted; they stay in the inventory. */
+  objs.forEach(x => { if (x.rack === id) { delete x.rack; delete x.u; delete x.h; delete x.ontop; } });
   delete history[id];
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
   if (st.tab === id) st.tab = 'table';
@@ -892,7 +898,7 @@ function renderObj(o){
   const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
   const chain = pathUp(o);
   const targets = objs.filter(x => x.id !== o.id);
-  const rk = o.rack ? RACKS.find(r => r.id === o.rack) : null;
+  const rk = o.rack ? rackOf(o.rack) : null;
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
@@ -995,6 +1001,7 @@ function renderObj(o){
       const k = el.dataset.k; let v = el.value;
       if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
+      if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){ hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`); }
       if (k === 'ports' && o.type === 'switch' && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       if (o.feed && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
@@ -1221,12 +1228,12 @@ function bindUser(o){
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
 const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
 const TYPE_U = {server:2, switch:1, patch:1, storage:4, router:1, firewall:1, modem:1};
-const rackOf = id => RACKS.find(r => r.id === id);
+const rackOf = id => racksList().find(r => r.id === id);
 /* Returns an error for a placement that does not fit, or '' when it does. */
 function rackCheck(rackId, u, h, exceptId){
   const R_ = rackOf(rackId);
   if (!R_) return 'Pick a rack first.';
-  if (!(u >= 1 && h >= 1 && u + h - 1 <= R_.units)) return `U${u}–${u + h - 1} is outside ${R_.name} (U1–U${R_.units}).`;
+  if (!(u >= 1 && h >= 1 && u + h - 1 <= rackUnits(R_))) return `U${u}–${u + h - 1} is outside ${R_.name} (U1–U${rackUnits(R_)}).`;
   const hit = objs.find(x => x.id !== exceptId && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
   return hit ? `U${hit.u}${(hit.h || 1) > 1 ? '–U' + (hit.u + hit.h - 1) : ''} is taken by ${hit.name}.` : '';
 }
@@ -1234,7 +1241,7 @@ function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and a linked object keeps the feed slot free. */
   const slot = LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '';
-  return `<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${RACKS.map(r => `<option value="${r.id}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>${slot}</div>
+  return `<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => `<option value="${r.id}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>${slot}</div>
     <label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span><input type="number" min="1" data-rk="u" value="${o.u ?? ''}" style="width:64px" aria-label="Start U"><span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div>
     <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => `<option value="${x.id}" ${o.ontop===x.id ? 'selected' : ''}>${esc(x.name)} · U${x.u}</option>`).join('')}</select>${slot}</div>`;
 }
@@ -1245,7 +1252,7 @@ function mountModal(){
   modal(`<div class="mh">Mount device in ${esc(rackOf(st.rackId).name)}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="mdDev">Device</label><select id="mdDev">${free.map(o => `<option value="${o.id}">${esc(o.name)} · ${TYPES[o.type].label}</option>`).join('')}</select>
-      <label for="mdU">Start U</label><input id="mdU" type="number" min="1" value="${rackOf(st.rackId).units}">
+      <label for="mdU">Start U</label><input id="mdU" type="number" min="1" value="${rackUnits(rackOf(st.rackId))}">
       <label for="mdH">Height</label><input id="mdH" type="number" min="1" value="${TYPE_U[free[0].type] ?? 1}">
     </div><p class="note" id="mdErr"></p></div>
     <div class="mf"><button id="mdCancel">Cancel</button><button id="mdOk" class="primary">Mount</button></div>`, 'sm');
@@ -1490,12 +1497,12 @@ const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
 const siteOf = l => String(l || '').split(' / ')[0];
 function renderSetLocs(){
   const siteRow = (x, i) => {
-    const n = objs.filter(o => siteOf(o.loc) === x).length + RACKS.filter(r => siteOf(r.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
+    const n = objs.filter(o => siteOf(o.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
     return `<div class="lrow"><input data-si="${i}" value="${esc(x)}" aria-label="Site name"><span class="n">${n}</span>
       <button data-sd="${i}" ${n ? `disabled title="In use by ${n} rooms, objects or racks"` : ''}>Delete</button></div>`;
   };
   const roomRow = (l, i) => {
-    const n = objs.filter(o => o.loc === l).length + RACKS.filter(r => r.loc === l).length;
+    const n = objs.filter(o => o.loc === l).length;
     return `<div class="lrow room"><span class="site" title="${esc(siteOf(l))}">${esc(siteOf(l))}</span><input data-lo="${i}" value="${esc(l.split(' / ').slice(1).join(' / '))}" aria-label="Room in ${esc(siteOf(l))}">
       <span class="n">${n}</span><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></div>`;
   };
@@ -1544,7 +1551,6 @@ function renameSite(old, value){
   const move = l => (l === old || String(l || '').startsWith(old + ' / ')) ? name + String(l).slice(old.length) : l;
   LOCS.forEach((l, i) => { LOCS[i] = move(l); });
   objs.forEach(o => { if (o.loc) o.loc = move(o.loc); });
-  RACKS.forEach(r => { if (r.loc) r.loc = move(r.loc); });
   if (st.loc) st.loc = move(st.loc);
   renderSetLocs(); render();
 }
@@ -1555,7 +1561,6 @@ function renameLoc(old, value){
   if (name === old) return;
   LOCS[LOCS.indexOf(old)] = name;
   objs.forEach(o => { if (o.loc === old) o.loc = name; });
-  RACKS.forEach(r => { if (r.loc === old) r.loc = name; });
   if (st.loc === old) st.loc = name;
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
@@ -1581,7 +1586,7 @@ function checkAddress(k, raw){
   return {ok: true, value: v};
 }
 /* Readable names for the icons, for the dropdown. */
-const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Smartphone', tablet: 'Tablet',
+const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
   ups: 'UPS', accesspoint: 'Access point', other: 'Other' };
@@ -1790,7 +1795,7 @@ function newObjModal(pre={}){
       rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: ['switch','patch'].includes(byId(r.to).type) ? null : r.port}));
       if (c.rack && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
-        for (let top = rackOf(c.rack).units; top >= h && !placed; top--){
+        for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){
           if (!rackCheck(c.rack, top - h + 1, h, o.id)){ Object.assign(o, {rack: c.rack, u: top - h + 1, h}); placed = true; }
         }
         if (!placed) toast('No free U in ' + rackOf(c.rack).name + '. Copied without a rack position.');
@@ -2134,7 +2139,7 @@ function render(){
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
-const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, racks: RACKS, types: TYPES,
+const snapshot = () => ({objs: objs.map(o => ({...o})), rels, history, users: USERS, locs: LOCS, types: TYPES,
   policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, seq, codeN, rseq});
 const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
 function saveData(){ queueServerSave(); }
@@ -2149,7 +2154,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -2277,7 +2282,7 @@ function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(history).forEach(k => delete history[k]); Object.assign(history, d.history);
-  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
+  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
@@ -2375,7 +2380,7 @@ function showUnreachable(){
 }
 /* Before sign-in the page holds no inventory. */
 function clearInventory(){
-  objs.length = 0; rels.length = 0; LOCS.length = 0; RACKS.length = 0; USERS = [];
+  objs.length = 0; rels.length = 0; LOCS.length = 0; USERS = [];
   Object.keys(history).forEach(k => delete history[k]);
   st.open = []; st.tab = 'cards';
 }

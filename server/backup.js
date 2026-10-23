@@ -1,5 +1,6 @@
 import { loadState, saveState, SETTING_KEYS } from './state.js';
 import { HttpError } from './errors.js';
+import { migrateState } from './migrate.js';
 
 /* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images and the users
    (never the passwords). Taken before every Lansweeper sync, push and import, and by hand. The newest are kept. */
@@ -40,6 +41,7 @@ export function restoreBackup(db, data) {
   s.seq = Math.max(cur.seq || 0, st.seq || 0);
   s.rseq = Math.max(cur.rseq || 0, st.rseq || 0);
   delete s.revs; delete s.empty;
+  migrateState(s);
   saveState(db, s);
   db.prepare('DELETE FROM plan_images').run();
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');

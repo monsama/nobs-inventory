@@ -9,6 +9,7 @@ import { setPassword, hasPassword } from './auth.js';
 import { mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
 import { takeBackup } from './backup.js';
+import { migrateState } from './migrate.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
@@ -17,6 +18,7 @@ import { ldapConfigOf } from './ldap-config.js';
    NI_ADMIN_PASSWORD; without that a random one is printed once. */
 export function bootstrap(db, env, log = console.log) {
   const s = loadState(db);
+  if (migrateState(s)) saveState(db, s);
   let admin = s.users.find(u => u.login === 'admin');
   if (!admin) {
     admin = { id: 'u-admin', login: 'admin', name: 'Administrator', dept: '', groups: [], source: 'manual', active: true, role: 'admin' };
