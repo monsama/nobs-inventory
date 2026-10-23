@@ -509,3 +509,32 @@ test('older data is brought up to the current types, and racks become rack objec
   assert.deepEqual(s.racks, []);
   assert.equal(migrateState(s), false, 'running the migration again changed something');
 });
+
+test('two users cannot share a login, whichever way the inventory is saved', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const dup = [adminUser, { id: 'u-x', login: 'ADMIN', name: 'Other', role: 'viewer', active: true }];
+    assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users: dup }), cookie: admin.cookie })).status, 400);
+    const change = { puts: [{ kind: 'user', id: 'u-x', value: { id: 'u-x', login: 'admin', name: 'Other', role: 'viewer', active: true }, base: null }], dels: [] };
+    assert.equal((await srv.call('POST', '/api/changes', { body: change, cookie: admin.cookie })).status, 400, 'a change that repeats a login was saved');
+  } finally { await srv.close(); }
+});
+
+test('a viewer does not receive sign-in names or directory groups of the other users', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true, groups: ['Staff'] }];
+    assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw123' }, cookie: admin.cookie })).status, 200);
+    const viewer = await signIn(srv, 'anna', 'viewerpw123');
+    const state = await srv.call('GET', '/api/state', { cookie: viewer.cookie });
+    const anna = state.json.users.find(u => u.id === 'u-anna');
+    assert.equal(anna.name, 'Anna');
+    assert.equal('login' in anna, false, 'the viewer received a login');
+    assert.equal('groups' in anna, false, 'the viewer received directory groups');
+    const own = await srv.call('GET', '/api/state', { cookie: admin.cookie });
+    assert.equal(own.json.users.find(u => u.id === 'u-anna').login, 'anna', 'the admin lost the login');
+  } finally { await srv.close(); }
+});
