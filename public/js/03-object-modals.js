@@ -1,4 +1,4 @@
-import { feedLinked, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { KIND_HINTS, feedLinked, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -229,9 +229,11 @@ export function renderObj(o){
     $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
     $('#arPort').placeholder = k === 'connected' ? 'Port no., or P04 on a patch panel' : k === 'uplink' ? 'Port no.' : 'Port (opt.)';
   };
-  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.fwd}</option>`).join('');
-  $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets();
-  $('#arKind').onchange = fitTargets;
+  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd}</option>`).join('');
+  /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
+  const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
+  $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
+  $('#arKind').onchange = () => { fitTargets(); kindHint(); };
   $('#arAdd').onclick = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     if (!to){ toast('Choose what to connect to first.'); return; }
