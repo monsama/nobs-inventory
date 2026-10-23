@@ -165,3 +165,18 @@ test('nested groups: the sync covers the members of the sign-in group, with admi
   const people = await ldapListUsers(nestedCfg);
   assert.deepEqual(people.map(p => [p.login, p.admin]).sort(), [['anna', true], ['ben', false]]);
 });
+
+test('an unreachable directory: the directory sign-in is refused with an answer, local accounts still sign in, and the sync reports the failure', async () => {
+  const srv = await startServer({ ldap: cfg('ldap://127.0.0.1:1') });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal(admin.status, 200, 'the local administrator cannot sign in while the directory is down');
+    const r = await srv.call('POST', '/api/login', { body: { login: 'anna', password: 'whatever-1' } });
+    assert.equal(r.status, 503, 'a directory sign-in while the directory is down did not say the directory is unavailable: ' + r.status);
+    assert.match(r.json.error, /directory/i, 'the answer does not name the directory');
+    assert.ok(!/stack|ECONNREFUSED|at /.test(r.text || ''), 'the answer shows internal details');
+    const sync = await srv.call('POST', '/api/ldap/sync', { body: {}, cookie: admin.cookie });
+    assert.ok(sync.status >= 400, 'a sync against a down directory reported success');
+    assert.ok(!/stack|at /.test(sync.text || ''), 'the sync answer shows internal details');
+  } finally { await srv.close(); }
+});

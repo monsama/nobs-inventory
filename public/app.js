@@ -1097,13 +1097,16 @@ function renderObj(o){
 
 /* ---------- modals ---------- */
 function modal(html, cls=''){
+  if (!$('#mdl')) modalOpener = document.activeElement;
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
   if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
   bindPolicy($('#mdl'));
   const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
   applyRole();
 }
-const closeModal = () => $('#modalHost').innerHTML = '';
+/* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
+let modalOpener = null;
+const closeModal = () => { $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus(); };
 document.addEventListener('keydown', e => {
   if (!$('#mdl')) return;
   if (e.key === 'Escape' && $('#mdl .locked')) return;

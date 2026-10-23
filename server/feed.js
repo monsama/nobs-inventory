@@ -97,7 +97,7 @@ function applySoftware(s, pairs) {
 
 /* Makes the links of the records that were merged match what Lansweeper reports: new links are added, changed ports
    are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
-function applyLinks(s, pairs) {
+function applyLinks(s, pairs, counts) {
   let n = 0;
   for (const { r, obj } of pairs) {
     if (!Array.isArray(r.links) || (obj.ovr && obj.ovr.links === false)) continue;
@@ -107,6 +107,10 @@ function applyLinks(s, pairs) {
       if (!to || to === obj) continue;
       const port = l.port || null;
       wanted.add(to.id + '|' + l.kind);
+      /* A port that another device already uses is not taken: the link is left out and counted, and the push goes on. */
+      if (port != null && ['switch', 'patch'].includes(to.type) && s.rels.some(x => x.to === to.id && String(x.port) === String(port) && x.from !== obj.id)){
+        counts.portConflict = (counts.portConflict || 0) + 1; continue;
+      }
       const existing = s.rels.find(x => x.from === obj.id && x.to === to.id && x.kind === l.kind);
       /* A link made by hand is left as it is; only links Lansweeper made get a new port. */
       if (existing) {
@@ -150,7 +154,8 @@ export function mergeRecords(s, records, now = new Date()) {
     if (s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial){ counts.skippedIp = (counts.skippedIp || 0) + 1; continue; }
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
-    const sameName = r.name ? s.objs.filter(o => o.name.toLowerCase() === r.name.toLowerCase()) : [];
+    /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
+    const sameName = r.name ? s.objs.filter(o => o.name.toLowerCase() === r.name.toLowerCase() && !(r.serial && o.serial && o.serial.toLowerCase() !== r.serial.toLowerCase())) : [];
     const found = s.objs.find(o => r.serial && (o.serial || '').toLowerCase() === r.serial.toLowerCase())
       || (sameName.length === 1 ? sameName[0] : null);
     if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
@@ -191,7 +196,7 @@ export function mergeRecords(s, records, now = new Date()) {
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
   }
-  counts.links = applyLinks(s, pairs);
+  counts.links = applyLinks(s, pairs, counts);
   counts.software = applySoftware(s, pairs);
   return counts;
 }

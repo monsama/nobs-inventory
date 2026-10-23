@@ -60,7 +60,7 @@ export function factoryReset(db, keepUserId) {
 const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other'];
 const STATUSES = ['active', 'stock', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'patched', 'uplink', 'downlink', 'docked'];
-function checkState(s) {
+export function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
