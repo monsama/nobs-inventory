@@ -933,6 +933,9 @@ function deleteObject(id){
   if (st.tab === id) st.tab = 'table';
   render();
 }
+const COLLAPSED_KEY = 'ni-collapsed-panels';
+const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch (e) { return {}; } };
+const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch (e) { /* not kept: the panel opens as before */ } };
 function renderObj(o){
   const rs = relsOf(o);
   const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
@@ -969,9 +972,13 @@ function renderObj(o){
   const objView = $('#view').querySelector('.obj');
   const dirty = () => { $('#saveBtn').disabled = false; };
   objView.addEventListener('input', dirty); objView.addEventListener('change', dirty);
+  /* A panel stays open or closed as the person left it. The choice is kept in this browser, by the panel's title. */
   $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
-    h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0; h.setAttribute('aria-expanded', 'true');
-    const toggle = () => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); };
+    h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
+    const key = (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
+    const closed = !!collapsedPanels()[key];
+    h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
+    const toggle = () => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(key, c); };
     h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
