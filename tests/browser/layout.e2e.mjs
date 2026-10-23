@@ -48,6 +48,8 @@ try {
         const heights = inputs.map(x => Math.round(x.getBoundingClientRect().height));
         if (heights.length > 1 && Math.max(...heights) - Math.min(...heights) > 2) problems.push('form fields differ in height: ' + inputs.slice(0, 3).map(label).join(' | '));
       });
+      // 3b. A checkbox in a form is its own size, not stretched across the field column.
+      document.querySelectorAll('.form input[type=checkbox]').forEach(c => { if (shown(c) && c.getBoundingClientRect().width > 40) problems.push('a checkbox is stretched across its field: ' + label(c)); });
       // 4. Nothing runs past its panel or the screen sideways.
       document.querySelectorAll('.panelbox').forEach(pb => { if (!shown(pb)) return; const r = pb.getBoundingClientRect(); if (pb.scrollWidth > pb.clientWidth + 2 && getComputedStyle(pb).overflowX === 'visible'){ const pr = pb.getBoundingClientRect(); let worst = null; pb.querySelectorAll('*').forEach(e => { const er = e.getBoundingClientRect(); if (er.width && (er.right > pr.right + 1 || er.left < pr.left - 1) && (!worst || er.width > worst.w)) worst = { w: er.width, t: e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ' ' + (e.textContent || '').trim().slice(0, 20) }; }); problems.push('panel content runs past its edge: ' + (pb.querySelector('.hdr')?.textContent || '').trim().slice(0, 30) + (worst ? ' (' + worst.t + ')' : '')); } });
       if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) problems.push('the page scrolls sideways');
