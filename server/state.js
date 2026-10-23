@@ -104,7 +104,7 @@ export function checkState(s) {
     if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
     /* Addresses are checked and written in their stored form, however the object arrived. */
     for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
-    for (const k of ['name', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
+    for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
     if (o.ports !== undefined && (!Number.isInteger(o.ports) || o.ports < 0 || o.ports > 1000)) bad(`${o.name}: the port count must be a whole number from 0 to 1000.`);
     /* A port group names a range of the ports (copper and SFP together), with an optional kind. Groups do not overlap. */
     if (o.portGroups !== undefined) {

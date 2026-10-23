@@ -107,6 +107,7 @@ export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.ta
 export function cardHtml(o){
   const rs = relsOf(o);
   const lines = [];
+  if (o.purpose) lines.push(['Purpose', esc(o.purpose)]);
   if (o.ip) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
   if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
   else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
@@ -186,6 +187,7 @@ export const TABLE_COLS = [
   {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
   {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
