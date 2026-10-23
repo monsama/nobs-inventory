@@ -10,9 +10,9 @@
     "test": "node --test --test-concurrency=1 tests/api.test.js tests/ldap.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js tests/secrets.test.js tests/changes.test.js tests/checks.test.js tests/feed-rules.test.js tests/secrets-leak.test.js",
     "lansweeper:introspect": "node tools/lansweeper-introspect.js",
     "test:browser": "npm run test:browser:a && npm run test:browser:b && npm run test:browser:c",
-    "test:browser:a": "node tests/browser/users.e2e.mjs && node tests/browser/settings.e2e.mjs && node tests/browser/plans.e2e.mjs && node tests/browser/signin.e2e.mjs && node tests/browser/demo.e2e.mjs && node tests/browser/plans-draw.e2e.mjs && node tests/browser/contrast.e2e.mjs && node tests/browser/layout.e2e.mjs && node tests/browser/a11y.e2e.mjs",
-    "test:browser:b": "node tests/browser/flows.e2e.mjs && node tests/browser/scenarios.e2e.mjs && node tests/browser/concurrency.e2e.mjs && node tests/browser/exclude.e2e.mjs && node tests/browser/reset.e2e.mjs",
-    "test:browser:c": "node tests/browser/columns.e2e.mjs && node tests/browser/phone.e2e.mjs && node tests/browser/rack-form.e2e.mjs && node tests/browser/panels.e2e.mjs && node tests/browser/account.e2e.mjs && node tests/browser/table-tools.e2e.mjs && node tests/browser/delete.e2e.mjs",
+    "test:browser:a": "node tests/browser/flows.e2e.mjs && node tests/browser/a11y.e2e.mjs && node tests/browser/columns.e2e.mjs && node tests/browser/phone.e2e.mjs",
+    "test:browser:b": "node tests/browser/scenarios.e2e.mjs && node tests/browser/concurrency.e2e.mjs && node tests/browser/exclude.e2e.mjs && node tests/browser/layout.e2e.mjs && node tests/browser/reset.e2e.mjs",
+    "test:browser:c": "node tests/browser/users.e2e.mjs && node tests/browser/settings.e2e.mjs && node tests/browser/plans.e2e.mjs && node tests/browser/signin.e2e.mjs && node tests/browser/demo.e2e.mjs && node tests/browser/plans-draw.e2e.mjs && node tests/browser/contrast.e2e.mjs && node tests/browser/panels.e2e.mjs && node tests/browser/account.e2e.mjs && node tests/browser/rack-form.e2e.mjs && node tests/browser/table-tools.e2e.mjs && node tests/browser/delete.e2e.mjs",
     "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs"
   },
   "engines": {

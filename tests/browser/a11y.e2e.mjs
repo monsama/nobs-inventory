@@ -7,6 +7,7 @@ import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const require = createRequire(import.meta.url);
 const AXE = require.resolve('axe-core/axe.min.js');
@@ -22,7 +23,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   /* The page's policy allows scripts from its own address only, so axe is served from there for this check. */
   await p.route(base + '/__axe-test.js', route => route.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(AXE, 'utf8') }));
   await p.addScriptTag({ url: base + '/__axe-test.js' });

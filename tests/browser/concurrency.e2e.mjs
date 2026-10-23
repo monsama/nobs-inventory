@@ -9,6 +9,7 @@ import { loadState } from '../../server/state.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-conc-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -23,14 +24,14 @@ const person = async () => {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   return p;
 };
 const person2 = async (ctx, login, password) => {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', login); await p.fill('#lgPw', password); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   return p;
 };
 const serverObj = name => loadState(db).objs.find(o => o.name === name);
@@ -61,7 +62,7 @@ try {
   await b.waitForSelector('#rfKeep');
   assert.ok((await b.textContent('#mdl')).includes('B SERVER'), 'the refused edit is not listed');
   await b.click('#rfKeep');
-  await b.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'A SERVER'); }, null, { timeout: 5000 });
+  await until(b, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'A SERVER'); }, null, { timeout: 5000 });
   assert.equal(serverObj('SRV-ZH-HV01').model, 'A SERVER', 'the refused edit reached the server');
 
   // 2b. A refused edit can be applied again: B gets A's version, then applies B's own change.
@@ -79,7 +80,7 @@ try {
   await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
   await b.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].checkForChanges()); });
-  await b.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433') === undefined); }, null, { timeout: 5000 });
+  await until(b, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433') === undefined); }, null, { timeout: 5000 });
 
   // 4. A stale window saves an edit to another record: the deleted object does not come back.
   await editModel(b, 'ZH-NB-0201', 'B LAPTOP');

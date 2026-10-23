@@ -6,6 +6,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-panels-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -20,7 +21,7 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/02-views.js')]); localStorage.removeItem('ni-collapsed-panels'); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o1'); });
   await p.waitForSelector('.obj');
   const state = title => p.evaluate(t => { const h = [...document.querySelectorAll('.obj .panelbox > .hdr')].find(x => x.childNodes[0].textContent.trim() === t); return h ? h.parentNode.classList.contains('collapsed') : null; }, title);
@@ -32,7 +33,7 @@ try {
   assert.equal(await state('Properties'), true, 'the closed panel opened again after a redraw');
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/02-views.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o1'); });
   await p.waitForSelector('.obj');
   assert.equal(await state('Properties'), true, 'the closed panel opened again after a reload');
