@@ -21,7 +21,7 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
 
   await p.click('#setBtn'); await p.click('#setTabs [data-st=about]');
   await p.waitForSelector('.btnlike[href*="buymeacoffee"]');
@@ -29,16 +29,16 @@ try {
   assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('.btnlike[href*="buymeacoffee"]')).textDecorationLine), 'none', 'the coffee button is underlined');
   await p.click('#setClose');
 
-  await p.evaluate(() => { st.tab = 'table'; render(); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); });
   await p.waitForSelector('#selAll');
   await p.click('#selAll');
-  assert.equal(await p.evaluate(() => st.bulk.size), 7, 'select all did not select every row');
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.bulk.size); }), 7, 'select all did not select every row');
   assert.equal(await p.isChecked('#selAll'), true, 'select all is not ticked when every row is selected');
   await p.click('#selAll');
-  assert.equal(await p.evaluate(() => st.bulk.size), 0, 'a second tick did not clear the selection');
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.bulk.size); }), 0, 'a second tick did not clear the selection');
   assert.equal(await p.isChecked('#selAll'), false, 'select all is still ticked after clearing');
   await p.click('#selAll');
-  assert.equal(await p.evaluate(() => st.bulk.size), 7, 'a third tick did not select again');
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.bulk.size); }), 7, 'a third tick did not select again');
   await p.click('#selAll');
 
   // A filter typed under a column is cleared by Clear filters.

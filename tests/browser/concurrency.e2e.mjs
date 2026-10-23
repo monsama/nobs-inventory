@@ -23,14 +23,14 @@ const person = async () => {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   return p;
 };
 const person2 = async (ctx, login, password) => {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', login); await p.fill('#lgPw', password); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   return p;
 };
 const serverObj = name => loadState(db).objs.find(o => o.name === name);
@@ -41,7 +41,7 @@ const waitServer = async (fn, what) => {
 const editModel = async (p, name, model) => {
   await p.click('#tabsbar [data-tab=table]');
   await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
-  const id = await p.evaluate(n => byName(n).id, name);
+  const id = await p.evaluate(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n).id); }, name);
   await p.fill(`#f_${id}_model`, model); await p.click('#saveBtn');
 };
 
@@ -61,7 +61,7 @@ try {
   await b.waitForSelector('#rfKeep');
   assert.ok((await b.textContent('#mdl')).includes('B SERVER'), 'the refused edit is not listed');
   await b.click('#rfKeep');
-  await b.waitForFunction(() => byName('SRV-ZH-HV01').model === 'A SERVER', null, { timeout: 5000 });
+  await b.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'A SERVER'); }, null, { timeout: 5000 });
   assert.equal(serverObj('SRV-ZH-HV01').model, 'A SERVER', 'the refused edit reached the server');
 
   // 2b. A refused edit can be applied again: B gets A's version, then applies B's own change.
@@ -73,13 +73,13 @@ try {
   await waitServer(() => serverObj('ZH-PC-0142')?.model === 'B SECOND', 'the refused edit, applied again');
 
   // 3. A deletion reaches the other window when it looks for changes. A first looks for changes too, as it does every 15 seconds.
-  await a.evaluate(() => checkForChanges());
+  await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].checkForChanges()); });
   await a.click('#tabsbar [data-tab=table]');
   await a.locator('table.grid td', { hasText: /^MON-0433$/ }).first().click();
   await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
-  await b.evaluate(() => checkForChanges());
-  await b.waitForFunction(() => byName('MON-0433') === undefined, null, { timeout: 5000 });
+  await b.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].checkForChanges()); });
+  await b.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433') === undefined); }, null, { timeout: 5000 });
 
   // 4. A stale window saves an edit to another record: the deleted object does not come back.
   await editModel(b, 'ZH-NB-0201', 'B LAPTOP');

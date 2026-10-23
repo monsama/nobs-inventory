@@ -22,7 +22,7 @@ const waitServer = async (fn, what) => { for (let i = 0; i < 60; i++) { if (fn()
 const openByName = async (p, name) => {
   await p.click('#tabsbar [data-tab=table]');
   await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
-  await p.waitForFunction(n => byName(n) && st.tab === byName(n).id, name);
+  await p.waitForFunction(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
 };
 
 try {
@@ -30,12 +30,12 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
 
   // A relation: the laptop is connected to the switch.
   await openByName(p, 'ZH-NB-0201');
   await p.selectOption('#arKind', 'connected');
-  await p.selectOption('#arTo', await p.evaluate(() => byName('SW-ZH-2OG-01').id));
+  await p.selectOption('#arTo', await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SW-ZH-2OG-01').id); }));
   await p.fill('#arPort', '7'); await p.click('#arAdd');
   await waitServer(() => srv().rels.length === 1, 'the relation');
 

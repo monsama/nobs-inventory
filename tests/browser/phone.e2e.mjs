@@ -20,7 +20,7 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   const sideways = () => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   /* A touch target is at least 36 px high (checkboxes 24 px, the WCAG minimum for them). */
   const smallTargets = () => p.evaluate(() => [...document.querySelectorAll('button, input:not([type=hidden]), select, a')].filter(el => {
@@ -31,7 +31,7 @@ try {
   }).map(el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}`));
   const problems = [];
   for (const tab of ['cards', 'table', 'map', 'plans', 'net', 'rack', 'sw']) {
-    await p.evaluate(t => { st.tab = t; render(); }, tab);
+    await p.evaluate(async t => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = t; __mods[1].render(); }, tab);
     await p.waitForTimeout(150);
     const extra = await sideways();
     if (extra > 1) problems.push(`${tab}: ${extra}px wider than the screen`);

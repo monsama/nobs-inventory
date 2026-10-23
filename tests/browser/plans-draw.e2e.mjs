@@ -19,7 +19,7 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   await p.evaluate(async (png) => {
     const put = await fetch('api/state', {credentials:'same-origin'}); const d = await put.json();
@@ -30,8 +30,8 @@ try {
   }, png);
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
-  await p.waitForFunction(() => objs.length > 0);
-  await p.evaluate(() => { st.tab = 'plans'; render(); });
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'plans'; __mods[1].render(); });
   await p.waitForSelector('#plList');
   assert.equal(await p.locator('#plList .pl-item').count(), 7, 'the devices not on the plan are not listed');
   await p.click('#plArea');

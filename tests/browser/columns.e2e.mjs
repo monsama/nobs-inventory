@@ -19,8 +19,8 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
-  await p.evaluate(() => { localStorage.removeItem('ni-hidden-cols'); st.hiddenCols = null; st.tab = 'table'; render(); });
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); localStorage.removeItem('ni-hidden-cols'); __mods[0].st.hiddenCols = null; __mods[0].st.tab = 'table'; __mods[1].render(); });
   const heads = () => p.$$eval('#view thead th', ths => ths.map(t => t.textContent.trim()));
   let h = await heads();
   assert.ok(!h.includes('Rack'), 'Rack is shown by default: ' + h.join(','));
@@ -34,8 +34,8 @@ try {
   assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['model'], 'the choice was not remembered');
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
-  await p.waitForFunction(() => objs.length > 0);
-  await p.evaluate(() => { st.tab = 'table'; render(); });
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); });
   assert.ok(!(await heads()).includes('Model'), 'the choice was lost after a reload');
   assert.deepEqual(errors, [], 'page errors');
   console.log('columns: all checks passed');

@@ -21,14 +21,14 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(() => objs.length > 0);
+  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.click('#setBtn'); await p.click('#setTabs [data-st=maintenance]');
   await p.click('#frReset'); await p.waitForSelector('#frOk');
   await p.fill('#frWord', 'factory reset'); assert.equal(await p.isDisabled('#frOk'), true, 'a wrong word confirms');
   await p.fill('#frWord', 'FACTORY RESET'); await p.click('#frOk');
   /* the admin who reset keeps the session, so the page reloads straight into the empty inventory */
   await p.waitForSelector('text=The inventory is empty', { timeout: 15000 });
-  assert.equal(await p.evaluate(() => objs.length), 0, 'devices are still there after the reset');
+  assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length); }), 0, 'devices are still there after the reset');
   assert.deepEqual(errors, [], 'page errors');
   console.log('browser factory reset: all checks passed');
 } finally {
