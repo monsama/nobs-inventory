@@ -132,7 +132,8 @@ export const byName = n => objs.find(o => o.name === n);
 
 export const rels = [];
 export const HISTORY = {};
-export const hist = (o, t, msg) => (HISTORY[o.id] ??= []).unshift({t, msg});
+/* The newest entries come first; the server keeps the same number (HISTORY_KEEP). */
+export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift({t, msg}); if (h.length > 500) h.length = 500; };
 
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
