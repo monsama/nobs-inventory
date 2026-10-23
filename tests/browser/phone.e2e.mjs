@@ -22,12 +22,21 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForFunction(() => objs.length > 0);
   const sideways = () => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  /* A touch target is at least 36 px high (checkboxes 24 px, the WCAG minimum for them). */
+  const smallTargets = () => p.evaluate(() => [...document.querySelectorAll('button, input:not([type=hidden]), select, a')].filter(el => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) return false;
+    const min = el.type === 'checkbox' ? 24 : 36;
+    return r.height < min;
+  }).map(el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}`));
   const problems = [];
   for (const tab of ['cards', 'table', 'map', 'plans', 'net', 'rack', 'sw']) {
     await p.evaluate(t => { st.tab = t; render(); }, tab);
     await p.waitForTimeout(150);
     const extra = await sideways();
     if (extra > 1) problems.push(`${tab}: ${extra}px wider than the screen`);
+    const small = await smallTargets();
+    if (small.length) problems.push(`${tab}: controls too small to tap: ${small.slice(0, 5).join(', ')}`);
   }
   await p.click('#setBtn');
   for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {

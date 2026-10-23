@@ -1,4 +1,4 @@
-/* Text contrast in dark theme on the main screens: body text at least 4.5:1, and the large or bold text, buttons and
+/* Text contrast in light and dark theme on the main screens: body text at least 4.5:1, and the large or bold text, buttons and
    chips at least 3:1 (WCAG AA). */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
@@ -20,7 +20,7 @@ try {
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await p.waitForFunction(() => objs.length > 0);
-  await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+  await p.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
   // Measures the text colour of each element against the colour behind it.
   const measure = () => p.evaluate(() => {
     const parse = c => { const m = c.match(/[\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
@@ -45,11 +45,14 @@ try {
     ['settings', async () => { await p.evaluate(() => { document.querySelector('#setBtn').click(); }); await p.waitForSelector('#setTabs'); }],
   ];
   const failures = [];
-  for (const [screen, go] of screens) {
-    await go(); await p.waitForTimeout(150);
-    for (const r of await measure()) if (r.ratio < r.need) failures.push(`${screen}: ${r.name} "${r.text}" ${r.ratio}:1, needs ${r.need}:1`);
+  for (const theme of ['light', 'dark']) {
+    await p.evaluate(t => { document.documentElement.dataset.theme = t; }, theme);
+    for (const [screen, go] of screens) {
+      await go(); await p.waitForTimeout(150);
+      for (const r of await measure()) if (r.ratio < r.need) failures.push(`${theme} ${screen}: ${r.name} "${r.text}" ${r.ratio}:1, needs ${r.need}:1`);
+    }
   }
   if (failures.length) console.log(failures.join('\n'));
-  assert.deepEqual(failures, [], 'text that is too faint in dark theme');
-  console.log('contrast in dark theme: all checks passed');
+  assert.deepEqual(failures, [], 'text that is too faint');
+  console.log('contrast in light and dark theme: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

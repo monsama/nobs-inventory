@@ -424,6 +424,14 @@ details.menu>summary::-webkit-details-marker{display:none}
  #cards{grid-template-columns:minmax(0,1fr)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
+@media (pointer:coarse){
+  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item{min-height:40px}
+  input:not([type=checkbox]):not([type=radio]),select{height:40px}
+  input[type=checkbox],input[type=radio]{width:24px!important;height:24px!important}
+  table.grid tr.fr input{height:36px!important;font-size:14px}
+  button.icon{min-width:40px}
+}
 </style>
 </head>
 <body>
