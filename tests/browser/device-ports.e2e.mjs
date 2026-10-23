@@ -55,6 +55,18 @@ try {
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');
   assert.ok(rows.some(t => t.includes('1.2')), 'the PC row has its version');
+  // Port groups: a named range of the router's ports, with a kind; an overlapping range is refused.
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.click('#tabsbar [data-tab=net]');
+  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'rt1');
+  await p.fill('#pgName', 'Uplinks'); await p.fill('#pgFrom', '7'); await p.fill('#pgTo', '8'); await p.fill('#pgKind', 'SFP+');
+  await p.click('#pgAdd');
+  await until(p, async () => ((await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portGroups || []).length === 1);
+  assert.match(await p.textContent('#view .panelbox:has(#pgAdd)'), /Uplinks[\s\S]*Ports Gi0\/7–Gi0\/8 · SFP\+/, 'the group is listed with its ports and kind');
+  await p.fill('#pgName', 'Clash'); await p.fill('#pgFrom', '8'); await p.fill('#pgTo', '8');
+  await p.click('#pgAdd');
+  await until(p, async () => /already in a group/.test(document.querySelector('#toast').textContent));
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portGroups.length), 1, 'the overlapping group is not added');
   // With a type selected, the locations count only objects of that type.
   const rtSite = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').loc.split(' / ')[0]);
   await p.click('#typeList [data-type=router]');
