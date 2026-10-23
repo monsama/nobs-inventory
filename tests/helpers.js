@@ -55,8 +55,10 @@ export function seedBasics(db) {
   ];
   const history = {};
   objs.forEach(o => { history[o.id] = [{ t: '02.09.2026 14:30', msg: 'Created manually' }]; });
-  const racks = [{ id: 'R-SRV', name: 'ZH-SRV-RACK-01', loc, units: 42 }, { id: 'R-2OG', name: 'ZH-2OG-WALL-01', loc, units: 12 }];
+  /* Racks are objects of type rack. The ids are kept, so devices mounted in them keep their place. */
+  objs.push(base('R-SRV', 'rack', 'ZH-SRV-RACK-01', { code: 'INV-0901', units: 42 }), base('R-2OG', 'rack', 'ZH-2OG-WALL-01', { code: 'INV-0902', units: 12 }));
+  objs.forEach(o => { if (o.type === 'rack') history[o.id] = [{ t: '02.09.2026 14:30', msg: 'Created manually' }]; });
   const s = loadState(db);
   const admin = s.users.find(u => u.login === 'admin');
-  saveState(db, { objs, rels: [], history, users: admin ? [admin] : [], locs: [loc], racks, types: {}, policy: null, ldap: null, mapPos: {}, feedOn: true, feedSync: true, seq: 100 + objs.length, codeN: objs.length, rseq: 0 });
+  saveState(db, { objs, rels: [], history, users: admin ? [admin] : [], locs: [loc], racks: [], types: {}, policy: null, ldap: null, mapPos: {}, feedOn: true, feedSync: true, seq: 100 + objs.length, codeN: objs.length, rseq: 0 });
 }

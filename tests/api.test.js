@@ -159,8 +159,8 @@ test('Lansweeper asset type names land in the matching app type', async () => {
   const { mergeRecords } = await import('../server/feed.js');
   const expected = {
     'Windows': 'pc', 'Apple Mac': 'pc', 'Computer': 'pc', 'Laptop': 'pc', 'Linux': 'server', 'VMware': 'server',
-    'Switch': 'switch', 'Router': 'router', 'Firewall': 'firewall', 'Printer': 'printer', 'Tablet': 'tablet', 'iPad': 'tablet',
-    'iPhone': 'iphone', 'Android': 'android', 'Mobile': 'smartphone', 'Modem': 'modem', 'Phone': 'sip', 'VoIP': 'sip', 'VOIP phone': 'sip', 'DECT': 'sip', 'DECT handset': 'sip', 'Telefon': 'sip', 'Gigaset': 'sip',
+    'Switch': 'switch', 'Router': 'router', 'Firewall': 'firewall', 'Printer': 'printer', 'Tablet': 'mobile', 'iPad': 'ios',
+    'iPhone': 'ios', 'Android': 'android', 'Mobile': 'mobile', 'Modem': 'modem', 'Phone': 'sip', 'VoIP': 'sip', 'VOIP phone': 'sip', 'DECT': 'sip', 'DECT handset': 'sip', 'Telefon': 'sip', 'Gigaset': 'sip',
     'Wireless Access point': 'accesspoint', 'Wifi': 'accesspoint', 'UPS': 'other', 'Network device': 'other', 'Webserver': 'other', 'Web': 'other', 'Virtual machine': 'vm'
   };
   for (const [assetType, type] of Object.entries(expected)) {
@@ -261,7 +261,7 @@ test('the log shows what happened, and a refused push is an error', async () => 
 test('the type table in Settings decides the type of a Lansweeper name; IP-only devices can be skipped', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0,
-    typeMap: { 'DECT base': 'sip', 'IOS': 'iphone' }, skipIpOnly: true };
+    typeMap: { 'DECT base': 'sip', 'IOS': 'ios' }, skipIpOnly: true };
   mergeRecords(s, recordsFromJson([
     { name: 'DB-1', assetType: 'dect base', ref: 'd1' },
     { name: 'IOS-1', assetType: 'IOS', ref: 'i1' },
@@ -269,7 +269,7 @@ test('the type table in Settings decides the type of a Lansweeper name; IP-only 
     { name: '172.21.1.10', serial: 'SW10', assetType: 'Switch', ref: 'n2' }
   ]));
   assert.equal(s.objs.find(o => o.name === 'DB-1').type, 'sip');
-  assert.equal(s.objs.find(o => o.name === 'IOS-1').type, 'iphone');
+  assert.equal(s.objs.find(o => o.name === 'IOS-1').type, 'ios');
   assert.equal(s.objs.some(o => o.name === '172.21.1.9'), false, 'an IP-only device is skipped');
   assert.equal(s.objs.some(o => o.name === '172.21.1.10'), true, 'an IP device with a serial number is kept');
 });
@@ -491,4 +491,21 @@ test('health reports the version; login throttling is per user, not shared by al
     assert.equal((await attempt('admin', '203.0.113.5')).status, 429, 'the attacker is blocked');
     assert.equal((await attempt('admin', '198.51.100.9')).status, 401, 'another client is not blocked by the attacker\'s failures');
   } finally { await srv.close(); }
+});
+
+test('older data is brought up to the current types, and racks become rack objects with their devices still mounted', async () => {
+  const { migrateState } = await import('../server/migrate.js');
+  const s = { objs: [{ id: 'o1', code: 'INV-0001', type: 'iphone', name: 'IPH-1' }, { id: 'o2', code: 'INV-0002', type: 'tablet', name: 'TAB-1' },
+    { id: 'o3', code: 'INV-0003', type: 'server', name: 'SRV-1', rack: 'r1', u: 3, h: 2 }],
+    types: { tablet: { label: 'Tablet' }, pc: { label: 'PC' } }, typeMap: { IOS: 'iphone' }, racks: [{ id: 'r1', name: 'Rack A', loc: 'Basel / Lager', units: 24 }], codeN: 3 };
+  assert.equal(migrateState(s), true);
+  assert.equal(s.objs.find(o => o.id === 'o1').type, 'ios');
+  assert.equal(s.objs.find(o => o.id === 'o2').type, 'mobile');
+  assert.equal(s.types.tablet, undefined, 'the old tablet type is still in the type table');
+  assert.equal(s.typeMap.IOS, 'ios');
+  const rack = s.objs.find(o => o.id === 'r1');
+  assert.deepEqual([rack.type, rack.name, rack.loc, rack.units], ['rack', 'Rack A', 'Basel / Lager', 24]);
+  assert.equal(s.objs.find(o => o.id === 'o3').rack, 'r1', 'the device lost its rack');
+  assert.deepEqual(s.racks, []);
+  assert.equal(migrateState(s), false, 'running the migration again changed something');
 });
