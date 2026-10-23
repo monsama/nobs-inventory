@@ -1,3 +1,8 @@
+import { $, st } from './01-core.js';
+import { newObjModal } from './05-new-object.js';
+import { me, openSettings } from './04-settings.js';
+import { accountModal, loginModal, render, signOut } from './07-render-plans.js';
+import { openObj } from './02-views.js';
 /* ---------- top bar ---------- */
 $('#newBtn').onclick = () => newObjModal();
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
@@ -15,14 +20,14 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-open
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
-let TBL = {};
+export let TBL = {};
 try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch { TBL = {}; }
-const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
-function tableKey(t){
+export const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
+export function tableKey(t){
   const scope = t.closest('#mdl') || $('#view');
   return (t.closest('#mdl') ? 'modal' : 'view') + ':' + st.tab + ':' + [...scope.querySelectorAll('table.grid')].indexOf(t);
 }
-function applyTable(t){
+export function applyTable(t){
   const s = TBL[tableKey(t)]; const head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
   [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
@@ -31,14 +36,14 @@ function applyTable(t){
   applyView(t);
 }
 /* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */
-const dateKey = v => { const m = v.match(/^(\d{2})\.(\d{2})\.(\d{4})(?: (\d{2}):(\d{2}))?/); return m ? Number(m[3] + m[2] + m[1] + (m[4] || '00') + (m[5] || '00')) : null; };
-const numKey = v => /^-?\d+([.,]\d+)?$/.test(v) ? parseFloat(v.replace(',', '.')) : null;
-function cmpCells(x, y){
+export const dateKey = v => { const m = v.match(/^(\d{2})\.(\d{2})\.(\d{4})(?: (\d{2}):(\d{2}))?/); return m ? Number(m[3] + m[2] + m[1] + (m[4] || '00') + (m[5] || '00')) : null; };
+export const numKey = v => /^-?\d+([.,]\d+)?$/.test(v) ? parseFloat(v.replace(',', '.')) : null;
+export function cmpCells(x, y){
   const dx = dateKey(x), dy = dateKey(y); if (dx !== null && dy !== null) return dx - dy;
   const nx = numKey(x), ny = numKey(y); if (nx !== null && ny !== null) return nx - ny;
   return x.localeCompare(y, 'de', {numeric: true});
 }
-function applyView(t){
+export function applyView(t){
   const s = TBL[tableKey(t)], head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
   const heads = [...head.cells];
@@ -53,7 +58,7 @@ function applyView(t){
     const tb = t.tBodies[0]; if (tb) rows.forEach(r => tb.appendChild(r));
   }
 }
-function resizeStart(e, t, th){
+export function resizeStart(e, t, th){
   e.preventDefault(); e.stopPropagation();
   const s = TBL[tableKey(t)], x0 = e.clientX, w0 = th.getBoundingClientRect().width;
   const move = ev => { th.style.width = Math.max(40, w0 + ev.clientX - x0) + 'px'; t.style.tableLayout = 'fixed'; };
@@ -63,7 +68,7 @@ function resizeStart(e, t, th){
   };
   document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
 }
-function setupTable(t){
+export function setupTable(t){
   const head = t.tHead && t.tHead.rows[0];
   if (!head || t.dataset.tb) return;
   t.dataset.tb = '1';

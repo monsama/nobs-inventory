@@ -1,5 +1,9 @@
+import { $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { render } from './07-render-plans.js';
+import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
+import { newObjModal } from './05-new-object.js';
 /* ---------- racks ---------- */
-function renderRack(){
+export function renderRack(){
   const racks = racksList();
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet. Add an object and pick the type Rack.</div>'; return; }
@@ -39,7 +43,7 @@ function renderRack(){
 }
 
 /* ---------- object page ---------- */
-const FIELDS = {
+export const FIELDS = {
   base:[['name','Name','mono'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
@@ -49,7 +53,7 @@ const FIELDS = {
   accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], other:[]
 };
-function fieldCtl(o, [k, label, kind], idp = 'f_'){
+export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
@@ -60,10 +64,10 @@ function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else ctl = `<input id="${id}" data-k="${k}" class="${kind==='mono'?'mono':''}" value="${esc(o[k] ?? '')}">`;
   return ctl;
 }
-const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
+export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
-function propRow(o, f){
+export function propRow(o, f){
   const k = f[0];
   const linked = LS_ON() && !!o.feed && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
@@ -73,13 +77,13 @@ function propRow(o, f){
   return `<label for="f_${o.id}_${k}">${f[1]}</label><div class="ctlrow">${ctl}${box}</div>`;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
-function extraRows(o, fields){
+export function extraRows(o, fields){
   if (!o.feed || !LS_ON()) return '';
   return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
     .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
-function feedPanel(o){
+export function feedPanel(o){
   if (!LS_ON()) return '';
   const s = syncOf(o);
   const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
@@ -98,8 +102,8 @@ function feedPanel(o){
   return `<div class="panelbox">${head}${dl(`<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (switch ports, monitors, hosts)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
-const SW_TYPES = ['pc','server'];
-function softwarePanel(o){
+export const SW_TYPES = ['pc','server'];
+export function softwarePanel(o){
   const list = o.software || [];
   return `<div class="panelbox"><div class="hdr">Software <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${list.length} installed</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
@@ -107,7 +111,7 @@ function softwarePanel(o){
     </tbody></table></div>
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`;
 }
-function bindSoftware(o){
+export function bindSoftware(o){
   $('#view').querySelectorAll('[data-swdel]').forEach(b => b.onclick = () => {
     const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); render();
   });
@@ -120,7 +124,7 @@ function bindSoftware(o){
   };
 }
 /* Every package across the PCs and servers; pick one to list where it is installed. */
-function renderSoftware(){
+export function renderSoftware(){
   const map = {};
   objs.forEach(o => (o.software || []).forEach(p => {
     (map[p.name] ??= {name: p.name, versions: new Set(), devices: []});
@@ -137,7 +141,7 @@ function renderSoftware(){
   $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.swSel = st.swSel === tr.dataset.sw ? null : tr.dataset.sw; render(); });
 }
 /* A patch panel's ports, with the device on each one and the trunk into the switch. */
-function patchPanel(o){
+export function patchPanel(o){
   const ports = [];
   for (let n = 1; n <= o.ports; n++){
     const label = 'P' + pad2(n);
@@ -149,14 +153,14 @@ function patchPanel(o){
     <div class="pp">${ports.join('')}</div></div>`;
 }
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
-function purgeModal(o){
+export function purgeModal(o){
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
     <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p></div>
     <div class="mf"><button id="pgCancel">Cancel</button><button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }
-function deleteObject(id){
+export function deleteObject(id){
   const i = objs.findIndex(x => x.id === id); if (i < 0) return;
   objs.splice(i, 1);
   for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
@@ -168,10 +172,10 @@ function deleteObject(id){
   if (st.tab === id) st.tab = 'table';
   render();
 }
-const COLLAPSED_KEY = 'ni-collapsed-panels';
-const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch { return {}; } };
-const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch { /* not kept: the panel opens as before */ } };
-function renderObj(o){
+export const COLLAPSED_KEY = 'ni-collapsed-panels';
+export const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch { return {}; } };
+export const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch { /* not kept: the panel opens as before */ } };
+export function renderObj(o){
   const rs = relsOf(o);
   const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
   const chain = pathUp(o);
@@ -326,7 +330,7 @@ function renderObj(o){
 }
 
 /* ---------- modals ---------- */
-function modal(html, cls=''){
+export function modal(html, cls=''){
   if (!$('#mdl')) modalOpener = document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
   const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
@@ -337,8 +341,8 @@ function modal(html, cls=''){
   applyRole();
 }
 /* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
-let modalOpener = null;
-const closeModal = () => { $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus(); };
+export let modalOpener = null;
+export const closeModal = () => { $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus(); };
 document.addEventListener('keydown', e => {
   if (!$('#mdl')) return;
   if (e.key === 'Escape' && $('#mdl .locked')) return;
@@ -352,8 +356,8 @@ document.addEventListener('keydown', e => {
 });
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
-const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>`;
-function bindPolicy(root){
+export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>`;
+export function bindPolicy(root){
   root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => { st.policy[c.dataset.pol] = c.checked; render(); });
 }
 

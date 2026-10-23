@@ -1,9 +1,14 @@
+import { $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, toast } from './01-core.js';
+import { closeModal, modal } from './03-object-modals.js';
+import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
+import { flushSave, render } from './07-render-plans.js';
+import { openObj } from './02-views.js';
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */
-const linkCandidates = () => objs.filter(o => o.type !== 'rack' && !(o.type === 'server' && o.kind === 'vm'));
+export const linkCandidates = () => objs.filter(o => o.type !== 'rack' && !(o.type === 'server' && o.kind === 'vm'));
 /* The device an object is plugged into (its first connection), if any. */
-const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached','patched'].includes(x.kind)); return r ? byId(r.to) : null; };
-function newObjModal(pre={}){
+export const plugOf = o => { const r = rels.find(x => x.from === o.id && ['connected','attached','patched'].includes(x.kind)); return r ? byId(r.to) : null; };
+export function newObjModal(pre={}){
   const c = pre.copy;
   modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>
     <div class="mb"><div class="form" style="padding:0">

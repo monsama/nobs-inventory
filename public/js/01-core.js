@@ -1,7 +1,7 @@
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
-const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
-const ICON = {
+export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
+export const ICON = {
   pc:'<path d="M3 4h18v12H3z"/><path d="M8 20h8M12 16v4"/>',
   server:'<rect x="3" y="3" width="18" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/>',
   sip:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 5h8v5H8z"/><path d="M9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01"/>',
@@ -25,7 +25,7 @@ const ICON = {
   modem:'<rect x="3" y="12" width="18" height="7" rx="1"/><path d="M7 12V5M12 19v2M16 15h.01M19 15h.01"/>',
   other:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/>'
 };
-const svg = (t, cls='i') => {
+export const svg = (t, cls='i') => {
   const T = TYPES[t] || {};
   if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${T.svgView}">${T.svgInner}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24">${ICON[T.icon] || ICON.other}</svg>`;
@@ -33,7 +33,7 @@ const svg = (t, cls='i') => {
 
 /* ---------- reference data ---------- */
 /* Object types are data: name, short name, colour and icon. Edited in Settings → Object types. */
-const TYPES = {
+export const TYPES = {
   pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
@@ -55,23 +55,25 @@ const TYPES = {
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 /* A copy of the built-in types, used when a server has none saved yet. */
-const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
-const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
-const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
-const LOCS = [];
+export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
+export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack'];
+export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
+export const LOCS = [];
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
-const SITES = [];
+export const SITES = [];
 /* Racks are objects of type rack. Their height is the units field. */
-const racksList = () => objs.filter(o => o.type === 'rack');
-const rackUnits = r => r.units || 42;
-let PLANS = [];
+export const racksList = () => objs.filter(o => o.type === 'rack');
+export const rackUnits = r => r.units || 42;
+export let PLANS = [];
+/* Other modules change the list through this, since an imported name cannot be assigned. */
+export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
-const LS_ON = () => st.useLansweeper !== false;
+export const LS_ON = () => st.useLansweeper !== false;
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
-const PW_MIN = 12;
-const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
+export const PW_MIN = 12;
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
-const KINDS = {
+export const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
   connected:{fwd:'connected to', rev:'connects'},
   patched:{fwd:'patched to', rev:'patched from'},
@@ -80,36 +82,36 @@ const KINDS = {
   docked:{fwd:'docked at', rev:'docks'},
   hosted:{fwd:'hosted on', rev:'hosts'}
 };
-const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server'], connected:['switch','sip','patch'], patched:['patch'], uplink:['switch','firewall','router'], downlink:['switch'], docked:['monitor','pc'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 /* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
-const rid = () => Math.random().toString(36).slice(2, 10);
-const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
+export const rid = () => Math.random().toString(36).slice(2, 10);
+export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
-const objs = [];
-const byId = id => objs.find(o => o.id === id);
+export const objs = [];
+export const byId = id => objs.find(o => o.id === id);
 /* The browser tests look objects up by name; the page itself finds them by id. */
-// eslint-disable-next-line no-unused-vars
-const byName = n => objs.find(o => o.name === n);
+export const byName = n => objs.find(o => o.name === n);
 
-const rels = [];
-const HISTORY = {};
-const hist = (o, t, msg) => (HISTORY[o.id] ??= []).unshift({t, msg});
+export const rels = [];
+export const HISTORY = {};
+export const hist = (o, t, msg) => (HISTORY[o.id] ??= []).unshift({t, msg});
 
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
+export const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
-let APP_VERSION = '';
+export let APP_VERSION = '';
+export const setAppVersion = v => { APP_VERSION = v; };
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 
 /* Where an object stands with Lansweeper. The card, the table and the Source panel all read this, so they always agree. */
-function syncOf(o){
+export function syncOf(o){
   if (!LS_ON()) return null;
   if (o.excluded) return {k: 'excluded', label: 'Not synced · excluded', cls: 'kept'};
   if (o.detached) return {k: 'detached', label: 'Not synced · detached', cls: 'warn'};
@@ -118,35 +120,35 @@ function syncOf(o){
   if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
   return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
 }
-const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
+export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
-const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+export const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const tcol = t => TYPES[t]?.color || '#888';
-const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
-const pad2 = n => String(n).padStart(2, '0');
+export const $ = s => document.querySelector(s);
+export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const tcol = t => TYPES[t]?.color || '#888';
+export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
+export const pad2 = n => String(n).padStart(2, '0');
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
-const pfxOf = o => o.pfx ?? '';
-const portLabel = (target, p) => {
+export const pfxOf = o => o.pfx ?? '';
+export const portLabel = (target, p) => {
   if (p == null) return '';
   if (typeof p === 'number' && target.type === 'switch') return pfxOf(target) + p;
   return String(p);
 };
-const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
+export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
   const out = r.from === o.id;
   const other = byId(out ? r.to : r.from);
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: portLabel(byId(r.to), r.port)};
 });
-const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
-function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
-const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
-const isUplink = k => k === 'uplink' || k === 'downlink';
+export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+export function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
+export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
+export const isUplink = k => k === 'uplink' || k === 'downlink';
 
-function filtered(){
+export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
   const scoped = !(st.searchAll && q);
@@ -155,7 +157,7 @@ function filtered(){
 }
 
 /* The way up from a device to the core: follow outgoing relations. */
-function pathUp(o){
+export function pathUp(o){
   const chain = [{o}]; const seen = new Set([o.id]); let cur = o;
   for (let i = 0; i < 8; i++){
     const r = rels.find(r => r.from === cur.id && r.kind !== 'downlink' && !seen.has(r.to));
@@ -165,3 +167,7 @@ function pathUp(o){
   return chain;
 }
 
+export function daysSince(stamp){
+  const m = /^(\d\d)\.(\d\d)\.(\d{4}) (\d\d):(\d\d)$/.exec(stamp || '');
+  return m ? (Date.now() - new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5])) / 864e5 : 0;
+}

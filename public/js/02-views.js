@@ -1,5 +1,11 @@
+import { $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { SERVER, render } from './07-render-plans.js';
+import { TBL, saveTBL } from './06-topbar.js';
+import { newObjModal } from './05-new-object.js';
+import { USERS, bindUser, checkAddress, devicesOf, rackOf, showDevicesOf } from './04-settings.js';
+import { closeModal, modal } from './03-object-modals.js';
 /* ---------- sidebar ---------- */
-function renderSide(){
+export function renderSide(){
   const cnt = f => objs.filter(f).length;
   $('#typeList').innerHTML =
     `<button class="item ${!st.type?'sel':''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
@@ -23,8 +29,8 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Switch ports', rack:'Racks', sw:'Software'};
-function renderTabs(){
+export const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Switch ports', rack:'Racks', sw:'Software'};
+export function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   $('#tabsbar').innerHTML = ids.map(id => {
     if (FIXED_TABS[id]) return `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}</button>`;
@@ -45,7 +51,7 @@ function renderTabs(){
   });
 }
 /* Moved the way NOBS SQL does it: after the target when moving right, before it when moving left. */
-function reorderTabs(src, tgt){
+export function reorderTabs(src, tgt){
   const arr = st.tabIds, a = arr.indexOf(src), b = arr.indexOf(tgt);
   if (a < 0 || b < 0) return;
   arr.splice(a, 1);
@@ -53,21 +59,21 @@ function reorderTabs(src, tgt){
   arr.splice(a < b ? nb + 1 : nb, 0, src);
   render();
 }
-function closeObjTab(id){
+export function closeObjTab(id){
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
   if (st.tab === id) st.tab = 'cards';
   render();
 }
 /* Closes every open object tab except `keep` (or all of them when keep is null). The views stay open. */
-function closeObjTabs(keep){
+export function closeObjTabs(keep){
   st.open = st.open.filter(x => x === keep);
   st.tabIds = st.tabIds.filter(x => FIXED_TABS[x] || x === keep);
   if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || 'cards';
   render();
 }
-let tabMenu = null;
-function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
-function showTabMenu(e, id){
+export let tabMenu = null;
+export function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
+export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
   tabMenu.className = 'tabmenu';
@@ -89,10 +95,10 @@ $('#tabsbar').addEventListener('click', e => {
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]'); if (t){ st.tab = t.dataset.tab; render(); }
 });
-function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
+export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
 /* ---------- cards ---------- */
-function cardHtml(o){
+export function cardHtml(o){
   const rs = relsOf(o);
   const lines = [];
   if (o.ip) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
@@ -113,7 +119,7 @@ function cardHtml(o){
     <div class="cf"><span class="code">${esc(o.code)}</span>${syncChip(o)}<span class="grow"></span>${rs.length} relations</div>
   </button>`;
 }
-function renderCardsBody(){
+export function renderCardsBody(){
   const list = filtered();
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
@@ -148,9 +154,9 @@ function renderCardsBody(){
   if (ea) ea.onclick = () => setAll(false);
 }
 
-function renderCards(){ renderCardsBody(); addSearchHits(); }
+export function renderCards(){ renderCardsBody(); addSearchHits(); }
 /* When the search matches a person or a place, those come first as buttons. */
-function addSearchHits(){
+export function addSearchHits(){
   const q = st.q.trim().toLowerCase(); if (!q) return;
   const people = USERS.filter(u => [u.name, u.login, u.dept].some(v => v && v.toLowerCase().includes(q)));
   const locs = LOCS.filter(l => l.toLowerCase().includes(q));
@@ -162,7 +168,7 @@ function addSearchHits(){
 
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
-const TABLE_COLS = [
+export const TABLE_COLS = [
   {k:'code', label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
   {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b></td>`},
   {k:'type', label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
@@ -179,23 +185,23 @@ const TABLE_COLS = [
   {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
 ];
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-const DEFAULT_HIDDEN_COLS = ['rack'];
-function hiddenCols(){
+export const DEFAULT_HIDDEN_COLS = ['rack'];
+export function hiddenCols(){
   if (!st.hiddenCols){
     try { st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS; } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
 }
-function setHiddenCols(list){
+export function setHiddenCols(list){
   st.hiddenCols = list;
   try { localStorage.setItem('ni-hidden-cols', JSON.stringify(list)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 }
-function columnsMenu(){
+export function columnsMenu(){
   const hidden = hiddenCols();
   return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${TABLE_COLS.map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
 }
 
-function renderTable(){
+export function renderTable(){
   const list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk ??= new Set();
@@ -232,7 +238,7 @@ function renderTable(){
 }
 
 /* CSV: a plain comma or semicolon file, first row is the header. */
-function parseCsv(text){
+export function parseCsv(text){
   const rows = []; let row = [], cell = '', q = false;
   for (let i = 0; i < text.length; i++){
     const c = text[i];
@@ -246,8 +252,8 @@ function parseCsv(text){
   return rows.filter(r => r.some(x => x.trim()));
 }
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
-const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-function exportCsv(list){
+export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+export function exportCsv(list){
   const head = ['code','name','type','model','serial','ip','mac','location','user','status'];
   const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label].map(csvCell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
@@ -255,7 +261,7 @@ function exportCsv(list){
   document.body.appendChild(a); a.click(); a.remove();
   toast('Exported ' + list.length + ' rows');
 }
-function importCsvModal(){
+export function importCsvModal(){
   modal(`<div class="mh">Import objects from CSV</div>
     <div class="mb">
       <p class="note">The first row is the header. Columns: <span class="mono">name, type, model, serial, ip, mac, location, user</span>. Type is an object type name. Location must match a location exactly. Comma or semicolon separated. Rows with a problem are shown and skipped.</p>
@@ -311,13 +317,13 @@ function importCsvModal(){
 /* ---------- relationship map ----------
    Like the ER diagram in NOBS SQL: boxes with a header, right-angled lines between them, the line's kind and port
    written on it. Hover a box to light up its lines. Drag a box to move it, drag the background to pan, Ctrl + wheel to zoom. */
-const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
-const MAP_W = 200, MAP_STEP = 340;
-const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
+export const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
+export const MAP_W = 200, MAP_STEP = 340;
+export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
-const mapH = () => 91;
+export const mapH = () => 91;
 
-function mapLayout(nodes){
+export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
   const E = rels.filter(r => ids.has(r.from) && ids.has(r.to));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
@@ -367,7 +373,7 @@ function mapLayout(nodes){
    the points on a side are spread evenly and follow the order of the boxes at the other end, so lines do not fan out
    from one spot. Lines that share a gap between two columns (or two stacked rows) get separate lanes in that gap,
    so their runs stay apart. The label sits at the end that has the port. */
-function mapRoutes(L){
+export function mapRoutes(L){
   const items = L.edges.map(r => {
     const pa = L.pos[r.from], pb = L.pos[r.to];
     if (pa.x + MAP_W < pb.x) return {r, pa, pb, sa: 'R', sb: 'L', across: true};
@@ -414,11 +420,11 @@ function mapRoutes(L){
     return {d, A, B, lx, ly, anchor: it.sb === 'L' ? 'end' : 'start'};
   });
 }
-const MAP_SHORT = {attached:'attached', connected:'connected', patched:'patched', uplink:'uplink', downlink:'downlink', docked:'docked', hosted:'hosted'};
+export const MAP_SHORT = {attached:'attached', connected:'connected', patched:'patched', uplink:'uplink', downlink:'downlink', docked:'docked', hosted:'hosted'};
 
 /* The drawing as SVG markup. The same markup is used on screen and in the export.
    Line labels are hidden until a line is hovered, or until Labels is switched on. */
-function mapInner(L){
+export function mapInner(L){
   const routes = mapRoutes(L);
   const edges = L.edges.map((r, i) => {
     const a = byId(r.from), b = byId(r.to), p = routes[i];
@@ -443,26 +449,26 @@ function mapInner(L){
   return `<g class="medges">${edges}</g><g class="mnodes">${nodes}</g>`;
 }
 /* Key for the map: which colour is which type, and what a line label says. */
-function mapLegend(L){
+export function mapLegend(L){
   const types = [...new Set(L.list.map(o => o.type))];
   return `<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
     <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
     <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
 }
-function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
-function mapBox(L){
+export function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
+export function mapBox(L){
   const xs = L.list.map(o => L.pos[o.id].x), ys = L.list.map(o => L.pos[o.id].y);
   const x0 = Math.min(...xs), y0 = Math.min(...ys);
   const x1 = Math.max(...L.list.map(o => L.pos[o.id].x + MAP_W)), y1 = Math.max(...L.list.map(o => L.pos[o.id].y + mapH(o)));
   return {x0, y0, x1, y1};
 }
-function mapFit(){
+export function mapFit(){
   const L = MAP.L; if (!L || !L.list.length || !$('#mapSvg')) return;
   const svg = $('#mapSvg'), W = svg.clientWidth, H = svg.clientHeight, b = mapBox(L);
   const z = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.y1 - b.y0), 1.2);
   MAP.zoom = z; MAP.px = (W - (b.x0 + b.x1) * z) / 2; MAP.py = (H - (b.y0 + b.y1) * z) / 2; mapApply();
 }
-function mapHighlight(id){
+export function mapHighlight(id){
   const svg = $('#mapSvg'); if (!svg) return;
   if (!id){ svg.classList.remove('focus'); svg.querySelectorAll('.hi').forEach(e => e.classList.remove('hi')); return; }
   const nb = new Set([id]);
@@ -470,7 +476,7 @@ function mapHighlight(id){
   svg.querySelectorAll('.mnode').forEach(n => n.classList.toggle('hi', nb.has(n.dataset.id)));
   svg.classList.add('focus');
 }
-function mapExportSvg(){
+export function mapExportSvg(){
   const L = MAP.L, b = mapBox(L), pad = 20, w = b.x1 - b.x0 + 2 * pad, h = b.y1 - b.y0 + 2 * pad;
   const shifted = {...L, pos: Object.fromEntries(Object.entries(L.pos).map(([k,p]) => [k, {x: p.x - b.x0 + pad, y: p.y - b.y0 + pad}]))};
   let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="system-ui, sans-serif">${mapInner(shifted)}</svg>`;
@@ -478,7 +484,7 @@ function mapExportSvg(){
   return s.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#888');
 }
 
-function renderMap(){
+export function renderMap(){
   const nodes = filtered();
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
@@ -548,7 +554,7 @@ function renderMap(){
 window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(); });
 
 /* ---------- switch ports ---------- */
-function renderNet(){
+export function renderNet(){
   const sws = objs.filter(o => o.type === 'switch');
   if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No switches yet. Add a switch object to see its ports.</div>'; return; }
   const sw = byId(st.netSw) || sws[0];
