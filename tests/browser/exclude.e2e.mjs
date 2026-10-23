@@ -60,14 +60,14 @@ try {
   // Clear inventory keeps the excluded objects and the relation between them.
   await p.click('#setBtn'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.click('#clrOk');
-  await waitServer(() => srv().objs.length === 2, 'the clear that keeps excluded objects');
-  assert.deepEqual(srv().objs.map(o => o.name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201']);
+  await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 2 && srv().objs.filter(o => o.type === 'rack').length === 2, 'the clear keeps excluded objects and the racks');
+  assert.deepEqual(srv().objs.filter(o => o.type !== 'rack').map(o => o.name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201']);
   assert.equal(srv().rels.length, 1, 'the relation between kept objects was removed');
 
   // With the box ticked, the excluded objects go too.
   await p.click('#setBtn'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrAll'); await p.click('#clrOk');
-  await waitServer(() => srv().objs.length === 0 && srv().rels.length === 0, 'the clear of protected objects');
+  await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 0 && srv().rels.length === 0, 'the clear of protected objects');
 
   assert.deepEqual(errors, [], 'page errors');
   console.log('browser exclude from sync: all checks passed');

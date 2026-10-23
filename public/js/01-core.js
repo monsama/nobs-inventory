@@ -193,6 +193,8 @@ export const releaseRetiredPort = (to, port) => {
   }
   return true;
 };
+/* A patch panel port is written P01, P02 ... whatever the person typed. */
+export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
 export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
 export const isUplink = k => k === 'uplink';
 
@@ -200,7 +202,7 @@ export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
   const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || o.loc.startsWith(st.loc)) && (!st.status || o.status === st.status)))
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status)))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

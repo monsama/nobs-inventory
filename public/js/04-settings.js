@@ -1,6 +1,6 @@
 import { daysSince } from './01-core.js';
 import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, BUILTIN, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
@@ -461,7 +461,7 @@ export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.t
 export function renderSetVlans(){
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head"><span>VLAN</span><span>Name</span><span class="n">Used by</span><span></span></div>
-    ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow"><span class="mono">${v.vid}</span><input data-vn="${i}" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><span class="n">${n}</span>
+    ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><span class="n">${n}</span>
       <button data-vd="${i}" ${n ? `disabled title="In use by ${n} connections"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
     <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><button id="vlAdd" class="primary">Add VLAN</button></div>
     <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;
@@ -541,6 +541,8 @@ export function renameSite(old, value){
   const move = l => (l === old || String(l || '').startsWith(old + ' / ')) ? name + String(l).slice(old.length) : l;
   LOCS.forEach((l, i) => { LOCS[i] = move(l); });
   objs.forEach(o => { if (o.loc) o.loc = move(o.loc); });
+  /* Plans and their areas follow the rename, so the devices stay on them. */
+  PLANS.forEach(p => { if (p.site === old) p.site = name; (p.areas || []).forEach(a => { if (a.room) a.room = move(a.room); }); });
   if (st.loc) st.loc = move(st.loc);
   renderSetLocs(); render();
 }
@@ -551,6 +553,7 @@ export function renameLoc(old, value){
   if (name === old) return;
   LOCS[LOCS.indexOf(old)] = name;
   objs.forEach(o => { if (o.loc === old) o.loc = name; });
+  PLANS.forEach(p => (p.areas || []).forEach(a => { if (a.room === old) a.room = name; }));
   if (st.loc === old) st.loc = name;
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
@@ -610,7 +613,7 @@ export function renderSetTypeFields(){
     <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
     <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
     <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><span>${esc(f.label)}</span><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
+    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
   box.querySelectorAll('[data-tfd]').forEach(b => b.onclick = () => {
     list.splice(+b.dataset.tfd, 1); if (!list.length) delete TYPE_FIELDS[type];
