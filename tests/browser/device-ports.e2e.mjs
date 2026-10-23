@@ -120,6 +120,17 @@ try {
   await p.click('#arAdd');
   await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.lag === 'Peer' && r.fromLag === 'Core' && r.port === null));
   assert.match(await p.textContent('#view'), /LAG Peer/, 'the LAG link is listed on the card');
+  // A port held by a retired device is taken over by a new connection; the retired device's connection is removed.
+  await p.evaluate(async () => {
+    const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
+    core.objs.push({ id: 'old1', code: 'INV-9401', type: 'pc', name: 'OLD-PC', status: 'retired', loc, ovr: {}, feed: null });
+    core.rels.push({ id: 'oldlink', from: 'old1', to: 'o1', kind: 'connected', port: 9, vlan: null });
+    const views = await import('/js/02-views.js'); views.openObj('o3');
+  });
+  await p.waitForSelector('#arKind');
+  await p.selectOption('#arKind', 'connected'); await p.selectOption('#arTo', 'o1'); await p.fill('#arPort', '9'); await p.click('#arAdd');
+  await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'o3' && r.to === 'o1' && r.port === 9));
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).rels.some(r => r.id === 'oldlink')), false, 'the retired connection is removed');
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
