@@ -1,6 +1,6 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { TYPE_FIELDS, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
@@ -337,7 +337,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, vlans: VLANS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {locs: LOCS, sites: SITES, vlans: VLANS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -468,6 +468,8 @@ export function applyState(d){
   setUsers(d.users); LOCS.splice(0, LOCS.length, ...d.locs);
   SITES.splice(0, SITES.length, ...(d.sites || []));
   VLANS.splice(0, VLANS.length, ...(d.vlans || []));
+  for (const k of Object.keys(TYPE_FIELDS)) delete TYPE_FIELDS[k];
+  Object.assign(TYPE_FIELDS, d.typeFields || {});
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.typeMap = d.typeMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
@@ -564,6 +566,7 @@ export function showUnreachable(){
 /* Before sign-in the page holds no inventory. */
 export function clearInventory(){
   objs.length = 0; rels.length = 0; LOCS.length = 0; VLANS.length = 0; setUsers([]);
+  for (const k of Object.keys(TYPE_FIELDS)) delete TYPE_FIELDS[k];
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]);
   st.open = []; st.tab = 'cards';
 }

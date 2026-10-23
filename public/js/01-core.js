@@ -67,6 +67,8 @@ export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock'
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
+/* The hand-entered fields of each type, from Settings: { type: [{key, label, kind}] }. */
+export const TYPE_FIELDS = {};
 export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return v ? `${v.vid} · ${v.name}` : String(vid); };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 export const SITES = [];
