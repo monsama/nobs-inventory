@@ -1278,7 +1278,7 @@ function renderSetUsers(){
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
-      <td>${SERVER.on && u.login && u.source !== 'ldap' ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : ''}</td>
+      <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login and password">Set login</button>`) : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -1289,6 +1289,7 @@ function renderSetUsers(){
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => { USERS[+c.dataset.act].active = c.checked; renderSetUsers(); });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
+  root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
     const u = USERS[+sel.dataset.role], admins = USERS.filter(x => x.role === 'admin').length;
     if (u.role === 'admin' && sel.value !== 'admin' && admins <= 1){ toast('At least one admin is needed.'); renderSetUsers(); return; }
@@ -1308,9 +1309,32 @@ function renderSetUsers(){
     if (login){
       await flushSave();
       const r = await fetch('api/users/' + encodeURIComponent(u.id) + '/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({password: pw})});
-      if (!r.ok){ toast('Added ' + name + ', but the password was not set. Use Password in the list.'); renderSetUsers(); return; }
+      if (!r.ok){ toast('Added ' + name + ', but the password was not set. Use Password in the list.'); st.setTab = 'users'; openSettings(); return; }
     }
-    toast('Added ' + name); renderSetUsers();
+    toast('Added ' + name); st.setTab = 'users'; openSettings();
+  };
+}
+/* A manual user without a login: the login and the first password are set together, so the user can sign in at once. */
+function userLoginModal(u){
+  modal(`<div class="mh">Login for ${esc(u.name)}</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="lgNew">Login</label><input id="lgNew" class="mono" autocomplete="off">
+      <label for="lgNewPw">Password</label><input id="lgNewPw" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+    </div><p class="note" id="lgNewErr">The login and password let ${esc(u.name)} sign in.</p></div>
+    <div class="mf"><button id="lgNewCancel">Cancel</button><button id="lgNewOk" class="primary">Save</button></div>`, 'sm');
+  $('#lgNew').focus();
+  $('#lgNewCancel').onclick = closeModal;
+  $('#lgNewOk').onclick = async () => {
+    const login = $('#lgNew').value.trim(), pw = $('#lgNewPw').value;
+    const fail = msg => { $('#lgNewErr').textContent = msg; };
+    if (!login) return fail('Write a login.');
+    if (USERS.some(x => x !== u && (x.login || '').toLowerCase() === login.toLowerCase())) return fail('That login is already used.');
+    if (pw.length < 8) return fail('The password needs at least 8 characters.');
+    u.login = login; queueServerSave(); await flushSave();
+    const r = await fetch('api/users/' + encodeURIComponent(u.id) + '/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({password: pw})});
+    closeModal();
+    toast(r.ok ? u.name + ' can sign in as ' + login : 'The login is saved, but the password was not set. Use Password in the list.');
+    st.setTab = 'users'; openSettings();
   };
 }
 /* Shows one user's devices in Cards, by searching for the name. */
