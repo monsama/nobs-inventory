@@ -168,7 +168,7 @@ export const portLabel = (target, p) => {
 export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
   const out = r.from === o.id;
   const other = byId(out ? r.to : r.from);
-  return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: portLabel(byId(r.to), r.port)};
+  return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
 });
 export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 export function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }

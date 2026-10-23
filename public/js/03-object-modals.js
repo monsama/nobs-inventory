@@ -202,10 +202,10 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       <div class="panelbox"><div class="hdr">Relations <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${rs.length}</span></div>
-        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${(hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
+        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
-          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
+          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="muted">none</span>'}</summary>
         ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This object does not hang off anything.</span></div>'}
@@ -244,12 +244,43 @@ export function renderObj(o){
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
-  $('#arKind').onchange = () => { fitTargets(); kindHint(); portHint(); };
-  $('#arTo').onchange = portHint;
+  $('#arKind').onchange = () => { fitTargets(); kindHint(); portHint(); lagRow(); };
+  $('#arTo').onchange = () => { portHint(); lagRow(); };
+  /* A LAG is chosen on both devices when the target has LAGs; the single port is then not used. */
+  const lagRow = () => {
+    const to = $('#arTo').value ? byId($('#arTo').value) : null;
+    const lags = to ? (to.portGroups || []).filter(g => g.lag) : [];
+    const own = (o.portGroups || []).filter(g => g.lag);
+    const size = g => `${g.to - g.from + 1} ports`;
+    /* The choice is kept while the list is rebuilt, for example when the target changes. */
+    const picked = $('#arLag').hidden ? '' : $('#arLag').value;
+    $('#arLag').innerHTML = '<option value="">Single port</option>' + lags.map(g => `<option value="${esc(g.name)}">${esc(g.name)} · ${size(g)}</option>`).join('');
+    if (lags.some(g => g.name === picked)) $('#arLag').value = picked;
+    $('#arFromLag').innerHTML = own.map(g => `<option value="${esc(g.name)}">${esc(g.name)} · ${size(g)}</option>`).join('');
+    $('#arLag').hidden = !lags.length;
+    const usingLag = lags.length > 0 && !!$('#arLag').value;
+    $('#arFromLag').hidden = !usingLag; $('#arPort').hidden = usingLag;
+    if (usingLag && !own.length) $('#arHint').textContent = 'This device has no LAG yet. Define one in its Ports view first.';
+  };
+  $('#arLag').onchange = () => { lagRow(); portHint(); };
+  lagRow();
   $('#arAdd').onclick = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     if (!to){ toast('Choose what to connect to first.'); return; }
+    const lagTo = $('#arLag').hidden ? '' : $('#arLag').value;
+    if (lagTo){
+      const lagFrom = $('#arFromLag').value, k = $('#arKind').value;
+      const tl = (to.portGroups || []).find(g => g.lag && g.name === lagTo), fl = (o.portGroups || []).find(g => g.lag && g.name === lagFrom);
+      if (!fl){ toast('Choose the LAG on this device first.'); return; }
+      if (tl.to - tl.from !== fl.to - fl.from){ toast(`The LAGs have different numbers of ports: ${fl.to - fl.from + 1} and ${tl.to - tl.from + 1}.`); return; }
+      if (rels.some(r => (r.to === to.id && r.lag === lagTo) || (r.from === o.id && r.fromLag === lagFrom))){ toast('One of these LAGs is already linked. A LAG links one other LAG.'); return; }
+      rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:null, lag:lagTo, fromLag:lagFrom, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
+      hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" (LAG ${lagTo}) added by ${who()}`);
+      toast('LAG link added'); render(); return;
+    }
     let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && hasPorts(to)) port = +port;
+    const inLag = (to.portGroups || []).find(g => g.lag && typeof port === 'number' && port >= g.from && port <= g.to);
+    if (inLag){ toast(`Port ${port} is part of the LAG ${inLag.name}. Choose the LAG instead.`); return; }
     if (hasPorts(to) && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
     if (hasPorts(to) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }

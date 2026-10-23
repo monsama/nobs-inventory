@@ -601,6 +601,11 @@ export function renderPorts(){
   for (let p = 1; p <= (sw.ports || 0) + (sw.sfp || 0); p++){
     onPort(p).forEach(r => { const d = byId(r.from); rows.push({p, d, r, sub: flat(behind(d))}); });
   }
+  /* A LAG link is a row of its own, named by the LAG, with the device on the other end. */
+  rels.forEach(r => {
+    if (r.lag != null && r.to === sw.id) rows.push({p: 'LAG ' + r.lag, d: byId(r.from), r, sub: flat(behind(byId(r.from)))});
+    if (r.fromLag != null && r.from === sw.id) rows.push({p: 'LAG ' + r.fromLag, d: byId(r.to), r, sub: flat(behind(byId(r.to)))});
+  });
   const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
 
   $('#view').innerHTML = `<div id="net">
@@ -615,12 +620,16 @@ export function renderPorts(){
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
       <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag"> LAG</label><button id="pgAdd">Add group</button></div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });
   const total = (sw.ports || 0) + (sw.sfp || 0);
-  $('#view').querySelectorAll('[data-delgroup]').forEach(b => b.onclick = () => { sw.portGroups.splice(+b.dataset.delgroup, 1); queueServerSave(); toast('Port group removed'); render(); });
+  $('#view').querySelectorAll('[data-delgroup]').forEach(b => b.onclick = () => {
+    const g = groups0[+b.dataset.delgroup];
+    if (rels.some(r => (r.to === sw.id && r.lag === g.name) || (r.from === sw.id && r.fromLag === g.name))){ toast(`${g.name} is linked. Remove its link first.`); return; }
+    sw.portGroups.splice(+b.dataset.delgroup, 1); queueServerSave(); toast('Port group removed'); render();
+  });
   const pgAdd = $('#pgAdd'); if (pgAdd) pgAdd.onclick = () => {
     const name = $('#pgName').value.trim(), from = +$('#pgFrom').value, to = +($('#pgTo').value || $('#pgFrom').value), kind = $('#pgKind').value.trim();
     if (!name){ toast('Give the group a name.'); return; }
