@@ -116,7 +116,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.get('/api/state', requireUser, (req, res) => {
     const s = loadState(db); delete s.empty;
-    if (req.user.role !== 'admin') delete s.ldap;   /* directory settings are for admins */
+    if (req.user.role !== 'admin') {   /* directory settings and sign-in names are for admins */
+      delete s.ldap;
+      s.users = s.users.map(({ login, groups, ...u }) => u);
+    }
     res.json(s);
   });
 
@@ -247,7 +250,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.get('/api/feed/push-script', requireUser, requireAdmin, (req, res, next) => {
     try {
       const text = fs.readFileSync(path.join(publicDir, '..', 'scripts', 'Lansweeper-Push.ps1'), 'utf8');
-      const origin = `${req.protocol}://${req.get('host')}`;
+      /* The address is written into a script that people run, so only a plain host name or address is accepted. */
+      const host = req.get('host') || '';
+      if (!/^[A-Za-z0-9.-]+(:\d{1,5})?$|^\[[0-9a-fA-F:.]+\](:\d{1,5})?$/.test(host)) throw new HttpError(400, 'The address of this server could not be read from the request.');
+      const origin = `${req.protocol}://${host}`;
       res.attachment('Lansweeper-Push.ps1').type('text/plain; charset=utf-8')
         .send(text.replace(/NobsUrl(\s*)=\s*'[^']*'/, (_, sp) => `NobsUrl${sp}= '${origin}'`));
     } catch (e) { next(e); }

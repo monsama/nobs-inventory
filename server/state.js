@@ -67,6 +67,14 @@ function checkState(s) {
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
   }
+  /* A login names one account: sign-in picks the first match, so a second one would lock its owner out. */
+  const logins = new Map();
+  for (const u of s.users) {
+    if (!u.login) continue;
+    const key = u.login.toLowerCase();
+    if (logins.has(key) && logins.get(key) !== u.id) bad(`The login ${u.login} is already used by another user.`);
+    logins.set(key, u.id);
+  }
   const ids = s.objs.map(o => o.id);
   if (new Set(ids).size !== ids.length) bad('Two objects have the same id.');
   if (ids.some(id => typeof id !== 'string' || !id)) bad('Every object needs an id.');
