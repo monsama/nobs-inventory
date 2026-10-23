@@ -368,39 +368,54 @@ export function queueServerSave(){
   clearTimeout(SERVER.timer);
   SERVER.timer = setTimeout(sendChanges, 400);
 }
+/* Changes are sent in batches of about BATCH.bytes, so a large edit is not refused as too big. Each batch is saved on its own. */
+export const BATCH = { bytes: 2000000 };
+export function batches(puts, dels){
+  const out = []; let cur = {puts: [], dels: []}, size = 0;
+  const add = (kind, c) => {
+    const n = (c.json || '').length + String(c.id || '').length + 100;
+    if (size + n > BATCH.bytes && (cur.puts.length || cur.dels.length)){ out.push(cur); cur = {puts: [], dels: []}; size = 0; }
+    cur[kind].push(c); size += n;
+  };
+  puts.forEach(c => add('puts', c)); dels.forEach(c => add('dels', c));
+  if (cur.puts.length || cur.dels.length) out.push(cur);
+  return out;
+}
 export async function sendChanges(){
   if (SERVER.busy){ SERVER.again = true; return; }
   if (!canEdit()) return;
-  const {puts, dels} = pendingChanges();
-  if (!puts.length && !dels.length) return;
+  const pending = pendingChanges();
+  if (!pending.puts.length && !pending.dels.length) return;
   SERVER.busy = true;
   try {
-    const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
-    const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
-    if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
-    for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
-    if (Object.keys(j.codes || {}).length) render();
-    const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
-    for (const [key, rev] of Object.entries(j.revs || {})){
-      const c = sent.get(key); if (!c) continue;
-      SERVER.revs[key] = rev;
-      if (c.json === undefined){ SERVER.base.delete(key); continue; }
-      const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
-      SERVER.base.set(key, JSON.stringify(v));
-    }
-    if (j.conflicts && j.conflicts.length){
-      const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : k.split('|')[0]; });
-      const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
-        .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
-      toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
-      await reloadFromServer();
-      const items = refused.map(r => {
-        const now = byId(r.id);
-        return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
-      }).filter(i => i.gone || i.fields.length);
-      if (items.length) refusedModal(items);
+    for (const {puts, dels} of batches(pending.puts, pending.dels)) {
+      const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
+      const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
+      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
+      for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
+      if (Object.keys(j.codes || {}).length) render();
+      const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
+      for (const [key, rev] of Object.entries(j.revs || {})){
+        const c = sent.get(key); if (!c) continue;
+        SERVER.revs[key] = rev;
+        if (c.json === undefined){ SERVER.base.delete(key); continue; }
+        const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
+        SERVER.base.set(key, JSON.stringify(v));
+      }
+      if (j.conflicts && j.conflicts.length){
+        const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : k.split('|')[0]; });
+        const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
+          .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
+        toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
+        await reloadFromServer();
+        const items = refused.map(r => {
+          const now = byId(r.id);
+          return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
+        }).filter(i => i.gone || i.fields.length);
+        if (items.length) refusedModal(items);
+      }
     }
   } catch {
     toast('Not saved: the server cannot be reached.');
