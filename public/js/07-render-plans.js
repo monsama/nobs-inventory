@@ -143,7 +143,7 @@ export function planCanvas(plan){
   const src = planImgSrc(plan);
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
-    ${src ? `<img src="${src}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
+    ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaRects(a).map((r, i) => `<div class="pl-area${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}" data-area-drag="${a.id}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%">${i ? '' : `<span>${esc(a.name)}</span>${planMode === 'area' ? '' : `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>`}`}</div>`).join('')).join('')}
     ${planParts.map(r => `<div class="pl-area pending" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%"></div>`).join('')}
     ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}${pos.auto ? '' : `<span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="Remove from the plan">×</span>`}</button>`; }).join('')}
