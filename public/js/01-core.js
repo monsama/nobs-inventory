@@ -92,12 +92,20 @@ export const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
   hosted:{fwd:'runs on', rev:'hosts'}
 };
-/* Text that is cut off gets its full wording as a tooltip, and a field shows its placeholder on hover, so nothing is unreadable. */
+/* Fields get their placeholder as a tooltip, and a select shows its chosen text, so nothing is unreadable on hover. */
 export function fullTextTooltips(root = document.body){
   root.querySelectorAll('input[placeholder], textarea[placeholder]').forEach(el => { if (!el.title) el.title = el.placeholder; });
   root.querySelectorAll('select').forEach(el => { const o = el.selectedOptions[0]; if (o && !el.title) el.title = o.textContent.trim(); });
-  root.querySelectorAll('*').forEach(el => {
-    if (el.title || el.children.length || el.closest('svg')) return;
+}
+/* Cut-off text gets its full wording when the pointer reaches it. Only the element under the pointer is measured, so a
+   large table is not laid out again on every redraw. */
+let fullTextHoverBound = false;
+export function bindFullTextOnHover(){
+  if (fullTextHoverBound) return;
+  fullTextHoverBound = true;
+  document.addEventListener('pointerover', e => {
+    const el = e.target;
+    if (!(el instanceof HTMLElement) || el.title || el.children.length || el.closest('svg')) return;
     const text = el.textContent.trim();
     if (text && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible') el.title = text.replace(/\s+/g, ' ');
   });
