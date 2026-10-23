@@ -242,8 +242,11 @@ function writeDocs(db, s) {
 
 /* Replaces the stored inventory with the one sent. Used by the admin's full save and by the server's own jobs
    (feed, directory). Logins and sessions are not touched. */
+/* The history of an object keeps its newest entries; older ones are dropped, so the inventory and its backups stay a sane size. */
+export const HISTORY_KEEP = 500;
 export function saveState(db, s) {
   checkState(s);
+  for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   writeDocs(db, s);
 }
 
