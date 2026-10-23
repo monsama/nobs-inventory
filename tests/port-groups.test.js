@@ -29,3 +29,26 @@ test('port groups: a link aggregate is marked as a flag, true or false', () => {
   assert.doesNotThrow(() => checkState(base({ portGroups: [{ name: 'Uplink LAG', from: 25, to: 26, lag: true }] })));
   assert.throws(() => checkState(base({ portGroups: [{ name: 'Uplink LAG', from: 25, to: 26, lag: 'yes' }] })), /link aggregate/);
 });
+
+const twoSwitches = (rels) => ({ objs: [
+  { id: 'a', code: 'INV-0001', type: 'switch', name: 'SW-A', status: 'active', ports: 24, sfp: 4, ovr: {}, feed: null, portGroups: [{ name: 'Uplink', from: 25, to: 26, lag: true }] },
+  { id: 'b', code: 'INV-0002', type: 'switch', name: 'SW-B', status: 'active', ports: 24, sfp: 4, ovr: {}, feed: null, portGroups: [{ name: 'Core', from: 25, to: 26, lag: true }, { name: 'Three', from: 1, to: 3, lag: true }] }],
+  rels, users: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 2, rseq: 0, types: {}, history: {} });
+
+test('a LAG links a LAG of the same size on the other device', () => {
+  assert.doesNotThrow(() => checkState(twoSwitches([{ id: 'l', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Core', fromLag: 'Uplink' }])));
+});
+
+test('a LAG link to a LAG with a different number of ports is refused', () => {
+  assert.throws(() => checkState(twoSwitches([{ id: 'l', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Three', fromLag: 'Uplink' }])), /different numbers/);
+});
+
+test('a single port inside a LAG is refused; the LAG is connected instead', () => {
+  assert.throws(() => checkState(twoSwitches([{ id: 'p', from: 'a', to: 'b', kind: 'uplink', port: 25, vlan: null }])), /part of the LAG Core/);
+});
+
+test('a LAG is linked to one other LAG only', () => {
+  assert.throws(() => checkState(twoSwitches([
+    { id: 'l1', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Core', fromLag: 'Uplink' },
+    { id: 'l2', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Core', fromLag: 'Uplink' }])), /linked twice/);
+});

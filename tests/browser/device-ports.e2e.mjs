@@ -104,6 +104,22 @@ try {
   await p.selectOption('#nExist', '');
   assert.equal(await p.isVisible('#nName'), true, 'the name is shown again for a new object');
   await p.click('#nCancel');
+  // LAG: a LAG on one switch links the LAG of the same size on the other; a single port inside a LAG is not offered.
+  await p.evaluate(async () => {
+    const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
+    core.objs.push({ id: 'lagA', code: 'INV-9101', type: 'switch', name: 'LAG-A', status: 'active', loc, ports: 24, sfp: 4, pfx: '1/', ovr: {}, feed: null, portGroups: [{ name: 'Core', from: 25, to: 26, lag: true }] });
+    core.objs.push({ id: 'lagB', code: 'INV-9102', type: 'switch', name: 'LAG-B', status: 'active', loc, ports: 24, sfp: 4, pfx: '1/', ovr: {}, feed: null, portGroups: [{ name: 'Peer', from: 25, to: 26, lag: true }] });
+    const views = await import('/js/02-views.js'); views.openObj('lagA');
+  });
+  await p.waitForSelector('#arKind');
+  await p.selectOption('#arKind', 'uplink');
+  await p.selectOption('#arTo', 'lagB');
+  await p.waitForSelector('#arLag:not([hidden])');
+  await p.selectOption('#arLag', 'Peer');
+  await p.waitForSelector('#arFromLag:not([hidden])');
+  await p.click('#arAdd');
+  await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.lag === 'Peer' && r.fromLag === 'Core' && r.port === null));
+  assert.match(await p.textContent('#view'), /LAG Peer/, 'the LAG link is listed on the card');
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

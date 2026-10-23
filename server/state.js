@@ -128,6 +128,19 @@ export function checkState(s) {
     if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
     if (!REL_KINDS.includes(r.kind)) bad(`A relation has an unknown kind: ${r.kind}.`);
     if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) bad(`A connection uses VLAN ${r.vlan}, which is not in the VLAN list.`);
+    /* A LAG link joins a LAG on each device: the LAGs have the same members, and no single port is used. A LAG links one other LAG. */
+    if (r.lag != null || r.fromLag != null) {
+      const to = byId.get(r.to), fr = byId.get(r.from);
+      const lagOf = (d, name) => (d && d.portGroups || []).find(g => g.lag && g.name === name);
+      const tl = lagOf(to, r.lag), fl = lagOf(fr, r.fromLag);
+      if (!tl || !fl) bad(`A LAG link needs a LAG on both devices.`);
+      else if (r.port != null) bad(`A LAG link uses no single port.`);
+      else if (tl.to - tl.from !== fl.to - fl.from) bad(`The LAGs of ${fr.name} and ${to.name} have different numbers of ports.`);
+    } else if (typeof r.port === 'number') {
+      const t = byId.get(r.to);
+      const inLag = (t && t.portGroups || []).find(g => g.lag && r.port >= g.from && r.port <= g.to);
+      if (inLag) bad(`Port ${r.port} on ${t.name} is part of the LAG ${inLag.name}. Connect the LAG instead.`);
+    }
     if (r.from === r.to) bad('An object cannot be related to itself.');
   }
   /* One device per port of a switch or patch panel. */
@@ -139,6 +152,12 @@ export function checkState(s) {
     const key = r.to + '|' + String(r.port);
     if (taken.has(key)) bad(`Port ${r.port} on ${t.name} is used twice.`);
     taken.add(key);
+  }
+  /* A LAG links one other LAG: each LAG on a device is used by at most one link. */
+  const lagUsed = new Set();
+  for (const r of s.rels) {
+    if (r.lag != null) { const k = r.to + '|' + r.lag; if (lagUsed.has(k)) bad(`The LAG ${r.lag} is linked twice.`); lagUsed.add(k); }
+    if (r.fromLag != null) { const k = r.from + '|' + r.fromLag; if (lagUsed.has(k)) bad(`The LAG ${r.fromLag} is linked twice.`); lagUsed.add(k); }
   }
   /* A device sits in one rack place: the rack exists, the U positions do not overlap, and a device on top of another is in the same rack. */
   const racks = new Set(s.objs.filter(o => o.type === 'rack').map(o => o.id));
