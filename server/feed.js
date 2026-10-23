@@ -87,7 +87,7 @@ function applySoftware(s, pairs) {
   let n = 0;
   if (s.feedOn === false) return n;
   for (const { r, obj } of pairs) {
-    if (!Array.isArray(r.software)) continue;
+    if (!Array.isArray(r.software) || (obj.ovr && obj.ovr.software === false)) continue;
     const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
     obj.software = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
     n++;
@@ -100,7 +100,7 @@ function applySoftware(s, pairs) {
 function applyLinks(s, pairs) {
   let n = 0;
   for (const { r, obj } of pairs) {
-    if (!Array.isArray(r.links)) continue;
+    if (!Array.isArray(r.links) || (obj.ovr && obj.ovr.links === false)) continue;
     const wanted = new Set();
     for (const l of r.links) {
       const to = (l.ref && findByRef(s, l.ref)) || (l.name && findByName(s, l.name));

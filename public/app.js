@@ -752,6 +752,8 @@ function feedPanel(o){
     <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
   return `<div class="panelbox"><div class="hdr">Lansweeper <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
     <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Software</label><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="software" ${o.ovr && o.ovr.software === false ? '' : 'checked'}> From Lansweeper</label>
+      <label>Links</label><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="links" ${o.ovr && o.ovr.links === false ? '' : 'checked'}> From Lansweeper (switch ports, monitors, hosts)</label></div>
     <div class="addrel"><span class="note" style="flex:1">Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
 }
 const SW_TYPES = ['pc','server'];
@@ -902,10 +904,10 @@ function renderObj(o){
     toast('Port set'); render();
   });
   $('#view').querySelectorAll('[data-ovr]').forEach(c => c.onchange = () => {
-    const k = c.dataset.ovr;
+    const k = c.dataset.ovr, name = FIELD_LABEL[k] || { software: 'Software', links: 'Links' }[k] || k;
     o.ovr[k] = c.checked;
-    hist(o, now(), `${FIELD_LABEL[k]}: ${c.checked ? 'taken from feed' : 'kept as set here'} (object override)`);
-    toast(`${FIELD_LABEL[k]} ${c.checked ? 'follows the feed' : 'is kept as set here'}`); render();
+    hist(o, now(), `${name}: ${c.checked ? 'taken from feed' : 'kept as set here'} (object override)`);
+    toast(`${name} ${c.checked ? 'follows the feed' : 'is kept as set here'}`); render();
   });
   $('#saveBtn').onclick = () => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
