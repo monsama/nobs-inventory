@@ -108,6 +108,39 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* Your own account: the name and department, and the password. Nobody else's, and not the role. */
+  const bumpUser = id => db.prepare("INSERT INTO revs (kind, id, rev) VALUES ('user', ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1").run(String(id));
+  app.put('/api/me', requireUser, (req, res, next) => {
+    try {
+      const u = userDoc(req.user.id);
+      if (!u) throw new HttpError(404, 'No such user.');
+      const clean = v => String(v ?? '').trim().slice(0, 100);
+      const first = clean(req.body?.first), last = clean(req.body?.last), dept = clean(req.body?.dept);
+      if (!first && !last) throw new HttpError(400, 'Give a first or last name.');
+      if (u.source === 'ldap') { u.dept = dept; }   /* the directory keeps the name */
+      else Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept });
+      saveUserDoc(u); bumpUser(u.id);
+      audit(db, u.id, 'changed own details');
+      res.json({ ok: true, me: me(u) });
+    } catch (e) { next(e); }
+  });
+  app.post('/api/me/password', requireUser, (req, res, next) => {
+    try {
+      const u = userDoc(req.user.id);
+      if (!u) throw new HttpError(404, 'No such user.');
+      if (u.source === 'ldap') throw new HttpError(400, 'Directory users change their password in the directory.');
+      const keys = ['me:' + u.id];
+      if (throttle.blocked(keys)) throw new HttpError(429, 'Too many tries. Try again in 15 minutes.');
+      if (!checkLocalPassword(db, u.id, String(req.body?.current ?? ''))){ throttle.recordFailure(keys); throw new HttpError(400, 'The current password is not right.'); }
+      const password = String(req.body?.password ?? '');
+      if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
+      if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');
+      setPassword(db, u.id, password);
+      endOtherSessions(db, u.id, readCookie(req.headers.cookie, COOKIE));
+      audit(db, u.id, 'changed own password');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
   app.post('/api/logout', (req, res) => {
     endSession(db, readCookie(req.headers.cookie, COOKIE));
     res.setHeader('Set-Cookie', cookie('', 0));
