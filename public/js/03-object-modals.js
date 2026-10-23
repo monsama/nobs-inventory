@@ -1,4 +1,4 @@
-import { $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { PORTED, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -46,9 +46,10 @@ export function renderRack(){
 export const FIELDS = {
   base:[['name','Name','mono'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
+  pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
+  router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
   accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], other:[]
@@ -136,7 +137,7 @@ export function renderSoftware(){
   $('#view').innerHTML = rows.length ? `<div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Package</th><th>Versions</th><th>Devices</th></tr></thead><tbody>
     ${rows.map(r => `<tr data-sw="${esc(r.name)}" ${sel && sel.name === r.name ? 'style="background:var(--hover)"' : ''}><td><b>${esc(r.name)}</b></td><td class="mono">${esc([...r.versions].join(', '))}</td><td class="n">${r.devices.length}</td></tr>`).join('')}
     </tbody></table></div>
-    ${sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on</div><div class="path">${sel.devices.map(d => `<button class="node" data-open="${d.id}">${tico(d.type, 'tico sm')}${esc(d.name)}</button>`).join('')}</div></div>` : ''}`
+    ${sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on</div><div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Device</th><th>Type</th><th>Location</th><th>Version</th></tr></thead><tbody>${sel.devices.map(d => `<tr><td><a class="link" data-open="${d.id}">${esc(d.name)}</a></td><td>${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc(d.loc || '')}</td><td class="mono">${esc(((d.software || []).find(x => x.name === sel.name) || {}).version || '')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`
     : '<div class="empty">No software recorded yet. Add it on a PC or server.</div>';
   $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.swSel = st.swSel === tr.dataset.sw ? null : tr.dataset.sw; render(); });
 }
@@ -195,7 +196,7 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       <div class="panelbox"><div class="hdr">Relations <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${rs.length}</span></div>
-        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${['switch','patch'].includes(byId(x.r.to).type) ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(x.r.vlan)}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
+        <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${[...PORTED, 'patch'].includes(byId(x.r.to).type) ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(x.r.vlan)}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><button id="arAdd">Add</button></div>
@@ -232,14 +233,14 @@ export function renderObj(o){
   $('#arAdd').onclick = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     if (!to){ toast('Choose what to connect to first.'); return; }
-    let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && to.type === 'switch') port = +port;
-    if (to.type === 'switch' && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
-    if (to.type === 'switch' && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
+    let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && PORTED.includes(to.type)) port = +port;
+    if (PORTED.includes(to.type) && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
+    if (PORTED.includes(to.type) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === port.toUpperCase())){ toast(port.toUpperCase() + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
     const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
-    if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (to.type === 'switch' || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
+    if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (PORTED.includes(to.type) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);
     toast('Relation added'); render();
@@ -248,10 +249,10 @@ export function renderObj(o){
   $('#view').querySelectorAll('[data-rport]').forEach(i => i.onchange = () => {
     const r = rels.find(x => x.id === i.dataset.rport); if (!r) return;
     const to = byId(r.to); let p = i.value.trim();
-    if (!p){ toast('A connection to a switch needs a port.'); render(); return; }
-    if (to.type === 'switch' && /^\d+$/.test(p)) p = +p;
+    if (!p){ toast('A connection to this device needs a port.'); render(); return; }
+    if (PORTED.includes(to.type) && /^\d+$/.test(p)) p = +p;
     if (to.type === 'patch') p = p.toUpperCase();
-    if (to.type === 'switch' && typeof p === 'number' && to.ports && p > to.ports){ toast(`${p} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); render(); return; }
+    if (PORTED.includes(to.type) && typeof p === 'number' && to.ports && p > to.ports){ toast(`${p} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); render(); return; }
     if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
     r.port = p;
     hist(byId(r.from), now(), `Port on ${to.name} set to ${p} by ${who()}`);
@@ -291,7 +292,7 @@ export function renderObj(o){
       if (['ports','sfp'].includes(k)) v = +v || 0;
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){ hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`); }
-      if (k === 'ports' && o.type === 'switch' && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
+      if (k === 'ports' && PORTED.includes(o.type) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       if (o.feed && FIELD_LABEL[k] && o[k] !== v){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
     });

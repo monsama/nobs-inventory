@@ -1,4 +1,4 @@
-import { $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { PORTED, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -29,7 +29,7 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Switch ports', rack:'Racks', sw:'Software'};
+export const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software'};
 export function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   $('#tabsbar').innerHTML = ids.map(id => {
@@ -93,7 +93,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTabMenu(
 $('#tabsbar').addEventListener('click', e => {
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
-  const t = e.target.closest('[data-tab]'); if (t){ st.tab = t.dataset.tab; render(); }
+  const t = e.target.closest('[data-tab]');
+  /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
+  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && PORTED.includes(byId(st.tab).type)) st.netSw = st.tab; st.tab = t.dataset.tab; render(); }
 });
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
@@ -108,6 +110,7 @@ export function cardHtml(o){
   if (o.type === 'storage') lines.push(['Capacity', `${esc(o.cap)} · ${esc(o.proto)}`]);
   if (o.type === 'switch') lines.push(['Ports', `${o.ports} + ${o.sfp} SFP · ${used(o)} used`]);
   else if (o.type === 'patch') lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
+  else if (PORTED.includes(o.type) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
   else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
   lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
   if (o.user) lines.push(['User', esc(o.user)]);
@@ -563,11 +566,11 @@ window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(
 
 /* ---------- switch ports ---------- */
 export function renderNet(){
-  const sws = objs.filter(o => o.type === 'switch');
-  if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No switches yet. Add a switch object to see its ports.</div>'; return; }
+  const sws = objs.filter(o => PORTED.includes(o.type));
+  if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
   const sw = byId(st.netSw) || sws[0];
-  $('#toolbar').innerHTML = `<label class="muted" for="swSel">Switch</label><select id="swSel">${sws.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="swOpen">Open switch</button>`;
+  $('#toolbar').innerHTML = `<label class="muted" for="swSel">Device</label><select id="swSel">${sws.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
+    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="swOpen">Open device</button>`;
   $('#swSel').value = sw.id;
   $('#swSel').onchange = e => { st.netSw = e.target.value; st.netPort = null; render(); };
   $('#swOpen').onclick = () => openObj(sw.id);
@@ -581,24 +584,25 @@ export function renderNet(){
     const tip = pfxOf(sw) + p + (dev ? ' → ' + dev.name : ' · free');
     return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.netPort===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
-  const groups = []; for (let g = 0; g < sw.ports; g += 12){ const ps = []; for (let p = g+1; p <= g+12; p++) ps.push(p); groups.push(ps); }
-  const sfps = []; for (let p = sw.ports+1; p <= sw.ports+sw.sfp; p++) sfps.push(p);
+  const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }
+  const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
   const usedN = rels.filter(r => r.to === sw.id && typeof r.port === 'number').length + rels.filter(r => r.from === sw.id && typeof r.port === 'number').length;
 
   /* Everything plugged into the switch, with what hangs behind each device (a PC behind a phone, monitors behind a PC). */
   const behind = (o, depth=0) => rels.filter(r => r.to === o.id && !isUplink(r.kind)).map(r => { const d = byId(r.from); return {d, r, depth, kids: depth < 3 ? behind(d, depth+1) : []}; });
   const flat = (arr, out=[]) => { arr.forEach(x => { out.push(x); flat(x.kids, out); }); return out; };
   const rows = [];
-  for (let p = 1; p <= sw.ports + sw.sfp; p++){
+  for (let p = 1; p <= (sw.ports || 0) + (sw.sfp || 0); p++){
     onPort(p).forEach(r => { const d = byId(r.from); rows.push({p, d, r, sub: flat(behind(d))}); });
   }
   const portDetail = st.netPort != null ? rows.filter(x => x.p === st.netPort) : [];
 
   $('#view').innerHTML = `<div id="net">
-    <div class="panelbox"><div class="hdr">Front panel <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${usedN} of ${sw.ports + sw.sfp} ports in use</span></div>
+    ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
+    <div class="panelbox"><div class="hdr">Front panel <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
       <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
         <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
-      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span><span>Ports ${sw.ports+1}–${sw.ports+sw.sfp} are SFP+</span></div>
+      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
     ${st.netPort != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.netPort)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
