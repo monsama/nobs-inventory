@@ -1898,7 +1898,7 @@ function newObjModal(pre={}){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && o[k] === undefined) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
       rels.filter(r => r.from === c.id).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: ['switch','patch'].includes(byId(r.to).type) ? null : r.port}));
-      if (c.rack && RACKABLE.includes(o.type)){
+      if (c.rack && rackOf(c.rack) && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){
           if (!rackCheck(c.rack, top - h + 1, h, o.id)){ Object.assign(o, {rack: c.rack, u: top - h + 1, h}); placed = true; }

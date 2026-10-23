@@ -59,6 +59,7 @@ export function factoryReset(db, keepUserId) {
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/app.js. */
 const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other'];
 const STATUSES = ['active', 'stock', 'repair', 'retired'];
+const REL_KINDS = ['attached', 'hosted', 'connected', 'patched', 'uplink', 'downlink', 'docked'];
 function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
@@ -95,9 +96,40 @@ function checkState(s) {
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
   }
   const idSet = new Set(ids);
+  const byId = new Map(s.objs.map(o => [o.id, o]));
   for (const r of s.rels) {
     if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
-    if (typeof r.kind !== 'string' || !r.kind) bad('Every relation needs a kind.');
+    if (!REL_KINDS.includes(r.kind)) bad(`A relation has an unknown kind: ${r.kind}.`);
+    if (r.from === r.to) bad('An object cannot be related to itself.');
+  }
+  /* One device per port of a switch or patch panel. */
+  const taken = new Set();
+  for (const r of s.rels) {
+    if (r.port == null) continue;
+    const t = byId.get(r.to);
+    if (!['switch', 'patch'].includes(t.type)) continue;
+    const key = r.to + '|' + String(r.port);
+    if (taken.has(key)) bad(`Port ${r.port} on ${t.name} is used twice.`);
+    taken.add(key);
+  }
+  /* A device sits in one rack place: the rack exists, the U positions do not overlap, and a device on top of another is in the same rack. */
+  const racks = new Set(s.objs.filter(o => o.type === 'rack').map(o => o.id));
+  const used = {};
+  for (const o of s.objs) {
+    if (o.rack == null) continue;
+    if (!racks.has(o.rack)) bad(`${o.name}: its rack does not exist.`);
+    if (o.ontop != null) {
+      const below = byId.get(o.ontop);
+      if (!below || below.rack !== o.rack) bad(`${o.name}: the device it sits on is not in the same rack.`);
+      continue;
+    }
+    if (o.u == null) continue;
+    const h = o.h || 1;
+    for (let u = o.u; u < o.u + h; u++) {
+      const key = o.rack + '|' + u;
+      if (used[key]) bad(`${o.name} and ${used[key]} both take U${u} in the same rack.`);
+      used[key] = o.name;
+    }
   }
   if (JSON.stringify(s).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
 }
