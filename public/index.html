@@ -93,6 +93,8 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .pl-canvas>img{display:block;width:100%;height:auto;border-radius:var(--r-s);box-shadow:0 2px 14px rgba(0,0,0,.28);pointer-events:none}
 .pl-area{position:absolute;border:2px dashed var(--accent);background:rgba(37,99,235,.08);border-radius:4px;pointer-events:none}
 .pl-area>span{position:absolute;left:6px;top:4px;font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;white-space:nowrap}
+.pl-area.movable{pointer-events:auto;cursor:move}
+.pl-area.pending{border-style:solid}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
 .pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:12px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
 .pl-pin>i{width:8px;height:8px;border-radius:50%;background:#fff;flex:none}
@@ -316,6 +318,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .form input[type=checkbox],.form input[type=radio]{width:auto}
 .form .ro{font-family:var(--mono);font-size:12px}
 .rkrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rk-mount{display:contents}
 .rk-mount[hidden]{display:none}
 .hits{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
 button.chip{cursor:pointer;height:24px;font-size:12px}

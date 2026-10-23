@@ -42,8 +42,9 @@ try {
   await p.mouse.down();
   await p.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 6 });
   await p.mouse.up();
+  await p.click('#plAreaDone');
   await p.waitForTimeout(300);
-  assert.equal(await p.isVisible('#arName'), true, 'the area dialog did not open');
+  assert.equal(await p.isVisible('#arName'), true, 'the area dialog did not open after Done');
   assert.equal(await p.evaluate(() => document.querySelector('#toolbar').textContent.trim()), '', 'the toolbar of another tab is still shown on the plans');
   // The area dialog offers the rooms of the plan's site: picking one gives the area that room.
   const rooms = await p.$$eval('#arRoom option', os => os.map(o => o.textContent.trim()));

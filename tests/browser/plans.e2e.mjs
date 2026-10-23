@@ -40,6 +40,7 @@ try {
   const box = await page.locator('#plCanvas').boundingBox();
   await page.mouse.move(box.x + box.width * 0.1, box.y + box.height * 0.1);
   await page.mouse.down(); await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 5 }); await page.mouse.up();
+  await page.click('#plAreaDone');
   await page.fill('#arName', 'Open office'); await page.click('#arOk');
   await page.waitForSelector('.pl-area');
   await page.click('.pl-item:has-text("PC-PLAN")');
