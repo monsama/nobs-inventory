@@ -2,7 +2,7 @@ import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
-import { FIXED_TABS, openObj, renderCards, renderMap, renderNet, renderSide, renderTable, renderTabs } from './02-views.js';
+import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
 /* ---------- render ---------- */
@@ -297,7 +297,7 @@ export function render(){
   else if (st.tab === 'table') renderTable();
   else if (st.tab === 'map') renderMap();
   else if (st.tab === 'plans') renderPlans();
-  else if (st.tab === 'net') renderNet();
+  else if (st.tab === 'net') renderPorts();
   else if (st.tab === 'rack') renderRack();
   else if (st.tab === 'sw') renderSoftware();
   else renderObj(byId(st.tab));

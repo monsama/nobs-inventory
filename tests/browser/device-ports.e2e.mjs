@@ -32,16 +32,16 @@ try {
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
   await p.waitForSelector('#tabsbar [data-tab=net]');
   await p.click('#tabsbar [data-tab=net]');
-  await until(p, async () => (await import('/js/01-core.js')).st.netSw === 'rt1');
-  assert.equal(await p.inputValue('#swSel'), 'rt1', 'the router is shown, not the first switch');
+  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'rt1');
+  assert.equal(await p.inputValue('#portsDevice'), 'rt1', 'the router is shown, not the first switch');
   assert.equal(await p.locator('#view .port').count(), 8, 'the router has its 8 ports');
   assert.ok(await p.locator('#view .port.used[data-port="2"]').count() === 1, 'port 2 is shown as used');
   assert.match(await p.textContent('#view'), /Gi0\/2|Gi0\/ ?2/, 'the port is named with the router naming');
   // A switch card still shows that switch.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o1'); });
   await p.click('#tabsbar [data-tab=net]');
-  await until(p, async () => (await import('/js/01-core.js')).st.netSw === 'o1');
-  assert.equal(await p.inputValue('#swSel'), 'o1', 'a switch card shows its own switch');
+  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'o1');
+  assert.equal(await p.inputValue('#portsDevice'), 'o1', 'a switch card shows its own switch');
   // Software: clicking a package lists the devices that have it, in a table with the version on each.
   await p.evaluate(async () => {
     const core = await import('/js/01-core.js');
@@ -50,7 +50,7 @@ try {
   });
   await p.click('#tabsbar [data-tab=sw]');
   await p.click('tr[data-sw="Tool X"]');
-  await until(p, async () => (await import('/js/01-core.js')).st.swSel === 'Tool X');
+  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'Tool X');
   const rows = await p.$$eval('#view .panelbox table tbody tr', trs => trs.map(tr => tr.textContent));
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');

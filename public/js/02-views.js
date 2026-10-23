@@ -97,7 +97,7 @@ $('#tabsbar').addEventListener('click', e => {
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
   /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
-  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.netSw = st.tab; st.tab = t.dataset.tab; render(); }
+  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; st.tab = t.dataset.tab; render(); }
 });
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
@@ -567,15 +567,15 @@ export function renderMap(){
 window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(); });
 
 /* ---------- switch ports ---------- */
-export function renderNet(){
-  const sws = objs.filter(o => hasPorts(o));
-  if (!sws.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
-  const sw = byId(st.netSw) || sws[0];
-  $('#toolbar').innerHTML = `<label class="muted" for="swSel">Device</label><select id="swSel">${sws.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="swOpen">Open device</button>`;
-  $('#swSel').value = sw.id;
-  $('#swSel').onchange = e => { st.netSw = e.target.value; st.netPort = null; render(); };
-  $('#swOpen').onclick = () => openObj(sw.id);
+export function renderPorts(){
+  const devs = objs.filter(o => hasPorts(o));
+  if (!devs.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
+  const sw = byId(st.portsDevice) || devs[0];
+  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
+    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
+  $('#portsDevice').value = sw.id;
+  $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; render(); };
+  $('#portsOpen').onclick = () => openObj(sw.id);
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
   const outPort = () => null; // a relation's port belongs to its far end, so every port here is an incoming one
   const portBtn = p => {
@@ -584,7 +584,7 @@ export function renderNet(){
     const isUp = !!up || (inc[0] && isUplink(inc[0].kind));
     const poe = dev && (dev.type === 'sip');
     const tip = pfxOf(sw) + p + (dev ? ' → ' + dev.name : ' · free');
-    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.netPort===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
+    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }
   const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
@@ -597,7 +597,7 @@ export function renderNet(){
   for (let p = 1; p <= (sw.ports || 0) + (sw.sfp || 0); p++){
     onPort(p).forEach(r => { const d = byId(r.from); rows.push({p, d, r, sub: flat(behind(d))}); });
   }
-  const portDetail = st.netPort != null ? rows.filter(x => x.p === st.netPort) : [];
+  const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
 
   $('#view').innerHTML = `<div id="net">
     ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
@@ -606,12 +606,12 @@ export function renderNet(){
         <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
-    ${st.netPort != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.netPort)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
+    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
       ${rows.map(x => `<tr><td class="n">${esc(pfxOf(sw) + x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? (x.r.kind === 'downlink' ? 'Downlink' : 'Uplink') : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan || (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
-  $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.netPort = +b.dataset.port; render(); });
-  const ab = $('#assignBtn'); if (ab) ab.onclick = () => newObjModal({sw: sw.id, port: st.netPort});
+  $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });
+  const ab = $('#assignBtn'); if (ab) ab.onclick = () => newObjModal({sw: sw.id, port: st.portNo});
 }
 
