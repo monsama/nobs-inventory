@@ -114,7 +114,7 @@ function syncOf(o){
   if (!LS_ON()) return null;
   if (o.excluded) return {k: 'excluded', label: 'Not synced · excluded', cls: 'kept'};
   if (o.detached) return {k: 'detached', label: 'Not synced · detached', cls: 'warn'};
-  if (!o.feed) return {k: 'manual', label: 'Manual · not in Lansweeper', cls: 'kept'};
+  if (!o.feed) return {k: 'manual', label: 'Not in Lansweeper', cls: 'kept'};
   if (!o.feed.seen) return {k: 'waiting', label: 'Attached · waiting for sync', cls: 'info'};
   if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
   return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
