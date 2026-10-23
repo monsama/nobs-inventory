@@ -56,6 +56,17 @@ try {
   await page.screenshot({ path: path.join(dir, 'plans-phone.png') });
   console.log('phone screenshot: ' + path.join(dir, 'plans-phone.png'));
   assert.ok(saved.objs.find(o => o.name === 'PC-PLAN').planPos, 'the device is placed on the plan');
+  /* the × on the pin takes the device off the plan without starting a drag */
+  const pinBefore = await page.locator('.pl-pin:has-text("PC-PLAN")').boundingBox();
+  await page.click('.pl-pin:has-text("PC-PLAN") [data-unpin]');
+  await page.waitForSelector('.pl-pin:has-text("PC-PLAN")', { state: 'detached' });
+  await page.waitForTimeout(600);
+  const after = loadState(db).objs.find(o => o.name === 'PC-PLAN');
+  assert.equal(after.planPos, undefined, 'the device has no place on the plan after the × is clicked');
+  const inHistory = await page.evaluate(async id => { const core = await import('/js/01-core.js'); return (core.HISTORY[id] || []).some(h => /Removed from Ground floor/.test(h.msg)); }, after.id);
+  assert.ok(inHistory, 'the removal is in the history');
+  assert.ok(pinBefore, 'the pin was there before the × was clicked');
+  assert.equal(loadState(db).objs.filter(o => o.name === 'PC-PLAN').length, 1, 'the device itself is still in the inventory');
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   console.log('browser floor plans: all checks passed');
 } finally {
