@@ -473,31 +473,71 @@ function mapLayout(nodes){
   return {list, edges, pos};
 }
 
-/* Right-angled route from a to b: sideways when the boxes are apart, down or up when they are stacked.
-   lane moves the vertical part so lines that share a gap do not sit on top of each other. */
-function mapRoute(pa, ha, pb, hb, lane){
-  if (pa.x + MAP_W < pb.x){ const x1 = pa.x + MAP_W, y1 = pa.y + 20, x2 = pb.x, y2 = pb.y + 20, mx = (x1 + x2) / 2 + lane; return {d:`M${x1} ${y1}H${mx}V${y2}H${x2}`, x1, y1, x2, y2, lx: x1 + 6, ly: y1 - 5}; }
-  if (pb.x + MAP_W < pa.x){ const x1 = pa.x, y1 = pa.y + 20, x2 = pb.x + MAP_W, y2 = pb.y + 20, mx = (x1 + x2) / 2 - lane; return {d:`M${x1} ${y1}H${mx}V${y2}H${x2}`, x1, y1, x2, y2, lx: x1 - 6, ly: y1 - 5}; }
-  const x1 = pa.x + MAP_W / 2, x2 = pb.x + MAP_W / 2;
-  if (pa.y < pb.y){ const y1 = pa.y + ha, y2 = pb.y, my = (y1 + y2) / 2 + lane; return {d:`M${x1} ${y1}V${my}H${x2}V${y2}`, x1, y1, x2, y2, lx: x1 + 6, ly: my - 5}; }
-  const y1 = pa.y, y2 = pb.y + hb, my = (y1 + y2) / 2 + lane; return {d:`M${x1} ${y1}V${my}H${x2}V${y2}`, x1, y1, x2, y2, lx: x1 + 6, ly: my - 5};
+/* Right-angled routes, one per relation. Each end gets its own connection point on the box side it leaves from:
+   the points on a side are spread evenly and follow the order of the boxes at the other end, so lines do not fan out
+   from one spot. Lines that share a gap between two columns (or two stacked rows) get separate lanes in that gap,
+   so their runs stay apart. The label sits at the end that has the port. */
+function mapRoutes(L){
+  const items = L.edges.map(r => {
+    const pa = L.pos[r.from], pb = L.pos[r.to];
+    if (pa.x + MAP_W < pb.x) return {r, pa, pb, sa: 'R', sb: 'L', across: true};
+    if (pb.x + MAP_W < pa.x) return {r, pa, pb, sa: 'L', sb: 'R', across: true};
+    return pa.y < pb.y ? {r, pa, pb, sa: 'B', sb: 'T', across: false} : {r, pa, pb, sa: 'T', sb: 'B', across: false};
+  });
+  const h = mapH(), sides = {};
+  items.forEach((it, i) => {
+    (sides[it.r.from + '|' + it.sa] ??= []).push({i, end: 'a', side: it.sa, id: it.r.from, o: it.pb});
+    (sides[it.r.to + '|' + it.sb] ??= []).push({i, end: 'b', side: it.sb, id: it.r.to, o: it.pa});
+  });
+  const pt = {};
+  Object.values(sides).forEach(group => {
+    group.sort((p, q) => p.o.y - q.o.y || p.o.x - q.o.x);
+    const p0 = L.pos[group[0].id];
+    group.forEach((g, k) => {
+      const f = (k + 0.5) / group.length;
+      const across = 16 + (MAP_W - 32) * f, down = 28 + (h - 38) * f;
+      pt[g.i + g.end] = g.side === 'R' ? {x: p0.x + MAP_W, y: p0.y + down}
+        : g.side === 'L' ? {x: p0.x, y: p0.y + down}
+        : g.side === 'T' ? {x: p0.x + across, y: p0.y}
+        : {x: p0.x + across, y: p0.y + h};
+    });
+  });
+  /* Lanes: the channel between two columns (or two rows), shared by every line that crosses it. */
+  const gaps = {};
+  items.forEach((it, i) => {
+    const A = pt[i + 'a'], B = pt[i + 'b'];
+    const key = it.across ? 'x' + Math.min(it.pa.x, it.pb.x) + '_' + Math.max(it.pa.x, it.pb.x) : 'y' + it.pa.x + '_' + Math.min(it.pa.y, it.pb.y) + '_' + Math.max(it.pa.y, it.pb.y);
+    const g = gaps[key] ??= it.across
+      ? {from: Math.min(it.pa.x, it.pb.x) + MAP_W, to: Math.max(it.pa.x, it.pb.x), list: []}
+      : {from: Math.min(it.pa.y, it.pb.y) + h, to: Math.max(it.pa.y, it.pb.y), list: []};
+    g.list.push({i, mid: it.across ? (A.y + B.y) / 2 : (A.x + B.x) / 2});
+  });
+  const lane = {};
+  Object.values(gaps).forEach(g => {
+    g.list.sort((p, q) => p.mid - q.mid);
+    g.list.forEach((e, k) => lane[e.i] = g.from + (g.to - g.from) * (k + 1) / (g.list.length + 1));
+  });
+  return items.map((it, i) => {
+    const A = pt[i + 'a'], B = pt[i + 'b'];
+    const d = it.across ? `M${A.x} ${A.y}H${lane[i]}V${B.y}H${B.x}` : `M${A.x} ${A.y}V${lane[i]}H${B.x}V${B.y}`;
+    const lx = it.sb === 'L' ? B.x - 6 : B.x + 6, ly = it.sb === 'B' ? B.y + 12 : B.y - 5;
+    return {d, A, B, lx, ly, anchor: it.sb === 'L' ? 'end' : 'start'};
+  });
 }
 const MAP_SHORT = {attached:'attached', connected:'connected', patched:'patched', uplink:'uplink', downlink:'downlink', docked:'docked', hosted:'hosted'};
 
 /* The drawing as SVG markup. The same markup is used on screen and in the export.
-   Line labels are hidden until a box is hovered, or until Labels is switched on. */
+   Line labels are hidden until a line is hovered, or until Labels is switched on. */
 function mapInner(L){
-  const lanes = {};
-  const edges = L.edges.map(r => {
-    const a = byId(r.from), b = byId(r.to), pa = L.pos[a.id], pb = L.pos[b.id];
-    lanes[pa.x] = (lanes[pa.x] || 0) + 1;
-    const lane = ((lanes[pa.x] % 5) - 2) * 9;
-    const p = mapRoute(pa, mapH(a), pb, mapH(b), lane);
+  const routes = mapRoutes(L);
+  const edges = L.edges.map((r, i) => {
+    const a = byId(r.from), b = byId(r.to), p = routes[i];
     const label = MAP_SHORT[r.kind] + (r.port != null ? ' · ' + portLabel(b, r.port) : '');
     return `<g class="mline" data-from="${a.id}" data-to="${b.id}">
+      <path class="mhit" d="${p.d}" fill="none" stroke="transparent" stroke-width="10"/>
       <path d="${p.d}" fill="none" stroke="var(--line)" stroke-width="1.4"/>
-      <circle cx="${p.x1}" cy="${p.y1}" r="3" fill="var(--line)"/><circle cx="${p.x2}" cy="${p.y2}" r="3" fill="var(--line)"/>
-      <text class="mlab" x="${p.lx}" y="${p.ly}" font-size="10" font-family="var(--mono)" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(label)}</text></g>`;
+      <circle cx="${p.A.x}" cy="${p.A.y}" r="3" fill="var(--line)"/><circle cx="${p.B.x}" cy="${p.B.y}" r="3" fill="var(--line)"/>
+      <text class="mlab" x="${p.lx}" y="${p.ly}" text-anchor="${p.anchor}" font-size="10" font-family="var(--mono)" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(label)}</text></g>`;
   }).join('');
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
@@ -517,7 +557,7 @@ function mapLegend(L){
   const types = [...new Set(L.list.map(o => o.type))];
   return `<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
     <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
-    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links. The chain runs left to right from the top.</div></div></details>`;
+    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
 }
 function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
 function mapBox(L){
