@@ -59,7 +59,7 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .locpanel>.note{margin:0;padding:0 12px 12px}
 @media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
-.ctlrow>:not(.pchk){flex:1;min-width:0}
+.ctlrow>:not(.pchk):not(.pchk-slot){flex:1;min-width:0}
 .ctlrow .pchk{white-space:nowrap;flex:none}
 .plans{display:flex;flex-direction:column;min-height:0}
 .pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
@@ -99,6 +99,27 @@ table.locs .empty-row{color:var(--muted);text-align:center;padding:14px}
 .btnlike:hover{filter:brightness(1.08)}
 .btnlike.disabled{opacity:.45;pointer-events:none}
 .logerr td{background:rgba(220,38,38,.08)}
+.lrows{display:flex;flex-direction:column}
+.lrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 92px;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--bd2)}
+.lrow.room{grid-template-columns:120px minmax(0,1fr) 64px 92px}
+.lrow.head{padding-top:8px;padding-bottom:8px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+.lrow input{width:100%;min-width:0;height:30px;box-sizing:border-box}
+.lrow .n{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow button{width:100%;white-space:nowrap}
+.lrow.head .n{text-align:right}
+.lempty{padding:14px 12px;margin:0;color:var(--muted)}
+.lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
+.lpanel-add input{flex:1;min-width:0;height:30px;box-sizing:border-box}
+.lpanel-add select{flex:0 0 160px;height:30px;min-width:0}
+.lnote{margin:0;padding:0 12px 12px}
+.pchk{width:112px;flex:none;white-space:nowrap}
+.pchk-slot{display:inline-block;width:112px;flex:none}
+table.types{table-layout:fixed;width:100%}
+table.types th,table.types td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+table.types td input{width:100%;min-width:0;box-sizing:border-box}
+table.types .icondd{display:flex;min-width:0;width:100%}
+table.types td.n,table.types th.n{text-align:right}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
