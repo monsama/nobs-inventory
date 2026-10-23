@@ -88,7 +88,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           const isAdmin = !!d.admin;
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
-          saveUserDoc(user);
+          if (user.active !== false) saveUserDoc(user);
           ok = true;
         } else if (d) { audit(db, null, 'sign in refused, not in group: ' + login); }
       }
@@ -97,7 +97,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         audit(db, null, 'failed sign in for ' + login);
         throw new HttpError(401, FAILED);
       }
-      throttle.clearFailures(keys);
+      throttle.clearFailures(keys.slice(0, 1));   /* only this login: a success must not clear the address count */
       /* Each sign-in gets its own session (up to a few per user); the oldest end when the limit is passed. */
       const token = createSession(db, user.id, req.get('user-agent') || '');
       audit(db, user.id, 'sign in');

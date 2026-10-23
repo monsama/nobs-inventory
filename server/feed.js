@@ -21,11 +21,14 @@ const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.ge
 
 export function parseCsv(text) {
   const rows = []; let row = [], cell = '', q = false;
+  /* The delimiter is the one the header line uses more of, so a semicolon inside an unquoted value does not split it. */
+  const head = text.split(/\r?\n/)[0] || '';
+  const delim = (head.match(/;/g) || []).length > (head.match(/,/g) || []).length ? ';' : ',';
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
     else if (c === '"') q = true;
-    else if (c === ',' || c === ';') { row.push(cell); cell = ''; }
+    else if (c === delim) { row.push(cell); cell = ''; }
     else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
     else if (c !== '\r') cell += c;
   }
@@ -89,8 +92,9 @@ function applySoftware(s, pairs) {
   for (const { r, obj } of pairs) {
     if (!Array.isArray(r.software) || (obj.ovr && obj.ovr.software === false)) continue;
     const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
-    obj.software = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
-    n++;
+    const next = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
+    /* Counted only when the software really changed, so an unchanged push saves nothing. */
+    if (JSON.stringify(next) !== JSON.stringify(obj.software || [])) { obj.software = next; n++; }
   }
   return n;
 }

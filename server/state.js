@@ -4,6 +4,8 @@ import { checkAddress } from './validate.js';
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
+/* Preferences that are saved without a revision: the last save wins. */
+export const LAST_WINS = ['mapPos'];
 export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -44,7 +46,7 @@ export function factoryReset(db, keepUserId) {
   const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
   db.exec('BEGIN');
   try {
-    db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images;');
+    db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images; DELETE FROM feed_token;');
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
     if (me) db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)').run('user', String(me.id), JSON.stringify(me));
@@ -62,6 +64,8 @@ const STATUSES = ['active', 'stock', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 export function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
+  /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
+  for (const [name, list] of [['objects', s.objs], ['relations', s.rels], ['users', s.users]]) if (Array.isArray(list) && !list.every(x => x && typeof x === 'object' && !Array.isArray(x))) bad(`The ${name} must be a list of records.`);
   /* The VLAN list: one entry per VLAN ID (1 to 4094), with a name. */
   if (s.vlans !== undefined) {
     if (!Array.isArray(s.vlans)) bad('The VLAN list must be a list.');
@@ -139,12 +143,19 @@ export function checkState(s) {
         });
       }
     }
+    if (o.sfp !== undefined && (!Number.isInteger(o.sfp) || o.sfp < 0 || o.sfp > 1000)) bad(`${o.name}: the SFP port count must be a whole number from 0 to 1000.`);
+    if (o.h !== undefined && (!Number.isInteger(o.h) || o.h < 1 || o.h > 200)) bad(`${o.name}: the height in U must be a whole number from 1 to 200.`);
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
   }
+  const codes = s.objs.map(o => o.code).filter(Boolean);
+  if (new Set(codes).size !== codes.length) bad('Two objects have the same code.');
+  if (new Set(s.users.map(u => String(u.id))).size !== s.users.length) bad('Two users have the same id.');
+  if (new Set(s.rels.map(r => String(r.id))).size !== s.rels.length) bad('Two relations have the same id.');
   const idSet = new Set(ids);
   const byId = new Map(s.objs.map(o => [o.id, o]));
   for (const r of s.rels) {
     if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
+    if (r.id === undefined || r.id === null || r.id === '') bad('Every relation needs an id.');
     if (!REL_KINDS.includes(r.kind)) bad(`A relation has an unknown kind: ${r.kind}.`);
     if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) bad(`A connection uses VLAN ${r.vlan}, which is not in the VLAN list.`);
     /* A LAG link joins a LAG on each device: the LAGs have the same members, and no single port is used. A LAG links one other LAG. */
@@ -157,6 +168,7 @@ export function checkState(s) {
       else if (tl.to - tl.from !== fl.to - fl.from) bad(`The LAGs of ${fr.name} and ${to.name} have different numbers of ports.`);
     } else if (typeof r.port === 'number') {
       const t = byId.get(r.to);
+      if (t && t.type !== 'patch' && t.ports > 0 && (r.port < 1 || r.port > t.ports + (t.sfp || 0))) bad(`Port ${r.port} is not a port of ${t.name}.`);
       const inLag = (t && t.portGroups || []).find(g => g.lag && r.port >= g.from && r.port <= g.to);
       if (inLag) bad(`Port ${r.port} on ${t.name} is part of the LAG ${inLag.name}. Connect the LAG instead.`);
     }
@@ -191,6 +203,8 @@ export function checkState(s) {
     }
     if (o.u == null) continue;
     const h = o.h || 1;
+    const rk = byId.get(o.rack);
+    if (rk && rk.units && o.u + h - 1 > rk.units) bad(`${o.name} is above the top of its rack.`);
     for (let u = o.u; u < o.u + h; u++) {
       const key = o.rack + '|' + u;
       if (used[key]) bad(`${o.name} and ${used[key]} both take U${u} in the same rack.`);
@@ -246,6 +260,9 @@ function writeDocs(db, s) {
 export const HISTORY_KEEP = 500;
 export function saveState(db, s) {
   checkState(s);
+  /* The counters only go up, so a save that leaves one out cannot make a new code or id repeat an old one. */
+  const prev = loadState(db);
+  for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(prev[k]) || 0);
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   writeDocs(db, s);
 }
@@ -267,7 +284,7 @@ export function applyChanges(db, body, guard = () => {}) {
   const revs = revsOf(db);
   const conflicts = [];
   const usable = c => {
-    if (c.base === null || c.base === undefined) return true;   /* a preference: the last save wins */
+    if (c.base === null || c.base === undefined){ if (c.kind === 'setting' && LAST_WINS.includes(c.id)) return true; bad('A change needs the revision it was based on.'); }   /* a preference: the last save wins */
     if (!Number.isInteger(c.base)) bad('A change needs the revision it was based on.');
     const key = docKey(c.kind, c.id);
     if ((revs[key] ?? 0) !== c.base) { conflicts.push(key); return false; }
