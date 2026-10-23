@@ -187,7 +187,7 @@ $('#side').addEventListener('click', e => {
   document.body.classList.remove('side-open');
   render();
 });
-$('#clearF').onclick = () => { st.type = st.loc = st.status = null; st.q = ''; $('#search').value = ''; render(); };
+$('#clearF').onclick = () => { st.type = st.loc = st.status = null; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
@@ -393,7 +393,11 @@ function renderTable(){
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
-  all.onchange = () => { $('#view').querySelectorAll('[data-sel]').forEach(c => all.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel)); renderTable(); };
+  /* Only the rows shown: a row hidden by a column filter is not selected. */
+  const rowIds = () => [...$('#view').querySelectorAll('tbody tr')].filter(r => r.style.display !== 'none' && r.querySelector('[data-sel]')).map(r => r.querySelector('[data-sel]').dataset.sel);
+  all.checked = rowIds().length > 0 && rowIds().every(id => st.bulk.has(id));
+  /* Ticking it selects every row shown; ticking it again, when they are all selected, clears them. */
+  all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };
 }
 
 /* CSV: a plain comma or semicolon file, first row is the header. */
@@ -1225,7 +1229,7 @@ async function renderSetAbout(){
       <span class="muted">Source</span><span>https://github.com/monsama/nobs-inventory</span>
       <span class="muted">License</span><span>https://www.gnu.org/licenses/gpl-3.0.html</span>
     </div>
-    <div style="margin-top:12px"><a class="btnlike" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="If NOBS Inventory saves you some time">Buy me a coffee</a></div>
+    <div style="margin-top:12px"><a class="btnlike" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="If NOBS Inventory saves you some time"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/></svg>Buy me a coffee</a></div>
     <div class="hdr" style="margin:14px -14px 8px">Third party</div>
     <div class="muted" style="font-size:11px;line-height:1.6">
       Built with Node.js, Express and ldapjs. Each keeps its own licence.
