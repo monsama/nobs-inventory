@@ -516,9 +516,9 @@ function mapInner(L){
 /* Key for the map: which colour is which type, and what a line label says. */
 function mapLegend(L){
   const types = [...new Set(L.list.map(o => o.type))];
-  return `<div class="maplegend" aria-label="Map key">
+  return `<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
     <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
-    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links. The chain runs left to right from the top.</div></div>`;
+    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links. The chain runs left to right from the top.</div></div></details>`;
 }
 function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
 function mapBox(L){
