@@ -30,7 +30,7 @@ try {
     if (extra > 1) problems.push(`${tab}: ${extra}px wider than the screen`);
   }
   await p.click('#setBtn');
-  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'about']) {
+  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
     await p.click(`#setTabs [data-st=${tab}]`).catch(() => {});
     await p.waitForTimeout(150);
     const extra = await sideways();

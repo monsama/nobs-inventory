@@ -23,7 +23,7 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForFunction(() => /Admin/.test(document.querySelector('#whoBtn').textContent));
   await page.click('#setBtn');
-  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'about']) {
+  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
     await page.click(`#setTabs [data-st=${tab}]`); await page.waitForTimeout(120);
     const len = (await page.locator('#setPane').innerHTML()).length;
     assert.ok(len > 100, `Settings tab "${tab}" is empty`);
