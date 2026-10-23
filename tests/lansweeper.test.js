@@ -33,7 +33,7 @@ function fakeLansweeper({ token = 'good-token', scheme = 'Token' } = {}) {
 const seed = srv => saveState(srv.db, {
   objs: [{ id: 'o101', code: 'INV-0001', type: 'pc', name: 'ZH-PC-0142', serial: 'CZC1', ip: '10.10.20.42', ovr: {}, feed: null, loc: 'Zürich HQ / Büro 2.OG' }],
   rels: [], users: [{ id: 'u-admin', login: 'admin', name: 'Administrator', role: 'admin', active: true, source: 'manual' }],
-  types: {}, history: {}, locs: ['Zürich HQ / Büro 2.OG', 'Zürich HQ / Serverraum UG'], policy: { ip: true, mac: true, os: true, model: true },
+  types: {}, history: {}, locs: ['Zürich HQ / Büro 2.OG', 'Zürich HQ / Serverraum UG'], lsSource: 'api', policy: { ip: true, mac: true, os: true, model: true },
   feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 101, codeN: 1, rseq: 0
 });
 

@@ -184,7 +184,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.post('/api/feed/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
-      lansweeperOff();
+      lsRequire('api');
       const ls = cfgLs();
       if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
       takeBackup(db, 'before a Lansweeper sync');
@@ -210,7 +210,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
       if (!feedTokenValid(db, m && m[1], feedToken)) throw new HttpError(401, 'The feed token is wrong, or none is set on the server.');
-      lansweeperOff();
+      lsRequire('push');
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
@@ -327,9 +327,15 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try { db.prepare('DELETE FROM plan_images WHERE id = ?').run(planId(req)); audit(db, req.user.id, 'plan image removed'); res.json({ ok: true }); }
     catch (e) { next(e); }
   });
-  const lansweeperOff = () => { if (loadState(db).useLansweeper === false) throw new HttpError(403, 'Lansweeper is turned off in Settings → Feed.'); };
+  /* One automatic source at a time: the script push, or the API sync. A manual CSV import is always allowed when Lansweeper is on. */
+  const lsRequire = mode => {
+    const s = loadState(db);
+    if (s.useLansweeper === false) throw new HttpError(403, 'Lansweeper is turned off in Settings → Feed.');
+    if (mode === 'push' && s.lsSource === 'api') throw new HttpError(403, 'Lansweeper is set to API sync in Settings → Feed. Switch to script push to use it.');
+    if (mode === 'api' && s.lsSource !== 'api') throw new HttpError(403, 'Lansweeper is set to script push in Settings → Feed. Switch to API sync to run it.');
+  };
   app.post('/api/feed/import', requireUser, requireAdmin, (req, res, next) => {
-    try { lansweeperOff(); } catch (e) { return next(e); }
+    try { lsRequire(); } catch (e) { return next(e); }
     try {
       const text = typeof req.body === 'string' ? req.body : '';
       if (!text) throw new HttpError(400, 'Send the export as CSV text.');
