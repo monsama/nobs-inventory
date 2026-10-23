@@ -1,7 +1,11 @@
+import { daysSince } from './01-core.js';
+import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
+import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPES, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
-function openSettings(){
+export const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
@@ -13,7 +17,7 @@ function openSettings(){
   renderSetPane();
 }
 /* The switch that turns Lansweeper on or off for this inventory. */
-function renderLsToggle(){
+export function renderLsToggle(){
   const host = $('#setLsToggle'); if (!host) return;
   const ro = canEdit() ? '' : 'disabled';
   const on = LS_ON(), api = st.lsSource === 'api';
@@ -33,7 +37,7 @@ function renderLsToggle(){
   if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
 /* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
-function renderTypeMap(){
+export function renderTypeMap(){
   if (!$('#setTypeMap')) return;
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
   const edit = canEdit(), ro = edit ? '' : 'disabled';
@@ -60,7 +64,7 @@ function renderTypeMap(){
   };
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }
-function renderSetPane(){
+export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
@@ -80,7 +84,7 @@ function renderSetPane(){
 }
 
 /* About, as in NOBS SQL Editor: the version comes from the server, the licence text is the same. */
-async function renderSetAbout(){
+export async function renderSetAbout(){
   const version = await loadVersion();
   if (!$('#setAbout')) return;   /* Settings was closed while the version was loading */
   $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
@@ -114,18 +118,19 @@ async function renderSetAbout(){
 }
 
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
-let USERS = [];
-const devicesOf = name => objs.filter(o => o.user === name).length;
-const me = () => USERS.find(u => u.id === st.meId);
+export let USERS = [];
+export const setUsers = v => { USERS = v; };
+export const devicesOf = name => objs.filter(o => o.user === name).length;
+export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */
-const who = () => (me() && me().name) || 'someone';
-const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
-const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
+export const who = () => (me() && me().name) || 'someone';
+export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
+export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
-const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-const RO_NAV = 'button[data-open],button[data-devs],button[data-sw],button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-const RO_INPUT_OK = /^(search|mapFind|mapOnly|mapLabels|grp|swSel|rkSel|swVerX)$/;
-function applyRole(){
+export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
+export const RO_NAV = 'button[data-open],button[data-devs],button[data-sw],button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+export const RO_INPUT_OK = /^(search|mapFind|mapOnly|mapLabels|grp|swSel|rkSel|swVerX)$/;
+export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
   $('#newBtn').disabled = ro;
@@ -137,14 +142,14 @@ function applyRole(){
     if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   }));
 }
-const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
-function ensureUser(name){
+export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
+export function ensureUser(name){
   let u = USERS.find(x => x.name === name);
   if (!u){ u = {id:userId(), login:'', name, dept:'', groups:[], source:'manual', active:true}; USERS.push(u); }
   return u;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
-function bindUser(o){
+export function bindUser(o){
   const d = Object.getOwnPropertyDescriptor(o, 'user');
   if (d && d.get) return;
   const name = o.user;
@@ -159,18 +164,18 @@ function bindUser(o){
 /* Software on PCs and servers. */
 
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
-const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
-const TYPE_U = {server:2, switch:1, patch:1, storage:4, router:1, firewall:1, modem:1};
-const rackOf = id => racksList().find(r => r.id === id);
+export const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
+export const TYPE_U = {server:2, switch:1, patch:1, storage:4, router:1, firewall:1, modem:1};
+export const rackOf = id => racksList().find(r => r.id === id);
 /* Returns an error for a placement that does not fit, or '' when it does. */
-function rackCheck(rackId, u, h, exceptId){
+export function rackCheck(rackId, u, h, exceptId){
   const R_ = rackOf(rackId);
   if (!R_) return 'Pick a rack first.';
   if (!(u >= 1 && h >= 1 && u + h - 1 <= rackUnits(R_))) return `U${u}–${u + h - 1} is outside ${R_.name} (U1–U${rackUnits(R_)}).`;
   const hit = objs.find(x => x.id !== exceptId && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
   return hit ? `U${hit.u}${(hit.h || 1) > 1 ? '–U' + (hit.u + hit.h - 1) : ''} is taken by ${hit.name}.` : '';
 }
-function rackFields(o){
+export function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and a linked object keeps the feed slot free. */
   const slot = LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '';
@@ -179,7 +184,7 @@ function rackFields(o){
     <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => `<option value="${x.id}" ${o.ontop===x.id ? 'selected' : ''}>${esc(x.name)} · U${x.u}</option>`).join('')}</select>${slot}</div>`;
 }
 /* Mount device…: pick a rack device that has no rack yet, a start U and a height. */
-function mountModal(){
+export function mountModal(){
   const free = objs.filter(o => RACKABLE.includes(o.type) && !o.rack && !(o.type === 'server' && o.kind === 'vm'));
   if (!free.length){ toast('Every rackable device is already in a rack.'); return; }
   modal(`<div class="mh">Mount device in ${esc(rackOf(st.rackId).name)}</div>
@@ -202,7 +207,7 @@ function mountModal(){
   };
 }
 
-function renderSetUsers(){
+export function renderSetUsers(){
   const rows = USERS.map((u, i) => `<tr>
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
@@ -246,7 +251,7 @@ function renderSetUsers(){
   };
 }
 /* A manual user without a login: the login and the first password are set together, so the user can sign in at once. */
-function userLoginModal(u){
+export function userLoginModal(u){
   modal(`<div class="mh">Login for ${esc(u.name)}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="lgNew">Login</label><input id="lgNew" class="mono" autocomplete="off">
@@ -269,7 +274,7 @@ function userLoginModal(u){
   };
 }
 /* Shows one user's devices in Cards, by searching for the name. */
-function showDevicesOf(name){
+export function showDevicesOf(name){
   closeModal();
   st.q = name; $('#search').value = name; st.tab = 'cards'; st.cardsGroup = 'none';
   render();
@@ -278,10 +283,10 @@ function showDevicesOf(name){
 /* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
 /* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
 /* The log: what was synced, saved, restored and signed in, and what failed. */
-let LOG_FILTER = 'all';
-const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
-const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
-async function renderSetLog(){
+export let LOG_FILTER = 'all';
+export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
+export const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
+export async function renderSetLog(){
   const pane = $('#setLog');
   if (!pane) return;
   if (!canEdit()){ pane.innerHTML = '<div class="panelbox"><div class="hdr">Log</div><p class="note" style="padding:12px">Only administrators can see the log.</p></div>'; return; }
@@ -302,12 +307,12 @@ async function renderSetLog(){
   $('#logRefresh').onclick = () => renderSetLog();
 }
 /* Backups of the inventory: taken before each Lansweeper sync, push and import, and by hand. */
-let BACKUPS = null;
-async function loadBackups(){
+export let BACKUPS = null;
+export async function loadBackups(){
   const r = await fetch('api/backups', {credentials: 'same-origin'});
   if (r.ok){ BACKUPS = (await r.json()).backups; if ($('#setMaint')) renderSetMaint(); }
 }
-function backupPanel(edit){
+export function backupPanel(edit){
   const list = BACKUPS || [];
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
@@ -317,7 +322,7 @@ function backupPanel(edit){
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
-function wireBackups(edit){
+export function wireBackups(edit){
   const msg = t => toast(t);
   if ($('#bkNew')) $('#bkNew').onclick = async () => {
     const r = await fetch('api/backups', {method: 'POST', credentials: 'same-origin'});
@@ -339,7 +344,7 @@ function wireBackups(edit){
   };
 }
 /* A restore replaces the inventory, so it asks for the word RESTORE. */
-function restoreModal(label, run){
+export function restoreModal(label, run){
   modal(`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${esc(label)}. The current state is backed up first, so the restore can be undone from the list.</p>
     <div class="form" style="padding:0"><label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
     <div class="mf"><button id="rsCancel">Cancel</button><button id="rsOk" class="danger-text" disabled>Restore</button></div>`, 'sm');
@@ -353,7 +358,7 @@ function restoreModal(label, run){
   };
   $('#rsWord').focus();
 }
-function renderSetMaint(){
+export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   $('#setMaint').innerHTML = `${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
@@ -363,7 +368,7 @@ function renderSetMaint(){
   if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
 }
-function factoryResetModal(){
+export function factoryResetModal(){
   modal(`<div class="mh">Factory reset?</div>
     <div class="mb"><p class="note">Everything is removed, except your own account. This cannot be undone: only a backup brings the data back.</p>
       <label class="note" for="frWord" style="display:block;margin-top:6px">Type FACTORY RESET to confirm</label><input id="frWord" autocomplete="off" aria-label="Type FACTORY RESET" style="width:100%"></div>
@@ -381,7 +386,7 @@ function factoryResetModal(){
 }
 /* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
    account's password is not stored there: the server reads it from its environment. */
-function renderSetLdap(){
+export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
   const ro = edit ? '' : 'disabled';
@@ -423,7 +428,7 @@ function renderSetLdap(){
   };
 }
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
-function sanitizeSvg(text){
+export function sanitizeSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const root = doc.documentElement;
   if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
@@ -434,7 +439,7 @@ function sanitizeSvg(text){
   const ser = new XMLSerializer();
   return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: root.getAttribute('viewBox') || '0 0 24 24'};
 }
-function passwordModal(u){
+export function passwordModal(u){
   modal(`<div class="mh">Password for ${esc(u.name)}</div>
     <div class="mb"><div class="form" style="padding:0"><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHint"></div>
     <p class="note" id="pwHint">At least ${PW_MIN} characters, not a common password. The server stores only a salted hash.</p></div>
@@ -449,10 +454,10 @@ function passwordModal(u){
   $('#pwNew').focus();
 }
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
-const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
-const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
-const siteOf = l => String(l || '').split(' / ')[0];
-function renderSetLocs(){
+export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
+export const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
+export const siteOf = l => String(l || '').split(' / ')[0];
+export function renderSetLocs(){
   const siteRow = (x, i) => {
     const n = objs.filter(o => siteOf(o.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
     return `<div class="lrow"><input data-si="${i}" value="${esc(x)}" aria-label="Site name"><span class="n">${n}</span>
@@ -484,13 +489,13 @@ function renderSetLocs(){
   $('#nsAdd').onclick = addSite; enter('#nsName', addSite);
   $('#nlAdd').onclick = addRoom; enter('#nlRoom', addRoom);
 }
-function addSite(){
+export function addSite(){
   const name = $('#nsName').value.trim(), msg = $('#nsMsg');
   if (!name || name.includes(' / ')){ msg.innerHTML = warn('Write the site name, without a slash.'); $('#nsName').focus(); return; }
   if (SITES.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
   SITES.push(name); toast('Added site ' + name); renderSetLocs(); render();
 }
-function addRoom(){
+export function addRoom(){
   const site = $('#nlSite') ? $('#nlSite').value : '', room = $('#nlRoom').value.trim(), msg = $('#nlMsg');
   if (!site){ msg.innerHTML = warn('Add a site first.'); return; }
   if (!room || room.includes(' / ')){ msg.innerHTML = warn('Write the room name, without a slash.'); $('#nlRoom').focus(); return; }
@@ -499,7 +504,7 @@ function addRoom(){
   LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
 }
 /* Renaming a site renames its rooms, the locations of the objects in them, and the racks. */
-function renameSite(old, value){
+export function renameSite(old, value){
   const name = value.trim();
   if (!name || name.includes(' / ')){ toast('Write the site name, without a slash.'); renderSetLocs(); return; }
   if (name === old) return;
@@ -511,7 +516,7 @@ function renameSite(old, value){
   if (st.loc) st.loc = move(st.loc);
   renderSetLocs(); render();
 }
-function renameLoc(old, value){
+export function renameLoc(old, value){
   const name = cleanLoc(value);
   if (!name){ toast('Use the form Site / Room, e.g. Basel / Lager'); renderSetLocs(); return; }
   if (name !== old && LOCS.includes(name)){ toast(name + ' already exists.'); renderSetLocs(); return; }
@@ -523,9 +528,9 @@ function renameLoc(old, value){
 }
 /* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in and no object has it. */
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
-const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
-function validIPv6(v){
+export const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+export const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
+export function validIPv6(v){
   if (v.length > 45 || !/^[0-9a-f:.]+$/i.test(v)) return false;
   if (v.includes('.')){ const i = v.lastIndexOf(':'); if (i < 0 || !IPV4_RE.test(v.slice(i + 1))) return false; v = v.slice(0, i + 1) + '0:0'; }
   const parts = v.split('::'); if (parts.length > 2) return false;
@@ -534,7 +539,7 @@ function validIPv6(v){
   if (!all.every(g => /^[0-9a-f]{1,4}$/i.test(g))) return false;
   return parts.length === 2 ? all.length <= 7 : all.length === 8;
 }
-function checkAddress(k, raw){
+export function checkAddress(k, raw){
   const v = String(raw ?? '').trim();
   if (!v) return {ok: true, value: ''};
   if (k === 'ip') return IPV4_RE.test(v) ? {ok: true, value: v} : {ok: false, msg: `"${v}" is not an IPv4 address, such as 10.10.0.12.`};
@@ -543,24 +548,24 @@ function checkAddress(k, raw){
   return {ok: true, value: v};
 }
 /* Readable names for the icons, for the dropdown. */
-const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
+export const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
   ups: 'UPS', accesspoint: 'Access point', other: 'Other' };
-const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
+export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
 /* A dropdown that shows the icon and its name, for the object type's icon. */
-function iconChoice(k, t){
+export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
   const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
   return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
     <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
-function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
+export function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
 document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconLists(); });
 /* The list is fixed to the viewport, so it closes when the page scrolls away from its button. */
 document.addEventListener('scroll', e => { if (!e.target.closest?.('.icondd-list')) closeIconLists(); }, true);
-function renderSetTypes(){
+export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
     const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} objects` : '';
@@ -608,20 +613,19 @@ function renderSetTypes(){
 /* Feed. The Lansweeper API settings are saved in the inventory; the token is on the server. A Lansweeper export
    can also be uploaded here. */
 /* The push token made in this panel. undefined until it is loaded; the new token is shown once, here. */
-let pushInfo, pushLast = null, pushNew = '', pushNote = '';
-async function loadPushInfo(){
+export let pushInfo;
+export let pushLast = null;
+export let pushNew = '';
+export let pushNote = '';
+export async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
   if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
 }
 /* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
-function daysSince(stamp){
-  const m = /^(\d\d)\.(\d\d)\.(\d{4}) (\d\d):(\d\d)$/.exec(stamp || '');
-  return m ? (Date.now() - new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5])) / 864e5 : 0;
-}
 /* A date for people: "22 Oct 2026, 18:03". */
-const pushDate = v => (v ? new Date(v).toLocaleString(undefined, {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '');
+export const pushDate = v => (v ? new Date(v).toLocaleString(undefined, {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '');
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
-function pushStatus(){
+export function pushStatus(){
   const c = pushLast ? pushLast.counts : null;
   const last = c ? `${pushDate(pushLast.at)}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}` : 'No push yet';
   const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
@@ -629,7 +633,7 @@ function pushStatus(){
   return `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Last push</label><span>${last}</span></div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Not seen</label><span>${stale}</span></div>`;
 }
-function renderSetFeed(){
+export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = canEdit(), ro = edit ? '' : 'disabled';

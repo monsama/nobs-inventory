@@ -1,29 +1,41 @@
+import { setAppVersion, setPlans } from './01-core.js';
+import { setUsers } from './04-settings.js';
+import { $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { USERS, applyRole, bindUser, canEdit, me, pushDate, who } from './04-settings.js';
+import { FIXED_TABS, openObj, renderCards, renderMap, renderNet, renderSide, renderTable, renderTabs } from './02-views.js';
+import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
+import { newObjModal } from './05-new-object.js';
 /* ---------- render ---------- */
 /* ---------- floor plans ---------- */
 /* An image per site or room, areas drawn on it, and devices placed by position (in percent of the image). */
-let planSel = null, planMode = 'view', planPlace = null, planDraw = null, planDrag = null, planZoom = 1;
-const planById = id => PLANS.find(p => p.id === id);
-const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
-const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
-const round1 = v => Math.round(v * 10) / 10;
+export let planSel = null;
+export let planMode = 'view';
+export let planPlace = null;
+export let planDraw = null;
+export let planDrag = null;
+export let planZoom = 1;
+export const planById = id => PLANS.find(p => p.id === id);
+export const planDevices = plan => objs.filter(o => o.planPos && o.planPos.plan === plan.id);
+export const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
+export const round1 = v => Math.round(v * 10) / 10;
 /* The image comes from the server (saved apart from the inventory); older plans may still carry it inline. */
-const planImgSrc = p => p.image || (p.imageAt ? `api/plans/${encodeURIComponent(p.id)}/image?v=${p.imageAt}` : '');
-const areaAt = (plan, x, y) => (plan.areas || []).find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
+export const planImgSrc = p => p.image || (p.imageAt ? `api/plans/${encodeURIComponent(p.id)}/image?v=${p.imageAt}` : '');
+export const areaAt = (plan, x, y) => (plan.areas || []).find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
 /* An area is a location: "Site / Area". It is added to the locations the first time it is used. */
-function areaLoc(plan, area){
+export function areaLoc(plan, area){
   if (!SITES.includes(plan.site)) SITES.push(plan.site);
   const v = `${plan.site} / ${area.name}`;
   if (!LOCS.includes(v)) LOCS.push(v);
   return v;
 }
 /* A device placed inside an area takes that area as its location. Returns the area's name, or null. */
-function locateOnPlan(plan, o, x, y){
+export function locateOnPlan(plan, o, x, y){
   const a = areaAt(plan, x, y);
   if (!a || !plan.site) return null;
   o.loc = areaLoc(plan, a);
   return a.name;
 }
-function renderPlans(){
+export function renderPlans(){
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
   planSel = plan ? plan.id : null;
@@ -69,7 +81,7 @@ function renderPlans(){
   c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0}; });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); plan.areas = plan.areas.filter(a => a.id !== b.dataset.area); queueServerSave(); renderPlans(); });
 }
-function planCanvas(plan){
+export function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
   const src = planImgSrc(plan);
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
@@ -79,19 +91,19 @@ function planCanvas(plan){
     ${planDevices(plan).map(o => `<button class="pl-pin" data-pin="${o.id}" style="left:${o.planPos.x}%;top:${o.planPos.y}%;background:${tcol(o.type)}" title="${esc(o.name)}"><i></i>${esc(o.name)}</button>`).join('')}
   </div>`;
 }
-function renderPlanList(plan){
+export function renderPlanList(plan){
   const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
   const placed = planDevices(plan).map(o => o.id);
   const rows = objs.filter(o => !placed.includes(o.id) && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
-function placeDevice(plan, o, x, y){
+export function placeDevice(plan, o, x, y){
   o.planPos = {plan: plan.id, x, y};
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   planPlace = null; queueServerSave(); renderPlans();
 }
-function drawPreview(){
+export function drawPreview(){
   const c = $('#plCanvas'); if (!c || !planDraw) return;
   let p = $('#plPreview');
   if (!p){ p = document.createElement('div'); p.id = 'plPreview'; p.className = 'pl-preview'; c.appendChild(p); }
@@ -127,7 +139,7 @@ document.addEventListener('pointerup', () => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; renderPlans(); }
 });
-function areaModal(plan, rect){
+export function areaModal(plan, rect){
   modal(`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0"><label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60"></div>
     <p class="note">An area is a named place on this plan. Devices placed inside it are in that place.</p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
@@ -142,7 +154,7 @@ function areaModal(plan, rect){
   };
   $('#arName').focus();
 }
-function loadPlanImage(file){
+export function loadPlanImage(file){
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
@@ -151,7 +163,7 @@ function loadPlanImage(file){
   });
 }
 /* Reduced to 1800 px wide and saved as JPEG, so a plan stays small in the inventory. */
-function shrinkPlanImage(img){
+export function shrinkPlanImage(img){
   const k = Math.min(1, 1800 / img.naturalWidth);
   const c = document.createElement('canvas');
   c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
@@ -159,7 +171,7 @@ function shrinkPlanImage(img){
   ctx.drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL('image/jpeg', 0.85);
 }
-function planModal(existing){
+export function planModal(existing){
   modal(`<div class="mh">${existing ? 'Replace image' : 'New floor plan'}</div><div class="mb">
     <div class="form" style="padding:0">${existing ? '' : `<label for="plName">Name</label><input id="plName" placeholder="e.g. Ground floor" maxlength="60"><label for="plSite">Site</label><select id="plSite">${SITES.map(s => `<option>${esc(s)}</option>`).join('')}</select>`}
     <label for="plFile">Image</label><input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp"></div>
@@ -184,18 +196,18 @@ function planModal(existing){
   };
   if (!existing) $('#plName').focus();
 }
-function deletePlanModal(plan){
+export function deletePlanModal(plan){
   modal(`<div class="mh">Delete ${esc(plan.name)}?</div><div class="mb"><p class="note">The plan and its areas are removed. Devices placed on it stay in the inventory, but are no longer shown on a plan.</p></div>
     <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="danger-text">Delete plan</button></div>`, 'sm');
   $('#dpCancel').onclick = closeModal;
   $('#dpOk').onclick = () => {
     objs.forEach(o => { if (o.planPos && o.planPos.plan === plan.id) delete o.planPos; });
-    PLANS = PLANS.filter(p => p !== plan); planSel = null; planMode = 'view'; planPlace = null;
+    setPlans(PLANS.filter(p => p !== plan)); planSel = null; planMode = 'view'; planPlace = null;
     fetch('api/plans/' + encodeURIComponent(plan.id) + '/image', {method: 'DELETE', credentials: 'same-origin'}).catch(() => {});
     queueServerSave(); closeModal(); toast('Plan deleted'); renderPlans();
   };
 }
-function render(){
+export function render(){
   renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -212,13 +224,13 @@ function render(){
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
-const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
-function saveData(){ queueServerSave(); }
+export const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
+export function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
    changed on the server since is not saved; the page then shows the newer version. */
-const PREFERENCES = ['mapPos'];
-function documents(){
+export const PREFERENCES = ['mapPos'];
+export function documents(){
   const m = new Map();
   objs.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
   rels.forEach(r => m.set('rel|' + r.id, {kind:'rel', id:String(r.id), value:r}));
@@ -229,11 +241,11 @@ function documents(){
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
-function setBaseline(){
+export function setBaseline(){
   SERVER.base = new Map();
   for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
 }
-function pendingChanges(){
+export function pendingChanges(){
   const now = documents(), puts = [], dels = [];
   for (const [k, d] of now){
     const json = JSON.stringify(d.value);
@@ -249,13 +261,13 @@ function pendingChanges(){
   return {puts, dels};
 }
 /* Saves now, without waiting for the pause after an edit: a new object gets its code straight away. */
-function flushSave(){ clearTimeout(SERVER.timer); return sendChanges(); }
-function queueServerSave(){
+export function flushSave(){ clearTimeout(SERVER.timer); return sendChanges(); }
+export function queueServerSave(){
   if (!SERVER.base) return;   /* nothing has been loaded yet */
   clearTimeout(SERVER.timer);
   SERVER.timer = setTimeout(sendChanges, 400);
 }
-async function sendChanges(){
+export async function sendChanges(){
   if (SERVER.busy){ SERVER.again = true; return; }
   if (!canEdit()) return;
   const {puts, dels} = pendingChanges();
@@ -297,11 +309,11 @@ async function sendChanges(){
   }
 }
 /* The fields a person changed on an object, to offer them again after a refused save. */
-const NOT_EDITED = ['id', 'code', 'ovr', 'feed'];
-function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_EDITED.includes(k) && JSON.stringify(mine[k]) !== JSON.stringify((base || {})[k])); }
-const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
+export const NOT_EDITED = ['id', 'code', 'ovr', 'feed'];
+export function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_EDITED.includes(k) && JSON.stringify(mine[k]) !== JSON.stringify((base || {})[k])); }
+export const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
 /* Shows what a person changed and the newer version, so a refused edit is not lost. */
-function refusedModal(items){
+export function refusedModal(items){
   modal(`<div class="mh">Not saved: changed by someone else</div>
     <div class="mb"><p class="note">Someone else saved these records first, so your changes were not saved. The inventory shows their version. You can apply your changes again.</p>
       ${items.map(it => `<div class="panelbox"><div class="hdr">${esc(it.name)}${it.gone ? ' <span class="muted">· deleted by someone else</span>' : ''}</div>
@@ -316,7 +328,7 @@ function refusedModal(items){
   };
 }
 /* Loads the inventory and its revisions from the server, and makes it the base for the next save. */
-async function reloadFromServer(){
+export async function reloadFromServer(){
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (r.status === 401){ loginModal(); return false; }
   if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
@@ -329,7 +341,7 @@ async function reloadFromServer(){
   return true;
 }
 /* An object open in a tab may have been deleted by someone else: its tab is closed. */
-function dropMissingTabs(){
+export function dropMissingTabs(){
   const gone = id => !FIXED_TABS[id] && !byId(id);
   st.open = st.open.filter(id => !gone(id));
   st.tabIds = st.tabIds.filter(id => !gone(id));
@@ -337,7 +349,7 @@ function dropMissingTabs(){
 }
 /* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. */
-async function checkForChanges(){
+export async function checkForChanges(){
   if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const {puts, dels} = pendingChanges();
@@ -349,11 +361,11 @@ async function checkForChanges(){
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
   if (changed) await reloadFromServer();
 }
-function applyState(d){
+export function applyState(d){
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
-  USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs);
+  setUsers(d.users); LOCS.splice(0, LOCS.length, ...d.locs);
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
@@ -370,7 +382,7 @@ function applyState(d){
    for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
 /* Clears the devices, relations and history on the server for everyone. Users, locations, types and settings stay. */
 /* Clearing deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
-function clearConfirm(){
+export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
@@ -383,7 +395,7 @@ function clearConfirm(){
 }
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */
-async function clearAll(){
+export async function clearAll(){
   if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (!r.ok){ toast('The inventory could not be loaded.'); return; }
@@ -406,8 +418,8 @@ async function clearAll(){
   toast(j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared'));
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];
-function shortcutsModal(){
+export const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];
+export function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
     ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table></div>
     <div class="mf"><button id="scClose" class="primary">Done</button></div>`, 'sm');
@@ -425,14 +437,14 @@ document.addEventListener('keydown', e => {
 });
 
 /* The version comes from the server. It is shown in the footer and in Settings → About. */
-async function loadVersion(){
+export async function loadVersion(){
   if (!APP_VERSION){
-    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) APP_VERSION = (await r.json()).version || ''; } catch { /* no version is shown when it cannot be read */ }
+    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) setAppVersion((await r.json()).version || ''); } catch { /* no version is shown when it cannot be read */ }
   }
   const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
   return APP_VERSION;
 }
-async function boot(){
+export async function boot(){
   loadVersion();
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
@@ -442,26 +454,26 @@ async function boot(){
   await loadFromServer(info.user);
 }
 /* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
-function showUnreachable(){
+export function showUnreachable(){
   document.body.classList.add('signed-out');
   modal(`<div class="mh">NOBS Inventory</div><div class="mb"><p class="note" style="color:var(--danger)">The inventory server cannot be reached. Check that it is running, then try again.</p></div>
     <div class="mf"><button id="unTry" class="primary">Try again</button></div>`, 'sm free locked');
   $('#unTry').onclick = () => location.reload();
 }
 /* Before sign-in the page holds no inventory. */
-function clearInventory(){
-  objs.length = 0; rels.length = 0; LOCS.length = 0; USERS = [];
+export function clearInventory(){
+  objs.length = 0; rels.length = 0; LOCS.length = 0; setUsers([]);
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]);
   st.open = []; st.tab = 'cards';
 }
-async function loadFromServer(user){
+export async function loadFromServer(user){
   if (!(await reloadFromServer())) return;
   document.body.classList.remove('signed-out');
   st.meId = user.id;
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
 }/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
-function loginModal(err = '', login = ''){
+export function loginModal(err = '', login = ''){
   document.body.classList.add('signed-out');
   modal(`<div class="mh">Sign in to NOBS Inventory</div>
     <div class="mb"><form id="loginForm" class="form" style="padding:0">
@@ -482,12 +494,12 @@ function loginModal(err = '', login = ''){
   (login ? $('#lgPw') : $('#lgUser')).focus();
 }
 /* The browsers this account is signed in on. A session ends on its own after two hours without use. */
-const browserName = ua => {
+export const browserName = ua => {
   const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
   const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
   return os ? b + ' on ' + os : b;
 };
-async function loadMySessions(){
+export async function loadMySessions(){
   const box = $('#acSessions'); if (!box) return;
   const r = await fetch('api/me/sessions', {credentials: 'same-origin'});
   if (!r.ok){ box.innerHTML = '<p class="note">The sessions could not be loaded.</p>'; return; }
@@ -499,7 +511,7 @@ async function loadMySessions(){
   $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
 }
 /* Your own account: name and department, and the password. Directory users keep their name and password in the directory. */
-function accountModal(){
+export function accountModal(){
   const u = me(), ldap = u.source === 'ldap';
   const parts = (u.name || '').split(' ');
   modal(`<div class="mh">Your account</div>
@@ -541,8 +553,7 @@ function accountModal(){
   };
   $('#acFirst').focus();
 }
-async function signOut(){
+export async function signOut(){
   await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
   location.reload();
 }
-boot();
