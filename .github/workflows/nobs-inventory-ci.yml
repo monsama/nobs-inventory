@@ -19,9 +19,13 @@ jobs:
       - run: npm test
 
   browser:
-    name: Browser test of user management
+    name: Browser tests, group ${{ matrix.group }}
     runs-on: ubuntu-latest
     needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [a, b, c]   # the three groups in package.json (test:browser:a, :b, :c) run side by side
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,7 +35,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm run test:browser:${{ matrix.group }}
 
   image:
     name: Docker image builds and answers health checks

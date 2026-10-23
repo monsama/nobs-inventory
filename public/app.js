@@ -1999,6 +1999,7 @@ function setupTable(t){
     const fr = document.createElement('tr'); fr.className = 'fr';
     [...head.cells].forEach((th, i) => {
       const c = document.createElement('th');
+      if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
       inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
       inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); applyView(t); });
