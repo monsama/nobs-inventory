@@ -1,6 +1,6 @@
 {
   "name": "nobs-inventory",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Inventory for PCs, servers, phones, network gear and racks, with a small API and SQLite storage.",
   "type": "module",
