@@ -8,6 +8,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-flows-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -18,7 +19,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 const watch = async (p) => { p.on('pageerror', e => errors.push(e.message)); return p; };
-const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
+const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -49,14 +50,15 @@ try {
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').ip); }), undefined, 'a bad IP was saved');
   await p.fill(`#f_${sid}_ip`, '10.10.0.20'); await p.fill(`#f_${sid}_ip6`, '2001:DB8::20'); await p.fill(`#f_${sid}_mac`, 'AA-BB-CC-DD-EE-FF');
   await p.click('#saveBtn');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').ip === '10.10.0.20'); }, null, { timeout: 5000 });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').ip === '10.10.0.20'); }, null, { timeout: 5000 });
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').ip6); }), '2001:db8::20', 'the IPv6 address was not saved in lower case');
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').mac); }), 'aa:bb:cc:dd:ee:ff', 'the MAC address was not stored with colons');
   // Feed: the Lansweeper address is kept after a reload; Sync now waits for a token on the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
   await p.selectOption('#lsSource', 'api');
   await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
-  await p.waitForTimeout(1200);
+  // wait until the server holds the change (the page saves in the background)
+  await until(p, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).lansweeper?.endpoint === 'https://lansweeper.example.ch/api/v2/graphql', null, { timeout: 10000, polling: 200 });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].reloadFromServer()); });
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.lansweeper.endpoint); }), 'https://lansweeper.example.ch/api/v2/graphql', 'the Lansweeper address was not kept');
   assert.equal(await p.isDisabled('#lsSync'), true, 'Sync now is on without a token');
@@ -64,8 +66,8 @@ try {
   // Object types: adding a custom type keeps the built-in ones after a reload from the server.
   await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
   await p.fill('#ntName', 'Note'); await p.click('#ntAdd');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.values(__mods[0].TYPES).some(t => t.label === 'Note')); }, null, { timeout: 5000 });
-  await p.waitForTimeout(1200);
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.values(__mods[0].TYPES).some(t => t.label === 'Note')); }, null, { timeout: 5000 });
+  await until(p, async () => Object.values((await (await fetch('api/state', { credentials: 'same-origin' })).json()).types).some(t => t.label === 'Note'), null, { timeout: 10000, polling: 200 });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].reloadFromServer()); });
   const types = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.keys(__mods[0].TYPES)); });
   assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
@@ -99,14 +101,14 @@ try {
   await q.fill('#nName', 'SAME-NAME'); await q.click('#nOk');
   await q.click('#newBtn'); await q.waitForSelector('#nName');
   await q.fill('#nName', 'SAME-NAME'); await q.click('#nOk');
-  await q.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.filter(o => o.name === 'SAME-NAME').length === 2); }, null, { timeout: 5000 });
+  await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.filter(o => o.name === 'SAME-NAME').length === 2); }, null, { timeout: 5000 });
   assert.equal(await q.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (new Set(__mods[0].objs.filter(o => o.name === 'SAME-NAME').map(o => o.code)).size); }), 2, 'the two objects share a code');
   await q.click('#newBtn'); await q.waitForSelector('#nName');
   await q.fill('#nName', 'PERSIST-CHECK-1'); await q.click('#nOk');
-  await q.waitForTimeout(1500);
+  await until(q, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).objs.some(o => o.name === 'PERSIST-CHECK-1'), null, { timeout: 10000, polling: 200 });
   await q.reload(); await q.waitForSelector('#lgUser, #tabsbar');
   if (await q.isVisible('#lgUser')) await signIn(q);
-  await q.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('PERSIST-CHECK-1') !== undefined); }, null, { timeout: 10000 });
+  await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('PERSIST-CHECK-1') !== undefined); }, null, { timeout: 10000 });
   const hist = await q.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].HISTORY[__mods[0].byName('PERSIST-CHECK-1').id].map(h => h.msg).join(' ')); });
   assert.match(hist, /Created manually by Administrator/, 'the history does not name the person who made the change: ' + hist);
   await q.click('#setBtn'); await q.click('#setTabs [data-st=users]');

@@ -10,6 +10,7 @@ import { seedBasics } from '../helpers.js';
 import { loadState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-scen-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -21,13 +22,13 @@ const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_C
 const errors = [];
 const page = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); return p; };
 const ctxOpts = { viewport: { width: 1400, height: 900 } };
-const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
+const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
 // Opens an object's page the way a person does: find it in the table and click its name.
 const openByName = async (p, name) => {
   await p.click('#tabsbar [data-tab=table]');
   await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
-  await p.waitForFunction(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
+  await until(p, async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
 };
 const waitServer = async (fn, what) => { for (let i = 0; i < 60; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } assert.fail('the server did not get: ' + what); };
 const state = (p, fn, arg) => p.evaluate(fn, arg);
@@ -55,7 +56,7 @@ try {
   const id = await idOf(p, 'ZH-PC-0142');
   await p.fill(`#f_${id}_model`, 'SCENARIO MODEL'); await p.waitForSelector('#saveBtn:not([disabled])');
   await p.click('#saveBtn');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('ZH-PC-0142').model === 'SCENARIO MODEL'); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('ZH-PC-0142').model === 'SCENARIO MODEL'); });
 
   // A new object plugged into a port from the New object dialog (port 15 is free in the sample).
   await p.click('#newBtn'); await p.waitForSelector('#nName');
@@ -90,7 +91,7 @@ try {
   await openByName(p, 'SCEN-SW-1');
   await p.selectOption('[data-rk=rack]', 'R-2OG'); await p.fill('[data-rk=u]', '3');
   await p.click('#saveBtn');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SW-1').rack === 'R-2OG'); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SW-1').rack === 'R-2OG'); });
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SW-1').u); }), 3, 'the device did not move to U3');
 
   // CSV import through the dialog.
@@ -115,13 +116,13 @@ try {
   fs.writeFileSync(csv1, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.5,Windows 11\n');
   await p.setInputFiles('#feedUp', csv1);
   await p.waitForFunction(() => /Import: 1 new/.test(document.querySelector('#toast').textContent));
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.some(o => o.name === 'FEED-PC-1')); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.some(o => o.name === 'FEED-PC-1')); });
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('FEED-PC-1').ip); }), '10.1.1.5', 'the feed did not set the IP');
   const csv2 = path.join(dir, 'feed2.csv');   /* a new file name, so the input reports a change */
   fs.writeFileSync(csv2, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.9,Windows 11\n');
   await p.setInputFiles('#feedUp', csv2);
   await p.waitForFunction(() => /1 updated/.test(document.querySelector('#toast').textContent));
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('FEED-PC-1').ip === '10.1.1.9'); }, null, { timeout: 5000 });   /* the page reloads the new values just after the message */
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('FEED-PC-1').ip === '10.1.1.9'); }, null, { timeout: 5000 });   /* the page reloads the new values just after the message */
   await p.click('#setClose');
   await ctx.close();
 
@@ -132,11 +133,11 @@ try {
   await openByName(q, 'SRV-ZH-HV01');
   const kid = await idOf(q, 'SRV-ZH-HV01');
   await q.fill(`#f_${kid}_model`, 'KEPT MODEL'); await q.click('#saveBtn');
-  await q.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'KEPT MODEL'); });
-  await q.waitForTimeout(1500);
+  await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model === 'KEPT MODEL'); });
+  await until(q, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).objs.find(o => o.name === 'SRV-ZH-HV01')?.model === 'KEPT MODEL', null, { timeout: 10000, polling: 200 });
   await q.reload(); await q.waitForSelector('#lgUser, #tabsbar');
   if (await q.isVisible('#lgUser')) { await q.fill('#lgUser', 'admin'); await q.fill('#lgPw', 'adminpass123'); await q.click('#lgOk'); }
-  await q.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }, null, { timeout: 10000 });
+  await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }, null, { timeout: 10000 });
   assert.equal(await state(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').model); }), 'KEPT MODEL', 'the edit was not kept after reload');
   assert.equal(await state(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SIP-1') === undefined); }), true, 'a deleted object came back after reload');
   await ctx2.close();

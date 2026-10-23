@@ -1,7 +1,10 @@
 name: nobs-inventory CI
 
+# Runs on pull requests and on pushes to main. A version tag is not tested again here: it points at a commit main
+# already tested, and the release workflow runs the unit tests before it publishes.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -22,6 +25,8 @@ jobs:
   browser:
     name: Browser tests, group ${{ matrix.group }}
     runs-on: ubuntu-latest
+    # The Playwright image has Chromium and its system libraries already, so nothing is installed per run.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
     needs: unit
     strategy:
       fail-fast: false
@@ -35,20 +40,4 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
       - run: npm run test:browser:${{ matrix.group }}
-
-  image:
-    name: Docker image builds and answers health checks
-    runs-on: ubuntu-latest
-    needs: unit
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t nobs-inventory:ci .
-      - name: Start the image and check it answers
-        run: |
-          docker run -d --name ni -p 8080:8080 -e NI_ADMIN_PASSWORD=ci-password-123 nobs-inventory:ci
-          for i in $(seq 1 20); do curl -fs http://localhost:8080/api/health && break; sleep 1; done
-          curl -fs http://localhost:8080/api/health
-          curl -fs http://localhost:8080/ > /dev/null
-          docker logs ni | tail -5

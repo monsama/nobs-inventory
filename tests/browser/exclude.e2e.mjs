@@ -8,6 +8,7 @@ import { loadState } from '../../server/state.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-excl-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -22,7 +23,7 @@ const waitServer = async (fn, what) => { for (let i = 0; i < 60; i++) { if (fn()
 const openByName = async (p, name) => {
   await p.click('#tabsbar [data-tab=table]');
   await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
-  await p.waitForFunction(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
+  await until(p, async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
 };
 
 try {
@@ -30,7 +31,7 @@ try {
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
 
   // A relation: the laptop is connected to the switch.
   await openByName(p, 'ZH-NB-0201');

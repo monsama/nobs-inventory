@@ -6,6 +6,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-rackform-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -20,7 +21,7 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
-  await p.waitForFunction(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
+  await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   const widths = () => p.evaluate(() => { const w = s => Math.round(document.querySelector(s).getBoundingClientRect().width); return [w('#f_o5_name'), w('#f_o5_loc'), w('#f_o5_status'), w('#rk_rack'), w('#rk_top')]; });
   for (const linked of [false, true]) {
     await p.evaluate(async linked => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/02-views.js')]); __mods[0].st.useLansweeper = true; __mods[0].st.lsSource = 'push'; __mods[0].st.feedOn = true; const o = __mods[0].byId('o5'); o.rack = 'R-SRV'; o.u = 3; o.h = 2; o.feed = linked ? {sys:'Lansweeper', ref:'9', seen:'22.10.2026 19:30'} : null; __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o5'); }, linked);
