@@ -274,6 +274,21 @@ test('the type table in Settings decides the type of a Lansweeper name; IP-only 
   assert.equal(s.objs.some(o => o.name === '172.21.1.10'), true, 'an IP device with a serial number is kept');
 });
 
+test('a detached object is left alone by the sync until it is attached; an attached one takes its reference on the next sync', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', serial: 'SN1', assetType: 'Windows', ref: 'pc1' }]));
+  const o = s.objs[0];
+  o.feed = null; o.detached = true;
+  const counts = mergeRecords(s, recordsFromJson([{ name: 'PC1', serial: 'SN1', assetType: 'Windows', ref: 'pc1' }]));
+  assert.equal(counts.detached, 1, 'the detached object was not counted as skipped');
+  assert.equal(o.feed, null, 'the sync re-linked a detached object');
+  delete o.detached; o.feed = { sys: 'Lansweeper', ref: null, seen: null };
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', serial: 'SN1', assetType: 'Windows', ref: 'pc1' }]));
+  assert.equal(o.feed.ref, 'pc1', 'the attached object did not take its reference');
+  assert.ok(o.feed.seen, 'the attached object was not marked as seen');
+});
+
 test('with Lansweeper turned off, pushes and imports are refused', async () => {
   const srv = await startServer({ feedToken: 'off-token-123' });
   try {

@@ -154,8 +154,9 @@ export function mergeRecords(s, records, now = new Date()) {
     const found = s.objs.find(o => r.serial && (o.serial || '').toLowerCase() === r.serial.toLowerCase())
       || (sameName.length === 1 ? sameName[0] : null);
     if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
-    /* An object excluded from sync is left as it is. */
+    /* An object excluded from sync, or detached from it, is left as it is. */
     if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
+    if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
       const type = typeFor(s, r.assetType);
@@ -175,6 +176,7 @@ export function mergeRecords(s, records, now = new Date()) {
     pairs.push({ r, obj: found });
     const wasLinked = !!found.feed;
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen };
+    else if (!found.feed.ref) found.feed.ref = r.ref;
     let changed = false;
     for (const k of FEED_FIELDS) {
       const incoming = r[k];

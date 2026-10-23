@@ -106,6 +106,18 @@ const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds
 let APP_VERSION = '';
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
 
+/* Where an object stands with Lansweeper. The card, the table and the Source panel all read this, so they always agree. */
+function syncOf(o){
+  if (!LS_ON()) return null;
+  if (o.excluded) return {k: 'excluded', label: 'Not synced · excluded', cls: 'kept'};
+  if (o.detached) return {k: 'detached', label: 'Not synced · detached', cls: 'warn'};
+  if (!o.feed) return {k: 'manual', label: 'Manual · not in Lansweeper', cls: 'kept'};
+  if (!o.feed.seen) return {k: 'waiting', label: 'Attached · waiting for sync', cls: 'info'};
+  if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
+  return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
+}
+const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
+
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
 const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
@@ -262,7 +274,7 @@ function cardHtml(o){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${LS_ON() && o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : ''}<span class="grow"></span>${rs.length} relations</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${syncChip(o)}<span class="grow"></span>${rs.length} relations</div>
   </button>`;
 }
 function renderCardsBody(){
@@ -328,13 +340,13 @@ function renderTable(){
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
     <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    <th>Code</th><th>Name</th><th>Type</th><th>Model</th><th>IP</th><th>MAC</th><th>Serial</th><th>Location</th><th>Rack</th><th>User</th><th>Connected to</th><th>Status</th><th>Fed</th></tr></thead><tbody>
+    <th>Code</th><th>Name</th><th>Type</th><th>Model</th><th>IP</th><th>MAC</th><th>Serial</th><th>Location</th><th>Rack</th><th>User</th><th>Connected to</th><th>Status</th><th>Lansweeper</th></tr></thead><tbody>
     ${list.map(o => { const up = rels.find(r => r.from === o.id && (r.kind === 'connected' || r.kind === 'uplink' || r.kind === 'patched')); const t = up && byId(up.to);
       const rk = o.rack && o.u != null ? rackOf(o.rack).name + ' · U' + o.u : '';
       return `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>
       <td class="code">${esc(o.code)}</td><td class="n"><b>${esc(o.name)}</b></td><td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>
       <td>${esc(o.model)}</td><td class="n">${esc(o.ip||'')}</td><td class="n">${esc(o.mac||'')}</td><td class="n">${esc(o.serial)}</td><td>${esc(o.loc)}</td><td class="n">${esc(rk)}</td><td>${esc(o.user||'')}</td>
-      <td class="n">${t ? esc(t.name) + (up.port!=null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td><td>${STATUS[o.status].label}</td><td>${o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : '—'}</td></tr>`; }).join('')}
+      <td class="n">${t ? esc(t.name) + (up.port!=null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td><td>${STATUS[o.status].label}</td><td>${syncChip(o) || '—'}</td></tr>`; }).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
@@ -787,17 +799,25 @@ function extraRows(o, fields){
   return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
     .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
 }
-/* Source of the object: where it came from and when Lansweeper last saw it. */
+/* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 function feedPanel(o){
   if (!LS_ON()) return '';
-  if (!o.feed) return `<div class="panelbox"><div class="hdr">Source</div>
-    <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the Lansweeper sync does not change this object</dd>' : ''}</dl>
-    <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
-  return `<div class="panelbox"><div class="hdr">Lansweeper <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)} · ${esc(o.feed.ref)}</span></div>
-    <dl class="lsbox"><dt>Matched by</dt><dd style="font-family:inherit">Serial number</dd><dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen)}</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the sync does not change this object</dd>' : ''}</dl>
+  const s = syncOf(o);
+  const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
+  const dl = `<dl class="lsbox"><dt>Status</dt><dd>${syncChip(o)}</dd>
+    ${o.feed ? `<dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen || 'not yet')}</dd>` : ''}
+    <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd></dl>`;
+  if (!o.feed){
+    const note = o.detached ? 'Detached: the sync leaves this object alone and its fields are yours. Attach it to let the sync fill it in again.'
+      : 'Entered by hand. The next sync links it when its serial number or unique name matches a Lansweeper record.';
+    return `<div class="panelbox">${head}${dl}<div class="addrel"><span class="note" style="flex:1">${note}</span>${o.detached ? '<button id="attachFeed" class="primary">Attach</button>' : ''}</div></div>`;
+  }
+  const note = o.excluded ? 'Excluded from the sync, so Lansweeper does not change this object. Include it again from the More menu.'
+    : 'Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.';
+  return `<div class="panelbox">${head}${dl}
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Software</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="software" ${o.ovr && o.ovr.software === false ? '' : 'checked'}> From Lansweeper</label></div>
       <label>Links</label><div><label class="pchk" style="width:auto"><input type="checkbox" data-ovr="links" ${o.ovr && o.ovr.links === false ? '' : 'checked'}> From Lansweeper (switch ports, monitors, hosts)</label></div></div>
-    <div class="addrel"><span class="note" style="flex:1">Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.</span><button id="detachFeed">Detach</button></div></div>`;
+    <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
 const SW_TYPES = ['pc','server'];
 function softwarePanel(o){
@@ -1010,7 +1030,8 @@ function renderObj(o){
     toast(o.name + ' and ' + n + ' related object' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
   };
 
-  const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; hist(o, now(), 'Detached from feed by ' + who()); toast(o.name + ' is now a manual object'); render(); };
+  const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; o.detached = true; hist(o, now(), 'Detached from Lansweeper by ' + who()); toast(o.name + ' is detached. Its fields are yours now'); render(); };
+  const af = $('#attachFeed'); if (af) af.onclick = () => { delete o.detached; o.feed = {sys: 'Lansweeper', ref: null, seen: null}; hist(o, now(), 'Attached to Lansweeper by ' + who()); toast(o.name + ' is attached. The next sync fills it in'); render(); };
 }
 
 /* ---------- modals ---------- */
