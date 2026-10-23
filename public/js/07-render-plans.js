@@ -1,6 +1,6 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { TYPE_FIELDS, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
@@ -317,6 +317,7 @@ export function render(){
   else if (st.tab === 'sw') renderSoftware();
   else renderObj(byId(st.tab));
   fullTextTooltips();
+  bindFullTextOnHover();
   $('#stObjs').textContent = objs.length + ' objects';
   $('#stRels').textContent = rels.length + ' relations';
   applyRole();

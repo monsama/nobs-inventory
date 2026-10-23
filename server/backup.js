@@ -29,6 +29,12 @@ export function restoreBackup(db, data) {
   if (!data || data.version !== 1 || !data.state) throw new HttpError(400, 'This file is not a backup of NOBS Inventory.');
   const b = data.state;
   if (!Array.isArray(b.objs) || !Array.isArray(b.rels) || !Array.isArray(b.users) || !b.types || !b.history) throw new HttpError(400, 'The backup is incomplete.');
+  /* The plan pictures are checked the same way an upload is, before anything is written. */
+  const images = Array.isArray(data.planImages) ? data.planImages : [];
+  for (const im of images) {
+    if (!im || typeof im.id !== 'string' || typeof im.data !== 'string' || im.data.length > 2000000 || !/^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(im.data))
+      throw new HttpError(400, 'The backup has a plan picture that is not a PNG, JPEG, GIF or WebP image.');
+  }
   const cur = loadState(db);
   const st = b.settings || {};
   const s = { ...cur, objs: b.objs, rels: b.rels, history: b.history, types: b.types };
@@ -45,5 +51,5 @@ export function restoreBackup(db, data) {
   saveState(db, s);
   db.prepare('DELETE FROM plan_images').run();
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');
-  for (const im of data.planImages || []) put.run(String(im.id), String(im.data));
+  for (const im of images) put.run(im.id, im.data);
 }
