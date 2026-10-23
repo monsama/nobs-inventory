@@ -538,3 +538,51 @@ test('a viewer does not receive sign-in names or directory groups of the other u
     assert.equal(own.json.users.find(u => u.id === 'u-anna').login, 'anna', 'the admin lost the login');
   } finally { await srv.close(); }
 });
+
+test('an object of an unknown type, or a relation to a missing object, is refused; a missing status is filled in', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const put = body => srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], ...body }), cookie: admin.cookie });
+    assert.equal((await put({ objs: [{ id: 'o1', type: 'tablet', name: 'T1', status: 'active' }] })).status, 400, 'an unknown type was saved');
+    assert.equal((await put({ objs: [{ id: 'o1', type: 'pc', name: 'PC1', status: 'lost' }] })).status, 400, 'an unknown status was saved');
+    assert.equal((await put({ objs: [{ id: 'o1', type: 'pc', name: 'PC1', status: 'active' }], rels: [{ id: 'r1', from: 'o1', to: 'o9', kind: 'connected' }] })).status, 400, 'a dangling relation was saved');
+    assert.equal((await put({ objs: [{ id: 'o1', type: 'pc', name: '  ' }] })).status, 400, 'an unnamed object was saved');
+    assert.equal((await put({ objs: [{ id: 'o1', type: 'pc', name: 'PC1' }] })).status, 200, 'an object without a status was refused');
+    const back = await srv.call('GET', '/api/state', { cookie: admin.cookie });
+    assert.equal(back.json.objs[0].status, 'active');
+  } finally { await srv.close(); }
+});
+
+test('setting a password signs the user out everywhere else; the admin keeps the session that set it', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true }];
+    assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'oldpass123' }, cookie: admin.cookie })).status, 200);
+    const first = await signIn(srv, 'anna', 'oldpass123');
+    const second = await signIn(srv, 'anna', 'oldpass123');
+    assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'newpass123' }, cookie: admin.cookie })).status, 200);
+    assert.equal((await srv.call('GET', '/api/state', { cookie: first.cookie })).status, 401, 'an old session still works');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: second.cookie })).status, 401, 'an old session still works');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: admin.cookie })).status, 200, 'the admin lost their own session');
+    assert.equal((await signIn(srv, 'anna', 'newpass123')).status, 200);
+  } finally { await srv.close(); }
+});
+
+test('a full save checks addresses and field limits, the same as an incremental one', async () => {
+  const srv = await startServer();
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const put = obj => srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], objs: [{ id: 'o1', type: 'pc', name: 'PC1', status: 'active', ...obj }] }), cookie: admin.cookie });
+    assert.equal((await put({ ip: '10.10.0.300' })).status, 400, 'a bad IPv4 address was saved');
+    assert.equal((await put({ ip6: 'not-an-address' })).status, 400, 'a bad IPv6 address was saved');
+    assert.equal((await put({ mac: 'zz' })).status, 400, 'a bad MAC address was saved');
+    assert.equal((await put({ model: 'x'.repeat(501) })).status, 400, 'an overlong field was saved');
+    assert.equal((await put({ ports: 5000 })).status, 400, 'a port count out of range was saved');
+    assert.equal((await put({ u: 0 })).status, 400, 'a rack position out of range was saved');
+    assert.equal((await put({ mac: 'AA-BB-CC-DD-EE-FF' })).status, 200);
+    assert.equal((await srv.call('GET', '/api/state', { cookie: admin.cookie })).json.objs[0].mac, 'aa:bb:cc:dd:ee:ff');
+  } finally { await srv.close(); }
+});

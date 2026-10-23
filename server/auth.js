@@ -43,6 +43,10 @@ export function sessionUserId(db, token) {
   return row.user_id;
 }
 
+/* Ends every session of a user except the one given: a new password signs the old sessions out. */
+export function endOtherSessions(db, userId, keepToken) {
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(String(userId), keepToken ? sha(keepToken) : '');
+}
 export function endSession(db, token) {
   if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha(token));
 }

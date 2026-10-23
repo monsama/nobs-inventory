@@ -56,6 +56,9 @@ export function factoryReset(db, keepUserId) {
 }
 
 /* The rules a whole inventory must follow before it is stored. */
+/* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/app.js. */
+const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other'];
+const STATUSES = ['active', 'stock', 'repair', 'retired'];
 function checkState(s) {
   const bad = msg => { throw new HttpError(400, msg); };
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
@@ -78,6 +81,24 @@ function checkState(s) {
   const ids = s.objs.map(o => o.id);
   if (new Set(ids).size !== ids.length) bad('Two objects have the same id.');
   if (ids.some(id => typeof id !== 'string' || !id)) bad('Every object needs an id.');
+  /* The page cannot show an object with an unknown type or status, or a relation to an object that is not there. */
+  const types = new Set([...KNOWN_TYPES, ...Object.keys(s.types)]);
+  for (const o of s.objs) {
+    if (o.status === undefined) o.status = 'active';   /* a hand-written object is in use until it says otherwise */
+    if (!types.has(o.type)) bad(`${o.name || o.id} has an unknown type: ${o.type}.`);
+    if (!STATUSES.includes(o.status)) bad(`${o.name || o.id} has an unknown status: ${o.status}.`);
+    if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
+    /* Addresses are checked and written in their stored form, however the object arrived. */
+    for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
+    for (const k of ['name', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
+    if (o.ports !== undefined && (!Number.isInteger(o.ports) || o.ports < 0 || o.ports > 1000)) bad(`${o.name}: the port count must be a whole number from 0 to 1000.`);
+    if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
+  }
+  const idSet = new Set(ids);
+  for (const r of s.rels) {
+    if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
+    if (typeof r.kind !== 'string' || !r.kind) bad('Every relation needs a kind.');
+  }
   if (JSON.stringify(s).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
 }
 

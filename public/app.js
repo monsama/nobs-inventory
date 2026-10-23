@@ -410,7 +410,8 @@ function parseCsv(text){
   if (cell || row.length){ row.push(cell); rows.push(row); }
   return rows.filter(r => r.some(x => x.trim()));
 }
-const csvCell = v => { const t = String(v ?? ''); return /[",;\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+/* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
+const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
 function exportCsv(list){
   const head = ['code','name','type','model','serial','ip','mac','location','user','status'];
   const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label].map(csvCell).join(',')));

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
-import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, readCookie } from './auth.js';
+import { setPassword, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -168,6 +168,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters.');
       if (password.length > 256) throw new HttpError(400, 'Use at most 256 characters.');
       setPassword(db, u.id, password);
+      endOtherSessions(db, u.id, readCookie(req.headers.cookie, COOKIE));
       audit(db, req.user.id, 'set password for ' + u.login);
       res.json({ ok: true });
     } catch (e) { next(e); }
