@@ -990,7 +990,7 @@ function bindPolicy(root){
 
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['maintenance','Maintenance'],['about','About']];
+const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['ldap','LDAP sync'],['policy','Feed fields'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -1013,11 +1013,12 @@ function renderSetPane(){
     ldap: '<div id="setLdap"></div>',
     policy: `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`,
     maintenance: '<div id="setMaint"></div>',
+    log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, maintenance: renderSetMaint, about: renderSetAbout})[st.setTab]();
+  ({feed: renderSetFeed, locations: renderSetLocs, types: renderSetTypes, users: renderSetUsers, ldap: renderSetLdap, policy: () => {}, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -1191,6 +1192,28 @@ function showDevicesOf(name){
 
 /* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
 /* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
+/* The log: what was synced, saved, restored and signed in, and what failed. */
+let LOG_FILTER = 'all';
+const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
+const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
+async function renderSetLog(){
+  const pane = $('#setLog');
+  if (!canEdit()){ pane.innerHTML = '<div class="panelbox"><div class="hdr">Log</div><p class="note" style="padding:12px">Only administrators can see the log.</p></div>'; return; }
+  const r = await fetch('api/log?limit=500', {credentials: 'same-origin'});
+  if (!$('#setLog')) return;
+  const j = r.ok ? await r.json() : {entries: []};
+  const entries = j.entries.filter(e => LOG_FILTER === 'all' || (LOG_FILTER === 'errors' ? e.level === 'error' : logKind(e) === LOG_FILTER));
+  const errors = j.entries.filter(e => e.level === 'error').length;
+  $('#setLog').innerHTML = `<div class="panelbox"><div class="hdr">Log <span class="cnt">${j.entries.length}</span>${errors ? ` <span class="chip warn">${errors} error${errors === 1 ? '' : 's'}</span>` : ''}</div>
+    <div class="addrel" style="padding:10px 12px;border-top:0">
+      ${LOG_KINDS.map(([k, l]) => `<button class="tab ${LOG_FILTER === k ? 'active' : ''}" data-logf="${k}">${l}</button>`).join('')}
+      <span class="grow"></span><button id="logRefresh">Refresh</button></div>
+    ${entries.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:560px"><thead><tr><th style="width:170px">Time</th><th style="width:90px">Level</th><th style="width:160px">Who</th><th>What happened</th></tr></thead><tbody>
+      ${entries.map(e => `<tr class="${e.level === 'error' ? 'logerr' : ''}"><td class="mono">${esc(pushDate(e.at))}</td><td>${e.level === 'error' ? '<span class="chip warn">Error</span>' : '<span class="chip kept">Info</span>'}</td><td>${esc(e.who)}</td><td style="white-space:normal">${esc(e.action)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="note" style="padding:12px">Nothing to show for this filter.</p>'}</div>`;
+  pane.querySelectorAll('[data-logf]').forEach(b => b.onclick = () => { LOG_FILTER = b.dataset.logf; renderSetLog(); });
+  $('#logRefresh').onclick = () => renderSetLog();
+}
 /* Backups of the inventory: taken before each Lansweeper sync, push and import, and by hand. */
 let BACKUPS = null;
 async function loadBackups(){
