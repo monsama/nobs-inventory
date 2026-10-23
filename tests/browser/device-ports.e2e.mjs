@@ -55,6 +55,11 @@ try {
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');
   assert.ok(rows.some(t => t.includes('1.2')), 'the PC row has its version');
+  // With a type selected, the locations count only objects of that type.
+  const rtSite = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').loc.split(' / ')[0]);
+  await p.click('#typeList [data-type=router]');
+  assert.equal(await p.textContent(`#locList [data-loc="${rtSite}"] .cnt`), '1', 'the site of the router counts the one router');
+  await p.click('#clearF');
   // Linking an existing object hides the detail fields, and they come back for a new object.
   await p.click('#newBtn'); await p.waitForSelector('#nExist');
   const pick = await p.$eval('#nExist', sel => [...sel.options].find(o => o.value)?.value);
