@@ -33,6 +33,7 @@
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
 body{display:flex;flex-direction:column;overflow:hidden}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
+input[type=file]{max-width:100%;min-width:0;font-size:12px}
 input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px}
 /* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
 select{padding-left:2px}
@@ -338,7 +339,7 @@ a.link:hover{text-decoration:underline}
 .lsbox dd.plain{font-family:inherit}
 .lsbox .lsbox-check{width:auto;white-space:normal;gap:6px;margin:0}
 .lsbox .lsbox-check input{margin:0}
-.pchk{display:inline-flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap}
+.pchk{display:inline-flex;gap:6px;align-items:center;font-size:12px;white-space:normal;min-width:0}
 .pchk input{height:auto}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;padding:10px 12px}
 .hist{list-style:none;margin:0;padding:6px 12px 10px;font-size:12px}
