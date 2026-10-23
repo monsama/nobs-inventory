@@ -45,6 +45,13 @@ try {
   await p.waitForTimeout(300);
   assert.equal(await p.isVisible('#arName'), true, 'the area dialog did not open');
   assert.equal(await p.evaluate(() => document.querySelector('#toolbar').textContent.trim()), '', 'the toolbar of another tab is still shown on the plans');
+  // The area dialog offers the rooms of the plan's site: picking one gives the area that room.
+  const rooms = await p.$$eval('#arRoom option', os => os.map(o => o.textContent.trim()));
+  assert.ok(rooms.includes('Büro 2.OG'), 'the existing room is not offered: ' + rooms.join(' | '));
+  await p.selectOption('#arRoom', 'Zürich HQ / Büro 2.OG');
+  assert.equal(await p.inputValue('#arName'), 'Büro 2.OG', 'the area is not named after the room');
+  await p.click('#arOk');
+  await until(p, async () => (await import('/js/07-render-plans.js')).planById('pl1').areas.some(a => a.room === 'Zürich HQ / Büro 2.OG'));
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }
