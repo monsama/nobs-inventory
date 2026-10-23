@@ -18,6 +18,10 @@ export function openDb(file) {
     CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
     CREATE INDEX IF NOT EXISTS sessions_expires ON sessions (expires);
   `);
+  /* Added after the first version: when a session was last used, and the browser that signed in. */
+  const cols = db.prepare('PRAGMA table_info(sessions)').all().map(c => c.name);
+  if (!cols.includes('last')) db.exec('ALTER TABLE sessions ADD COLUMN last INTEGER');
+  if (!cols.includes('agent')) db.exec("ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT ''");
   return db;
 }
 

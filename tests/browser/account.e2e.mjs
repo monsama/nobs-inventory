@@ -31,15 +31,15 @@ try {
   assert.equal(await p.evaluate(() => USERS.find(u => u.login === 'admin').dept), 'IT', 'the department was not saved');
   // Password: a wrong current password is refused and nothing changes.
   await p.click('#whoBtn'); await p.waitForSelector('#acPw');
-  await p.fill('#acCur', 'wrong-pass'); await p.fill('#acNew', 'newpass123'); await p.fill('#acNew2', 'newpass123');
+  await p.fill('#acCur', 'wrong-pass'); await p.fill('#acNew', 'newpass12345'); await p.fill('#acNew2', 'newpass12345');
   await p.click('#acPw');
   await p.waitForFunction(() => /not right/.test(document.querySelector('#acErr').textContent), null, { timeout: 5000 });
   await p.fill('#acCur', 'adminpass123'); await p.fill('#acNew2', 'different1');
   await p.click('#acPw');
   await p.waitForFunction(() => /not the same/.test(document.querySelector('#acErr').textContent), null, { timeout: 5000 });
-  await p.fill('#acNew2', 'newpass123'); await p.click('#acPw');
+  await p.fill('#acNew2', 'newpass12345'); await p.click('#acPw');
   await p.waitForFunction(() => document.querySelector('#acPw') === null, null, { timeout: 5000 });
-  const signIn = await p.evaluate(async () => (await fetch('api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login:'admin', password:'newpass123'})})).status);
+  const signIn = await p.evaluate(async () => (await fetch('api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login:'admin', password:'newpass12345'})})).status);
   assert.equal(signIn, 200, 'the new password does not sign in');
   await p.click('#signOutBtn');
   await p.waitForSelector('#lgUser', { timeout: 10000 });

@@ -26,7 +26,7 @@ function connect(config) {
   client.on('error', () => {});
   return client;
 }
-function close(client) { try { client.unbind(() => {}); } catch (e) { /* already closed */ } }
+function close(client) { try { client.unbind(() => {}); } catch { /* already closed */ } }
 const bind = (client, dn, password) => new Promise((resolve, reject) => client.bind(dn, password, e => (e ? reject(e) : resolve())));
 
 function normalize(entry) {

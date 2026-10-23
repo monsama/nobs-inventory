@@ -4,8 +4,8 @@ import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
-import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
+import { saveState } from '../../server/state.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,7 +22,7 @@ saveState(db, {
     { id: 'u-dora', login: 'dora', name: 'Dora', role: 'viewer', active: false, source: 'manual' }
   ]
 });
-setPassword(db, 'u-anna', 'annas-pw-1234');
+setPassword(db, 'u-anna', 'blue-river-1234');
 const app = createApp({ db });
 const server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
 const base = `http://127.0.0.1:${server.address().port}`;

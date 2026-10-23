@@ -5,7 +5,6 @@ import { openDb } from '../server/db.js';
 import { createApp } from '../server/app.js';
 import { bootstrap } from '../server/index.js';
 import { loadState, saveState } from '../server/state.js';
-import vm from 'node:vm';
 
 export function tempDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ni-test-'));
@@ -31,7 +30,7 @@ export async function startServer({ dir = tempDataDir(), ldap = null, feedToken 
       }
       const r = await fetch(base + url, { method, headers, body: payload });
       const text = await r.text();
-      let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ }
+      let json = null; try { json = JSON.parse(text); } catch { /* not JSON */ }
       return { status: r.status, json, text, cookie: (r.headers.get('set-cookie') || '').split(';')[0] };
     }
   };

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, signIn } from './helpers.js';
-import { loadState, saveState } from '../server/state.js';
+import { loadState } from '../server/state.js';
 
 const admin0 = { id: 'u-admin', login: 'admin', name: 'Administrator', role: 'admin', active: true, source: 'manual' };
 const base = (users, extra = {}) => ({
@@ -18,16 +18,16 @@ async function setup() {
     { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true, source: 'manual' },
     { id: 'u-dora', login: 'dora', name: 'Dora', role: 'viewer', active: false, source: 'manual' }];
   assert.equal((await put(srv, admin.cookie, users)).status, 200);
-  for (const [id, pw] of [['u-anna', 'annas-pw-1234'], ['u-dora', 'doras-pw-1234']]) {
+  for (const [id, pw] of [['u-anna', 'blue-river-1234'], ['u-dora', 'green-hill-5678']]) {
     assert.equal((await srv.call('POST', `/api/users/${id}/password`, { body: { password: pw }, cookie: admin.cookie })).status, 200);
   }
   return { srv, admin };
 }
 
 test('a viewer cannot change users, roles or passwords', async () => {
-  const { srv, admin } = await setup();
+  const { srv } = await setup();
   try {
-    const anna = await signIn(srv, 'anna', 'annas-pw-1234');
+    const anna = await signIn(srv, 'anna', 'blue-river-1234');
     const users = loadState(srv.db).users;
     assert.equal((await put(srv, anna.cookie, users)).status, 403, 'a viewer cannot save the user list');
     assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'newpassword1' }, cookie: anna.cookie })).status, 403);
@@ -40,12 +40,12 @@ test('an admin promotes and demotes users; the last active admin cannot be demot
   try {
     let users = loadState(srv.db).users.map(u => u.id === 'u-anna' ? { ...u, role: 'admin' } : u);
     assert.equal((await put(srv, admin.cookie, users)).status, 200, 'promoting Anna is fine');
-    const anna = await signIn(srv, 'anna', 'annas-pw-1234');
+    const anna = await signIn(srv, 'anna', 'blue-river-1234');
     assert.equal(anna.user.role, 'admin', 'she signs in as admin now');
 
     users = loadState(srv.db).users.map(u => u.id === 'u-admin' ? { ...u, role: 'viewer' } : u);
     assert.equal((await put(srv, anna.cookie, users)).status, 200, 'with two admins, demoting the first is allowed');
-    const admin2 = await signIn(srv, 'anna', 'annas-pw-1234');
+    const admin2 = await signIn(srv, 'anna', 'blue-river-1234');
     const adminAgain = await signIn(srv, 'admin', 'adminpass123');
     assert.equal(adminAgain.user.role, 'viewer');
 
@@ -60,13 +60,13 @@ test('an admin promotes and demotes users; the last active admin cannot be demot
 test('a deactivated user cannot sign in, and an open session stops working when they are deactivated', async () => {
   const { srv, admin } = await setup();
   try {
-    assert.equal((await signIn(srv, 'dora', 'doras-pw-1234')).status, 401, 'deactivated users are refused with the same answer');
-    const anna = await signIn(srv, 'anna', 'annas-pw-1234');
+    assert.equal((await signIn(srv, 'dora', 'green-hill-5678')).status, 401, 'deactivated users are refused with the same answer');
+    const anna = await signIn(srv, 'anna', 'blue-river-1234');
     assert.equal((await srv.call('GET', '/api/state', { cookie: anna.cookie })).status, 200);
     const users = loadState(srv.db).users.map(u => u.id === 'u-anna' ? { ...u, active: false } : u);
     assert.equal((await put(srv, admin.cookie, users)).status, 200);
     assert.equal((await srv.call('GET', '/api/state', { cookie: anna.cookie })).status, 401, 'her open session ends at once');
-    assert.equal((await signIn(srv, 'anna', 'annas-pw-1234')).status, 401);
+    assert.equal((await signIn(srv, 'anna', 'blue-river-1234')).status, 401);
   } finally { await srv.close(); }
 });
 
@@ -75,7 +75,7 @@ test('reactivating a user restores sign-in with the same password', async () => 
   try {
     const users = loadState(srv.db).users.map(u => u.id === 'u-dora' ? { ...u, active: true } : u);
     assert.equal((await put(srv, admin.cookie, users)).status, 200);
-    assert.equal((await signIn(srv, 'dora', 'doras-pw-1234')).status, 200);
+    assert.equal((await signIn(srv, 'dora', 'green-hill-5678')).status, 200);
   } finally { await srv.close(); }
 });
 
@@ -93,8 +93,8 @@ test('a user without a login has no password and cannot sign in', async () => {
 test('login names are matched without regard to case, and wrong passwords for a real user are refused', async () => {
   const { srv } = await setup();
   try {
-    assert.equal((await signIn(srv, 'ANNA', 'annas-pw-1234')).status, 200);
-    assert.equal((await signIn(srv, 'anna', 'annas-pw-12345')).status, 401);
+    assert.equal((await signIn(srv, 'ANNA', 'blue-river-1234')).status, 200);
+    assert.equal((await signIn(srv, 'anna', 'blue-river-12345')).status, 401);
   } finally { await srv.close(); }
 });
 
