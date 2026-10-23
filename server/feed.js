@@ -6,7 +6,7 @@ import { HttpError } from './errors.js';
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
 
-const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'patch', 'av'];
+const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'patch', 'av', 'domain'];
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
   [/virtual machine|\bvm\b/i, 'vm'],
@@ -54,7 +54,7 @@ export function recordsFromCsv(text) {
   }));
 }
 
-const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av'];
+const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
@@ -164,7 +164,7 @@ export function mergeRecords(s, records, now = new Date()) {
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
-        ...Object.fromEntries(['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'patch', 'av'].map(k => [k, r[k]]).filter(([, v]) => v)),
+        ...Object.fromEntries(['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'patch', 'av', 'domain'].map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {})
       };
       s.objs.push(obj);

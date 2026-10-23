@@ -274,6 +274,18 @@ test('the type table in Settings decides the type of a Lansweeper name; IP-only 
   assert.equal(s.objs.some(o => o.name === '172.21.1.10'), true, 'an IP device with a serial number is kept');
 });
 
+test('with Lansweeper turned off, pushes and imports are refused', async () => {
+  const srv = await startServer({ feedToken: 'off-token-123' });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], useLansweeper: false }), cookie: admin.cookie });
+    const push = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer off-token-123' }, body: '{"records":[]}' });
+    assert.equal(push.status, 403);
+    const imp = await srv.call('POST', '/api/feed/import', { body: 'AssetName,Serial\nOFF-1,O1\n', type: 'csv', cookie: admin.cookie });
+    assert.equal(imp.status, 403);
+  } finally { await srv.close(); }
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };

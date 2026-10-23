@@ -69,7 +69,7 @@ $script:Wanted = [ordered]@{
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
-    tblNetwork     = @('AssetID', 'DNSHostname')
+    tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
@@ -371,13 +371,14 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
-            (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname')
+            (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
         ) -join ', '
 
         $joins = ''
         if (Test-Col 'tblAssetCustom' 'AssetID') { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
         if ((Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'DNSHostname')) {
-            $joins += 'LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname] FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] '
+            $netDomain = if (Test-Col 'tblNetwork' 'DNSDomain') { ', MAX([DNSDomain]) AS [DNSDomain]' } else { '' }
+            $joins += "LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname]$netDomain FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] "
         }
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
         if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
@@ -415,6 +416,7 @@ function Get-LsRecords {
                     cpu = Get-Clean $reader['a__Processor']
                     ram = Get-RamText $reader['a__Memory']
                     user = Get-UserText $reader['a__Username']
+                    domain = Get-Clean $reader['n__DNSDomain']
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null

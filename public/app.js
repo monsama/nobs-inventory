@@ -62,7 +62,9 @@ const LOCS = [];
 const SITES = [];
 let RACKS = [];
 let PLANS = [];
-const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
+/* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
+const LS_ON = () => st.useLansweeper !== false;
+const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', patch:'Last update', av:'Antivirus', user:'User', loc:'Location', status:'Status'};
 const SYNC_TIME = '21.10.2026 06:00';
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 const KINDS = {
@@ -99,13 +101,13 @@ const hist = (o, t, msg) => (history[o.id] ??= []).unshift({t, msg});
    Each object can override these on its own page (o.ovr). */
 const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], swSel:null, cardsGroup:'none', searchAll:false, netSw:null, netPort:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapPos:{},
-  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false},
+  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 let APP_VERSION = '';
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
-const feedOwns = (o, k, linked = !!o.feed) => !!(st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+const feedOwns = (o, k, linked = !!o.feed) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -260,7 +262,7 @@ function cardHtml(o){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : ''}<span class="grow"></span>${rs.length} relations</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${LS_ON() && o.feed ? '<span class="dot" title="Kept in sync from feed"></span>' : ''}<span class="grow"></span>${rs.length} relations</div>
   </button>`;
 }
 function renderCardsBody(){
@@ -708,7 +710,7 @@ function renderRack(){
 const FIELDS = {
   base:[['name','Name','mono'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
+  pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], tablet:[['os','Operating system']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
@@ -732,21 +734,22 @@ const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] =
    ticked; untick it to edit the value here. */
 function propRow(o, f){
   const k = f[0];
-  const linked = !!o.feed && !!FIELD_LABEL[k];
+  const linked = LS_ON() && !!o.feed && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
-  const box = linked ? `<label class="pchk"><input type="checkbox" data-ovr="${k}" ${taken ? 'checked' : ''}> From feed</label>` : (o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
+  const box = linked ? `<label class="pchk"><input type="checkbox" data-ovr="${k}" ${taken ? 'checked' : ''}> From feed</label>` : (LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   return `<label for="f_${o.id}_${k}">${f[1]}</label><div class="ctlrow">${ctl}${box}</div>`;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
 function extraRows(o, fields){
-  if (!o.feed) return '';
+  if (!o.feed || !LS_ON()) return '';
   return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
     .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
 }
 /* Source of the object: where it came from and when Lansweeper last saw it. */
 function feedPanel(o){
+  if (!LS_ON()) return '';
   if (!o.feed) return `<div class="panelbox"><div class="hdr">Source</div>
     <dl class="lsbox"><dt>Source</dt><dd style="font-family:inherit">Entered by hand</dd>${o.excluded ? '<dt>Sync</dt><dd style="font-family:inherit">Excluded: the Lansweeper sync does not change this object</dd>' : ''}</dl>
     <p class="note" style="padding:10px 12px">A Lansweeper export matches this object by serial number and fills in the fields the policy allows.</p></div>`;
@@ -1011,9 +1014,20 @@ function openSettings(){
   if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
 }
+/* The switch that turns Lansweeper on or off for this inventory. */
+function renderLsToggle(){
+  const host = $('#setLsToggle'); if (!host) return;
+  const ro = canEdit() ? '' : 'disabled';
+  host.innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper</div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="useLs">Connect Lansweeper</label>
+    <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${LS_ON() ? 'checked' : ''} ${ro}> ${LS_ON() ? 'On. Lansweeper data is pulled in and shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div></div></div>`;
+  const c = $('#useLs');
+  if (c && canEdit()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
+}
 /* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
 function renderTypeMap(){
   if (!$('#setTypeMap')) return;
+  if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
   const edit = canEdit(), ro = edit ? '' : 'disabled';
   const entries = Object.entries(st.typeMap || {});
   const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
@@ -1043,7 +1057,7 @@ function renderSetPane(){
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div class="panelbox" id="setFeed"></div><div id="setTypeMap"></div>' + policyPane,
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
@@ -1052,7 +1066,7 @@ function renderSetPane(){
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: () => { renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: () => { renderSetMaint(); renderSetLog(); }, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: () => { renderSetMaint(); renderSetLog(); }, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -1581,6 +1595,7 @@ function pushStatus(){
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Not seen</label><span>${stale}</span></div>`;
 }
 function renderSetFeed(){
+  if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = canEdit(), ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
@@ -2058,7 +2073,7 @@ function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(history).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {locs: LOCS, sites: SITES, lansweeper: st.lansweeper, racks: RACKS, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, typeMap: st.typeMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -2189,13 +2204,14 @@ function applyState(d){
   USERS = d.users; LOCS.splice(0, LOCS.length, ...d.locs); RACKS.splice(0, RACKS.length, ...(d.racks || []));
   SITES.splice(0, SITES.length, ...(d.sites || []));
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
+  st.useLansweeper = d.useLansweeper !== false;
   st.typeMap = d.typeMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
-  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
+  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:false, disk:false, patch:false, av:false, domain:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   seq = d.seq; codeN = d.codeN; rseq = d.rseq;
   objs.forEach(bindUser);
 }
