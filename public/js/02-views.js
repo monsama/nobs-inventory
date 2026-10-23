@@ -1,4 +1,4 @@
-import { hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -108,6 +108,8 @@ export function cardHtml(o){
   const rs = relsOf(o);
   const lines = [];
   if (o.purpose) lines.push(['Purpose', esc(o.purpose)]);
+  /* The fields the type has, when this object has a value for them. */
+  for (const f of TYPE_FIELDS[o.type] || []) { const v = (o.custom || {})[f.key]; if (v != null && v !== '') lines.push([f.label, esc(String(v))]); }
   if (o.ip) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
   if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
   else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
