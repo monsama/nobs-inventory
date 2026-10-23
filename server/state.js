@@ -2,13 +2,13 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
-export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: false, disk: false, patch: false, av: false, user: false, loc: false, status: false };
+const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: false, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
 export const docKey = (kind, id) => kind + '|' + id;
