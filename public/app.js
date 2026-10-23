@@ -1250,6 +1250,7 @@ function applyRole(){
   document.body.classList.toggle('readonly', ro);
   $('#newBtn').disabled = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
+  $('#signOutBtn').hidden = !me();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
     if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
@@ -1913,7 +1914,8 @@ function newObjModal(pre={}){
 
 /* ---------- top bar ---------- */
 $('#newBtn').onclick = () => newObjModal();
-$('#whoBtn').onclick = () => (me() ? signOut() : loginModal());
+$('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
+$('#signOutBtn').onclick = () => signOut();
 $('#setBtn').onclick = openSettings;
 $('#themeBtn').onclick = () => {
   const root = document.documentElement;
@@ -2513,6 +2515,46 @@ function loginModal(err = '', login = ''){
   $('#lgOk').onclick = go;
   $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });
   (login ? $('#lgPw') : $('#lgUser')).focus();
+}
+/* Your own account: name and department, and the password. Directory users keep their name and password in the directory. */
+function accountModal(){
+  const u = me(), ldap = u.source === 'ldap';
+  const parts = (u.name || '').split(' ');
+  modal(`<div class="mh">Your account</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '—')}${ldap ? ' · directory' : ''}</div>
+      <label for="acFirst">First name</label><input id="acFirst" value="${esc(u.first ?? parts[0] ?? '')}" ${ldap ? 'disabled' : ''}>
+      <label for="acLast">Last name</label><input id="acLast" value="${esc(u.last ?? parts.slice(1).join(' '))}" ${ldap ? 'disabled' : ''}>
+      <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}">
+    </div>
+    ${ldap ? '<p class="note">Your name and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
+    <div class="form" style="padding:0">
+      <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
+      <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+      <label for="acNew2">Repeat</label><input id="acNew2" type="password" autocomplete="new-password">
+    </div>`}
+    <p class="note" id="acErr"></p></div>
+    <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary">Save</button></div>`, 'sm');
+  const fail = msg => { $('#acErr').textContent = msg; };
+  $('#acClose').onclick = closeModal;
+  $('#acSave').onclick = async () => {
+    if (ldap){ closeModal(); return; }
+    const first = $('#acFirst').value.trim(), last = $('#acLast').value.trim();
+    if (!first && !last) return fail('Give a first or last name.');
+    const r = await fetch('api/me', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({first, last, dept: $('#acDept').value.trim()})});
+    if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The details could not be saved.');
+    closeModal(); await reloadFromServer(); toast('Saved');
+  };
+  $('#acPw').onclick = async () => {
+    const cur = $('#acCur').value, pw = $('#acNew').value;
+    if (!cur) return fail('Type your current password.');
+    if (pw.length < 8) return fail('The new password needs at least 8 characters.');
+    if (pw !== $('#acNew2').value) return fail('The two new passwords are not the same.');
+    const r = await fetch('api/me/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({current: cur, password: pw})});
+    if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The password was not changed.');
+    closeModal(); toast('Password changed. Other browsers are signed out.');
+  };
+  $('#acFirst').focus();
 }
 async function signOut(){
   await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
