@@ -22,6 +22,8 @@ export let planZoom = 1;
 export const planById = id => PLANS.find(p => p.id === id);
 /* Where a device sits on a plan: its own place, or, for a device already in the location of an area, the centre of that area. */
 export const planPosOf = (plan, o) => {
+  /* A retired device is kept for the record, not shown on a plan. */
+  if (o.status === 'retired') return null;
   if (o.planPos) return o.planPos.plan === plan.id ? o.planPos : null;
   /* A device taken off this plan stays off until it is placed again. */
   if (o.planOff === plan.id) return null;
@@ -152,7 +154,7 @@ export function planCanvas(plan){
 export function renderPlanList(plan){
   const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
   const placed = planDevices(plan).map(o => o.id);
-  const rows = objs.filter(o => !placed.includes(o.id) && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
+  const rows = objs.filter(o => !placed.includes(o.id) && o.status !== 'retired' && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
 export function placeDevice(plan, o, x, y){

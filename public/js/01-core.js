@@ -183,6 +183,16 @@ export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).ma
 });
 export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 export function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
+/* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
+export const releaseRetiredPort = (to, port) => {
+  const holders = rels.filter(r => r.to === to.id && String(r.port) === String(port));
+  if (!holders.length || holders.some(r => byId(r.from) && byId(r.from).status !== 'retired')) return false;
+  for (const r of holders) {
+    const d = byId(r.from); rels.splice(rels.indexOf(r), 1);
+    hist(d, now(), `Connection to ${to.name} port ${port} removed: the port was taken over`);
+  }
+  return true;
+};
 export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
 export const isUplink = k => k === 'uplink';
 
