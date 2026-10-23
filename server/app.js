@@ -252,6 +252,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* Lansweeper pushes its assets from a script on its own server (scripts/Lansweeper-Push.ps1), with the token the
      administrator set (NI_FEED_TOKEN). Without a token set, this route refuses every request. */
+  /* A feed run that changes nothing saves nothing and takes no backup, so a regular push does not fill the backup store. */
+  const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software'].some(k => counts[k] > 0);
   app.post('/api/feed/push', (req, res, next) => {
     try {
       /* Wrong tokens count against the address, the same way wrong passwords do, so a token cannot be guessed by trying. */
@@ -263,10 +265,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
-      takeBackup(db, 'before a Lansweeper push');
       const s = loadState(db);
       const counts = mergeRecords(s, recordsFromJson(records));
-      saveState(db, s);
+      if (feedChanged(counts)) { takeBackup(db, 'before a Lansweeper push'); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'feed push failed: ' + e.message); next(e); }
@@ -391,10 +392,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const text = typeof req.body === 'string' ? req.body : '';
       if (!text) throw new HttpError(400, 'Send the export as CSV text.');
-      takeBackup(db, 'before a Lansweeper import');
       const s = loadState(db);
       const counts = mergeFeed(s, text);
-      saveState(db, s);
+      if (feedChanged(counts)) { takeBackup(db, 'before a Lansweeper import'); saveState(db, s); }
       audit(db, req.user.id, 'feed import: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'Lansweeper import failed: ' + e.message); next(e); }
