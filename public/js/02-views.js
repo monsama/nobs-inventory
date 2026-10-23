@@ -485,8 +485,15 @@ export function mapExportSvg(){
 }
 
 export function renderMap(){
-  const nodes = filtered();
+  /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
+  const focus = st.mapFocus && byId(st.mapFocus) ? byId(st.mapFocus) : null;
+  if (st.mapFocus && !focus) st.mapFocus = null;
+  const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
+  const nodes = around ? objs.filter(o => around.has(o.id)) : filtered();
+  const withRelations = objs.filter(o => rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
+    <label class="muted" for="mapFocus">Relations of</label>
+    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <input id="mapFind" type="search" placeholder="Find object…" style="width:200px" value="${esc(st.mapFind)}" aria-label="Find object">
@@ -529,6 +536,7 @@ export function renderMap(){
     MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
   }, {passive: false});
   $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
+  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
   $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; svg.classList.toggle('labels', st.mapLabels); };
   svg.classList.toggle('labels', st.mapLabels);
   $('#mapFind').addEventListener('input', e => {
