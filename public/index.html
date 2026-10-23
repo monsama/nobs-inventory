@@ -34,6 +34,8 @@ html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,san
 body{display:flex;flex-direction:column;overflow:hidden}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
 input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px}
+/* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
+select{padding-left:2px}
 textarea{height:auto;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
