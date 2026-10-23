@@ -1,10 +1,10 @@
 import { daysSince } from './01-core.js';
 import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPES, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['locations','Locations'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['locations','Locations'],['vlans','VLANs'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -71,6 +71,7 @@ export function renderSetPane(){
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
     maintenance: '<div id="setMaint"></div>',
@@ -79,7 +80,8 @@ export function renderSetPane(){
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  fullTextTooltips(pane);
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: renderSetVlans, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -455,6 +457,32 @@ export function passwordModal(u){
 }
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
+/* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
+export function renderSetVlans(){
+  const usedBy = vid => rels.filter(r => r.vlan === vid).length;
+  $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head"><span>VLAN</span><span>Name</span><span class="n">Used by</span><span></span></div>
+    ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow"><span class="mono">${v.vid}</span><input data-vn="${i}" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><span class="n">${n}</span>
+      <button data-vd="${i}" ${n ? `disabled title="In use by ${n} connections"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
+    <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><button id="vlAdd" class="primary">Add VLAN</button></div>
+    <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;
+  const root = $('#setVlans');
+  root.querySelectorAll('[data-vn]').forEach(i => i.onchange = () => {
+    const name = i.value.trim(), v = VLANS[+i.dataset.vn];
+    if (!name){ i.value = v.name; $('#vlMsg').innerHTML = warn('A VLAN needs a name.'); return; }
+    v.name = name; queueServerSave(); render(); renderSetVlans();
+  });
+  root.querySelectorAll('[data-vd]').forEach(b => b.onclick = () => { VLANS.splice(+b.dataset.vd, 1); queueServerSave(); toast('VLAN deleted'); renderSetVlans(); render(); });
+  const add = () => {
+    const vid = +$('#vlId').value, name = $('#vlName').value.trim(), msg = $('#vlMsg');
+    if (!Number.isInteger(vid) || vid < 1 || vid > 4094){ msg.innerHTML = warn('The ID is a number from 1 to 4094.'); $('#vlId').focus(); return; }
+    if (!name){ msg.innerHTML = warn('Give the VLAN a name.'); $('#vlName').focus(); return; }
+    if (VLANS.some(v => v.vid === vid)){ msg.innerHTML = warn('VLAN ' + vid + ' is already listed.'); return; }
+    VLANS.push({vid, name}); VLANS.sort((a, b) => a.vid - b.vid);
+    queueServerSave(); toast('Added VLAN ' + vid); renderSetVlans(); render();
+  };
+  $('#vlAdd').onclick = add;
+  $('#vlName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
+}
 export const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
 export const siteOf = l => String(l || '').split(' / ')[0];
 export function renderSetLocs(){

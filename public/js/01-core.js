@@ -65,6 +65,9 @@ export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.typ
 export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx'];
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
+/* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
+export const VLANS = [];
+export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return v ? `${v.vid} · ${v.name}` : String(vid); };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 export const SITES = [];
 /* Racks are objects of type rack. Their height is the units field. */
@@ -87,6 +90,16 @@ export const KINDS = {
   attached:{fwd:'attached to', rev:'has attached'},
   hosted:{fwd:'runs on', rev:'hosts'}
 };
+/* Text that is cut off gets its full wording as a tooltip, and a field shows its placeholder on hover, so nothing is unreadable. */
+export function fullTextTooltips(root = document.body){
+  root.querySelectorAll('input[placeholder], textarea[placeholder]').forEach(el => { if (!el.title) el.title = el.placeholder; });
+  root.querySelectorAll('select').forEach(el => { const o = el.selectedOptions[0]; if (o && !el.title) el.title = o.textContent.trim(); });
+  root.querySelectorAll('*').forEach(el => {
+    if (el.title || el.children.length || el.closest('svg')) return;
+    const text = el.textContent.trim();
+    if (text && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible') el.title = text.replace(/\s+/g, ' ');
+  });
+}
 /* What each kind means, shown as a tooltip in the relation dropdown. */
 export const KIND_HINTS = {
   connected:'A device on a port of a switch, router, firewall or patch panel. Give its port number.',
