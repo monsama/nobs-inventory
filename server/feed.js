@@ -13,7 +13,7 @@ const TYPE_WORDS = [
   [/access ?point|wireless|wi-?fi|\bwlan\b/i, 'accesspoint'],
   [/webserver|\bweb\b/i, 'other'],
   [/ipad|iphone|\bios\b/i, 'ios'], [/android/i, 'android'], [/tablet|smartphone|mobile/i, 'mobile'],
-  [/telefonanlage|pbx|phone system|pabx/i, 'pbx'], [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
+  [/pbx|phone system|pabx|telefonanlage/i, 'pbx'], [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
   [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
   [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
 ];

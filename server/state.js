@@ -93,6 +93,19 @@ export function checkState(s) {
     for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
     for (const k of ['name', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
     if (o.ports !== undefined && (!Number.isInteger(o.ports) || o.ports < 0 || o.ports > 1000)) bad(`${o.name}: the port count must be a whole number from 0 to 1000.`);
+    /* A port group names a range of the ports (copper and SFP together), with an optional kind. Groups do not overlap. */
+    if (o.portGroups !== undefined) {
+      if (!Array.isArray(o.portGroups)) bad(`${o.name}: port groups must be a list.`);
+      else {
+        const total = (o.ports || 0) + (o.sfp || 0);
+        o.portGroups.forEach((g, i) => {
+          if (!g || typeof g.name !== 'string' || !g.name.trim() || g.name.length > 60) bad(`${o.name}: a port group needs a name of up to 60 characters.`);
+          if (!Number.isInteger(g.from) || !Number.isInteger(g.to) || g.from < 1 || g.to < g.from || g.to > total) bad(`${o.name}: port group ${g && g.name} is not a range of its ports.`);
+          if (g.kind !== undefined && (typeof g.kind !== 'string' || g.kind.length > 20)) bad(`${o.name}: the kind of a port group is text of up to 20 characters.`);
+          if (o.portGroups.slice(0, i).some(p => g.from <= p.to && g.to >= p.from)) bad(`${o.name}: port groups ${g.name} and another overlap.`);
+        });
+      }
+    }
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
   }
   const idSet = new Set(ids);
