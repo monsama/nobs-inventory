@@ -258,6 +258,22 @@ test('the log shows what happened, and a refused push is an error', async () => 
   } finally { await srv.close(); }
 });
 
+test('the type table in Settings decides the type of a Lansweeper name; IP-only devices can be skipped', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0,
+    typeMap: { 'DECT base': 'sip', 'IOS': 'iphone' }, skipIpOnly: true };
+  mergeRecords(s, recordsFromJson([
+    { name: 'DB-1', assetType: 'dect base', ref: 'd1' },
+    { name: 'IOS-1', assetType: 'IOS', ref: 'i1' },
+    { name: '172.21.1.9', assetType: 'Network device', ref: 'n1' },
+    { name: '172.21.1.10', serial: 'SW10', assetType: 'Switch', ref: 'n2' }
+  ]));
+  assert.equal(s.objs.find(o => o.name === 'DB-1').type, 'sip');
+  assert.equal(s.objs.find(o => o.name === 'IOS-1').type, 'iphone');
+  assert.equal(s.objs.some(o => o.name === '172.21.1.9'), false, 'an IP-only device is skipped');
+  assert.equal(s.objs.some(o => o.name === '172.21.1.10'), true, 'an IP device with a serial number is kept');
+});
+
 test('a hot desk device is not given a user by the push', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', name: 'HD-1', type: 'pc', ovr: {}, hotdesk: true, uid: null }], rels: [], policy: { user: true }, feedOn: true, locs: [], seq: 100, codeN: 1 };
