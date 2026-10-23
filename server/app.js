@@ -6,7 +6,7 @@ import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
-import { mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
+import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
@@ -233,7 +233,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       lsRequire('api');
       const ls = cfgLs();
       if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
-      takeBackup(db, 'before a Lansweeper sync');
       const counts = await syncLansweeper(db, ls);
       res.json({ counts });
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
@@ -252,8 +251,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* Lansweeper pushes its assets from a script on its own server (scripts/Lansweeper-Push.ps1), with the token the
      administrator set (NI_FEED_TOKEN). Without a token set, this route refuses every request. */
-  /* A feed run that changes nothing saves nothing and takes no backup, so a regular push does not fill the backup store. */
-  const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software'].some(k => counts[k] > 0);
   app.post('/api/feed/push', (req, res, next) => {
     try {
       /* Wrong tokens count against the address, the same way wrong passwords do, so a token cannot be guessed by trying. */

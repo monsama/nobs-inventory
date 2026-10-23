@@ -135,6 +135,9 @@ export function typeFor(s, name) {
   return (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
 }
 
+/* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software'].some(k => counts[k] > 0);
+
 export function mergeRecords(s, records, now = new Date()) {
   const policy = s.policy || {};
   const seen = stamp(now);

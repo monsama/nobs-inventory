@@ -1,7 +1,8 @@
 import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { audit } from './db.js';
-import { mergeRecords } from './feed.js';
+import { feedChanged, mergeRecords } from './feed.js';
+import { takeBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 
 export const DEFAULT_ENDPOINT = 'https://api.lansweeper.com/api/v2/graphql';
@@ -93,7 +94,7 @@ export async function syncLansweeper(db, cfg, now = new Date(), fetchImpl = fetc
   const records = await fetchAssets(cfg, fetchImpl);
   const s = loadState(db);
   const counts = mergeRecords(s, records, now);
-  saveState(db, s);
+  if (feedChanged(counts)) { takeBackup(db, 'before a Lansweeper sync'); saveState(db, s); }
   audit(db, null, 'lansweeper api sync: ' + JSON.stringify({ assets: records.length, ...counts }));
   return { assets: records.length, ...counts };
 }
