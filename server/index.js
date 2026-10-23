@@ -6,7 +6,7 @@ import { openDb, audit } from './db.js';
 import { createApp } from './app.js';
 import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword } from './auth.js';
-import { mergeFeed } from './feed.js';
+import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
 import { takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
@@ -38,7 +38,7 @@ export function runFeedFile(db, file, now = new Date()) {
   const s = loadState(db);
   if (s.feedOn === false || s.feedSync === false) return { skipped: true };
   const counts = mergeFeed(s, fs.readFileSync(file, 'utf8'), now);
-  saveState(db, s);
+  if (feedChanged(counts)) { takeBackup(db, 'before the nightly feed file sync'); saveState(db, s); }
   audit(db, null, 'feed sync: ' + JSON.stringify(counts));
   return counts;
 }
@@ -55,7 +55,6 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     const cur = loadState(db);
     const lsOn = cur.useLansweeper !== false;
     const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
-    takeBackup(db, 'before the nightly sync');
     if (ls) {
       try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
     } else if (env.NI_FEED_CSV && lsOn && cur.lsSource !== 'api') {
