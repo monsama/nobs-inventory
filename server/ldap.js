@@ -62,11 +62,17 @@ export function profileOf(attrs, config) {
 }
 /* Membership of the groups the user is directly in. Used when a group is given by name. */
 export const inGroup = (profile, group) => !group || profile.groups.some(g => same(g, group));
+/* A group given by name is matched against memberOf. A directory that does not send memberOf (OpenLDAP needs its memberof
+   overlay) matches nobody, which looks the same as a wrong group, so the server says so once in its log. */
+let warnedNoMemberOf = false;
 
 /* Whether the user is in a group: by distinguished name, nested groups count; by name, only direct membership. */
 async function isMember(client, config, login, profile, group) {
   if (!group) return true;
-  if (!isDn(group)) return inGroup(profile, group);
+  if (!isDn(group)) {
+    if (!warnedNoMemberOf && !profile.groups.length) { warnedNoMemberOf = true; console.warn('directory: the group is given by name, but no user came with memberOf. Give the group as its full DN, or make the directory send memberOf.'); }
+    return inGroup(profile, group);
+  }
   const hit = await ldapSearch(client, config.searchBase, `(&(${config.loginAttr}=${escapeFilter(login)})${chain(group)})`, ['cn']);
   return hit.length > 0;
 }
