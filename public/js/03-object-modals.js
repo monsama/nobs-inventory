@@ -199,7 +199,7 @@ export function renderObj(o){
         <div class="relist">${rs.length ? rs.map(x => `<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${[...PORTED, 'patch'].includes(byId(x.r.to).type) ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(x.r.vlan)}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
-          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><button id="arAdd">Add</button></div>
+          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><input id="arVlan" placeholder="VLAN" style="width:90px" aria-label="VLAN"><button id="arAdd">Add</button></div>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? '' : ' <span class="muted">none</span>'}</summary>
         <div class="chain">${chain.length > 1 ? chain.map((n, i) => (i ? `<div class="hop"><span class="arrow">↑</span>${esc(KINDS[n.via.kind].fwd)}${n.via.port!=null ? ` <b class="mono">${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : '') + `<button class="node ${i===0?'me':''}" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('') : '<span class="muted">This object does not hang off anything.</span>'}</div>
@@ -241,7 +241,7 @@ export function renderObj(o){
     const finalPort = port === '' ? null : (to.type === 'patch' ? port.toUpperCase() : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (PORTED.includes(to.type) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
-    rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan:null});
+    rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value.trim() || null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);
     toast('Relation added'); render();
   };
