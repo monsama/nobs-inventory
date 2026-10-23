@@ -1,6 +1,6 @@
 import { daysSince } from './01-core.js';
 import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, BUILTIN, ICON, LOCS, LS_ON, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
@@ -593,6 +593,40 @@ document.addEventListener('click', e => { if (!e.target.closest('.icondd')) clos
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconLists(); });
 /* The list is fixed to the viewport, so it closes when the page scrolls away from its button. */
 document.addEventListener('scroll', e => { if (!e.target.closest?.('.icondd-list')) closeIconLists(); }, true);
+/* A key for a field, from its name: lowercase letters, digits and underscores, starting with a letter. */
+export const fieldKey = label => {
+  let k = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 28);
+  if (k && !/^[a-z]/.test(k)) k = 'f_' + k;
+  return k.replace(/_+$/, '');
+};
+/* The fields a type has beyond the built-in ones. They are filled in by hand on every object of that type. */
+export function renderSetTypeFields(){
+  let box = $('#setTypeFields');
+  if (!box){ box = document.createElement('div'); box.id = 'setTypeFields'; $('#setTypes').appendChild(box); }
+  const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
+  st.fieldType = type;
+  const list = TYPE_FIELDS[type] || [];
+  box.innerHTML = `<div class="hdr" style="margin-top:14px">Fields per type</div>
+    <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
+    <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
+    <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><span>${esc(f.label)}</span><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
+    <div class="lpanel-add"><input id="tfLabel" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
+  $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
+  box.querySelectorAll('[data-tfd]').forEach(b => b.onclick = () => {
+    list.splice(+b.dataset.tfd, 1); if (!list.length) delete TYPE_FIELDS[type];
+    queueServerSave(); toast('Field removed'); renderSetTypeFields(); render();
+  });
+  const add = () => {
+    const label = $('#tfLabel').value.trim(), key = fieldKey(label);
+    if (!label){ toast('Give the field a name.'); return; }
+    if (!key){ toast('Use letters or digits in the name.'); return; }
+    if (list.some(f => f.key === key)){ toast('That field already exists for this type.'); return; }
+    TYPE_FIELDS[type] = [...list, {key, label, kind: $('#tfKind').value}];
+    queueServerSave(); toast('Added ' + label); renderSetTypeFields(); render();
+  };
+  $('#tfAdd').onclick = add;
+  $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
+}
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
@@ -608,6 +642,7 @@ export function renderSetTypes(){
   $('#setTypes').innerHTML = `<div style="overflow-x:auto"><table class="grid mini types" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:100px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd" class="primary">Add type</button></div>`;
   const root = $('#setTypes');
+  renderSetTypeFields();
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
   root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = i.value.trim() || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
   root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = i.value.trim() || TYPES[i.dataset.ts].short; render(); });

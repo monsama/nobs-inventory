@@ -2,9 +2,9 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
-export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -21,7 +21,7 @@ export function revsOf(db) {
 
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
@@ -75,6 +75,21 @@ export function checkState(s) {
       }
     }
   }
+  /* The fields a type has beyond the built-in ones: a key, a label, and text or number. */
+  if (s.typeFields !== undefined) {
+    if (!s.typeFields || typeof s.typeFields !== 'object' || Array.isArray(s.typeFields)) bad('The fields per type must be an object.');
+    else for (const [t, list] of Object.entries(s.typeFields)) {
+      if (!Array.isArray(list)) bad(`The fields of ${t} must be a list.`);
+      const keys = new Set();
+      for (const f of list) {
+        if (!f || !/^[a-z][a-z0-9_]{0,30}$/.test(f.key)) bad(`A field of ${t} needs a key of lowercase letters, digits and underscores.`);
+        if (keys.has(f.key)) bad(`The field ${f.key} of ${t} is listed twice.`);
+        keys.add(f.key);
+        if (typeof f.label !== 'string' || !f.label.trim() || f.label.length > 40) bad(`A field of ${t} needs a label of up to 40 characters.`);
+        if (!['text', 'number'].includes(f.kind)) bad(`The field ${f.label} of ${t} is text or number.`);
+      }
+    }
+  }
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
@@ -105,6 +120,10 @@ export function checkState(s) {
     /* Addresses are checked and written in their stored form, however the object arrived. */
     for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
     for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
+    if (o.custom !== undefined) {
+      if (!o.custom || typeof o.custom !== 'object' || Array.isArray(o.custom)) bad(`${o.name}: its own fields must be an object.`);
+      else for (const [k, v] of Object.entries(o.custom)) if (v !== null && !(typeof v === 'string' && v.length <= 500) && !(typeof v === 'number' && Number.isFinite(v))) bad(`${o.name}: the value of ${k} is text of up to 500 characters or a number.`);
+    }
     if (o.ports !== undefined && (!Number.isInteger(o.ports) || o.ports < 0 || o.ports > 1000)) bad(`${o.name}: the port count must be a whole number from 0 to 1000.`);
     /* A port group names a range of the ports (copper and SFP together), with an optional kind. Groups do not overlap. */
     if (o.portGroups !== undefined) {
