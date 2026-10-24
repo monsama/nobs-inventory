@@ -28,3 +28,14 @@ export const subnetProblem = n => {
   if (!Array.isArray(n.types) || !n.types.every(t => typeof t === 'string')) return `${n.name}: the device types are a list.`;
   return null;
 };
+/* An address as text, from its number. */
+export const intToIp = n => [24, 16, 8, 0].map(s => Math.floor(n / 2 ** s) % 256).join('.');
+/* The first address in a subnet's ranges that is not in use, or null when the ranges are full. */
+export const freeAddress = (subnet, used) => {
+  for (const r of subnet.ranges || []) {
+    const a = ipInt(r.from), b = ipInt(r.to);
+    if (a === null || b === null) continue;
+    for (let x = a; x <= b; x++) if (!used.has(x)) return intToIp(x);
+  }
+  return null;
+};
