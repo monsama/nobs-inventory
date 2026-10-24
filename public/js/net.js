@@ -39,3 +39,20 @@ export const freeAddress = (subnet, used) => {
   }
   return null;
 };
+/* The first and last address of a subnet, as numbers, or null when it is not a valid subnet. */
+export const subnetSpan = n => {
+  const m = /^([\d.]+)\/(\d{1,2})$/.exec(String(n && n.cidr || ''));
+  const base = m ? ipInt(m[1]) : null, prefix = m ? Number(m[2]) : 0;
+  if (base === null || prefix < 8 || prefix > 30) return null;
+  const size = 2 ** (32 - prefix), net = Math.floor(base / size) * size;
+  return { first: net, last: net + size - 1 };
+};
+/* The first subnet of a list that overlaps another one, as a message, or null. */
+export const overlapProblem = list => {
+  const spans = list.map(n => ({ n, s: subnetSpan(n) })).filter(x => x.s);
+  for (let i = 0; i < spans.length; i++) for (let j = i + 1; j < spans.length; j++) {
+    const a = spans[i], b = spans[j];
+    if (a.s.first <= b.s.last && b.s.first <= a.s.last) return `${a.n.name} (${a.n.cidr}) overlaps ${b.n.name} (${b.n.cidr}).`;
+  }
+  return null;
+};

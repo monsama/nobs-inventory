@@ -1,5 +1,6 @@
 import { daysSince } from './01-core.js';
-import { FIELDS, bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
+import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
@@ -259,7 +260,9 @@ export function mountModal(){
     const o = byId($('#mdDev').value), u = +$('#mdU').value, h = +$('#mdH').value;
     const err = rackCheck(st.rackId, u, h, o.id);
     if (err){ $('#mdErr').textContent = err; return; }
+    const prevRack = o.rack;
     Object.assign(o, {rack: st.rackId, u, h}); delete o.ontop;
+    followOnTop(o, prevRack);
     hist(o, now(), `Mounted in ${rackOf(st.rackId).name} at U${u}, ${h} U high`);
     closeModal(); toast(o.name + ' mounted at U' + u); render();
   };
@@ -565,22 +568,31 @@ export function renderSetSubnets(){
     row.querySelectorAll('input,select,textarea').forEach(el => el.onchange = () => {
       const v = subnetFromRow(row), problem = subnetProblem(v);
       if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
+      const others = SUBNETS.filter((_, k) => k !== +i), clash = overlapProblem([...others, v]);
+      if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
       SUBNETS[+i] = v; queueServerSave(); toast('Subnet saved'); renderSetSubnets();
     });
   });
-  root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => { SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets(); });
+  root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => {
+    const gone = SUBNETS[+b.dataset.sx];
+    for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
+    SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
+  });
   const add = $('#snAdd');
   if (add) add.onclick = () => {
     const row = root.querySelector('[data-sub="new"]'), v = subnetFromRow(row), problem = subnetProblem(v);
     if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
+    const clash = overlapProblem([...SUBNETS, v]);
+    if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
     SUBNETS.push(v); queueServerSave(); toast('Subnet added'); renderSetSubnets();
   };
 }
 export function renderSetVlans(){
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
+  const subnetsOn = vid => SUBNETS.filter(n => n.vid === vid).length;
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
     ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow vl"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><input data-vdesc="${i}" maxlength="120" value="${esc(v.desc || '')}" placeholder="Description" aria-label="Description of VLAN ${v.vid}"><span class="n">${n}</span>
-      <button data-vd="${i}" ${n ? `disabled title="In use by ${n} connections"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
+      <button data-vd="${i}" ${n || subnetsOn(v.vid) ? `disabled title="${subnetsOn(v.vid) ? 'A subnet is on this VLAN' : 'In use by ' + n + ' connections'}"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
     <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><input id="vlDesc" maxlength="120" placeholder="Description (optional)" aria-label="VLAN description"><button id="vlAdd" class="primary">Add VLAN</button></div>
     ${SUBNETS.some(n => n.vid != null) ? `<p class="note lnote">${SUBNETS.filter(n => n.vid != null).map(n => `VLAN ${n.vid} carries ${esc(n.name)}, ${esc(n.cidr)}`).join(' · ')}</p>` : ''}
     <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;

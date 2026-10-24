@@ -35,3 +35,11 @@ test('picking an address takes the first free one in the ranges, and says so whe
   assert.equal(freeAddress(sub, new Set([ipInt('10.10.20.1'), ipInt('10.10.20.2'), ipInt('10.10.20.3')])), '10.10.20.10');
   assert.equal(freeAddress({ ranges: [{ from: '10.0.0.1', to: '10.0.0.1' }] }, new Set([ipInt('10.0.0.1')])), null);
 });
+
+test('two subnets that share an address are refused, and neighbouring ones are not', async () => {
+  const { overlapProblem, subnetSpan, ipInt } = await import('../public/js/net.js');
+  const first = ipInt('10.10.20.0');
+  assert.deepEqual(subnetSpan({ cidr: '10.10.20.0/24' }), { first, last: first + 255 });
+  assert.match(overlapProblem([{ name: 'A', cidr: '10.10.20.0/24' }, { name: 'B', cidr: '10.10.20.128/25' }]), /overlaps/);
+  assert.equal(overlapProblem([{ name: 'A', cidr: '10.10.20.0/24' }, { name: 'B', cidr: '10.10.21.0/24' }]), null);
+});

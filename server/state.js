@@ -1,6 +1,6 @@
 import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
-import { subnetProblem } from '../public/js/net.js';
+import { overlapProblem, subnetProblem } from '../public/js/net.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
@@ -91,6 +91,7 @@ export function checkState(s) {
   if (s.subnets !== undefined) {
     if (!Array.isArray(s.subnets)) bad('The subnets must be a list.');
     for (const n of s.subnets) { const problem = subnetProblem(n); if (problem) bad(problem); }
+    const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
   if (s.models !== undefined && (!Array.isArray(s.models) || !s.models.every(m => typeof m === 'string' && m.trim() && m.length <= 120))) bad('A model name is up to 120 characters.');
   if (s.modelMap !== undefined) {
