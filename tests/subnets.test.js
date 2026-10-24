@@ -27,3 +27,11 @@ test('an IPv4 address is read as a number and a bad one is not', () => {
   assert.equal(ipInt('10.0.0.256'), null);
   assert.equal(ipInt('x'), null);
 });
+
+test('picking an address takes the first free one in the ranges, and says so when they are full', async () => {
+  const { freeAddress, ipInt } = await import('../public/js/net.js');
+  const sub = { ranges: [{ from: '10.10.20.1', to: '10.10.20.3' }, { from: '10.10.20.10', to: '10.10.20.11' }] };
+  assert.equal(freeAddress(sub, new Set([ipInt('10.10.20.1'), ipInt('10.10.20.2')])), '10.10.20.3');
+  assert.equal(freeAddress(sub, new Set([ipInt('10.10.20.1'), ipInt('10.10.20.2'), ipInt('10.10.20.3')])), '10.10.20.10');
+  assert.equal(freeAddress({ ranges: [{ from: '10.0.0.1', to: '10.0.0.1' }] }, new Set([ipInt('10.0.0.1')])), null);
+});
