@@ -109,7 +109,8 @@ $('#tabsbar').addEventListener('click', e => {
   /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
   /* Back to Cards from Ports shows the device the ports were of. */
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
-  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; st.tab = t.dataset.tab; render(); }
+  /* From an open device, Relationships shows that device's relations. */
+  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; render(); }
 });
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
@@ -520,7 +521,7 @@ export function renderMap(){
   if (st.mapFocus && !focus) st.mapFocus = null;
   const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
   const nodes = around ? objs.filter(o => around.has(o.id)) : filtered();
-  const withRelations = objs.filter(o => rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <label class="muted" for="mapFocus">Relations of</label>
     <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
