@@ -42,5 +42,9 @@ export function migrateState(s) {
     if (names.length) o.accessories = [...names.map(name => ({ name })), ...(Array.isArray(o.accessories) ? o.accessories : [])];
     delete o.attach; changed = true;
   }
+  /* A connection can name a VLAN the list does not have yet (entered before the list existed): it is added to the list. */
+  for (const r of Array.isArray(s.rels) ? s.rels : []) if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) {
+    s.vlans = [...(s.vlans || []), { vid: r.vlan, name: 'VLAN ' + r.vlan }]; changed = true;
+  }
   return changed;
 }

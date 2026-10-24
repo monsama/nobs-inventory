@@ -150,14 +150,18 @@ export function renderSoftware(){
     map[p.name].versions.add(p.version || '—'); if (!map[p.name].devices.includes(o)) map[p.name].devices.push(o);
   }));
   const rows = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-  const sel = rows.find(r => r.name === st.portsDevice);
+  /* The package picked in this view has its own selection, separate from the device of the Ports view. */
+  const sel = rows.find(r => r.name === st.swSel);
   $('#toolbar').innerHTML = `<span class="muted">${rows.length} packages · ${objs.filter(o => (o.software || []).length).length} devices</span><div class="grow"></div><span class="muted hide-n">Add software on a PC or server</span>`;
-  $('#view').innerHTML = rows.length ? `<div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Package</th><th>Versions</th><th>Devices</th></tr></thead><tbody>
+  /* The devices of the picked package come first, so they are in sight without scrolling past the whole list. */
+  const detail = sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on ${sel.devices.length} ${sel.devices.length === 1 ? 'device' : 'devices'}</div><div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Device</th><th>Type</th><th>Location</th><th>Version</th></tr></thead><tbody>
+    ${[...sel.devices].sort((x, y) => x.name.localeCompare(y.name)).map(d => `<tr><td><a class="link" data-open="${d.id}">${esc(d.name)}</a></td><td>${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc(d.loc || '')}</td><td class="mono">${esc(((d.software || []).find(x => x.name === sel.name) || {}).version || '')}</td></tr>`).join('')}
+    </tbody></table></div></div>` : '';
+  $('#view').innerHTML = rows.length ? `${detail}<div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Package</th><th>Versions</th><th>Devices</th></tr></thead><tbody>
     ${rows.map(r => `<tr data-sw="${esc(r.name)}" ${sel && sel.name === r.name ? 'style="background:var(--hover)"' : ''}><td><b>${esc(r.name)}</b></td><td class="mono">${esc([...r.versions].join(', '))}</td><td class="n">${r.devices.length}</td></tr>`).join('')}
-    </tbody></table></div>
-    ${sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on</div><div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Device</th><th>Type</th><th>Location</th><th>Version</th></tr></thead><tbody>${sel.devices.map(d => `<tr><td><a class="link" data-open="${d.id}">${esc(d.name)}</a></td><td>${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc(d.loc || '')}</td><td class="mono">${esc(((d.software || []).find(x => x.name === sel.name) || {}).version || '')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`
+    </tbody></table></div>`
     : '<div class="empty">No software recorded yet. Add it on a PC or server.</div>';
-  $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.portsDevice = st.portsDevice === tr.dataset.sw ? null : tr.dataset.sw; render(); });
+  $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.swSel = st.swSel === tr.dataset.sw ? null : tr.dataset.sw; render(); });
 }
 /* A patch panel's ports, with the device on each one and the trunk into the switch. */
 export function patchPanel(o){
