@@ -7,6 +7,8 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain'];
+/* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
+const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain' };
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
   [/virtual machine|\bvm\b/i, 'vm'],
@@ -203,7 +205,10 @@ export function mergeRecords(s, records, now = new Date()) {
       const incoming = r[k];
       if (!incoming || found[k] === incoming) continue;
       const owns = s.feedOn !== false && (found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
-      if (owns) { found[k] = incoming; changed = true; }
+      if (owns){
+        if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
+        found[k] = incoming; changed = true;
+      }
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);

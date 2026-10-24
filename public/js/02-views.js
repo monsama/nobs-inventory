@@ -1,4 +1,4 @@
-import { markHtml, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -77,14 +77,22 @@ export function closeObjTabs(keep){
 }
 export let tabMenu = null;
 export function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
+/* A menu opens at the pointer, but never past the window edge: it moves left or up to stay whole. */
+function placeMenu(el, x, y){
+  const w = el.offsetWidth, h = el.offsetHeight, m = 8;
+  el.style.left = Math.max(m, Math.min(x, window.innerWidth - w - m)) + 'px';
+  el.style.top = Math.max(m, Math.min(y, window.innerHeight - h - m)) + 'px';
+}
 export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
   tabMenu.className = 'tabmenu';
-  tabMenu.style.left = e.clientX + 'px'; tabMenu.style.top = e.clientY + 'px';
   const others = st.open.some(x => x !== id);
   tabMenu.innerHTML = `<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
+  tabMenu.style.visibility = 'hidden';
   document.body.appendChild(tabMenu);
+  placeMenu(tabMenu, e.clientX, e.clientY);
+  tabMenu.style.visibility = '';
   tabMenu.addEventListener('click', ev => {
     const a = ev.target.dataset.a; hideTabMenu();
     if (a === 'close') closeObjTab(id);
@@ -128,7 +136,7 @@ export function cardHtml(o){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${syncChip(o)}<span class="grow"></span>${rs.length} relations</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}<span class="grow"></span>${rs.length ? rs.length + (rs.length === 1 ? ' relation' : ' relations') : ''}</div>
   </button>`;
 }
 export function renderCardsBody(){
