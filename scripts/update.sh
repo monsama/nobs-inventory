@@ -44,6 +44,8 @@ install_code() {
 }
 # Downloads the archive and its checksum for a version into a folder, and checks the checksum.
 fetch_release() {
+  # A tag can exist before its release is published (the release workflow must finish first). Say so, instead of a raw curl error.
+  curl -fsSIL -o /dev/null "$RELEASES/v$1/nobs-inventory-$1.tar.gz" 2>/dev/null || { echo "[ERROR] Release v$1 has no archive on GitHub yet. Its release run must finish first: check the release workflow for v$1, then try again." >&2; exit 1; }
   curl -fsSL -o "$2/nobs-inventory-$1.tar.gz" "$RELEASES/v$1/nobs-inventory-$1.tar.gz"
   curl -fsSL -o "$2/nobs-inventory-$1.tar.gz.sha256" "$RELEASES/v$1/nobs-inventory-$1.tar.gz.sha256"
   (cd "$2" && sha256sum -c --quiet "nobs-inventory-$1.tar.gz.sha256")
