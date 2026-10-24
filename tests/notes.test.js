@@ -18,3 +18,15 @@ test('an attachment link must be http or https', () => {
   assert.doesNotThrow(() => checkState(base({ entries: [{ title: 'Doc', text: '', link: 'https://files.example.ch/a.pdf' }] })));
   assert.throws(() => checkState(base({ entries: [{ title: 'Doc', link: 'file:///C:/a.pdf' }] })), /http/);
 });
+
+test('the attachment text of a PC becomes accessories, one per line or comma', () => {
+  const s = base({ attach: 'Headset, Dock\nKeyboard' });
+  assert.equal(migrateState(s), true);
+  assert.equal(s.objs[0].attach, undefined);
+  assert.deepEqual(s.objs[0].accessories.map(a => a.name), ['Headset', 'Dock', 'Keyboard']);
+});
+
+test('an attachment needs a name', () => {
+  assert.throws(() => checkState(base({ accessories: [{ name: '  ' }] })), /needs a name/);
+  assert.doesNotThrow(() => checkState(base({ accessories: [{ name: 'Headset', kind: 'Audio', serial: 'HS-9' }] })));
+});

@@ -149,6 +149,14 @@ export function checkState(s) {
         });
       }
     }
+    if (o.accessories !== undefined) {
+      if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);
+      else for (const a of o.accessories) {
+        if (!a || typeof a.name !== 'string' || !a.name.trim() || a.name.length > 120) bad(`${o.name}: an attachment needs a name of up to 120 characters.`);
+        if (a.kind !== undefined && (typeof a.kind !== 'string' || a.kind.length > 60)) bad(`${o.name}: the kind of an attachment is text of up to 60 characters.`);
+        if (a.serial !== undefined && (typeof a.serial !== 'string' || a.serial.length > 60)) bad(`${o.name}: the serial of an attachment is text of up to 60 characters.`);
+      }
+    }
     if (o.entries !== undefined) {
       if (!Array.isArray(o.entries) || o.entries.length > 200) bad(`${o.name}: notes must be a list of up to 200 entries.`);
       else for (const e of o.entries) {

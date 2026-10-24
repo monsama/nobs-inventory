@@ -36,5 +36,11 @@ export function migrateState(s) {
     if (o.notes.trim()) o.entries = [{ title: 'Note', text: o.notes.slice(0, 2000) }, ...(Array.isArray(o.entries) ? o.entries : [])];
     delete o.notes; changed = true;
   }
+  /* The attachments of a PC were one text; each line (or comma) is now an accessory. */
+  for (const o of s.objs) if (typeof o.attach === 'string') {
+    const names = o.attach.split(/[\n,]/).map(x => x.trim().slice(0, 120)).filter(Boolean);
+    if (names.length) o.accessories = [...names.map(name => ({ name })), ...(Array.isArray(o.accessories) ? o.accessories : [])];
+    delete o.attach; changed = true;
+  }
   return changed;
 }
