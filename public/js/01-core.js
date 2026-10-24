@@ -156,7 +156,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
 export const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
-  rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
+  rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 export let APP_VERSION = '';
@@ -214,6 +214,8 @@ export const releaseRetiredPort = (to, port) => {
 export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
 export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
 export const isUplink = k => k === 'uplink';
+/* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
+export const isAttached = k => k === 'attached';
 
 export function filtered(){
   const q = st.q.trim().toLowerCase();

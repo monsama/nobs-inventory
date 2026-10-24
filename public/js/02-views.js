@@ -1,4 +1,4 @@
-import { markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -114,6 +114,11 @@ $('#tabsbar').addEventListener('click', e => {
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
 /* ---------- cards ---------- */
+/* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
+export function relSummary(rs){
+  const net = rs.filter(x => !isAttached(x.r.kind)).length, att = rs.length - net;
+  return [net ? net + (net === 1 ? ' relation' : ' relations') : '', att ? att + ' attached' : ''].filter(Boolean).join(' · ');
+}
 export function cardHtml(o){
   const rs = relsOf(o);
   const lines = [];
@@ -136,7 +141,7 @@ export function cardHtml(o){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}<span class="grow"></span>${rs.length ? rs.length + (rs.length === 1 ? ' relation' : ' relations') : ''}</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 export function renderCardsBody(){
@@ -351,7 +356,8 @@ export const mapH = () => 91;
 
 export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
-  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to));
+  /* Attached devices are left out of the map unless asked for, so the map shows the network. */
+  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (st.mapAttached || !isAttached(r.kind)));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
   const list = st.mapOnly ? nodes.filter(o => connected.has(o.id)) : nodes;
   const inList = new Set(list.map(o => o.id));
@@ -520,6 +526,7 @@ export function renderMap(){
     <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
+    <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
     <input id="mapFind" type="search" placeholder="Find object…" style="width:200px" value="${esc(st.mapFind)}" aria-label="Find object">
     <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
     <button id="mapExport">Export SVG</button>`;
@@ -567,6 +574,7 @@ export function renderMap(){
   $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
   $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
   $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; svg.classList.toggle('labels', st.mapLabels); };
+  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
   svg.classList.toggle('labels', st.mapLabels);
   $('#mapFind').addEventListener('input', e => {
     st.mapFind = e.target.value;
