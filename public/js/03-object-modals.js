@@ -1,4 +1,6 @@
-import { DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { SUBNETS } from './01-core.js';
+import { freeAddress, ipInt } from './net.js';
+import { MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -45,7 +47,7 @@ export function renderRack(){
 /* ---------- object page ---------- */
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
-  net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
+  net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Commissioned'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Commissioned'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
@@ -73,6 +75,12 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
   else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
+  else if (kind === 'subnet'){
+    /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
+    const cur = o[k] || '';
+    const opts = SUBNETS.filter(n => (n.types || []).includes(o.type) || n.cidr === cur);
+    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select><button type="button" data-pick="${o.id}" ${cur ? '' : 'disabled'}>Pick from range</button>`;
+  }
   else if (kind === 'domain'){
     /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
     const cur = o[k] || '';
@@ -80,7 +88,13 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
-  else { const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k]; ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`; }
+  else {
+    const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
+    /* A model can be typed or picked from the models already on the devices. A new one typed here is offered to the others once saved. */
+    const list = k === 'model' ? ` list="${id}_list"` : '';
+    const suggest = k === 'model' ? `<datalist id="${id}_list">${modelNames().map(m => `<option value="${esc(m)}">`).join('')}</datalist>` : '';
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}"${list}>${suggest}`;
+  }
   return ctl;
 }
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
@@ -359,6 +373,20 @@ export function renderObj(o){
     hist(byId(r.from), now(), `Port on ${to.name} set to ${p} by ${who()}`);
     toast('Port set'); render();
   });
+  /* Choosing a subnet enables the pick button, so the address can be picked before the object is saved. */
+  const subSel = $('#f_' + o.id + '_subnet');
+  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value; };
+  /* Pick from range: the first address of the chosen subnet's ranges that no other device uses, not its gateway or DNS. */
+  $('#view').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value);
+    if (!sub){ toast('Choose a subnet first.'); return; }
+    const used = new Set(objs.filter(x => x !== o && x.ip).map(x => ipInt(x.ip)));
+    [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
+    const addr = freeAddress(sub, used);
+    if (!addr){ toast('No free address in the ranges of ' + sub.name + '.'); return; }
+    const ip = $('#f_' + o.id + '_ip'); ip.value = addr; ip.dispatchEvent(new Event('input', {bubbles: true}));
+    toast('Picked ' + addr + ' from ' + sub.name);
+  });
   $('#view').querySelectorAll('[data-ovr]').forEach(c => c.onchange = () => {
     const k = c.dataset.ovr, name = FIELD_LABEL[k] || { software: 'Software', links: 'Links' }[k] || k;
     o.ovr[k] = c.checked;
@@ -442,6 +470,8 @@ export function renderObj(o){
       if (place.ontop) delete o.u;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
+    /* A model typed here is kept in the list, so the other devices can choose it. */
+    if (o.model && !MODELS.includes(o.model)) MODELS.push(o.model);
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : ''));
     queueServerSave();

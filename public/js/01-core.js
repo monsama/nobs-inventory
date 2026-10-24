@@ -67,6 +67,8 @@ export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock'
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
+/* The IP subnets of the network, each on a VLAN, with its gateway, DNS servers, ranges and the device types that take an address from it. */
+export const SUBNETS = [];
 /* The hand-entered fields of each type, from Settings: { type: [{key, label, kind}] }. */
 export const TYPE_FIELDS = {};
 /* The domains devices join, from Settings. An object's domain is picked from this list. */
@@ -130,6 +132,9 @@ export const rid = () => Math.random().toString(36).slice(2, 10);
 export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
 export const objs = [];
+/* The models named in the inventory: those typed on a device, and those listed in Settings. Every device offers them to choose from. */
+export const MODELS = [];
+export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 export const byId = id => objs.find(o => o.id === id);
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
