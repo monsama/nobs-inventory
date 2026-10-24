@@ -33,14 +33,19 @@ try {
   });
   await p.waitForSelector('#mapFocus');
   const count = () => p.textContent('#mapCount');
-  assert.match(await count(), /^5 objects · 3 relations/, 'the whole map is not shown first (objects with relations): ' + await count());
+  /* Attached devices are left out of the map until they are asked for. */
+  assert.match(await count(), /^3 objects · 2 relations/, 'the default map should show only the network: ' + await count());
+  await p.check('#mapAttached');
+  await p.waitForFunction(() => /^5 objects · 3 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.uncheck('#mapAttached');
+  assert.match(await count(), /^3 objects · 2 relations/, 'the map should hide attached devices again: ' + await count());
   await p.selectOption('#mapFocus', 'o1');
   await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.equal(await p.locator('#mapSvg .mnode').count(), 3, 'more than the switch and its direct links are drawn');
   const shown = await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort());
   assert.deepEqual(shown, ['o1', 'o2', 'o3'], 'the wrong objects are drawn: ' + shown.join(','));
   await p.selectOption('#mapFocus', '');
-  await p.waitForFunction(() => /^5 objects · 3 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.deepEqual(errors, [], 'page errors');
   console.log('relationships of one object: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
