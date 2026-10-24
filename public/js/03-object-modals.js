@@ -1,5 +1,5 @@
 import { SUBNETS } from './01-core.js';
-import { freeAddress, ipInt } from './net.js';
+import { freeAddress, ipInt, subnetSpan } from './net.js';
 import { MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -473,10 +473,18 @@ export function renderObj(o){
       if (place.ontop) delete o.u;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
+    /* A device that is not in use is not kept in a rack: its units are freed, and devices on top of it come out too. */
+    if (o.status === 'unused' && o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' as not in use by ' + who()); unplace(o); }
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && !MODELS.includes(o.model)) MODELS.push(o.model);
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
-    toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : ''));
+    /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
+    const warns = [];
+    const sameIp = o.ip && o.status !== 'retired' ? objs.find(x => x !== o && x.ip === o.ip && x.status !== 'retired') : null;
+    if (sameIp) warns.push(`${o.ip} is also used by ${sameIp.name}`);
+    const sn = o.subnet ? SUBNETS.find(n => n.cidr === o.subnet) : null, span = sn ? subnetSpan(sn) : null, ipn = ipInt(o.ip);
+    if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
+    toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '') + (warns.length ? '. Check: ' + warns.join('; ') : ''));
     queueServerSave();
     if (rerender) render(); else $('#saveBtn').disabled = true;
   };
