@@ -80,7 +80,13 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
-  else { const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k]; ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`; }
+  else {
+    const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
+    /* A model can be typed or picked from the models already on the devices. A new one typed here is offered to the others once saved. */
+    const list = k === 'model' ? ` list="${id}_list"` : '';
+    const suggest = k === 'model' ? `<datalist id="${id}_list">${[...new Set(objs.map(x => x.model).filter(Boolean))].sort().map(m => `<option value="${esc(m)}">`).join('')}</datalist>` : '';
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}"${list}>${suggest}`;
+  }
   return ctl;
 }
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
