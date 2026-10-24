@@ -64,10 +64,10 @@ export function recordsFromJson(list) {
     const r = {};
     for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, 200) : '';
     /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. */
-    r.links = Array.isArray(raw && raw.links) ? raw.links.slice(0, 50).map(l => ({
+    r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && l.kind === 'attached').slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
       name: String(l && l.name != null ? l.name : '').trim().slice(0, 200),
-      kind: ['attached', 'hosted'].includes(l && l.kind) ? l.kind : 'connected',
+      kind: 'attached',
       port: String(l && l.port != null ? l.port : '').trim().slice(0, 100)
     })) : [];
     /* Installed software: null when the push did not send it, so the software already on the object stays. */
@@ -125,7 +125,8 @@ function applyLinks(s, pairs, counts) {
       n++;
     }
     const before = s.rels.length;
-    s.rels = s.rels.filter(x => !(x.from === obj.id && x.src === 'Lansweeper' && !wanted.has(x.to + '|' + x.kind)));
+    /* Only monitor links are managed; a connection Lansweeper made earlier is kept as it is, and is now a manual one. */
+    s.rels = s.rels.filter(x => !(x.from === obj.id && x.src === 'Lansweeper' && x.kind === 'attached' && !wanted.has(x.to + '|' + x.kind)));
     n += before - s.rels.length;
   }
   return n;

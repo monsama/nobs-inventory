@@ -471,10 +471,10 @@ export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.t
 /* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 export function renderSetVlans(){
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
-  $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head"><span>VLAN</span><span>Name</span><span class="n">Used by</span><span></span></div>
-    ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><span class="n">${n}</span>
+  $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
+    ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow vl"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><input data-vdesc="${i}" maxlength="120" value="${esc(v.desc || '')}" placeholder="Description" aria-label="Description of VLAN ${v.vid}"><span class="n">${n}</span>
       <button data-vd="${i}" ${n ? `disabled title="In use by ${n} connections"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
-    <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><button id="vlAdd" class="primary">Add VLAN</button></div>
+    <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><input id="vlDesc" maxlength="120" placeholder="Description (optional)" aria-label="VLAN description"><button id="vlAdd" class="primary">Add VLAN</button></div>
     <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;
   const root = $('#setVlans');
   root.querySelectorAll('[data-vn]').forEach(i => i.onchange = () => {
@@ -483,12 +483,14 @@ export function renderSetVlans(){
     v.name = name; queueServerSave(); render(); renderSetVlans();
   });
   root.querySelectorAll('[data-vd]').forEach(b => b.onclick = () => { VLANS.splice(+b.dataset.vd, 1); queueServerSave(); toast('VLAN deleted'); renderSetVlans(); render(); });
+  root.querySelectorAll('[data-vdesc]').forEach(i => i.onchange = () => { VLANS[+i.dataset.vdesc].desc = i.value.trim(); queueServerSave(); renderSetVlans(); });
   const add = () => {
     const vid = +$('#vlId').value, name = $('#vlName').value.trim(), msg = $('#vlMsg');
     if (!Number.isInteger(vid) || vid < 1 || vid > 4094){ msg.innerHTML = warn('The ID is a number from 1 to 4094.'); $('#vlId').focus(); return; }
     if (!name){ msg.innerHTML = warn('Give the VLAN a name.'); $('#vlName').focus(); return; }
     if (VLANS.some(v => v.vid === vid)){ msg.innerHTML = warn('VLAN ' + vid + ' is already listed.'); return; }
-    VLANS.push({vid, name}); VLANS.sort((a, b) => a.vid - b.vid);
+    const desc = $('#vlDesc').value.trim();
+    VLANS.push({vid, name, ...(desc ? {desc} : {})}); VLANS.sort((a, b) => a.vid - b.vid);
     queueServerSave(); toast('Added VLAN ' + vid); renderSetVlans(); render();
   };
   $('#vlAdd').onclick = add;
@@ -497,17 +499,18 @@ export function renderSetVlans(){
 }
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
-  const usedBy = d => objs.filter(o => o.domain === d).length;
+  const usedBy = d => objs.filter(o => o.domain === d.name).length;
   $('#setDomains').innerHTML = `<div class="hdr" style="margin-top:14px">Domains <span class="cnt">${DOMAINS.length}</span></div>
-    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow"><span class="mono">${esc(d)}</span><span></span><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
-    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><button id="dmAdd" class="primary">Add domain</button></div>`;
+    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><span class="mono">${esc(d.name)}</span><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
+    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd" class="primary">Add domain</button></div>`;
   const root = $('#setDomains');
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
+  root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
   const add = () => {
-    const name = $('#dmName').value.trim();
+    const name = $('#dmName').value.trim(), desc = $('#dmDesc').value.trim();
     if (!name){ toast('Write the domain name.'); return; }
-    if (DOMAINS.includes(name)){ toast(name + ' is already listed.'); return; }
-    DOMAINS.push(name); DOMAINS.sort();
+    if (DOMAINS.some(d => d.name.toLowerCase() === name.toLowerCase())){ toast(name + ' is already listed.'); return; }
+    DOMAINS.push({name, ...(desc ? {desc} : {})}); DOMAINS.sort((a, b) => a.name.localeCompare(b.name));
     queueServerSave(); toast('Added ' + name); renderSetDomains(); render();
   };
   $('#dmAdd').onclick = add;

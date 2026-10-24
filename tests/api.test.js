@@ -172,7 +172,7 @@ test('Lansweeper asset type names land in the matching app type', async () => {
   }
 });
 
-test('pushed links join objects: a device to its switch port, a monitor to its PC, without duplicates', async () => {
+test('pushed links: only a monitor is linked to its PC; switch ports are not detected', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
   const counts = mergeRecords(s, recordsFromJson([
@@ -180,23 +180,25 @@ test('pushed links join objects: a device to its switch port, a monitor to its P
     { name: 'PC1', assetType: 'Windows', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected', port: 'Gi1/0/5' }] },
     { name: 'Dell U2419 MX1', serial: 'MX1', assetType: 'Monitor', ref: 'mon-mx1', links: [{ ref: 'pc1', kind: 'attached' }] }
   ]));
-  assert.equal(counts.links, 2);
+  assert.equal(counts.links, 1, 'only the monitor link is made');
   const id = n => s.objs.find(o => o.name === n).id;
-  assert.ok(s.rels.some(r => r.from === id('PC1') && r.to === id('SW1') && r.kind === 'connected' && r.port === 'Gi1/0/5'));
   assert.ok(s.rels.some(r => r.from === id('Dell U2419 MX1') && r.to === id('PC1') && r.kind === 'attached'));
-  mergeRecords(s, recordsFromJson([{ name: 'PC1', assetType: 'Windows', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected', port: 'Gi1/0/5' }] }]));
-  assert.equal(s.rels.length, 2, 'a second push does not add the links again');
+  assert.ok(!s.rels.some(r => r.from === id('PC1') && r.to === id('SW1')), 'a switch port is not detected from Lansweeper');
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', assetType: 'Windows', ref: 'pc1', links: [] }, { name: 'Dell U2419 MX1', serial: 'MX1', assetType: 'Monitor', ref: 'mon-mx1', links: [{ ref: 'pc1', kind: 'attached' }] }]));
+  assert.equal(s.rels.length, 1, 'a second push does not add the monitor link again');
 });
 
-test('a push without a port keeps the port set by hand', async () => {
+
+test('a push keeps a connection made by hand, and its port', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
-  mergeRecords(s, recordsFromJson([{ name: 'SW1', ref: 'sw1', assetType: 'Switch' }, { name: 'PC1', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected' }] }]));
-  const pc = s.objs.find(o => o.name === 'PC1');
-  s.rels.find(r => r.from === pc.id).port = 12;
-  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1', links: [{ ref: 'sw1', kind: 'connected' }] }]));
-  assert.equal(s.rels.find(r => r.from === pc.id).port, 12);
+  mergeRecords(s, recordsFromJson([{ name: 'SW1', ref: 'sw1', assetType: 'Switch' }, { name: 'PC1', ref: 'pc1' }]));
+  const pc = s.objs.find(o => o.name === 'PC1'), sw = s.objs.find(o => o.name === 'SW1');
+  s.rels.push({ id: 'hand', from: pc.id, to: sw.id, kind: 'connected', port: 12, vlan: null });
+  mergeRecords(s, recordsFromJson([{ name: 'PC1', ref: 'pc1' }]));
+  assert.equal(s.rels.find(r => r.id === 'hand').port, 12);
 });
+
 
 test('a plan image is stored apart from the inventory: admins save it, anyone signed in reads it', async () => {
   const srv = await startServer();
@@ -338,17 +340,17 @@ test('a link Lansweeper stops reporting is removed; a link made by hand stays', 
   assert.deepEqual(linked, [['PC2', 'attached', 'hand']], 'the link to PC1 is gone; the hand-made link to PC2 is kept as it is');
 });
 
-test('a virtual machine is linked to its host by name, as runs on', async () => {
+test('a virtual machine is not linked to its host from Lansweeper; runs-on links are made by hand', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
   const counts = mergeRecords(s, recordsFromJson([
     { name: 'ESX01', assetType: 'VMware', ref: 'h1' },
     { name: 'VM-APP', assetType: 'Virtual machine', ref: 'v1', links: [{ name: 'ESX01', kind: 'hosted' }] }
   ]));
-  assert.equal(counts.links, 1);
-  const id = n => s.objs.find(o => o.name === n).id;
-  assert.ok(s.rels.some(r => r.from === id('VM-APP') && r.to === id('ESX01') && r.kind === 'hosted'));
+  assert.equal(counts.links, 0);
+  assert.equal(s.rels.length, 0);
 });
+
 
 test('pushed software replaces the Lansweeper software and keeps what was typed by hand', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');

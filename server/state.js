@@ -72,6 +72,7 @@ export function checkState(s) {
     else {
       const seen = new Set();
       for (const v of s.vlans) {
+        if (v.desc !== undefined && (typeof v.desc !== 'string' || v.desc.length > 120)) bad(`VLAN ${v.vid}: the description is text of up to 120 characters.`);
         if (!Number.isInteger(v.vid) || v.vid < 1 || v.vid > 4094) bad(`VLAN ID ${v.vid} is not a number from 1 to 4094.`);
         if (seen.has(v.vid)) bad(`VLAN ${v.vid} is listed twice.`);
         seen.add(v.vid);
@@ -79,8 +80,11 @@ export function checkState(s) {
       }
     }
   }
-  if (s.domains !== undefined && (!Array.isArray(s.domains) || !s.domains.every(d => typeof d === 'string' && d.trim() && d.length <= 60) || new Set(s.domains).size !== s.domains.length))
-    bad('Domains must be a list of different names of up to 60 characters.');
+  if (s.domains !== undefined) {
+    const names = Array.isArray(s.domains) ? s.domains.map(d => d && d.name) : null;
+    if (!names || !s.domains.every(d => d && typeof d === 'object' && typeof d.name === 'string' && d.name.trim() && d.name.length <= 60 && (d.desc === undefined || (typeof d.desc === 'string' && d.desc.length <= 120))) || new Set(names).size !== names.length)
+      bad('Domains must be a list of different names of up to 60 characters, each with an optional description.');
+  }
   /* The fields a type has beyond the built-in ones: a key, a label, and text or number. */
   if (s.typeFields !== undefined) {
     if (!s.typeFields || typeof s.typeFields !== 'object' || Array.isArray(s.typeFields)) bad('The fields per type must be an object.');

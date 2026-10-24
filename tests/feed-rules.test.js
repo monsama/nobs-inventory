@@ -7,37 +7,35 @@ import { checkState } from '../server/state.js';
 const base = (extra = {}) => ({ objs: [], rels: [], users: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0, types: {}, history: {}, ...extra });
 const now = new Date(2026, 9, 23, 10, 0);
 
-test('a link Lansweeper reports on a port that a hand-made device already uses does not fail the whole push', () => {
+test('a push does not touch a port a hand-made device already uses: switch links are not detected', () => {
   const s = base({
     objs: [
-      { id: 'sw', type: 'switch', name: 'SW1', status: 'active', ports: 24, pfx: '1/', ovr: {}, feed: null },
+      { id: 'sw', type: 'switch', name: 'SW1', status: 'active', ports: 24, pfx: '1/', ovr: {}, feed: { sys: 'Lansweeper', ref: 'sw', seen: 'x' } },
       { id: 'man', type: 'pc', name: 'MANUAL-PC', status: 'active', ovr: {}, feed: null },
       { id: 'pc', type: 'pc', name: 'LS-PC', serial: 'LS1', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'pc1', seen: 'x' } },
     ],
     rels: [{ id: 'r0', from: 'man', to: 'sw', kind: 'connected', port: 7, vlan: null }],
   });
   const records = recordsFromJson([{ name: 'LS-PC', serial: 'LS1', ref: 'pc1', links: [{ ref: 'sw', kind: 'connected', port: '7' }] }]);
-  const sw = s.objs[0]; sw.feed = { sys: 'Lansweeper', ref: 'sw', seen: 'x' };
-  const counts = mergeRecords(s, records, now);
-  assert.equal(s.rels.filter(r => r.to === 'sw' && String(r.port) === '7').length, 1, 'the port is used twice');
-  assert.ok(counts.portConflict >= 1, 'the conflict is not counted');
+  mergeRecords(s, records, now);
+  assert.deepEqual(s.rels.map(r => r.id), ['r0'], 'the hand-made connection is the only one, and it is unchanged');
   checkState(s);
 });
 
-test('a link made by hand is kept when Lansweeper stops reporting it; a Lansweeper link that is gone is removed', () => {
+test('a hand-made link is kept when Lansweeper stops reporting a monitor; the Lansweeper monitor link that is gone is removed', () => {
   const s = base({
     objs: [
-      { id: 'sw', type: 'switch', name: 'SW1', status: 'active', ports: 24, pfx: '1/', ovr: {}, feed: { sys: 'Lansweeper', ref: 'sw', seen: 'x' } },
       { id: 'pc', type: 'pc', name: 'LS-PC', serial: 'LS1', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'pc1', seen: 'x' } },
+      { id: 'mon', type: 'monitor', name: 'MON', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'm1', seen: 'x' } },
     ],
     rels: [
-      { id: 'hand', from: 'pc', to: 'sw', kind: 'connected', port: 2, vlan: null },
-      { id: 'ls', from: 'pc', to: 'sw', kind: 'uplink', port: 9, vlan: null, src: 'Lansweeper' },
+      { id: 'hand', from: 'mon', to: 'pc', kind: 'attached', port: null, vlan: null },
+      { id: 'ls', from: 'mon', to: 'pc', kind: 'attached', port: null, vlan: null, src: 'Lansweeper' },
     ],
   });
-  mergeRecords(s, recordsFromJson([{ name: 'LS-PC', serial: 'LS1', ref: 'pc1', links: [] }]), now);
+  mergeRecords(s, recordsFromJson([{ name: 'MON', serial: '', ref: 'm1', links: [] }]), now);
   assert.ok(s.rels.some(r => r.id === 'hand'), 'a link made by hand was removed');
-  assert.ok(!s.rels.some(r => r.id === 'ls'), 'a Lansweeper link that is gone was kept');
+  assert.ok(!s.rels.some(r => r.id === 'ls'), 'a Lansweeper monitor link that is gone was kept');
 });
 
 test('a name that two objects share is not merged into either; a serial number wins over the name', () => {
