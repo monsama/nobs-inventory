@@ -1,0 +1,29 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { subnetProblem, ipInt } from '../public/js/net.js';
+
+const ok = { name: 'Users', vid: 10, cidr: '10.10.20.0/24', gateway: '10.10.20.1', dns: ['10.10.1.5'], ranges: [{ from: '10.10.20.50', to: '10.10.20.99', use: 'DHCP' }], types: ['pc'] };
+
+test('a subnet on a VLAN with its gateway, DNS and ranges inside it is accepted', () => {
+  assert.equal(subnetProblem(ok), null);
+  assert.equal(subnetProblem({ ...ok, vid: null, gateway: '', dns: [], ranges: [] }), null);
+});
+
+test('a subnet is written by its first address, and the gateway and ranges are inside it', () => {
+  assert.match(subnetProblem({ ...ok, cidr: '10.10.20.5/24' }), /first address/);
+  assert.match(subnetProblem({ ...ok, gateway: '10.10.21.1' }), /gateway/);
+  assert.match(subnetProblem({ ...ok, ranges: [{ from: '10.10.20.99', to: '10.10.20.50' }] }), /range/);
+  assert.match(subnetProblem({ ...ok, ranges: [{ from: '10.10.19.50', to: '10.10.20.99' }] }), /range/);
+});
+
+test('a prefix outside /8 to /30, a bad VLAN and a bad DNS address are refused', () => {
+  assert.match(subnetProblem({ ...ok, cidr: '10.0.0.0/4' }), /prefix/);
+  assert.match(subnetProblem({ ...ok, vid: 5000 }), /VLAN/);
+  assert.match(subnetProblem({ ...ok, dns: ['dns.local'] }), /DNS/);
+});
+
+test('an IPv4 address is read as a number and a bad one is not', () => {
+  assert.equal(ipInt('10.0.0.1'), 167772161);
+  assert.equal(ipInt('10.0.0.256'), null);
+  assert.equal(ipInt('x'), null);
+});

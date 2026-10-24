@@ -67,6 +67,8 @@ export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock'
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
+/* The IP subnets of the network, each on a VLAN, with its gateway, DNS servers, ranges and the device types that take an address from it. */
+export const SUBNETS = [];
 /* The hand-entered fields of each type, from Settings: { type: [{key, label, kind}] }. */
 export const TYPE_FIELDS = {};
 /* The domains devices join, from Settings. An object's domain is picked from this list. */
