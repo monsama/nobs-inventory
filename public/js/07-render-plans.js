@@ -644,10 +644,12 @@ export async function loadMySessions(){
   if (!r.ok){ box.innerHTML = '<p class="note">The sessions could not be loaded.</p>'; return; }
   const list = (await r.json()).sessions;
   const others = list.filter(x => !x.current).length;
-  box.innerHTML = `${list.map(x => `<div class="addrel" style="padding:4px 0;border:0"><span style="flex:1">${esc(browserName(x.agent))}${x.current ? ' <span class="chip info">This browser</span>' : ''}<br><span class="note">Last used ${esc(pushDate(x.last))}</span></span>${x.current ? '' : `<button data-endsess="${esc(x.id)}">End</button>`}</div>`).join('')}
-    <div class="addrel" style="padding:8px 0 0;border:0"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>`;
+  box.innerHTML = list.length ? `<div class="sess-list">${list.map(x => `<div class="sess">
+      <div class="sess-main"><div class="sess-name">${esc(browserName(x.agent))}${x.current ? '<span class="sess-here">This browser</span>' : ''}</div><div class="sess-when">Last used ${esc(pushDate(x.last))}</div></div>
+      ${x.current ? '' : `<button data-endsess="${esc(x.id)}" aria-label="End this session">End</button>`}</div>`).join('')}</div>
+    <div class="sess-foot"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>` : '<p class="note">No browsers are signed in.</p>';
   box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
-  $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
+  if ($('#acEndOthers')) $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
 }
 /* Your own account: name and department, and the password. Directory users keep their name and password in the directory. */
 export function accountModal(){
