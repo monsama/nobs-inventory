@@ -53,6 +53,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # The image is built and scanned before it is pushed: a high or critical problem in it stops the release.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: nobs-inventory:scan
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: nobs-inventory:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
       - uses: docker/build-push-action@v6
         with:
           context: .
