@@ -8,6 +8,7 @@ import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
+import { graphConfigOf } from './graph.js';
 import { autoBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { readSecret } from './secrets.js';
@@ -82,7 +83,8 @@ export function start(env = process.env) {
   const lansweeperConfig = () => lansweeperConfigOf(db, resolved);
   /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
-  const app = createApp({ db, ldapConfig, lansweeperConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure });
+  const graphConfig = () => graphConfigOf(resolved);
+  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
   const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig });

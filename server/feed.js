@@ -19,7 +19,7 @@ const TYPE_WORDS = [
   [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
   [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
 ];
-const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+export const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
 export function parseCsv(text) {
   const rows = []; let row = [], cell = '', q = false;

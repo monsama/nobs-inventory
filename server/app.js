@@ -10,6 +10,7 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
+import { syncGraph } from './graph.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -19,8 +20,9 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, feedToken = null, secureCookie = false }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false }) {
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
+  const cfgGraph = () => (graphConfig ? graphConfig() : null);
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
   const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
   const app = express();
@@ -59,7 +61,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
-    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs() });
+    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph() });
   });
 
   /* One answer for every failed sign-in: wrong login, wrong password, deactivated, not in the group. This keeps
@@ -239,6 +241,16 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
 
+  /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate. */
+  app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      const g = cfgGraph();
+      if (!g) throw new HttpError(400, 'Microsoft Graph is not set up on the server. Set NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT and NI_GRAPH_KEY.');
+      const counts = await syncGraph(db, g);
+      audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(counts));
+      res.json({ counts });
+    } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
+  });
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();

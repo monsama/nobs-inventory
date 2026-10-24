@@ -168,6 +168,7 @@ export function checkState(s) {
         });
       }
     }
+    if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
     if (o.accessories !== undefined) {
       if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);
       else for (const a of o.accessories) {

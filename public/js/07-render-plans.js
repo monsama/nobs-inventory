@@ -389,7 +389,7 @@ export function render(){
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
-export const SERVER = {on: false, ldap: false, lansweeper: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
+export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
 export function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
@@ -644,7 +644,7 @@ export async function boot(){
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper;
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph;
   if (!info.user){ clearInventory(); render(); loginModal(); return; }
   await loadFromServer(info.user);
 }
