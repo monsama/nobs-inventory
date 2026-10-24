@@ -573,7 +573,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
   if (key === 'n' && canEdit()){ e.preventDefault(); newObjModal(); return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
-  if (tab){ st.tab = tab; render(); }
+  if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }
 });
 
 /* The version comes from the server. It is shown in the footer and in Settings → About. */
