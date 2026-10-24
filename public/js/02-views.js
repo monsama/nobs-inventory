@@ -1,4 +1,4 @@
-import { TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { markHtml, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -125,7 +125,7 @@ export function cardHtml(o){
   if (o.user) lines.push(['User', esc(o.user)]);
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
-    <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span><span class="model">${esc(o.model)}</span></div>
+    <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
     <div class="cf"><span class="code">${esc(o.code)}</span>${syncChip(o)}<span class="grow"></span>${rs.length} relations</div>
@@ -182,7 +182,7 @@ export function addSearchHits(){
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
   {k:'code', label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
-  {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b></td>`},
+  {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
   {k:'type', label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
   {k:'model', label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
