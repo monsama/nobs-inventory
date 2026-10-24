@@ -1,0 +1,30 @@
+/* Subnets, shared by the server (which checks what it saves) and the page (which checks what is typed). No browser code here. */
+export const ipInt = s => {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(s || ''));
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  return p.every(n => n <= 255) ? p[0] * 16777216 + p[1] * 65536 + p[2] * 256 + p[3] : null;
+};
+/* Returns the first problem with a subnet, or null. A subnet is an IPv4 network with a prefix from /8 to /30, written by its
+   first address, with its gateway and ranges inside it. */
+export const subnetProblem = n => {
+  if (!n || typeof n !== 'object') return 'A subnet is an object.';
+  if (typeof n.name !== 'string' || !n.name.trim() || n.name.length > 60) return 'A subnet needs a name of up to 60 characters.';
+  if (n.vid != null && (!Number.isInteger(n.vid) || n.vid < 1 || n.vid > 4094)) return `${n.name}: the VLAN is a number from 1 to 4094, or none.`;
+  const m = /^([\d.]+)\/(\d{1,2})$/.exec(String(n.cidr || ''));
+  const base = m ? ipInt(m[1]) : null, prefix = m ? Number(m[2]) : 0;
+  if (base === null || prefix < 8 || prefix > 30) return `${n.name}: write the subnet as an address and a prefix from /8 to /30, e.g. 10.10.20.0/24.`;
+  const size = 2 ** (32 - prefix), net = Math.floor(base / size) * size;
+  if (net !== base) return `${n.name}: ${m[1]} is not the first address of ${n.cidr}.`;
+  const inside = ip => ip >= net && ip < net + size;
+  if (n.gateway && (ipInt(n.gateway) === null || !inside(ipInt(n.gateway)))) return `${n.name}: the gateway must be an address inside ${n.cidr}.`;
+  if (!Array.isArray(n.dns) || !n.dns.every(d => ipInt(d) !== null)) return `${n.name}: DNS servers are IPv4 addresses.`;
+  if (!Array.isArray(n.ranges)) return `${n.name}: the ranges are a list.`;
+  for (const r of n.ranges) {
+    const a = ipInt(r.from), b = ipInt(r.to);
+    if (a === null || b === null || a > b || !inside(a) || !inside(b)) return `${n.name}: a range runs from one address to a higher one, inside ${n.cidr}.`;
+    if (r.use !== undefined && (typeof r.use !== 'string' || r.use.length > 60)) return `${n.name}: a range's use is text of up to 60 characters.`;
+  }
+  if (!Array.isArray(n.types) || !n.types.every(t => typeof t === 'string')) return `${n.name}: the device types are a list.`;
+  return null;
+};

@@ -1,5 +1,7 @@
 import { daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
+import { SUBNETS } from './01-core.js';
+import { subnetProblem } from './net.js';
 import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
@@ -124,7 +126,7 @@ export function renderSetPane(){
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div>',
+    vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
     maintenance: '<div id="setMaint"></div>',
@@ -134,7 +136,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: renderSetVlans, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -524,6 +526,55 @@ export function passwordModal(u){
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
+/* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
+const subnetFromRow = row => {
+  const q = s => row.querySelector(s);
+  const ranges = q('[data-sr]').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const m = /^(\S+?)\s*-\s*(\S+)(?:\s+(.+))?$/.exec(l);
+    return m ? {from: m[1], to: m[2], ...(m[3] ? {use: m[3].trim()} : {})} : {from: '', to: ''};
+  });
+  return {
+    name: q('[data-sn]').value.trim(), vid: q('[data-sv]').value === '' ? null : +q('[data-sv]').value,
+    cidr: q('[data-sc]').value.trim(), gateway: q('[data-sg]').value.trim(),
+    dns: q('[data-sd]').value.split(',').map(x => x.trim()).filter(Boolean), ranges,
+    types: [...q('[data-st]').selectedOptions].map(o => o.value)
+  };
+};
+const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
+    <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" ${ro}></label>
+    <label>VLAN<select data-sv ${ro}><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
+    <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}" ${ro}></label>
+    <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}" ${ro}></label>
+    <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
+    <label>Device types<select data-st multiple size="4" ${ro}>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${(n.types || []).includes(k) ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
+    <label class="wide">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
+export function renderSetSubnets(){
+  const root = $('#setSubnets');
+  if (!root) return;
+  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
+    <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
+    <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
+    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}`;
+  if (!edit) return;
+  root.querySelectorAll('[data-sub]').forEach(row => {
+    const i = row.dataset.sub;
+    if (i === 'new') return;
+    row.querySelectorAll('input,select,textarea').forEach(el => el.onchange = () => {
+      const v = subnetFromRow(row), problem = subnetProblem(v);
+      if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
+      SUBNETS[+i] = v; queueServerSave(); toast('Subnet saved'); renderSetSubnets();
+    });
+  });
+  root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => { SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets(); });
+  const add = $('#snAdd');
+  if (add) add.onclick = () => {
+    const row = root.querySelector('[data-sub="new"]'), v = subnetFromRow(row), problem = subnetProblem(v);
+    if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
+    SUBNETS.push(v); queueServerSave(); toast('Subnet added'); renderSetSubnets();
+  };
+}
 export function renderSetVlans(){
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
