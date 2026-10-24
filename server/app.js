@@ -10,7 +10,9 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { syncGraph } from './graph.js';
+import { syncGraph, thumbprintOf } from './graph.js';
+import { generateGraphCert } from './cert.js';
+import crypto from 'node:crypto';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -242,6 +244,19 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate. */
+  /* The certificate on the server: when it expires, and whether it is set at all. */
+  app.get('/api/graph/status', requireUser, requireAdmin, (req, res) => {
+    const g = cfgGraph();
+    if (!g) return res.json({ configured: false });
+    const x = new crypto.X509Certificate(g.certPem);
+    res.json({ configured: true, expires: new Date(x.validTo).toISOString(), thumbprint: thumbprintOf(g.certPem) });
+  });
+  /* A new certificate and key. The key is only in this answer: it is not kept on the server. */
+  app.post('/api/graph/cert', requireUser, requireAdmin, (req, res) => {
+    const made = generateGraphCert();
+    audit(db, null, 'Microsoft Graph certificate created, expires ' + made.expires);
+    res.json(made);
+  });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const g = cfgGraph();
