@@ -79,7 +79,10 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
     const cur = o[k] || '';
     const opts = SUBNETS.filter(n => (n.types || []).includes(o.type) || n.cidr === cur);
-    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select><button type="button" data-pick="${o.id}" ${cur ? '' : 'disabled'}>Pick from range</button>`;
+    const sn = SUBNETS.find(n => n.cidr === cur);
+    /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
+    const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
+    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${cur ? '' : 'disabled'}>Pick from range</button>`;
   }
   else if (kind === 'domain'){
     /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
