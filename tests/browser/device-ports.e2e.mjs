@@ -51,7 +51,7 @@ try {
   });
   await p.click('#tabsbar [data-tab=sw]');
   await p.click('tr[data-sw="Tool X"]');
-  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'Tool X');
+  await until(p, async () => (await import('/js/01-core.js')).st.swSel === 'Tool X');
   const rows = await p.$$eval('#view .panelbox table tbody tr', trs => trs.map(tr => tr.textContent));
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');
