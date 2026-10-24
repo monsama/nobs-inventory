@@ -60,13 +60,13 @@ export const FIELDS = {
 export function accessoriesHtml(o){
   const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
   return `<div class="entries-box">${list || '<p class="note">No attachments yet.</p>'}
-    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment" style="flex:1"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment" style="flex:1"><button id="accAdd">Add</button></div></div>`;
+    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`;
 }
 /* Notes and attachments: each entry has a title, a text and an optional link (a document on a share, a web page). */
 export function entriesHtml(o){
   const list = (o.entries || []).map((e, i) => `<div class="entry"><div class="entry-head"><b>${esc(e.title)}</b>${e.link ? ` <a class="link" href="${esc(e.link)}" target="_blank" rel="noopener">Open attachment</a>` : ''}<button class="icon ghost" data-delentry="${i}" aria-label="Remove ${esc(e.title)}" title="Remove">×</button></div>${e.text ? `<div class="entry-text">${esc(e.text)}</div>` : ''}</div>`).join('');
   return `<div class="entries-box">${list || '<p class="note">No notes yet.</p>'}
-    <div class="addrel entry-add"><input id="enTitle" maxlength="120" placeholder="Title, e.g. Warranty" aria-label="Title of the note"><input id="enText" maxlength="2000" placeholder="Text (optional)" aria-label="Text of the note" style="flex:2"><input id="enLink" maxlength="500" placeholder="Link (optional), https://…" aria-label="Attachment link" style="flex:1"><button id="enAdd">Add</button></div></div>`;
+    <div class="addrel entry-add"><input id="enTitle" maxlength="120" placeholder="Title, e.g. Warranty" aria-label="Title of the note"><input id="enText" maxlength="2000" placeholder="Text (optional)" aria-label="Text of the note"><input id="enLink" maxlength="500" placeholder="Link, https://…" aria-label="Attachment link"><button id="enAdd">Add</button></div></div>`;
 }
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
@@ -109,7 +109,7 @@ export function propRow(o, f){
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
-  const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
+  const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>`;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
@@ -267,7 +267,7 @@ export function renderObj(o){
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
         ${o.type === 'pc' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
     <div class="col">
