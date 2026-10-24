@@ -42,9 +42,15 @@ export function migrateState(s) {
     if (names.length) o.accessories = [...names.map(name => ({ name })), ...(Array.isArray(o.accessories) ? o.accessories : [])];
     delete o.attach; changed = true;
   }
-  /* A connection can name a VLAN the list does not have yet (entered before the list existed): it is added to the list.
-     An id that is not a whole number from 1 to 4094 is not added, so an old bad value cannot stop the server from starting. */
-  for (const r of Array.isArray(s.rels) ? s.rels : []) if (Number.isInteger(r.vlan) && r.vlan >= 1 && r.vlan <= 4094 && !(s.vlans || []).some(v => v.vid === r.vlan)) {
+  /* A connection's VLAN id saved as text ("8") becomes a number. A value that is not a VLAN id (a whole number from 1 to 4094)
+     is cleared, so an old bad value cannot stop the server from starting. */
+  for (const r of Array.isArray(s.rels) ? s.rels : []) if (r.vlan != null) {
+    const id = typeof r.vlan === 'string' && /^\s*\d+\s*$/.test(r.vlan) ? Number(r.vlan) : r.vlan;
+    const valid = Number.isInteger(id) && id >= 1 && id <= 4094;
+    if (id !== r.vlan || !valid) { r.vlan = valid ? id : null; changed = true; }
+  }
+  /* A connection can name a VLAN the list does not have yet (entered before the list existed): it is added to the list. */
+  for (const r of Array.isArray(s.rels) ? s.rels : []) if (Number.isInteger(r.vlan) && !(s.vlans || []).some(v => v.vid === r.vlan)) {
     s.vlans = [...(s.vlans || []), { vid: r.vlan, name: 'VLAN ' + r.vlan }]; changed = true;
   }
   /* Lansweeper's update text (a KB number) was stored in the field that is now the commissioning date. It is cleared on synced devices. */
