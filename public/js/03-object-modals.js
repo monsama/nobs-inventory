@@ -54,6 +54,12 @@ export const FIELDS = {
   accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], other:[]
 };
+/* Notes and attachments: each entry has a title, a text and an optional link (a document on a share, a web page). */
+export function entriesHtml(o){
+  const list = (o.entries || []).map((e, i) => `<div class="entry"><div class="entry-head"><b>${esc(e.title)}</b>${e.link ? ` <a class="link" href="${esc(e.link)}" target="_blank" rel="noopener">Open attachment</a>` : ''}<button class="icon ghost" data-delentry="${i}" aria-label="Remove ${esc(e.title)}" title="Remove">×</button></div>${e.text ? `<div class="entry-text">${esc(e.text)}</div>` : ''}</div>`).join('');
+  return `<div class="entries-box">${list || '<p class="note">No notes yet.</p>'}
+    <div class="addrel entry-add"><input id="enTitle" maxlength="120" placeholder="Title, e.g. Warranty" aria-label="Title of the note"><input id="enText" maxlength="2000" placeholder="Text (optional)" aria-label="Text of the note" style="flex:2"><input id="enLink" maxlength="500" placeholder="Link (optional), https://…" aria-label="Attachment link" style="flex:1"><button id="enAdd">Add</button></div></div>`;
+}
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
@@ -211,7 +217,7 @@ export function renderObj(o){
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
         ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><div class="ctlrow"><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
-        <label for="f_${o.id}_notes">Notes</label><div class="ctlrow"><textarea id="f_${o.id}_notes" data-k="notes" rows="3" placeholder="Anything that is not in a field: warranty, purchase order, quirks…">${esc(o.notes||'')}</textarea>${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
     <div class="col">
@@ -332,6 +338,20 @@ export function renderObj(o){
   /* The U position only matters for a device in a rack, and not for one sitting on another device. */
   const mountRow = () => { const mr = $('.rk-mount'); if (mr) mr.hidden = !$('#rk_rack').value || !!$('#rk_top').value; };
   if ($('#rk_rack')){ $('#rk_rack').onchange = mountRow; $('#rk_top').onchange = mountRow; }
+  /* Entries are added and removed on their own: each change is saved at once. */
+  const enAdd = $('#enAdd');
+  if (enAdd) enAdd.onclick = () => {
+    const title = $('#enTitle').value.trim(), text = $('#enText').value.trim(), link = $('#enLink').value.trim();
+    if (!title){ toast('Give the note a title.'); return; }
+    if (link && !/^https?:\/\//i.test(link)){ toast('An attachment link starts with http:// or https://.'); return; }
+    o.entries = [...(o.entries || []), {title, ...(text ? {text} : {}), ...(link ? {link} : {})}];
+    hist(o, now(), `Note added: ${title} by ${who()}`); queueServerSave(); render();
+  };
+  $('#view').querySelectorAll('[data-delentry]').forEach(b => b.onclick = () => {
+    const e = o.entries[+b.dataset.delentry];
+    o.entries = o.entries.filter((_, i) => i !== +b.dataset.delentry);
+    hist(o, now(), `Note removed: ${e.title} by ${who()}`); queueServerSave(); render();
+  });
   const saveObj = (rerender = true) => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
     const addrs = [...$('#view').querySelectorAll('[data-k="ip"],[data-k="ip6"],[data-k="mac"]')];

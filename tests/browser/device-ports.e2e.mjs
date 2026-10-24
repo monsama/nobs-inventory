@@ -143,6 +143,12 @@ try {
   await p.fill('#pnDesc', 'Printer, 3rd floor'); await p.press('#pnDesc', 'Tab');
   await until(p, async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portNotes?.[2] === 'Printer, 3rd floor');
   assert.match(await p.getAttribute('#view .port[data-port="2"]', 'title'), /Printer, 3rd floor/, 'the description shows on the port');
+  // Notes: an entry with a title and a link is added and reaches the server.
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o1'); });
+  await p.waitForSelector('#enAdd');
+  await p.fill('#enTitle', 'Warranty'); await p.fill('#enLink', 'https://files.example.ch/warranty.pdf'); await p.click('#enAdd');
+  for (let i = 0; i < 150 && !(loadState(db).objs.find(o => o.id === 'o1').entries || []).length; i++) await new Promise(r => setTimeout(r, 100));
+  assert.equal(loadState(db).objs.find(o => o.id === 'o1').entries[0].title, 'Warranty', 'the note is saved');
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
