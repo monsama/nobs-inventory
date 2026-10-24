@@ -582,6 +582,7 @@ export function renderSetVlans(){
     ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow vl"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><input data-vdesc="${i}" maxlength="120" value="${esc(v.desc || '')}" placeholder="Description" aria-label="Description of VLAN ${v.vid}"><span class="n">${n}</span>
       <button data-vd="${i}" ${n ? `disabled title="In use by ${n} connections"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
     <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><input id="vlDesc" maxlength="120" placeholder="Description (optional)" aria-label="VLAN description"><button id="vlAdd" class="primary">Add VLAN</button></div>
+    ${SUBNETS.some(n => n.vid != null) ? `<p class="note lnote">${SUBNETS.filter(n => n.vid != null).map(n => `VLAN ${n.vid} carries ${esc(n.name)}, ${esc(n.cidr)}`).join(' · ')}</p>` : ''}
     <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;
   const root = $('#setVlans');
   root.querySelectorAll('[data-vn]').forEach(i => i.onchange = () => {
