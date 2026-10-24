@@ -52,6 +52,31 @@ export function applyTypeMap(only){
   }
   return n;
 }
+/* The models on the devices, with how many devices have each. Renaming one here renames it on every device, and the old name
+   is kept as a Lansweeper name, so the next sync maps it to the new one instead of bringing the old name back. */
+export function renderSetModels(){
+  const root = $('#setModels');
+  if (!root) return;
+  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const count = {};
+  for (const o of objs) if (o.model) count[o.model] = (count[o.model] || 0) + 1;
+  const names = Object.keys(count).sort((a, b) => a.localeCompare(b));
+  root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
+    <p class="note" style="padding:10px 12px 6px">Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
+    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m]} ${count[m] === 1 ? 'device' : 'devices'}</span></div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
+  if (!edit) return;
+  root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
+}
+export function renameModel(old, value){
+  const name = value.trim();
+  if (!name || name === old){ renderSetModels(); return; }
+  if (name.length > 120){ toast('A model name is up to 120 characters.'); renderSetModels(); return; }
+  for (const o of objs) if (o.model === old){ o.model = name; hist(o, now(), `Model renamed from ${old} to ${name} by ${who()}`); }
+  /* A Lansweeper name that led to the old name now leads to the new one, and the old name leads to it too. */
+  st.modelMap = Object.fromEntries(Object.entries(st.modelMap || {}).map(([from, to]) => [from, to === old ? name : to]));
+  st.modelMap[old] = name;
+  queueServerSave(); render(); renderSetModels();
+}
 export function renderTypeMap(){
   if (!$('#setTypeMap')) return;
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
@@ -91,7 +116,7 @@ export function renderSetPane(){
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div>',
-    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
+    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
@@ -100,7 +125,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: renderSetVlans, types: renderSetTypes, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: renderSetVlans, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 

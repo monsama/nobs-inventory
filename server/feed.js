@@ -133,6 +133,12 @@ function applyLinks(s, pairs, counts) {
 }
 
 /* The app type for a Lansweeper type name: the table in Settings first (names match without case), then the built-in rules. */
+/* A model from Lansweeper is the model the user gave it, when there is a rename for it; otherwise it is kept as it comes. */
+export function modelFor(s, name) {
+  const text = String(name || '');
+  const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
+  return own && s.modelMap[own] ? s.modelMap[own] : text;
+}
 export function typeFor(s, name) {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
@@ -144,6 +150,7 @@ export function typeFor(s, name) {
 export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software'].some(k => counts[k] > 0);
 
 export function mergeRecords(s, records, now = new Date()) {
+  for (const r of records) if (r.model) r.model = modelFor(s, r.model);
   const policy = s.policy || {};
   const seen = stamp(now);
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
