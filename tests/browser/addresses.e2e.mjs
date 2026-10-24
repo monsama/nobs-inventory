@@ -30,7 +30,7 @@ try {
   await until(p, async () => /also used by/.test(document.querySelector('#toast').textContent), 4000).catch(() => {});
   const toast = await p.textContent('#toast');
   assert.match(toast, /also used by/, 'a duplicate address is flagged: ' + toast);
-  await until(p, async () => (await import('/js/01-core.js')).byId(ids.pc).ip === '10.20.30.40');
+  await until(p, async pc => (await import('/js/01-core.js')).byId(pc).ip === '10.20.30.40', ids.pc);
   await p.waitForTimeout(1500);
   assert.equal(loadState(db).objs.find(o => o.id === ids.pc).ip, '10.20.30.40', 'the save still goes through');
   assert.deepEqual(errors, [], 'page errors');
