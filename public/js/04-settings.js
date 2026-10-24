@@ -1,10 +1,10 @@
 import { daysSince } from './01-core.js';
 import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, BUILTIN, DOMAINS, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['locations','Locations'],['vlans','VLANs'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -71,7 +71,7 @@ export function renderSetPane(){
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div>',
+    vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div>',
     users: '<div id="setUsers"></div><div id="setLdap"></div>',
     maintenance: '<div id="setMaint"></div>',
@@ -493,6 +493,25 @@ export function renderSetVlans(){
   };
   $('#vlAdd').onclick = add;
   $('#vlName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
+  renderSetDomains();
+}
+/* Domains are one list for the whole inventory; an object's domain is picked from it. */
+export function renderSetDomains(){
+  const usedBy = d => objs.filter(o => o.domain === d).length;
+  $('#setDomains').innerHTML = `<div class="hdr" style="margin-top:14px">Domains <span class="cnt">${DOMAINS.length}</span></div>
+    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow"><span class="mono">${esc(d)}</span><span></span><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
+    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><button id="dmAdd" class="primary">Add domain</button></div>`;
+  const root = $('#setDomains');
+  root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
+  const add = () => {
+    const name = $('#dmName').value.trim();
+    if (!name){ toast('Write the domain name.'); return; }
+    if (DOMAINS.includes(name)){ toast(name + ' is already listed.'); return; }
+    DOMAINS.push(name); DOMAINS.sort();
+    queueServerSave(); toast('Added ' + name); renderSetDomains(); render();
+  };
+  $('#dmAdd').onclick = add;
+  $('#dmName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
 }
 export const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
 export const siteOf = l => String(l || '').split(' / ')[0];

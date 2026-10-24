@@ -602,7 +602,9 @@ export function renderPorts(){
     const poe = dev && (dev.type === 'sip');
     const note = (sw.portNotes || {})[p];
     const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
-    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
+    /* A device with a single port has nothing to choose: its port is shown, but not selectable. */
+    const single = (sw.ports || 0) + (sw.sfp || 0) === 1;
+    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}" data-port="${p}" ${single?'disabled':''} title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
   const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }

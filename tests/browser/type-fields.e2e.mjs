@@ -31,10 +31,16 @@ try {
   await p.fill('#tfLabel', 'Asset tag');
   await p.click('#tfAdd');
   await until(p, async () => (await import('/js/01-core.js')).TYPE_FIELDS.pc?.[0]?.key === 'asset_tag');
+  // Domains are defined once in Settings and picked from a dropdown on the PC.
+  await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('#dmName');
+  await p.fill('#dmName', 'corp.test'); await p.click('#dmAdd');
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.includes('corp.test'));
+  await p.click('#setClose');
   // The PC's page shows the field; a value entered there is saved when the field is left.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o2'); });
   await p.waitForSelector('[data-k="custom.asset_tag"]');
   assert.equal(await p.$eval('#f_o2_type', e => e.tagName), 'SELECT', 'the type of an object is a dropdown');
+  assert.ok(await p.$eval('#f_o2_domain', e => e.tagName === 'SELECT' && [...e.options].some(o => o.value === 'corp.test')), 'the domain is picked from the list');
   await p.fill('[data-k="custom.asset_tag"]', 'AT-42'); await p.press('[data-k="custom.asset_tag"]', 'Tab');
   for (let i = 0; i < 150 && (loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag !== 'AT-42'; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal((loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag, 'AT-42', 'the value is saved when the field is left');

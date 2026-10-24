@@ -2,11 +2,11 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -23,7 +23,7 @@ export function revsOf(db) {
 
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
@@ -79,6 +79,8 @@ export function checkState(s) {
       }
     }
   }
+  if (s.domains !== undefined && (!Array.isArray(s.domains) || !s.domains.every(d => typeof d === 'string' && d.trim() && d.length <= 60) || new Set(s.domains).size !== s.domains.length))
+    bad('Domains must be a list of different names of up to 60 characters.');
   /* The fields a type has beyond the built-in ones: a key, a label, and text or number. */
   if (s.typeFields !== undefined) {
     if (!s.typeFields || typeof s.typeFields !== 'object' || Array.isArray(s.typeFields)) bad('The fields per type must be an object.');

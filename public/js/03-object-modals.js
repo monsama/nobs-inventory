@@ -1,4 +1,4 @@
-import { KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { DOMAINS, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -46,7 +46,7 @@ export function renderRack(){
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
   net:[['ip','IP address','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system'],['domain','Domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
+  pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['patch','Last update'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
@@ -61,6 +61,12 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
   else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
+  else if (kind === 'domain'){
+    /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
+    const cur = o[k] || '';
+    const opts = [...new Set([...DOMAINS, cur].filter(Boolean))];
+    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>`;
+  }
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else { const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k]; ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`; }
   return ctl;
