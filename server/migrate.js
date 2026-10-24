@@ -42,9 +42,12 @@ export function migrateState(s) {
     if (names.length) o.accessories = [...names.map(name => ({ name })), ...(Array.isArray(o.accessories) ? o.accessories : [])];
     delete o.attach; changed = true;
   }
-  /* A connection can name a VLAN the list does not have yet (entered before the list existed): it is added to the list. */
-  for (const r of Array.isArray(s.rels) ? s.rels : []) if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) {
+  /* A connection can name a VLAN the list does not have yet (entered before the list existed): it is added to the list.
+     An id that is not a whole number from 1 to 4094 is not added, so an old bad value cannot stop the server from starting. */
+  for (const r of Array.isArray(s.rels) ? s.rels : []) if (Number.isInteger(r.vlan) && r.vlan >= 1 && r.vlan <= 4094 && !(s.vlans || []).some(v => v.vid === r.vlan)) {
     s.vlans = [...(s.vlans || []), { vid: r.vlan, name: 'VLAN ' + r.vlan }]; changed = true;
   }
+  /* Lansweeper's update text (a KB number) was stored in the field that is now the commissioning date. It is cleared on synced devices. */
+  for (const o of s.objs) if (o.feed && typeof o.patch === 'string' && /^KB\d+/i.test(o.patch.trim())) { delete o.patch; changed = true; }
   return changed;
 }

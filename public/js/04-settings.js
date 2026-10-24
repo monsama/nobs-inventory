@@ -37,12 +37,12 @@ export function renderLsToggle(){
   if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
 /* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
-/* The mapping applies to devices already synced, not only new ones: every device that came from Lansweeper with a mapped
-   type name gets that object type. Excluded and detached devices are left alone. Returns how many changed. */
-export function applyTypeMap(){
+/* Applies the mapping of one Lansweeper name (lower case) to the synced devices that carry it. Only that row is applied, so a type
+   set by hand on another device is kept. Excluded and detached devices are left alone. Returns how many changed. */
+export function applyTypeMap(only){
   let n = 0;
   for (const [name, type] of Object.entries(st.typeMap || {})) {
-    if (!TYPES[type]) continue;
+    if (!TYPES[type] || name.toLowerCase() !== only) continue;
     for (const o of objs) {
       const fromLs = o.feed && String(o.feed.assetType || '').toLowerCase() === name.toLowerCase();
       if (!fromLs || o.excluded || o.detached || o.type === type) continue;
@@ -61,25 +61,25 @@ export function renderTypeMap(){
   const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
     <select data-tmt="${i}" aria-label="Object type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
   $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
-    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes. It applies to devices already synced as well as new ones. Names are matched without case. Names not listed here use the built-in rules.</p>
+    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes. It applies when a device syncs, and when a row is saved to devices already synced with that name. Names are matched without case. Names not listed here use the built-in rules.</p>
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${ro}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
-  const put = list => {
+  const put = (list, name) => {
     st.typeMap = Object.fromEntries(list.filter(([n]) => n));
-    const changed = applyTypeMap(); if (changed) toast(`${changed} synced ${changed === 1 ? 'device' : 'devices'} changed type`);
+    const changed = applyTypeMap(name?.toLowerCase()); if (changed) toast(`${changed} synced ${changed === 1 ? 'device' : 'devices'} changed type`);
     queueServerSave(); renderTypeMap();
   };
   if (!edit) return;
-  $('#setTypeMap').querySelectorAll('[data-tmn]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmn][0] = i.value.trim(); put(l); });
-  $('#setTypeMap').querySelectorAll('[data-tmt]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmt][1] = i.value; put(l); });
+  $('#setTypeMap').querySelectorAll('[data-tmn]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmn][0] = i.value.trim(); put(l, l[+i.dataset.tmn][0]); });
+  $('#setTypeMap').querySelectorAll('[data-tmt]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmt][1] = i.value; put(l, l[+i.dataset.tmt][0]); });
   $('#setTypeMap').querySelectorAll('[data-tmd]').forEach(b => b.onclick = () => { const l = entries.slice(); l.splice(+b.dataset.tmd, 1); put(l); });
   $('#tmAdd').onclick = () => {
     const name = $('#tmName').value.trim();
     if (!name){ toast('Give the Lansweeper name first.'); return; }
     if (entries.some(([n]) => n.toLowerCase() === name.toLowerCase())){ toast(name + ' is already in the table.'); return; }
-    put([...entries, [name, $('#tmType').value]]);
+    put([...entries, [name, $('#tmType').value]], name);
   };
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }

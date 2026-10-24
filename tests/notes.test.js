@@ -30,3 +30,25 @@ test('an attachment needs a name', () => {
   assert.throws(() => checkState(base({ accessories: [{ name: '  ' }] })), /needs a name/);
   assert.doesNotThrow(() => checkState(base({ accessories: [{ name: 'Headset', kind: 'Audio', serial: 'HS-9' }] })));
 });
+
+test('a VLAN id that is not a number from 1 to 4094 is not added to the VLAN list', () => {
+  const s = base();
+  s.rels = [{ id: 'r1', from: 'pc', to: 'pc', kind: 'uplink', port: null, vlan: 9999 }, { id: 'r2', from: 'pc', to: 'pc', kind: 'uplink', port: null, vlan: 'x' }];
+  migrateState(s);
+  assert.equal((s.vlans || []).length, 0);
+});
+
+test('a valid VLAN id on a connection is added to the VLAN list', () => {
+  const s = base();
+  s.rels = [{ id: 'r1', from: 'pc', to: 'pc', kind: 'uplink', port: null, vlan: 20 }];
+  migrateState(s);
+  assert.deepEqual(s.vlans, [{ vid: 20, name: 'VLAN 20' }]);
+});
+
+test('an old Lansweeper update text is cleared on synced devices, a commissioning date is kept', () => {
+  const s = base({ feed: { ref: 'x' }, patch: 'KB5034441 (2026-10-01)' });
+  s.objs.push({ ...base().objs[0], id: 'pc2', feed: { ref: 'y' }, patch: '2026-03-01' });
+  migrateState(s);
+  assert.equal(s.objs[0].patch, undefined);
+  assert.equal(s.objs[1].patch, '2026-03-01');
+});

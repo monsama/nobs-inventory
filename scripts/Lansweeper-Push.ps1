@@ -62,6 +62,7 @@ $Config = @{
 $ErrorActionPreference = 'Stop'
 $script:LocalConfig = Join-Path $PSScriptRoot 'Lansweeper-Push.config.ps1'
 if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
+if ($Config.NobsUrl -match 'example\.com') { throw 'Set NobsUrl in this script (or in Lansweeper-Push.config.ps1) to the address of NOBS Inventory before the push can run.' }
 
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
 $script:Wanted = [ordered]@{

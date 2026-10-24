@@ -359,6 +359,7 @@ export function renderObj(o){
   if (enAdd) enAdd.onclick = () => {
     const title = $('#enTitle').value.trim(), text = $('#enText').value.trim(), link = $('#enLink').value.trim();
     if (!title){ toast('Give the note a title.'); return; }
+    if ((o.entries || []).length >= 200){ toast('An object holds up to 200 notes.'); return; }
     if (link && !/^https?:\/\//i.test(link)){ toast('An attachment link starts with http:// or https://.'); return; }
     o.entries = [...(o.entries || []), {title, ...(text ? {text} : {}), ...(link ? {link} : {})}];
     hist(o, now(), `Note added: ${title} by ${who()}`); queueServerSave(); render();
@@ -372,6 +373,7 @@ export function renderObj(o){
   if (accAdd) accAdd.onclick = () => {
     const name = $('#accName').value.trim(), kind = $('#accKind').value.trim(), serial = $('#accSerial').value.trim();
     if (!name){ toast('Give the attachment a name.'); return; }
+    if ((o.accessories || []).length >= 100){ toast('An object holds up to 100 attachments.'); return; }
     o.accessories = [...(o.accessories || []), {name, ...(kind ? {kind} : {}), ...(serial ? {serial} : {})}];
     hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
   };
