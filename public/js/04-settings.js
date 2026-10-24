@@ -121,13 +121,28 @@ export function renderTypeMap(){
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }
 /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate set on the server. */
+const downloadText = (name, text) => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'application/x-pem-file'}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
 export function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
-  const ready = SERVER.graph && canEdit();
+  const edit = canEdit(), ready = SERVER.graph && edit;
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
-    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server. An administrator sets NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT and NI_GRAPH_KEY.'}</p>
-    <div class="addrel"><span class="note" id="graphMsg" style="flex:1"></span><button id="graphSync" ${ready ? '' : 'disabled'}>Sync from Microsoft Graph</button></div></div>`;
+    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below, then set the server settings it names.'}</p>
+    <p class="note" id="graphExpiry" style="padding:0 12px 10px"></p>
+    <div class="addrel"><span class="note" id="graphMsg" style="flex:1"></span><button id="graphSync" ${ready ? '' : 'disabled'}>Sync from Microsoft Graph</button></div>
+    <div class="addrel"><span class="note" style="flex:1">${edit ? 'A new certificate is made here. Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}</span><button id="graphCert" ${edit ? '' : 'disabled'}>Create a certificate</button></div>
+    <div id="graphNew"></div></div>`;
+  if (SERVER.graph) fetch('api/graph/status', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
+    const el = $('#graphExpiry');
+    if (!el || !j || !j.configured) return;
+    const days = Math.floor((new Date(j.expires) - Date.now()) / 86400000);
+    el.innerHTML = days < 60 ? `<span style="color:var(--danger)">The certificate expires ${esc(j.expires.slice(0, 10))}, in ${days} days. Create a new one and upload it to the Entra app.</span>` : `The certificate expires ${esc(j.expires.slice(0, 10))}.`;
+  }).catch(() => {});
   const btn = $('#graphSync');
   if (btn) btn.onclick = async () => {
     const msg = $('#graphMsg');
@@ -139,6 +154,25 @@ export function renderSetGraph(){
     const c = j.counts;
     msg.textContent = `${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`;
     await reloadFromServer();
+  };
+  const make = $('#graphCert');
+  if (make) make.onclick = async () => {
+    if (!confirm('Create a new certificate? Any certificate already set on the server keeps working until you replace it.')) return;
+    make.disabled = true;
+    const r = await fetch('api/graph/cert', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    make.disabled = false;
+    if (!r.ok){ $('#graphNew').innerHTML = `<p class="note" style="padding:10px 12px;color:var(--danger)">${esc(j.error || 'The certificate could not be made.')}</p>`; return; }
+    $('#graphNew').innerHTML = `<div style="padding:10px 12px;border-top:1px solid var(--bd2)">
+      <p class="note">The key is shown here once and is not kept on the server. Download both files now.</p>
+      <div class="addrel" style="padding:8px 0;border:0;background:none"><button id="graphGetCer">Download the certificate (.cer)</button><button id="graphGetKey" class="danger-text">Download the private key (.key)</button></div>
+      <ol class="note" style="padding-left:18px">
+        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Thumbprint: <span class="mono">${esc(j.thumbprint)}</span>.</li>
+        <li>On the server, save the .key file where the server can read it, and set NI_GRAPH_KEY_FILE to its path. Set NI_GRAPH_CERT_FILE to a file holding the .cer.</li>
+        <li>Restart the server, then run the sync above.</li>
+      </ol></div>`;
+    $('#graphGetCer').onclick = () => downloadText('nobs-graph.cer', j.certPem);
+    $('#graphGetKey').onclick = () => downloadText('nobs-graph.key', j.keyPem);
   };
 }
 export function renderSetPane(){
