@@ -71,3 +71,11 @@ test('a connection VLAN that is not a VLAN id is cleared, so an old bad value ca
   assert.equal(s.rels[0].vlan, null);
   assert.doesNotThrow(() => checkState(s));
 });
+
+test('a device can be marked not in use and stays in the inventory', () => {
+  const s = base();
+  s.objs[0].status = 'unused';
+  assert.doesNotThrow(() => checkState(s));
+  s.objs[0].status = 'gone';
+  assert.throws(() => checkState(s));
+});
