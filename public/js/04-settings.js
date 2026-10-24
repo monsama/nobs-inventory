@@ -187,7 +187,7 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button[data-open],button[data-devs],button[data-sw],button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-export const RO_INPUT_OK = /^(search|mapFind|mapFocus|mapOnly|mapLabels|grp|portsDevice|rkSel|swVerX)$/;
+export const RO_INPUT_OK = /^(search|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swVerX)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
