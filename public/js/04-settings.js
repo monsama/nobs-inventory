@@ -1,6 +1,6 @@
 import { daysSince } from './01-core.js';
-import { bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, DOMAINS, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { FIELDS, bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
+import { $, BUILTIN, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
@@ -689,6 +689,39 @@ export function renderSetTypeFields(){
   };
   $('#tfAdd').onclick = add;
   $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
+  renderBuiltinFields(box, type);
+}
+/* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
+export function renderBuiltinFields(box, type){
+  const lay = FIELD_LAYOUT[type] || {};
+  const base = [...FIELDS.base, ...(type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[type] || [])];
+  if (!base.some(f => f[0] === 'ports')) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
+  const seen = new Set(), builtins = base.filter(f => !seen.has(f[0]) && seen.add(f[0]));
+  const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
+  const ordered = [...builtins].sort((a, b) => at(a) - at(b));
+  const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
+  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...patch}; save(next); };
+  box.insertAdjacentHTML('beforeend', `<div class="hdr" style="margin-top:14px">Built-in fields</div>
+    <p class="note" style="padding:0 12px 8px">Rename a field, hide it for this type (its values are kept), or move it up or down. The stored name of a field does not change.</p>
+    <div class="lrows">${ordered.map((f, i) => {
+      const hidden = (lay.hidden || []).includes(f[0]);
+      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}"><span class="mono muted">${esc(f[0])}</span>
+        <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
+        <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
+    }).join('')}</div>`);
+  box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
+    const k = i.dataset.flab, name = i.value.trim(), labels = {...(lay.labels || {})};
+    if (!name || name === ordered.find(f => f[0] === k)[1]) delete labels[k]; else labels[k] = name;
+    put({labels});
+  });
+  box.querySelectorAll('[data-fhide]').forEach(c => c.onchange = () => {
+    const k = c.dataset.fhide, hidden = (lay.hidden || []).filter(x => x !== k);
+    if (!c.checked) hidden.push(k);
+    put({hidden});
+  });
+  const move = (i, to) => { if (to < 0 || to >= ordered.length) return; const o = ordered.map(f => f[0]); [o[i], o[to]] = [o[to], o[i]]; put({order: o}); };
+  box.querySelectorAll('[data-fup]').forEach(b => b.onclick = () => move(+b.dataset.fup, +b.dataset.fup - 1));
+  box.querySelectorAll('[data-fdown]').forEach(b => b.onclick = () => move(+b.dataset.fdown, +b.dataset.fdown + 1));
 }
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {

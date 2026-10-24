@@ -44,6 +44,18 @@ try {
   await p.fill('[data-k="custom.asset_tag"]', 'AT-42'); await p.press('[data-k="custom.asset_tag"]', 'Tab');
   for (let i = 0; i < 150 && (loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag !== 'AT-42'; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal((loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag, 'AT-42', 'the value is saved when the field is left');
+  // Built-in fields: a PC's Firmware is renamed BIOS and its Disks are hidden; the object page shows that.
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]'); await p.waitForSelector('#tfType');
+  await p.selectOption('#tfType', 'pc');
+  await p.fill('[data-flab="fw"]', 'BIOS'); await p.press('[data-flab="fw"]', 'Tab');
+  await until(p, async () => (await import('/js/01-core.js')).FIELD_LAYOUT.pc?.labels?.fw === 'BIOS');
+  await p.uncheck('[data-fhide="disk"]');
+  await until(p, async () => (await import('/js/01-core.js')).FIELD_LAYOUT.pc?.hidden?.includes('disk'));
+  await p.click('#setClose');
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.openObj('o2'); });
+  await p.waitForSelector('#f_o2_fw');
+  assert.equal((await p.textContent('label[for="f_o2_fw"]')).trim(), 'BIOS', 'the renamed field shows its new name');
+  assert.equal(await p.locator('#f_o2_disk').count(), 0, 'the hidden field is not shown');
   assert.deepEqual(errors, [], 'page errors');
   console.log('type fields: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); }

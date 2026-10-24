@@ -2,11 +2,11 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['autoBackups', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['autoBackups', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -79,6 +79,13 @@ export function checkState(s) {
         if (typeof v.name !== 'string' || !v.name.trim() || v.name.length > 60) bad(`VLAN ${v.vid} needs a name of up to 60 characters.`);
       }
     }
+  }
+  if (s.fieldLayout !== undefined) {
+    const ok = s.fieldLayout && typeof s.fieldLayout === 'object' && !Array.isArray(s.fieldLayout) && Object.values(s.fieldLayout).every(l => l && typeof l === 'object'
+      && (l.order === undefined || (Array.isArray(l.order) && l.order.every(k => typeof k === 'string' && k.length <= 60)))
+      && (l.hidden === undefined || (Array.isArray(l.hidden) && l.hidden.every(k => typeof k === 'string' && k.length <= 60)))
+      && (l.labels === undefined || (l.labels && typeof l.labels === 'object' && Object.values(l.labels).every(v => typeof v === 'string' && v.length <= 40))));
+    if (!ok) bad('The field layout of a type is a list of names, hidden names and new labels.');
   }
   if (s.autoBackups !== undefined && typeof s.autoBackups !== 'boolean') bad('Automatic backups is yes or no.');
   if (s.domains !== undefined) {
