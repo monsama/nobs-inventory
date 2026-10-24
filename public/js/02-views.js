@@ -77,14 +77,22 @@ export function closeObjTabs(keep){
 }
 export let tabMenu = null;
 export function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
+/* A menu opens at the pointer, but never past the window edge: it moves left or up to stay whole. */
+function placeMenu(el, x, y){
+  const w = el.offsetWidth, h = el.offsetHeight, m = 8;
+  el.style.left = Math.max(m, Math.min(x, window.innerWidth - w - m)) + 'px';
+  el.style.top = Math.max(m, Math.min(y, window.innerHeight - h - m)) + 'px';
+}
 export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
   tabMenu.className = 'tabmenu';
-  tabMenu.style.left = e.clientX + 'px'; tabMenu.style.top = e.clientY + 'px';
   const others = st.open.some(x => x !== id);
   tabMenu.innerHTML = `<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
+  tabMenu.style.visibility = 'hidden';
   document.body.appendChild(tabMenu);
+  placeMenu(tabMenu, e.clientX, e.clientY);
+  tabMenu.style.visibility = '';
   tabMenu.addEventListener('click', ev => {
     const a = ev.target.dataset.a; hideTabMenu();
     if (a === 'close') closeObjTab(id);
