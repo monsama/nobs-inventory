@@ -63,7 +63,8 @@ export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
 export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx'];
-export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
+/* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
+export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
