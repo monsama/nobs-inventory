@@ -1,4 +1,4 @@
-FROM node:22.22-alpine3.24
+FROM node:26.11-alpine3.24
 WORKDIR /app
 ENV NODE_ENV=production NI_DATA=/data NI_PORT=8080
 COPY package.json package-lock.json ./
