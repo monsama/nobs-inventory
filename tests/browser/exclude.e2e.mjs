@@ -22,7 +22,7 @@ const srv = () => loadState(db);
 const waitServer = async (fn, what) => { for (let i = 0; i < 60; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 100)); } assert.fail('the server did not get: ' + what); };
 const openByName = async (p, name) => {
   await p.click('#tabsbar [data-tab=table]');
-  await p.locator('table.grid td', { hasText: new RegExp(`^${name}$`) }).first().click();
+  await p.locator('table.grid td b', { hasText: new RegExp(`^${name}$`) }).first().click();
   await until(p, async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
 };
 
