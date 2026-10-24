@@ -129,7 +129,7 @@ export function checkState(s) {
     if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
     /* Addresses are checked and written in their stored form, however the object arrived. */
     for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
-    for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'notes', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
+    for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
     if (o.custom !== undefined) {
       if (!o.custom || typeof o.custom !== 'object' || Array.isArray(o.custom)) bad(`${o.name}: its own fields must be an object.`);
       else for (const [k, v] of Object.entries(o.custom)) if (v !== null && !(typeof v === 'string' && v.length <= 500) && !(typeof v === 'number' && Number.isFinite(v))) bad(`${o.name}: the value of ${k} is text of up to 500 characters or a number.`);
@@ -147,6 +147,14 @@ export function checkState(s) {
           if (g.lag !== undefined && typeof g.lag !== 'boolean') bad(`${o.name}: a port group is marked as a link aggregate or not.`);
           if (o.portGroups.slice(0, i).some(p => g.from <= p.to && g.to >= p.from)) bad(`${o.name}: port groups ${g.name} and another overlap.`);
         });
+      }
+    }
+    if (o.entries !== undefined) {
+      if (!Array.isArray(o.entries) || o.entries.length > 200) bad(`${o.name}: notes must be a list of up to 200 entries.`);
+      else for (const e of o.entries) {
+        if (!e || typeof e.title !== 'string' || !e.title.trim() || e.title.length > 120) bad(`${o.name}: an entry needs a title of up to 120 characters.`);
+        if (e.text !== undefined && (typeof e.text !== 'string' || e.text.length > 2000)) bad(`${o.name}: an entry's text is up to 2000 characters.`);
+        if (e.link !== undefined && (typeof e.link !== 'string' || e.link.length > 500 || !/^https?:\/\//i.test(e.link))) bad(`${o.name}: an attachment link must start with http:// or https://.`);
       }
     }
     if (o.pfx !== undefined && (typeof o.pfx !== 'string' || o.pfx.length > 20)) bad(`${o.name}: the port naming is text of up to 20 characters.`);
