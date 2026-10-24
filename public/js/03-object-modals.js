@@ -54,6 +54,12 @@ export const FIELDS = {
   accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], other:[]
 };
+/* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
+export function accessoriesHtml(o){
+  const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
+  return `<div class="entries-box">${list || '<p class="note">No attachments yet.</p>'}
+    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment" style="flex:1"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment" style="flex:1"><button id="accAdd">Add</button></div></div>`;
+}
 /* Notes and attachments: each entry has a title, a text and an optional link (a document on a share, a web page). */
 export function entriesHtml(o){
   const list = (o.entries || []).map((e, i) => `<div class="entry"><div class="entry-head"><b>${esc(e.title)}</b>${e.link ? ` <a class="link" href="${esc(e.link)}" target="_blank" rel="noopener">Open attachment</a>` : ''}<button class="icon ghost" data-delentry="${i}" aria-label="Remove ${esc(e.title)}" title="Remove">×</button></div>${e.text ? `<div class="entry-text">${esc(e.text)}</div>` : ''}</div>`).join('');
@@ -216,7 +222,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
-        ${o.type === 'pc' ? `<label for="f_${o.id}_attach">Attachments</label><div class="ctlrow"><textarea id="f_${o.id}_attach" data-k="attach" rows="2" placeholder="Headset, mouse, keyboard, dock…">${esc(o.attach||'')}</textarea>${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
+        ${o.type === 'pc' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
@@ -351,6 +357,18 @@ export function renderObj(o){
     const e = o.entries[+b.dataset.delentry];
     o.entries = o.entries.filter((_, i) => i !== +b.dataset.delentry);
     hist(o, now(), `Note removed: ${e.title} by ${who()}`); queueServerSave(); render();
+  });
+  const accAdd = $('#accAdd');
+  if (accAdd) accAdd.onclick = () => {
+    const name = $('#accName').value.trim(), kind = $('#accKind').value.trim(), serial = $('#accSerial').value.trim();
+    if (!name){ toast('Give the attachment a name.'); return; }
+    o.accessories = [...(o.accessories || []), {name, ...(kind ? {kind} : {}), ...(serial ? {serial} : {})}];
+    hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
+  };
+  $('#view').querySelectorAll('[data-delacc]').forEach(b => b.onclick = () => {
+    const a = o.accessories[+b.dataset.delacc];
+    o.accessories = o.accessories.filter((_, i) => i !== +b.dataset.delacc);
+    hist(o, now(), `Attachment removed: ${a.name} by ${who()}`); queueServerSave(); render();
   });
   const saveObj = (rerender = true) => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
