@@ -52,3 +52,22 @@ test('an old Lansweeper update text is cleared on synced devices, a commissionin
   assert.equal(s.objs[0].patch, undefined);
   assert.equal(s.objs[1].patch, '2026-03-01');
 });
+
+test('a connection VLAN saved as text is made a number and added to the VLAN list, so the state can be saved', () => {
+  const s = base();
+  s.objs.push({ ...base().objs[0], id: 'sw', name: 'SW1', code: 'INV-0002' });
+  s.rels = [{ id: 'r1', from: 'pc', to: 'sw', kind: 'uplink', port: null, vlan: '8' }];
+  assert.equal(migrateState(s), true);
+  assert.equal(s.rels[0].vlan, 8);
+  assert.deepEqual(s.vlans, [{ vid: 8, name: 'VLAN 8' }]);
+  assert.doesNotThrow(() => checkState(s));
+});
+
+test('a connection VLAN that is not a VLAN id is cleared, so an old bad value cannot stop the server from starting', () => {
+  const s = base();
+  s.objs.push({ ...base().objs[0], id: 'sw', name: 'SW1', code: 'INV-0002' });
+  s.rels = [{ id: 'r1', from: 'pc', to: 'sw', kind: 'uplink', port: null, vlan: 'n/a' }];
+  migrateState(s);
+  assert.equal(s.rels[0].vlan, null);
+  assert.doesNotThrow(() => checkState(s));
+});
