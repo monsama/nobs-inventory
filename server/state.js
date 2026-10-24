@@ -2,11 +2,11 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -87,6 +87,7 @@ export function checkState(s) {
       && (l.labels === undefined || (l.labels && typeof l.labels === 'object' && Object.values(l.labels).every(v => typeof v === 'string' && v.length <= 40))));
     if (!ok) bad('The field layout of a type is a list of names, hidden names and new labels.');
   }
+  if (s.models !== undefined && (!Array.isArray(s.models) || !s.models.every(m => typeof m === 'string' && m.trim() && m.length <= 120))) bad('A model name is up to 120 characters.');
   if (s.modelMap !== undefined) {
     const pairs = s.modelMap && typeof s.modelMap === 'object' && !Array.isArray(s.modelMap) ? Object.entries(s.modelMap) : null;
     if (!pairs || !pairs.every(([from, to]) => from.trim() && from.length <= 120 && typeof to === 'string' && to.trim() && to.length <= 120)) bad('A model name is up to 120 characters.');

@@ -1,4 +1,4 @@
-import { DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -84,7 +84,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
     /* A model can be typed or picked from the models already on the devices. A new one typed here is offered to the others once saved. */
     const list = k === 'model' ? ` list="${id}_list"` : '';
-    const suggest = k === 'model' ? `<datalist id="${id}_list">${[...new Set(objs.map(x => x.model).filter(Boolean))].sort().map(m => `<option value="${esc(m)}">`).join('')}</datalist>` : '';
+    const suggest = k === 'model' ? `<datalist id="${id}_list">${modelNames().map(m => `<option value="${esc(m)}">`).join('')}</datalist>` : '';
     ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}"${list}>${suggest}`;
   }
   return ctl;
@@ -432,6 +432,8 @@ export function renderObj(o){
       if (place.ontop) delete o.u;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
+    /* A model typed here is kept in the list, so the other devices can choose it. */
+    if (o.model && !MODELS.includes(o.model)) MODELS.push(o.model);
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : ''));
     queueServerSave();

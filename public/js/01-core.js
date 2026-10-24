@@ -130,6 +130,9 @@ export const rid = () => Math.random().toString(36).slice(2, 10);
 export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
 export const objs = [];
+/* The models named in the inventory: those typed on a device, and those listed in Settings. Every device offers them to choose from. */
+export const MODELS = [];
+export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 export const byId = id => objs.find(o => o.id === id);
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
