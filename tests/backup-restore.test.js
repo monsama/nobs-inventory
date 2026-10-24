@@ -27,3 +27,17 @@ test('a backup with a valid plan picture is restored', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plan_images').get().n, 1);
   db.close();
 });
+
+test('automatic backups follow the setting: off takes none, on takes one', async () => {
+  const { autoBackup } = await import('../server/backup.js');
+  const db = freshDb();
+  const count = () => db.prepare('SELECT COUNT(*) AS n FROM backups').get().n;
+  db.prepare("INSERT INTO docs (kind, id, data) VALUES ('setting', 'autoBackups', ?)").run('false');
+  const before = count();
+  assert.equal(autoBackup(db, 'before a Lansweeper sync'), null);
+  assert.equal(count(), before, 'a backup was taken while automatic backups are off');
+  db.prepare("UPDATE docs SET data = 'true' WHERE kind = 'setting' AND id = 'autoBackups'").run();
+  assert.ok(autoBackup(db, 'before a Lansweeper sync'));
+  assert.equal(count(), before + 1);
+  db.close();
+});

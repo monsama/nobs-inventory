@@ -8,7 +8,7 @@ import { setPassword, passwordProblem, checkLocalPassword, createSession, sessio
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
-import { takeBackup, restoreBackup } from './backup.js';
+import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
@@ -265,7 +265,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
       const s = loadState(db);
       const counts = mergeRecords(s, recordsFromJson(records));
-      if (feedChanged(counts)) { takeBackup(db, 'before a Lansweeper push'); saveState(db, s); }
+      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push'); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'feed push failed: ' + e.message); next(e); }
@@ -392,7 +392,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!text) throw new HttpError(400, 'Send the export as CSV text.');
       const s = loadState(db);
       const counts = mergeFeed(s, text);
-      if (feedChanged(counts)) { takeBackup(db, 'before a Lansweeper import'); saveState(db, s); }
+      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper import'); saveState(db, s); }
       audit(db, req.user.id, 'feed import: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'Lansweeper import failed: ' + e.message); next(e); }

@@ -8,7 +8,7 @@ import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
-import { takeBackup } from './backup.js';
+import { autoBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -40,7 +40,7 @@ export function runFeedFile(db, file, now = new Date()) {
   const s = loadState(db);
   if (s.feedOn === false || s.feedSync === false) return { skipped: true };
   const counts = mergeFeed(s, fs.readFileSync(file, 'utf8'), now);
-  if (feedChanged(counts)) { takeBackup(db, 'before the nightly feed file sync'); saveState(db, s); }
+  if (feedChanged(counts)) { autoBackup(db, 'before the nightly feed file sync'); saveState(db, s); }
   audit(db, null, 'feed sync: ' + JSON.stringify(counts));
   return counts;
 }

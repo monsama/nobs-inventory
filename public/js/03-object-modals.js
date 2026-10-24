@@ -242,7 +242,7 @@ export function renderObj(o){
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="muted">none</span>'}</summary>
         ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This object does not hang off anything.</span></div>'}
       </details>
-      <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="muted">none</span>'}</summary><ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul></details>
+      <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="muted">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
     </div></div>`;
 
   bindSoftware(o);

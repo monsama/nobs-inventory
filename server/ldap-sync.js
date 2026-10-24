@@ -1,4 +1,4 @@
-import { takeBackup } from './backup.js';
+import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { audit } from './db.js';
@@ -34,7 +34,7 @@ export async function syncLdapUsers(db, config) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
-  if (counts.created || counts.updated || counts.deactivated) { takeBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (counts.created || counts.updated || counts.deactivated) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
 }

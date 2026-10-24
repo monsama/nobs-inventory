@@ -26,6 +26,8 @@ export function newObjModal(pre={}){
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.sw){ $('#nUp').value = pre.sw; $('#nPort').value = pre.port; }
   if (pre.name) $('#nName').value = pre.name;
+  if (pre.type && TYPES[pre.type]) $('#nType').value = pre.type;
+  if (pre.loc && LOCS.includes(pre.loc)) $('#nLoc').value = pre.loc;
   $('#nName').focus();
   $('#nCancel').onclick = closeModal;
   /* Picking an existing object turns the dialog into a link: its details are not changed, only where it is plugged. */

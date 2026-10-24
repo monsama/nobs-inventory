@@ -4,7 +4,8 @@ import { me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, render, signOut } from './07-render-plans.js';
 import { openObj } from './02-views.js';
 /* ---------- top bar ---------- */
-$('#newBtn').onclick = () => newObjModal();
+/* A type or room picked in the sidebar is the one the new object starts with. */
+$('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
 $('#signOutBtn').onclick = () => signOut();
 $('#setBtn').onclick = openSettings;
