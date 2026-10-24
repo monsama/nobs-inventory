@@ -78,3 +78,15 @@ test('a Lansweeper name is never a second copy of an object that already exists 
   assert.equal(s.objs.length, 2, 'a second object with the same name and a different serial was not created');
   assert.equal(s.objs[0].feed, null, 'an object with another serial number was linked');
 });
+
+test('a sync that changes IP writes the old and new value to the history, a first fill does not', () => {
+  const state = { objs: [], rels: [], users: [], history: {}, policy: { ip: true }, feedOn: true };
+  const obj = { id: 'pc', code: 'INV-0001', type: 'pc', name: 'PC1', serial: 'SN1', status: 'active', ip: '10.0.0.5', ovr: {}, feed: { ref: 'x', seen: '' } };
+  state.objs.push(obj);
+  mergeRecords(state, [{ name: 'PC1', serial: 'SN1', ip: '10.0.0.9' }], new Date('2026-10-24T10:00:00'));
+  assert.deepEqual(state.history.pc.map(h => h.msg), ['Lansweeper: IP changed from 10.0.0.5 to 10.0.0.9']);
+  const fresh = { id: 'pc2', code: 'INV-0002', type: 'pc', name: 'PC2', serial: 'SN2', status: 'active', ovr: {}, feed: { ref: 'y', seen: '' } };
+  state.objs.push(fresh);
+  mergeRecords(state, [{ name: 'PC2', serial: 'SN2', ip: '10.0.0.7' }], new Date('2026-10-24T10:00:00'));
+  assert.equal(state.history.pc2, undefined);
+});
