@@ -182,7 +182,7 @@ export function retireModal(o){
     <div class="mb"><p class="note">It stays in the inventory for the record, with its connections, port and rack place. It is no longer offered when connecting something. You can bring it back by changing its status.</p></div>
     <div class="mf"><button id="rtCancel">Cancel</button><button id="rtOk" class="danger-text">Retire</button></div>`, 'sm');
   $('#rtCancel').onclick = closeModal;
-  $('#rtOk').onclick = () => { o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); closeModal(); toast(o.name + ' is retired. It stays in the inventory for the record.'); render(); };
+  $('#rtOk').onclick = () => { if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); } o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); closeModal(); toast(o.name + ' is retired. It stays in the inventory for the record.'); render(); };
 }
 export function purgeModal(o){
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
@@ -206,6 +206,20 @@ export function deleteObject(id){
 export const COLLAPSED_KEY = 'ni-collapsed-panels';
 export const collapsedPanels = () => { try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || {}; } catch { return {}; } };
 export const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch { /* not kept: the panel opens as before */ } };
+/* Devices on top of o follow it: they move to its new rack, or leave the rack with it. */
+export function followOnTop(o, prevRack){
+  if (o.rack === prevRack && o.rack) return;
+  for (const x of objs.filter(x => x.ontop === o.id)){
+    if (o.rack) x.rack = o.rack;
+    else { delete x.ontop; delete x.rack; delete x.u; delete x.h; hist(x, now(), `Taken out of the rack with ${o.name} by ${who()}`); }
+  }
+}
+/* A device taken out of its rack for retirement: its units are free, and devices on top of it are taken out too. */
+export function unplace(o){
+  const prevRack = o.rack;
+  delete o.rack; delete o.u; delete o.h; delete o.ontop;
+  followOnTop(o, prevRack);
+}
 export function renderObj(o){
   const rs = relsOf(o);
   let fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
@@ -421,8 +435,10 @@ export function renderObj(o){
       o[k] = v;
     });
     if (place){
+      const prevRack = o.rack;
       delete o.rack; delete o.u; delete o.h; delete o.ontop;
       Object.assign(o, place);
+      followOnTop(o, prevRack);
       if (place.ontop) delete o.u;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;

@@ -193,7 +193,8 @@ export function rackCheck(rackId, u, h, exceptId){
   const R_ = rackOf(rackId);
   if (!R_) return 'Pick a rack first.';
   if (!(u >= 1 && h >= 1 && u + h - 1 <= rackUnits(R_))) return `U${u}–${u + h - 1} is outside ${R_.name} (U1–U${rackUnits(R_)}).`;
-  const hit = objs.find(x => x.id !== exceptId && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
+  /* A retired device is kept for the record and no longer takes up rack units. */
+  const hit = objs.find(x => x.id !== exceptId && x.status !== 'retired' && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
   return hit ? `U${hit.u}${(hit.h || 1) > 1 ? '–U' + (hit.u + hit.h - 1) : ''} is taken by ${hit.name}.` : '';
 }
 export function rackFields(o){
