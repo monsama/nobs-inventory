@@ -19,6 +19,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # A high-severity advisory in what the server ships fails the build.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
 
