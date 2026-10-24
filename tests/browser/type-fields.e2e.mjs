@@ -34,6 +34,7 @@ try {
   // The PC's page shows the field; a value entered there is saved when the field is left.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o2'); });
   await p.waitForSelector('[data-k="custom.asset_tag"]');
+  assert.equal(await p.$eval('#f_o2_type', e => e.tagName), 'SELECT', 'the type of an object is a dropdown');
   await p.fill('[data-k="custom.asset_tag"]', 'AT-42'); await p.press('[data-k="custom.asset_tag"]', 'Tab');
   for (let i = 0; i < 150 && (loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag !== 'AT-42'; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal((loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag, 'AT-42', 'the value is saved when the field is left');
