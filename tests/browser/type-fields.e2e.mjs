@@ -34,7 +34,7 @@ try {
   // Domains are defined once in Settings and picked from a dropdown on the PC.
   await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('#dmName');
   await p.fill('#dmName', 'corp.test'); await p.click('#dmAdd');
-  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.includes('corp.test'));
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.test'));
   await p.click('#setClose');
   // The PC's page shows the field; a value entered there is saved when the field is left.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o2'); });
