@@ -92,7 +92,7 @@ export function propRow(o, f){
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
-  const box = linked ? `<label class="pchk"><input type="checkbox" data-ovr="${k}" ${taken ? 'checked' : ''}> From feed</label>` : (LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
+  const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() && o.feed ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>`;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
