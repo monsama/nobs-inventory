@@ -1,6 +1,6 @@
 import { daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid } from './03-object-modals.js';
-import { $, BUILTIN, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
@@ -60,18 +60,27 @@ export function renderSetModels(){
   const edit = canEdit(), ro = edit ? '' : 'disabled';
   const count = {};
   for (const o of objs) if (o.model) count[o.model] = (count[o.model] || 0) + 1;
-  const names = Object.keys(count).sort((a, b) => a.localeCompare(b));
+  const names = modelNames();
   root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
-    <p class="note" style="padding:10px 12px 6px">Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
-    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m]} ${count[m] === 1 ? 'device' : 'devices'}</span></div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
+    <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
+    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : ''}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
   if (!edit) return;
   root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
+  root.querySelectorAll('[data-mdx]').forEach(b => b.onclick = () => removeModel(names[+b.dataset.mdx]));
+}
+export function removeModel(name){
+  const k = MODELS.indexOf(name);
+  if (k >= 0) MODELS.splice(k, 1);
+  queueServerSave(); renderSetModels();
 }
 export function renameModel(old, value){
   const name = value.trim();
   if (!name || name === old){ renderSetModels(); return; }
   if (name.length > 120){ toast('A model name is up to 120 characters.'); renderSetModels(); return; }
   for (const o of objs) if (o.model === old){ o.model = name; hist(o, now(), `Model renamed from ${old} to ${name} by ${who()}`); }
+  /* The list follows the rename, so the new name is offered and the old one is not. */
+  const k = MODELS.indexOf(old); if (k >= 0) MODELS[k] = name;
+  MODELS.splice(0, MODELS.length, ...new Set(MODELS));
   /* A Lansweeper name that led to the old name now leads to the new one, and the old name leads to it too. */
   st.modelMap = Object.fromEntries(Object.entries(st.modelMap || {}).map(([from, to]) => [from, to === old ? name : to]));
   st.modelMap[old] = name;

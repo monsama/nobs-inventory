@@ -1,6 +1,6 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { MODELS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
@@ -349,7 +349,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -502,6 +502,7 @@ export function applyState(d){
   SITES.splice(0, SITES.length, ...(d.sites || []));
   VLANS.splice(0, VLANS.length, ...(d.vlans || []));
   DOMAINS.splice(0, DOMAINS.length, ...(d.domains || []));
+  MODELS.splice(0, MODELS.length, ...(d.models || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
   Object.assign(FIELD_LAYOUT, d.fieldLayout || {});
   for (const k of Object.keys(TYPE_FIELDS)) delete TYPE_FIELDS[k];
