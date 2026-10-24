@@ -179,6 +179,12 @@ export function syncOf(o){
   if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
   return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
 }
+/* The Microsoft Graph status of a device: its join type and compliance. Red when it is not compliant. */
+export const graphChip = o => {
+  if (!o.graph || (!o.graph.join && !o.graph.compliance)) return '';
+  const text = [o.graph.join, o.graph.compliance].filter(Boolean).join(' · ');
+  return `<span class="chip ${o.graph.compliance === 'noncompliant' ? 'bad' : 'ok'}" title="Microsoft Graph">${esc(text)}</span>`;
+};
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */

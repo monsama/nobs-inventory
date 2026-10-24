@@ -120,12 +120,33 @@ export function renderTypeMap(){
   };
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }
+/* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate set on the server. */
+export function renderSetGraph(){
+  const root = $('#setGraph');
+  if (!root) return;
+  const ready = SERVER.graph && canEdit();
+  root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
+    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server. An administrator sets NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT and NI_GRAPH_KEY.'}</p>
+    <div class="addrel"><span class="note" id="graphMsg" style="flex:1"></span><button id="graphSync" ${ready ? '' : 'disabled'}>Sync from Microsoft Graph</button></div></div>`;
+  const btn = $('#graphSync');
+  if (btn) btn.onclick = async () => {
+    const msg = $('#graphMsg');
+    btn.disabled = true; msg.textContent = 'Syncing…';
+    const r = await fetch('api/graph/sync', {method: 'POST', credentials: 'same-origin'});
+    const j = await r.json().catch(() => ({}));
+    btn.disabled = false;
+    if (!r.ok){ msg.innerHTML = `<span style="color:var(--danger)">${esc(j.error || 'The sync failed.')}</span>`; return; }
+    const c = j.counts;
+    msg.textContent = `${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`;
+    await reloadFromServer();
+  };
+}
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setGraph"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
@@ -965,6 +986,7 @@ export function renderSetFeed(){
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
+  renderSetGraph();
   $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
     btn.disabled = true; msg.textContent = 'Syncing…';

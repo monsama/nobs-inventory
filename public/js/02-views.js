@@ -1,4 +1,4 @@
-import { isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -142,7 +142,7 @@ export function cardHtml(o){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 export function renderCardsBody(){
