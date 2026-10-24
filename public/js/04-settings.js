@@ -37,6 +37,21 @@ export function renderLsToggle(){
   if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
 /* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
+/* The mapping applies to devices already synced, not only new ones: every device that came from Lansweeper with a mapped
+   type name gets that object type. Excluded and detached devices are left alone. Returns how many changed. */
+export function applyTypeMap(){
+  let n = 0;
+  for (const [name, type] of Object.entries(st.typeMap || {})) {
+    if (!TYPES[type]) continue;
+    for (const o of objs) {
+      const fromLs = o.feed && String(o.feed.assetType || '').toLowerCase() === name.toLowerCase();
+      if (!fromLs || o.excluded || o.detached || o.type === type) continue;
+      hist(o, now(), `Type changed to ${TYPES[type].label} by the type mapping of ${name}`);
+      o.type = type; n++;
+    }
+  }
+  return n;
+}
 export function renderTypeMap(){
   if (!$('#setTypeMap')) return;
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
@@ -46,12 +61,16 @@ export function renderTypeMap(){
   const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
     <select data-tmt="${i}" aria-label="Object type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
   $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
-    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes when a device is first created. Names are matched without case. Names not listed here use the built-in rules.</p>
+    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes. It applies to devices already synced as well as new ones. Names are matched without case. Names not listed here use the built-in rules.</p>
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${ro}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
-  const put = list => { st.typeMap = Object.fromEntries(list.filter(([n]) => n)); queueServerSave(); renderTypeMap(); };
+  const put = list => {
+    st.typeMap = Object.fromEntries(list.filter(([n]) => n));
+    const changed = applyTypeMap(); if (changed) toast(`${changed} synced ${changed === 1 ? 'device' : 'devices'} changed type`);
+    queueServerSave(); renderTypeMap();
+  };
   if (!edit) return;
   $('#setTypeMap').querySelectorAll('[data-tmn]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmn][0] = i.value.trim(); put(l); });
   $('#setTypeMap').querySelectorAll('[data-tmt]').forEach(i => i.onchange = () => { const l = entries.slice(); l[+i.dataset.tmt][1] = i.value; put(l); });
@@ -330,7 +349,8 @@ export function backupPanel(edit){
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:10px 12px">A backup is taken before every Lansweeper sync, push and import. Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
+    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, and before the nightly LDAP sync.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
+    <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
@@ -348,6 +368,7 @@ export function wireBackups(edit){
   });
   document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
   const file = $('#bkFile');
+  if ($('#bkAuto')) $('#bkAuto').onchange = () => { st.autoBackups = $('#bkAuto').checked; queueServerSave(); toast(st.autoBackups ? 'Automatic backups are on' : 'Automatic backups are off'); renderSetMaint(); };
   if ($('#bkKeep')) $('#bkKeep').onchange = () => { const v = Math.max(1, Math.min(100, Math.floor(+$('#bkKeep').value) || 10)); st.backupKeep = v; queueServerSave(); toast('Keeping the last ' + v + ' backups'); renderSetMaint(); };
   if (file) file.onchange = async () => {
     const f = file.files[0]; if (!f) return;
@@ -615,7 +636,7 @@ export function checkAddress(k, raw){
 export const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
-  ups: 'UPS', accesspoint: 'Access point', other: 'Other' };
+  ups: 'UPS', accesspoint: 'Access point', pbx: 'PBX', other: 'Other' };
 export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
 /* A dropdown that shows the icon and its name, for the object type's icon. */
 export function iconChoice(k, t){
@@ -645,9 +666,15 @@ export function renderSetTypeFields(){
   box.innerHTML = `<div class="hdr" style="margin-top:14px">Fields per type</div>
     <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
     <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
-    <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><span>${esc(f.label)}</span><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
+    <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
     <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
+  /* A field's name can be changed; its key stays, so the values already entered are kept. */
+  box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
+    const name = i.value.trim(), f = list[+i.dataset.tfl];
+    if (!name){ i.value = f.label; toast('A field needs a name.'); return; }
+    f.label = name; queueServerSave(); toast('Field renamed'); renderSetTypeFields(); render();
+  });
   box.querySelectorAll('[data-tfd]').forEach(b => b.onclick = () => {
     list.splice(+b.dataset.tfd, 1); if (!list.length) delete TYPE_FIELDS[type];
     queueServerSave(); toast('Field removed'); renderSetTypeFields(); render();
@@ -686,7 +713,14 @@ export function renderSetTypes(){
     e.stopPropagation();
     const list = b.nextElementSibling, open = list.hidden;
     closeIconLists();
-    if (open) { const r = b.getBoundingClientRect(); Object.assign(list.style, { left: r.left + 'px', top: r.bottom + 4 + 'px', width: r.width + 'px' }); }
+    if (open) {
+      /* Below the button when there is room, above it when there is not, and kept inside the window. */
+      const r = b.getBoundingClientRect();
+      Object.assign(list.style, { left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)) + 'px', width: r.width + 'px', top: '0px' });
+      list.hidden = false;
+      const h = Math.min(list.offsetHeight, 320), below = window.innerHeight - r.bottom - 8;
+      list.style.top = (h <= below || r.top < h + 8 ? r.bottom + 4 : r.top - h - 4) + 'px';
+    }
     list.hidden = !open; b.setAttribute('aria-expanded', String(open));
   });
   root.querySelectorAll('.icondd-item').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
@@ -740,7 +774,16 @@ export function renderSetFeed(){
   const ready = SERVER.lansweeper && edit;
   if (edit && pushInfo === undefined) loadPushInfo();
   const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
-    <p class="note" style="padding:10px 12px 6px">A PowerShell script on the Lansweeper server sends its assets here. No API address is needed.</p>
+    <div class="note" style="padding:10px 12px 6px">
+      <p style="margin:0 0 6px"><b>Setup on the Lansweeper server</b></p>
+      <ol style="margin:0;padding-left:20px;line-height:1.6">
+        <li>Create a token below and copy it. It is shown once, and it is the password the script uses for this inventory.</li>
+        <li>Get the script from <a class="link" style="text-decoration:underline" href="https://github.com/monsama/nobs-inventory/blob/main/scripts/Lansweeper-Push.ps1" target="_blank" rel="noopener">GitHub (scripts/Lansweeper-Push.ps1)</a>, or use <b>Download script</b> below, which already has this address in it.</li>
+        <li>In PowerShell on the Lansweeper server, run <code>.\Lansweeper-Push.ps1 -SetCredential</code> and paste the token.</li>
+        <li>Run <code>.\Lansweeper-Push.ps1 -DryRun</code> to see the data, then <code>.\Lansweeper-Push.ps1</code> to send it.</li>
+      </ol>
+      <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p>
+    </div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span></div>
     ${pushStatus()}
     ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>

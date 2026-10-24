@@ -9,9 +9,9 @@
 
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
-    Links are sent too: each device to the switch port it is connected to (from the Lansweeper switch report),
-    and each monitor to the PC it is attached to (from the monitor scan). The installed software of each device is sent as well,
-    and its firmware, last power event, disks, last update and antivirus state.
+    Monitors are linked to the PC they are attached to (from the monitor scan). The installed software of each device is
+    sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not linked by
+    the inventory: those connections are kept by hand.
 
     The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
     machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
@@ -48,9 +48,9 @@ $Config = @{
     SqlUseStoredCredential = $true      # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
-    NobsUrl             = 'https://inventory.example.ch'
+    NobsUrl             = 'https://inventory.example.com'   # replaced by the address the script was downloaded from
     # Thumbprint of the NOBS certificate, when Windows does not trust it (e.g. Caddy's internal CA).
-    # Get it with: .\LansweeperNobs.ps1 -ShowCertificate. Leave empty when the certificate is trusted.
+    # Get it with: .\Lansweeper-Push.ps1 -ShowCertificate. Leave empty when the certificate is trusted.
     NobsCertThumbprint  = ''
 
     MaxAgeDays          = 90      # only assets Lansweeper has seen in the last N days (0 = all)

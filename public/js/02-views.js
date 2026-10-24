@@ -332,6 +332,11 @@ export function importCsvModal(){
    written on it. Hover a box to light up its lines. Drag a box to move it, drag the background to pan, Ctrl + wheel to zoom. */
 export const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
 export const MAP_W = 200, MAP_STEP = 340;
+/* A text inside a box is cut to the box's width, with an ellipsis; the full text is the tooltip. */
+const fitMap = (t, px) => {
+  const text = String(t ?? ''), max = Math.floor((MAP_W - 16) / (px * 0.56));
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
+};
 export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
 export const mapH = () => 91;
@@ -452,8 +457,8 @@ export function mapInner(L){
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="${c}"/><rect y="12" width="${MAP_W}" height="8" fill="${c}"/>
       <text x="8" y="14" font-size="10" font-family="var(--mono)" fill="#fff">${esc(o.code)}</text>
-      <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(o.name)}</text>
-      ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(t)}</text>`).join('')}
+      <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
+      ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
       ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}
     </g>`;
   }).join('');
@@ -520,6 +525,11 @@ export function renderMap(){
   $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relationship map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
     <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
+  /* A right click on a box shows only its relations (the same as Relations of in the toolbar). */
+  svg.addEventListener('contextmenu', e => {
+    const n = e.target.closest('.mnode'); if (!n) return;
+    e.preventDefault(); st.mapFocus = n.dataset.id; MAP.found = null; render();
+  });
   svg.addEventListener('pointerdown', e => {
     const n = e.target.closest('.mnode');
     MAP.drag = n ? {id: n.dataset.id, sx: e.clientX, sy: e.clientY, ox: MAP.L.pos[n.dataset.id].x, oy: MAP.L.pos[n.dataset.id].y, moved: false}

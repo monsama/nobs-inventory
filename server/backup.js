@@ -7,6 +7,11 @@ import { migrateState } from './migrate.js';
 const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
 
+/* A backup taken by the app itself (before a sync, push or import). Off when the setting "Automatic backups" is off. */
+export function autoBackup(db, reason) {
+  if (loadState(db).autoBackups === false) return null;
+  return takeBackup(db, reason);
+}
 export function takeBackup(db, reason) {
   const s = loadState(db);
   const keep = Number(s.backupKeep) > 0 ? Math.min(100, Math.floor(Number(s.backupKeep))) : KEEP_DEFAULT;

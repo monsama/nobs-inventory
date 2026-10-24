@@ -2,11 +2,11 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['autoBackups', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['autoBackups', 'locs', 'sites', 'vlans', 'domains', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -80,6 +80,7 @@ export function checkState(s) {
       }
     }
   }
+  if (s.autoBackups !== undefined && typeof s.autoBackups !== 'boolean') bad('Automatic backups is yes or no.');
   if (s.domains !== undefined) {
     const names = Array.isArray(s.domains) ? s.domains.map(d => d && d.name) : null;
     if (!names || !s.domains.every(d => d && typeof d === 'object' && typeof d.name === 'string' && d.name.trim() && d.name.length <= 60 && (d.desc === undefined || (typeof d.desc === 'string' && d.desc.length <= 120))) || new Set(names).size !== names.length)
