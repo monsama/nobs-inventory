@@ -1,4 +1,4 @@
-import { DOMAINS, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -208,11 +208,17 @@ export const collapsedPanels = () => { try { return JSON.parse(localStorage.getI
 export const rememberPanel = (key, closed) => { try { const m = collapsedPanels(); if (closed) m[key] = true; else delete m[key]; localStorage.setItem(COLLAPSED_KEY, JSON.stringify(m)); } catch { /* not kept: the panel opens as before */ } };
 export function renderObj(o){
   const rs = relsOf(o);
-  const fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
+  let fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
   /* Any device can have ports: the port count and naming are offered when its type does not already have them. */
   if (!fields.some(f => f[0] === 'ports')) fields.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   /* The fields of the type, filled in by hand; their values are kept on the object under custom. */
   fields.push(...(TYPE_FIELDS[o.type] || []).map(f => ['custom.' + f.key, f.label, f.kind]));
+  /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
+  const lay = FIELD_LAYOUT[o.type] || {};
+  const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
+  fields = fields.filter(f => f[0].startsWith('custom.') || !(lay.hidden || []).includes(f[0]))
+    .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
+    .sort((a, b) => at(a) - at(b));
   const chain = pathUp(o);
   /* The way up to the network: one row per device, with the relation and its port on the line between two rows. */
   const netPath = `<ol class="netpath">${chain.map((n, i) => `<li class="ps${i === 0 ? ' me' : ''}">

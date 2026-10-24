@@ -71,6 +71,8 @@ export const VLANS = [];
 export const TYPE_FIELDS = {};
 /* The domains devices join, from Settings. An object's domain is picked from this list. */
 export const DOMAINS = [];
+/* The layout of the built-in fields per type: { type: { order: [keys], hidden: [keys], labels: { key: name } } }. */
+export const FIELD_LAYOUT = {};
 export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return v ? `${v.vid} · ${v.name}` : String(vid); };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 export const SITES = [];
