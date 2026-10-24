@@ -59,7 +59,7 @@ jobs:
           context: .
           load: true
           tags: nobs-inventory:scan
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: nobs-inventory:scan
           severity: HIGH,CRITICAL
