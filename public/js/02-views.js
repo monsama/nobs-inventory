@@ -34,10 +34,12 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 export const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software'};
 export function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
-  $('#tabsbar').innerHTML = ids.map(id => {
-    if (FIXED_TABS[id]) return `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}</button>`;
+  /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
+  const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
+  const viewTab = id => `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}</button>`;
+  $('#tabsbar').innerHTML = views.map(viewTab).join('') + (objs.length ? '<span class="tabs-sep" aria-hidden="true"></span><span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {
     const o = byId(id);
-    return `<span class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
+    return `<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
   }).join('');
   $('#tabsbar').querySelectorAll('[data-tab]').forEach(el => {
     const id = el.dataset.tab;
