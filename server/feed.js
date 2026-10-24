@@ -184,7 +184,7 @@ export function mergeRecords(s, records, now = new Date()) {
       s.seq = (s.seq || 100) + 1;
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, assetType: r.assetType || '' }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '' }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
         ...Object.fromEntries(['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain'].map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {})
       };
