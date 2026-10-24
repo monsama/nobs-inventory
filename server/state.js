@@ -143,6 +143,11 @@ export function checkState(s) {
         });
       }
     }
+    if (o.pfx !== undefined && (typeof o.pfx !== 'string' || o.pfx.length > 20)) bad(`${o.name}: the port naming is text of up to 20 characters.`);
+    if (o.portNotes !== undefined) {
+      if (!o.portNotes || typeof o.portNotes !== 'object' || Array.isArray(o.portNotes)) bad(`${o.name}: port descriptions must be an object.`);
+      else for (const [k, v] of Object.entries(o.portNotes)) if (!/^\d+$/.test(k) || typeof v !== 'string' || v.length > 120) bad(`${o.name}: a port description is text of up to 120 characters for a port number.`);
+    }
     if (o.sfp !== undefined && (!Number.isInteger(o.sfp) || o.sfp < 0 || o.sfp > 1000)) bad(`${o.name}: the SFP port count must be a whole number from 0 to 1000.`);
     if (o.h !== undefined && (!Number.isInteger(o.h) || o.h < 1 || o.h > 200)) bad(`${o.name}: the height in U must be a whole number from 1 to 200.`);
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);

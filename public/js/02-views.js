@@ -573,6 +573,16 @@ export function renderMap(){
 window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(); });
 
 /* ---------- switch ports ---------- */
+/* Why a port setup cannot be saved, or null. Ports in use and port groups must stay inside the new count. */
+export function portSetupError(sw, ports, sfp){
+  if (!Number.isInteger(ports) || ports < 0 || ports > 1000) return 'Copper ports: a whole number from 0 to 1000.';
+  if (!Number.isInteger(sfp) || sfp < 0 || sfp > 1000) return 'SFP ports: a whole number from 0 to 1000.';
+  const total = ports + sfp;
+  if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port > total)) return `Ports in use above ${total} block this change. Move or remove those connections first.`;
+  const g = (sw.portGroups || []).find(x => x.to > total);
+  if (g) return `The port group ${g.name} reaches port ${g.to}. Change or remove it first.`;
+  return null;
+}
 export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
   if (!devs.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
@@ -590,7 +600,8 @@ export function renderPorts(){
     const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : null;
     const isUp = !!up || (inc[0] && isUplink(inc[0].kind));
     const poe = dev && (dev.type === 'sip');
-    const tip = pfxOf(sw) + p + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
+    const note = (sw.portNotes || {})[p];
+    const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
     return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''}" data-port="${p}" title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
@@ -613,12 +624,21 @@ export function renderPorts(){
   const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
 
   $('#view').innerHTML = `<div id="net">
+    <div class="panelbox"><div class="hdr">Port setup</div>
+      <div class="form" style="padding:10px 12px">
+        <label for="psPorts">Copper ports</label><input id="psPorts" type="number" min="0" max="1000" value="${sw.ports || 0}" style="width:110px">
+        <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:110px">
+        <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${esc(sw.pfx || '')}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
+      </div>
+      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span><button id="psSave" class="primary">Save ports</button></div>
+    </div>
     ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
     <div class="panelbox"><div class="hdr">Front panel <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
       <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
         <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
+    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="What is on this port, e.g. Printer, 3rd floor" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
@@ -643,6 +663,17 @@ export function renderPorts(){
     const lag = $('#pgLag').checked;
     sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})}];
     queueServerSave(); toast('Port group added'); render();
+  };
+  const ps = $('#psSave'); if (ps) ps.onclick = () => {
+    const ports = $('#psPorts').value === '' ? NaN : +$('#psPorts').value, sfp = $('#psSfp').value === '' ? NaN : +$('#psSfp').value, pfx = $('#psPfx').value.trim();
+    const err = portSetupError(sw, ports, sfp);
+    if (err){ $('#psMsg').textContent = err; toast(err); return; }
+    Object.assign(sw, {ports, sfp, pfx}); queueServerSave(); toast('Ports saved'); render();
+  };
+  const pn = $('#pnDesc'); if (pn) pn.onchange = () => {
+    const v = pn.value.trim(); sw.portNotes = {...(sw.portNotes || {})};
+    if (v) sw.portNotes[st.portNo] = v; else delete sw.portNotes[st.portNo];
+    queueServerSave(); toast('Description saved'); render();
   };
   const ab = $('#assignBtn'); if (ab) ab.onclick = () => newObjModal({sw: sw.id, port: st.portNo});
 }
