@@ -130,6 +130,19 @@ export const rid = () => Math.random().toString(36).slice(2, 10);
 export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
 
 export const objs = [];
+/* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
+   saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
+export const SYNC = {run: '', time: 0};
+export const stampTime = s => { const m = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(s || ''); return m ? new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0; };
+export const updateSync = () => {
+  SYNC.run = ''; SYNC.time = 0;
+  for (const o of objs){ const s = o.feed && o.feed.seen, t = stampTime(s); if (t > SYNC.time){ SYNC.time = t; SYNC.run = s; } }
+};
+export const markHtml = o => {
+  const isNew = !!(o.feed && SYNC.run && o.feed.created === SYNC.run);
+  const byHand = !!o.handAt && Date.parse(o.handAt) > SYNC.time;
+  return (isNew ? '<span class="mk mk-new">New</span>' : '') + (byHand ? '<span class="mk mk-hand">Edited by hand</span>' : '');
+};
 export const byId = id => objs.find(o => o.id === id);
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
