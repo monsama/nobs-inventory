@@ -131,6 +131,18 @@ try {
   await p.selectOption('#arKind', 'connected'); await p.selectOption('#arTo', 'o1'); await p.fill('#arPort', '9'); await p.click('#arAdd');
   await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'o3' && r.to === 'o1' && r.port === 9));
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).rels.some(r => r.id === 'oldlink')), false, 'the retired connection is removed');
+  // Port setup: a count that would drop a used port is refused; a larger count is saved; a port has a description.
+  await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
+  await p.click('#tabsbar [data-tab=net]');
+  await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'rt1');
+  await p.fill('#psPorts', '1'); await p.click('#psSave');
+  assert.match(await p.textContent('#psMsg'), /block this change/, 'a count below a used port is refused');
+  await p.fill('#psPorts', '10'); await p.click('#psSave');
+  await until(p, async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').ports === 10);
+  await p.click('#view .port[data-port="2"]');
+  await p.fill('#pnDesc', 'Printer, 3rd floor'); await p.press('#pnDesc', 'Tab');
+  await until(p, async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portNotes?.[2] === 'Printer, 3rd floor');
+  assert.match(await p.getAttribute('#view .port[data-port="2"]', 'title'), /Printer, 3rd floor/, 'the description shows on the port');
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
