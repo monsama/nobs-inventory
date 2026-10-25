@@ -344,6 +344,9 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 #setPane>div:not(.panelbox),#setPane>div:not(.panelbox)>div:not(.panelbox){display:flex;flex-direction:column;gap:16px}
 #setPane div:empty:not(.panelbox *){display:none}
 #setPane .panelbox{overflow:hidden;flex:none}
+.ldap-adv{border-top:1px solid var(--bd2)}
+.ldap-adv>summary{padding:9px 12px;cursor:pointer;color:var(--muted);font-size:12px}
+.ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
 #setPane .panelbox>.hdr+p.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}

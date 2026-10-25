@@ -539,6 +539,8 @@ export function factoryResetModal(){
 }
 /* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
    account's password is not stored there: the server reads it from its environment. */
+/* The same default as the server: the login at the domain the search base names. */
+const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -549,14 +551,19 @@ export function renderSetLdap(){
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account's password is not stored here: the server reads it from its environment (NI_LDAP_SERVICE_PASSWORD).</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
-      ${field('bindTemplate', 'Sign-in name', 'EXAMPLE\\{login}  or  {login}@example.ch')}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
-      ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
-      ${field('userFilter', 'User filter', '(objectClass=person)')}
+      ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
-      ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
     </div>
+    <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
+      <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+        ${field('bindTemplate', 'Sign-in name', bindDefault(L.searchBase) + '   (or EXAMPLE\\{login})')}
+        ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
+        ${field('userFilter', 'User filter', '(objectClass=person)')}
+      </div>
+      <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
+    </details>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
