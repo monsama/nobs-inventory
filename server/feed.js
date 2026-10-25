@@ -141,10 +141,18 @@ export function modelFor(s, name) {
   const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
   return own && s.modelMap[own] ? s.modelMap[own] : text;
 }
-export function typeFor(s, name) {
+/* Models that say what a device is better than Lansweeper's type does: Lansweeper files an industrial controller it reaches
+   over SNMP as a switch or a network device. */
+const MODEL_WORDS = [
+  [/simatic|\bs7-\d{3,4}\b|\blogo!|modicon|controllogix|compactlogix|guardlogix|micrologix|\bmelsec\b|\bplc\b|programmable (logic )?controller/i, 'plc']
+];
+/* A type mapping set in Settings wins; then a model that names what the device is; then the words of Lansweeper's type. */
+export function typeFor(s, name, model) {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
   if (own && s.typeMap[own]) return s.typeMap[own];
+  const byModel = MODEL_WORDS.find(([re]) => re.test(String(model || '')));
+  if (byModel) return byModel[1];
   return (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
 }
 
@@ -181,7 +189,7 @@ export function mergeRecords(s, records, now = new Date()) {
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
-      const type = typeFor(s, r.assetType);
+      const type = typeFor(s, r.assetType, r.model);
       s.codeN = (s.codeN || 0) + 1;
       s.seq = (s.seq || 100) + 1;
       const obj = {

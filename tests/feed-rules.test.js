@@ -90,3 +90,21 @@ test('a sync that changes IP writes the old and new value to the history, a firs
   mergeRecords(state, [{ name: 'PC2', serial: 'SN2', ip: '10.0.0.7' }], new Date('2026-10-24T10:00:00'));
   assert.equal(state.history.pc2, undefined);
 });
+
+test('a PLC is recognised by its model, even when Lansweeper files it as a switch; a type mapping still wins', () => {
+  const s = base();
+  mergeRecords(s, recordsFromJson([
+    { name: 'Siemens AG 172.21.103.38', ref: 'plc1', assetType: 'Switch', model: 'Siemens AG SIMATIC CPU 1515F-2 PN', links: [] },
+    { name: 'SW-CORE', ref: 'sw1', assetType: 'Switch', model: 'Aruba 6300M', links: [] },
+    { name: 'LINE-3', ref: 'plc2', assetType: 'Network device', model: 'Allen-Bradley ControlLogix 5580', links: [] },
+  ]), now);
+  const typeOf = n => s.objs.find(o => o.name === n).type;
+  assert.equal(typeOf('Siemens AG 172.21.103.38'), 'plc');
+  assert.equal(typeOf('SW-CORE'), 'switch', 'an ordinary switch stays a switch');
+  assert.equal(typeOf('LINE-3'), 'plc');
+  checkState({ ...s, locs: [] });   /* plc is a known type, so the inventory can be stored */
+
+  const mapped = base({ typeMap: { switch: 'other' } });
+  mergeRecords(mapped, recordsFromJson([{ name: 'S7', ref: 'x', assetType: 'Switch', model: 'SIMATIC S7-1500', links: [] }]), now);
+  assert.equal(mapped.objs[0].type, 'other', 'a mapping set in Settings decides over the model');
+});
