@@ -309,7 +309,8 @@ export function renderSoftware(){
     /* A search for a device opens the packages it has, so the match is in sight. */
     const hits = r => !q ? 'none' : r.name.toLowerCase().includes(q) || r.versions.some(([v]) => v.toLowerCase().includes(q)) ? 'package' : r.devices.some(d => d.name.toLowerCase().includes(q)) ? 'device' : '';
     const rows = all.filter(r => hits(r)).sort(st.swSort === 'devices' ? (a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
-    $('#swCount').textContent = q ? `${rows.length} of ${all.length} packages` : `${all.length} packages · ${devCount} devices`;
+    const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    $('#swCount').textContent = q ? `${rows.length} of ${n(all.length, 'package')}` : `${n(all.length, 'package')} · ${n(devCount, 'device')}`;
     $('#swBody').innerHTML = rows.length ? rows.map(r => {
       const open = st.swOpen.includes(r.name) || hits(r) === 'device';
       const shown = r.versions.slice(0, 4);
