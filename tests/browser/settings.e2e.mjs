@@ -58,6 +58,20 @@ try {
   assert.deepEqual((await saved()).types, []);
   await page.click('[data-sedit="0"]'); await page.fill('.sn-edit [data-sn]', 'Not this'); await page.click('.sn-edit [data-scancel]');
   assert.equal((await saved()).name, 'Office Willisau', 'Cancel keeps the subnet as it was');
+  // Settings sections open and close by their title and stay as they were left, also when the section draws itself again
+  await page.click('#setTabs [data-st=types]'); await page.waitForSelector('#setModels .hdr.sechdr');
+  await page.click('#setModels .hdr');
+  assert.equal(await page.locator('#setModels').evaluate(e => e.classList.contains('collapsed')), true);
+  assert.equal(await page.isVisible('#setModels .lrows'), false, 'a closed section hides its content');
+  await page.click('#setTabs [data-st=users]'); await page.click('#setTabs [data-st=types]'); await page.waitForSelector('#setModels .hdr.sechdr');
+  assert.equal(await page.locator('#setModels').evaluate(e => e.classList.contains('collapsed')), true, 'still closed when the tab is opened again');
+  await page.click('#setModels .hdr');
+  assert.equal(await page.isVisible('#setModels .lrows'), true);
+  // Per type: the type is chosen in the title, and the fields say how many objects of it have a value
+  await page.selectOption('#tfType', 'pc');
+  assert.match(await page.textContent('.tf-box'), /Fields on the PC page.*Own fields of PC.*On the PC card/s);
+  assert.equal(await page.locator('.tf-box .sechdr').count(), 1);
+  assert.equal(await page.locator('.tf-box').evaluate(e => e.classList.contains('collapsed')), false, 'choosing the type does not close the section');
   // push token: created in the app, shown once, a download is offered
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');

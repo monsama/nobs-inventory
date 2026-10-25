@@ -1,6 +1,6 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { COMPANY, dayText, daysSince } from './01-core.js';
-import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { collapsedPanels, rememberPanel, FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
@@ -12,11 +12,13 @@ import { sheetModal } from './08-sheets.js';
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
+  snEdit = null; snDraft = null;   /* Settings opens with no subnet half edited */
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
+  collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = () => { closeModal(); render(); };
   const sr = $('#setReset');
   if (sr) sr.onclick = () => clearConfirm();
@@ -69,7 +71,7 @@ export function renderSetModels(){
   const names = modelNames();
   root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
     <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
-    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : ''}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
+    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : '<span></span>'}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
   if (!edit) return;
   root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
   root.querySelectorAll('[data-mdx]').forEach(b => b.onclick = () => removeModel(names[+b.dataset.mdx]));
@@ -280,6 +282,21 @@ async function refreshGraph(){
   if (j) SERVER.graph = !!j.graph;
   await renderSetGraph();
 }
+/* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
+   The sections draw themselves again often, so the state is put back on each new title as it appears. */
+export function collapsibleSections(root, prefix){
+  const keyOf = h => prefix + (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
+  const apply = () => root.querySelectorAll('.panelbox > .hdr:not(.sechdr)').forEach(h => {
+    h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
+    const closed = !!collapsedPanels()[keyOf(h)];
+    h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
+  });
+  const toggle = h => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(keyOf(h), c); };
+  root.addEventListener('click', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h); });
+  root.addEventListener('keydown', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggle(h); } });
+  new MutationObserver(apply).observe(root, {childList: true, subtree: true});
+  apply();
+}
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
@@ -437,7 +454,8 @@ export function renderSetUsers(){
   for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
   const devicesOfUser = name => devCount.get(name) || 0;
   const rows = USERS.map((u, i) => `<tr>
-      <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
+      ${u.source === 'ldap' ? `<td title="From LDAP: changed in the directory">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
+      ${u.source === 'ldap' ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
@@ -458,6 +476,22 @@ export function renderSetUsers(){
     const u = USERS[+c.dataset.act];
     if (!c.checked && u.role === 'admin' && activeAdmins() <= 1){ toast('At least one active admin is needed.'); c.checked = true; return; }
     u.active = c.checked; queueServerSave(); renderSetUsers();
+  });
+  /* A user entered here or named by Lansweeper can be renamed; their devices move to the new name with them. Users from
+     LDAP are named in the directory. */
+  root.querySelectorAll('[data-uname]').forEach(i => i.onchange = () => {
+    const u = USERS[+i.dataset.uname], was = u.name, name = i.value.trim().replace(/\s+/g, ' ');
+    if (!name){ i.value = was; toast('A user needs a name.'); return; }
+    if (name === was) return;
+    if (USERS.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already a user.'); return; }
+    u.name = name; delete u.first; delete u.last;
+    for (const o of objs) if (o.user === was){ o.user = name; hist(o, now(), `User ${was} renamed to ${name} by ${who()}`); }
+    queueServerSave(); toast(`${was} is now ${name}`); renderSetUsers(); render();
+  });
+  root.querySelectorAll('[data-udept]').forEach(i => i.onchange = () => {
+    const u = USERS[+i.dataset.udept], dept = i.value.trim();
+    if (dept) u.dept = dept; else delete u.dept;
+    queueServerSave(); toast('Department saved'); renderSetUsers();
   });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
@@ -881,11 +915,21 @@ export function renderSetVlans(){
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
   $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
-    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><span class="mono">${esc(d.name)}</span><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
+    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><input data-dname="${i}" class="mono" maxlength="60" value="${esc(d.name)}" aria-label="Domain ${esc(d.name)}"><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
     <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>`;
   const root = $('#setDomains');
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
   root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
+  /* A domain can be renamed; the objects in it move with it. */
+  root.querySelectorAll('[data-dname]').forEach(i => i.onchange = () => {
+    const d = DOMAINS[+i.dataset.dname], was = d.name, name = i.value.trim();
+    if (!name || name === was) { i.value = was; return; }
+    if (/\s/.test(name)){ i.value = was; toast('A domain name has no spaces.'); return; }
+    if (DOMAINS.some(x => x !== d && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already listed.'); return; }
+    d.name = name;
+    for (const o of objs) if (o.domain === was){ o.domain = name; hist(o, now(), `Domain ${was} renamed to ${name} by ${who()}`); }
+    queueServerSave(); toast(`${was} is now ${name}`); renderSetDomains(); render();
+  });
   const add = () => {
     const name = $('#dmName').value.trim(), desc = $('#dmDesc').value.trim();
     if (!name){ toast('Write the domain name.'); return; }
@@ -1022,11 +1066,16 @@ export function renderSetTypeFields(){
   const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
-  box.innerHTML = `<div class="panelbox"><div class="hdr">Fields per type</div>
-    <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
-    <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
+  const tl = esc(TYPES[type].label), nOf = objs.filter(o => o.type === type).length;
+  box.innerHTML = `<div class="panelbox tf-box"><div class="hdr">Per type</div>
+    <div class="tf-pick"><label for="tfType">Settings for</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'} of this type</span></div>
+    <p class="note">The fields of this type on its object page, its own fields and the four lines of its card.</p>
+    <div id="tfBuiltin"></div>
+    <div class="tf-sub"><div class="tf-sh">Own fields of ${tl}</div>
+    <p class="note tf-note">Filled in by hand on every ${tl}. Removing a field hides its values; they come back if it is added again.</p>
     <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>`;
+    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>
+    <div id="tfCard"></div></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
   /* A field's name can be changed; its key stays, so the values already entered are kept. */
   box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
@@ -1048,15 +1097,15 @@ export function renderSetTypeFields(){
   };
   $('#tfAdd').onclick = add;
   $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
-  renderBuiltinFields(box, type);
-  renderCardLines(box, type);
+  renderBuiltinFields($('#tfBuiltin'), type);
+  renderCardLines($('#tfCard'), type);
 }
 /* The four lines a card shows for this type. Every card of the type shows the same four, so cards line up. */
 export function renderCardLines(box, type){
   const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
-  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">On the card</div>
-    <p class="note" style="padding:0 12px 8px">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
+  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">On the ${esc(TYPES[type].label)} card</div>
+    <p class="note tf-note">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
     <div class="cardlines">${cur.map((k, i) => `<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => `<option value="${esc(v)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}
       <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`);
   const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
@@ -1073,11 +1122,14 @@ export function renderBuiltinFields(box, type){
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
   const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch}; save(next); };
-  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Built-in fields</div>
-    <p class="note" style="padding:0 12px 8px">Rename a field, hide it for this type (its values are kept), or move it up or down. The stored name of a field does not change.</p>
+  /* How many objects of the type have a value in the field: where the field is used. */
+  const ofType = objs.filter(o => o.type === type);
+  const filled = k => ofType.filter(o => { const v = o[k]; return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
+  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">Fields on the ${esc(TYPES[type].label)} page<span class="muted">Filled in</span></div>
+    <p class="note tf-note">Rename a field, hide it for ${esc(TYPES[type].label)} (its values are kept), or move it up or down. Filled in counts the ${esc(TYPES[type].label)} objects that have a value.</p>
     <div class="lrows">${ordered.map((f, i) => {
-      const hidden = (lay.hidden || []).includes(f[0]);
-      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}"><span class="mono muted">${esc(f[0])}</span>
+      const hidden = (lay.hidden || []).includes(f[0]), n = filled(f[0]);
+      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}" title="Stored as ${esc(f[0])}"><span class="fl-use ${n ? '' : 'muted'}">${ofType.length ? `${n} of ${ofType.length}` : '—'}</span>
         <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
         <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
     }).join('')}</div></div>`);

@@ -113,7 +113,7 @@ try {
   assert.match(hist, /Created manually by Administrator/, 'the history does not name the person who made the change: ' + hist);
   await q.click('#setBtn'); await q.click('#setTabs [data-st=users]');
   await q.fill('#nuFirst', 'Test'); await q.fill('#nuLast', 'Person'); await q.fill('#nuDept', 'QA'); await q.click('#nuAdd');
-  assert.ok((await q.textContent('#setUsers')).includes('Test Person'), 'the user was not added');
+  assert.equal(await q.locator('#setUsers [aria-label="Name of Test Person"]').count(), 1, 'the user was not added');
   await ctx2.close();
 
   assert.deepEqual(errors, [], 'page errors');
