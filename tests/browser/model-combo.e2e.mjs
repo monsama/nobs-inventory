@@ -25,11 +25,11 @@ try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card[data-open=o1]'); await page.click('.card[data-open=o1]');
-  const field = '[data-k=model]', list = '.combo-list';
+  const field = '[data-k=model]', list = '.combo:has([data-k=model]) .combo-list', arrow = '.combo:has([data-k=model]) .combo-arrow';
   await page.waitForSelector(field);
   assert.equal(await page.locator('datalist').count(), 0, 'the browser\'s own list is not used');
   // the arrow opens every model; typing filters
-  await page.click('.combo-arrow');
+  await page.click(arrow);
   assert.equal(await page.locator(list + ' li').count(), 4);
   if (process.env.NI_SHOTS) await page.locator('.obj .col .panelbox').first().screenshot({ path: path.join(process.env.NI_SHOTS, 'model-combo.png') });
   await page.fill(field, 'dell');
@@ -58,7 +58,7 @@ try {
   // a model the feed owns is locked, list included
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o4'));
   await page.waitForSelector('[data-k=model][disabled]');
-  await page.locator('.combo-arrow').click({ force: true });
+  await page.locator(arrow).click({ force: true });
   assert.equal(await page.isHidden(list), true, 'a locked model opens no list');
   assert.deepEqual(errors, [], 'no page errors');
   console.log('model pick list: all checks passed');
