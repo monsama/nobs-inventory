@@ -36,7 +36,8 @@ export const svg = (t, cls='i') => {
 /* ---------- reference data ---------- */
 /* Object types are data: name, short name, colour and icon. Edited in Settings → Object types. */
 export const TYPES = {
-  pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
+  pc:{label:'PC', short:'PC', color:'#1565c0', icon:'pc'},
+  notebook:{label:'Notebook', short:'NB', color:'#2563eb', icon:'laptop'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
@@ -54,6 +55,7 @@ export const TYPES = {
   ios:{label:'iOS device', short:'iOS', color:'#a21caf', icon:'mobile'},
   mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
   plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
+  camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -64,7 +66,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
+export const BUILTIN = ['pc','notebook','camera','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
@@ -138,7 +140,7 @@ export const KIND_HINTS = {
   attached:'A monitor or accessory attached to a PC, docking station or server.',
   hosted:'A virtual machine that runs on this physical server.'
 };
-export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */

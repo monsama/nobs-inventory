@@ -6,20 +6,11 @@ import { HttpError } from './errors.js';
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
+import { typeByRules } from '../public/js/type-rules.js';
 
 const FEED_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
-/* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
-const TYPE_WORDS = [
-  [/virtual machine|\bvm\b/i, 'vm'],
-  [/access ?point|wireless|wi-?fi|\bwlan\b/i, 'accesspoint'],
-  [/webserver|\bweb\b/i, 'other'],
-  [/ipad|iphone|\bios\b/i, 'ios'], [/android/i, 'android'], [/tablet|smartphone|mobile/i, 'mobile'],
-  [/pbx|phone system|pabx|telefonanlage/i, 'pbx'], [/phone|voip|sip|dect|telefon|gigaset|handset/i, 'sip'], [/monitor/i, 'monitor'], [/switch/i, 'switch'], [/printer/i, 'printer'],
-  [/firewall/i, 'firewall'], [/modem/i, 'modem'], [/router/i, 'router'], [/server|linux|vmware|virtual/i, 'server'],
-  [/windows|mac|computer|workstation|pc|notebook|laptop/i, 'pc']
-];
 export const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
 export function parseCsv(text) {
@@ -61,7 +52,7 @@ export function recordsFromCsv(text) {
 }
 
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'userDept'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
@@ -170,26 +161,18 @@ export function modelFor(s, name) {
   const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
   return own && s.modelMap[own] ? s.modelMap[own] : text;
 }
-/* Models that say what a device is better than Lansweeper's type does: Lansweeper files an industrial controller it reaches
-   over SNMP as a switch or a network device. */
-const MODEL_WORDS = [
-  [/simatic|\bs7-\d{3,4}\b|\blogo!|modicon|controllogix|compactlogix|guardlogix|micrologix|\bmelsec\b|\bplc\b|programmable (logic )?controller/i, 'plc'],
-  /* Drives and motion control: frequency converters and servo drives are controllers too, not network devices. */
-  [/sinamics|sinumerik|simotion|motion control|powerflex|kinetix|altivar|lexium|\bacs ?[0-9]{3,4}\b|movidrive|frequency (converter|inverter)|servo ?drive/i, 'plc']
-];
-/* A type mapping set in Settings wins; then a model that names what the device is; then the words of Lansweeper's type. */
-export function typeFor(s, name, model, role) {
+/* A type mapping set in Settings (a Lansweeper type name, exactly) wins; then the type rules, in their order (the ones
+   shipped, or the list edited in Settings → Feed). */
+export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
   if (own && s.typeMap[own]) return s.typeMap[own];
-  const byModel = MODEL_WORDS.find(([re]) => re.test(String(model || '')));
-  if (byModel) return byModel[1];
-  const byWords = (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
+  const byRules = typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type;
   /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
      it moves a computer between PC and server. A virtual machine stays one. */
-  if ((role === 'server' || role === 'dc') && (byWords === 'pc' || byWords === 'other')) return 'server';
-  if (role === 'workstation' && byWords === 'server') return 'pc';
-  return byWords;
+  if ((role === 'server' || role === 'dc') && ['pc', 'notebook', 'other'].includes(byRules)) return 'server';
+  if (role === 'workstation' && byRules === 'server') return 'pc';
+  return byRules;
 }
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
@@ -239,12 +222,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
-      const type = typeFor(s, r.assetType, r.model, r.role);
+      const type = typeFor(s, r.assetType, r.model, r.role, r.name, r.chassis);
       s.codeN = (s.codeN || 0) + 1;
       s.seq = (s.seq || 100) + 1;
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '' }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {})
       };
@@ -257,7 +240,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     const wasLinked = !!found.feed;
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, assetType: r.assetType || '' };
     else if (!found.feed.ref) found.feed.ref = r.ref;
-    if (found.feed && r.assetType) found.feed.assetType = r.assetType;   /* the type name is kept, so a type mapping can apply to it later */
+    if (found.feed && r.assetType) found.feed.assetType = r.assetType;
+    /* Windows' role and the chassis are kept with the feed's data, for the type rules (Apply to existing devices). */
+    if (found.feed && r.role) found.feed.role = r.role;
+    if (found.feed && r.chassis) found.feed.chassis = r.chassis;   /* the type name is kept, so a type mapping can apply to it later */
     let changed = false;
     for (const k of FEED_FIELDS) {
       const incoming = r[k];

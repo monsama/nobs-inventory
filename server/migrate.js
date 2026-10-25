@@ -10,6 +10,8 @@ export function migrateState(s) {
   for (const [name, type] of Object.entries(s.typeMap || {})) if (TYPE_RENAMES[type]) { s.typeMap[name] = TYPE_RENAMES[type]; changed = true; }
   for (const old of Object.keys(TYPE_RENAMES)) if (s.types && s.types[old]) { delete s.types[old]; changed = true; }
   if (s.types && s.types.android && s.types.android.label === 'Android phone') { delete s.types.android; changed = true; }
+  /* PC and notebook are types of their own since 0.9.13: the built-in PC keeps its name unless it was renamed. */
+  if (s.types && s.types.pc && s.types.pc.label === 'PC / Notebook') { s.types.pc = { ...s.types.pc, label: 'PC' }; changed = true; }
   for (const r of Array.isArray(s.racks) ? s.racks : []) {
     if (s.objs.some(o => o.id === r.id)) continue;
     s.codeN = (s.codeN || 0) + 1;

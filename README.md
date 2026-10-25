@@ -72,6 +72,15 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 - **Contracts** tab: maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
 - **Licences** (Software tab): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
 
+## Device types from Lansweeper
+
+A device from Lansweeper gets its type in this order:
+1. **Lansweeper type names** (Settings → Feed): an exact name, e.g. "DECT base" → VoIP phone.
+2. **Type rules** (Settings → Feed): each rule looks at the Lansweeper type, the model, the name, the chassis, or all of the type, model and name, and names a type when any of its words is there. The first rule that matches decides. The app ships with rules for notebooks (chassis and model names), cameras and recorders, PLCs and drives, and switch models, and for Lansweeper's own type names. They can be changed, switched off, reordered or added to; **Back to the defaults** returns to the shipped list.
+3. Windows' own role moves a computer between PC and server.
+
+Rules apply to new devices. **Apply to existing devices…** shows which devices from Lansweeper would get another type, and changes only the ticked ones. A type set by hand on a device is never changed.
+
 ## Entry sheets
 
 Settings → Users → Entry sheet makes a sheet for a person's first day: their devices (inventory number, type, name, model, serial number), their Windows sign-in name, a new initial password and lines to sign. It opens for printing at once and can be printed again or downloaded as a PDF later. Settings → Users → Company sets the company name and logo the sheets carry instead of NOBS Inventory (any image; it is kept as a PNG).
