@@ -314,7 +314,10 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .lic-bar.over>span{background:var(--danger)}
 .ct-devs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-top:6px}
 .ct-devs .pchk{font-size:13px}
-table.contracts td.num,table.contracts th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Counts and amounts: right-aligned in the text font, digits of equal width so a column lines up. */
+.grid td.num,.grid th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* A unit after a field (CHF, months): as wide as its text, so the field keeps the width of the others. */
+.ctlrow>.unit:not(.pchk){flex:none;color:var(--muted)}
 table.contracts tfoot td{font-weight:600;border-top:2px solid var(--bd)}
 button.link{background:none;border:0;padding:0;height:auto;color:var(--linktext);cursor:pointer;font:inherit;text-align:left}
 button.link:hover{text-decoration:underline}
