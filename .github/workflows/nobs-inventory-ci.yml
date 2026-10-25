@@ -12,7 +12,7 @@ jobs:
     name: API, directory, Lansweeper and user tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -35,7 +35,7 @@ jobs:
       matrix:
         group: [a, b, c]   # the three groups in package.json (test:browser:a, :b, :c) run side by side
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Every action version exists
         run: scripts/check-actions.sh
       - name: Archive (the same files the release archives)
