@@ -70,7 +70,16 @@ table.locs td.site{color:var(--muted)}
 .locpanel>.note{margin:0;padding:0 12px 12px}
 @media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
-.ctlrow>:not(.pchk):not(.pchk-slot){flex:1;min-width:0}
+.ctlrow>:not(.pchk):not(.pchk-slot):not(.fmenu):not(.fm-slot):not([data-pick]){flex:1;min-width:0}
+/* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
+.fm-slot{display:inline-block;width:26px;flex:none}
+details.fmenu{flex:none;width:26px}
+details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
+.ctlrow:hover>details.fmenu>summary,details.fmenu>summary:focus-visible,details.fmenu[open]>summary{border-color:var(--bd);background:var(--btn);color:var(--fg)}
+details.fmenu .menubox{min-width:210px;top:30px}
+label.fm-hid{color:var(--muted);font-style:italic}
+label.fm-hid::after{content:" · hidden";font-size:11px}
+.fm-reveal{font-size:12px}
 .ctlrow .pchk{white-space:nowrap;flex:none}
 .plans{display:flex;flex-direction:column;min-height:0}
 .pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
