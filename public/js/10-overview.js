@@ -49,7 +49,7 @@ export function renderOverview(){
       </div>
       <div class="panelbox"><div class="hdr">Devices by type <span class="cnt">${compact(live.length)} not retired</span></div>${byType.length ? bars(byType, 'data-ovt') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
       ${bySite.length ? `<div class="panelbox"><div class="hdr">Devices by site${noLoc ? ` <span class="cnt">${compact(noLoc)} without location</span>` : ''}</div>${bars(bySite, 'data-ovl')}</div>` : ''}
-      <div class="panelbox"><div class="hdr">By status</div>${bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs')}</div>
+      <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
     </div></div>`;
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
   const go = (tab, set = {}) => { Object.assign(st, { type: null, loc: null, status: null, warranty: null, q: '' }, set); const s = $('#search'); if (s) s.value = ''; st.tab = tab; render(); };

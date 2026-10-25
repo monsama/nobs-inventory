@@ -301,7 +301,9 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-tl{font-size:12px;color:var(--muted)}
 .ov-tv{font-size:28px;font-weight:600;line-height:1.2}
 .ov-ts{font-size:12px;color:var(--muted)}
-.ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start}
+/* Panels in a row are as tall as the tallest, so a fresh inventory shows an even row of empty panels. */
+.ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:stretch}
+.ov-cols>.panelbox{display:flex;flex-direction:column}
 .ov-att{display:flex;flex-direction:column}
 .ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
 .ov-row:hover,.ov-bar:hover{background:var(--hover)}
