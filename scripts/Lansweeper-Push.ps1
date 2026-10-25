@@ -461,7 +461,9 @@ function Get-HealthByAsset($conn) {
             $id = ConvertTo-Text $rd['AssetID']; $name = Get-Clean $rd['DisplayName']
             if (-not $id -or -not $name) { continue }
             $on = ([string]$rd['onAccessScanningEnabled']) -in @('1', 'True'); $upd = ([string]$rd['productUpToDate']) -in @('1', 'True')
-            (Get-Entry $id)['av'] = "$name, " + $(if ($on) { 'scanning on' } else { 'scanning OFF' }) + ', ' + $(if ($upd) { 'up to date' } else { 'out of date' })
+            # A device can have more than one product (Windows Defender next to another one): all are kept, each once.
+            $e = Get-Entry $id; $one = "$name, " + $(if ($on) { 'scanning on' } else { 'scanning OFF' }) + ', ' + $(if ($upd) { 'up to date' } else { 'out of date' })
+            if (-not $e['av']) { $e['av'] = $one } elseif (($e['av'] -split '; ') -notcontains $one) { $e['av'] = "$($e['av']); $one" }
         } } finally { $rd.Close() }
     }
     return $health

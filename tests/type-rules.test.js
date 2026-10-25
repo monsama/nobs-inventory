@@ -24,6 +24,8 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-hmilton'), 'pc', 'hmi as a whole word only');
   assert.equal(t('Network device', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG'), 'pbx', 'a TAS phone system');
   assert.equal(t('Remote Access Controller', 'HPE iLO 5', 'srv01-ilo'), 'bmc', 'an iLO');
+  assert.equal(t('Windows', 'VMware, Inc. VMware Virtual Platform', 'acmeapp01', '', 'server'), 'vm', 'a VMware guest is a VM, also with the server role');
+  assert.equal(t('Windows', 'Microsoft Corporation Virtual Machine', 'acmehv-vm1', '', 'workstation'), 'vm', 'a Hyper-V guest');
   assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'vm', 'the OmniStack controller is a VM, not an iLO');
   assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
   assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'acmeimm04.corp.local'), 'bmc', 'an IBM IMM');

@@ -606,6 +606,14 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .form label{color:var(--muted);font-size:12px}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
+/* Disks: a bar per drive, filled as far as the drive is used; orange from 80 %, red from 90 %. */
+.disks{display:flex;flex-direction:column;gap:5px;min-width:0;padding:3px 0}
+.disk{display:grid;grid-template-columns:24px minmax(60px,1fr) auto;align-items:center;gap:8px;font-size:12px}
+.disk b{font-family:var(--mono)}
+.disk-bar{height:8px;border-radius:4px;background:var(--bd2);overflow:hidden}
+.disk-bar>span{display:block;height:100%;background:var(--accent)}
+.disk.warn .disk-bar>span{background:var(--warnbtn)} .disk.bad .disk-bar>span{background:var(--danger-bg)}
+.disk-t{color:var(--muted);white-space:nowrap}
 /* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
 input.inherit::placeholder{color:var(--muted);font-style:italic;opacity:1}
 /* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */

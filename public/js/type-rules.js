@@ -20,6 +20,8 @@ export const DEFAULT_TYPE_RULES = [
   r('any', 'homeserver, facilityserver, feller, knx, gira, loxone, novar, hmi, operator panel, touch panel', 'plc'),
   r('any', 'omnipcx, oxo connect, oxo0, smartnode, patton electronics, mx-one, telefonbau, tas telefon', 'pbx'),
   r('any', 'gs105, gs108, gs110, gs116, gs305, gs308, gs316, gs324, gs724, gs728, gs752, procurve, catalyst, scalance x, unifi switch, usw-, aruba cx, 8320-, 8325-, 8360-, 6100-, 6200f, 6300f, 6300m, 6400-, 2530-, 2540-, 2930f, 2930m, 5406r, 5412r', 'switch'),
+  /* The model a hypervisor reports for its virtual machines. */
+  r('model', 'vmware virtual platform, vmware7,1, vmware20,1, virtual machine, virtualbox, kvm, qemu, hvm domu, standard pc (q35, standard pc (i440fx', 'vm'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),
   r('model', 'latitude, thinkpad, elitebook, probook, zbook, macbook, surface laptop, surface book, surface pro, ideapad, vivobook, zenbook, travelmate, toughbook, lifebook, notebook, laptop', 'notebook'),
   /* Lansweeper's type names. */

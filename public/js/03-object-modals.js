@@ -210,11 +210,27 @@ export function propRow(o, f){
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
+  /* Disks filled in by Lansweeper show as bars; typed by hand they stay a text field, with the bars underneath. */
+  const bars = k === 'disk' ? diskBars(o.disk) : '';
+  if (bars && taken) ctl = bars;
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' && !taken ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${fieldNote(o, k)}`;
+  const barsBelow = bars && !taken ? `<span></span>${bars}` : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
+}
+/* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
+   the space left. Returns '' when the text is not in that form. */
+export function diskBars(text){
+  const num = v => +String(v).replace(/[^\d]/g, '');
+  const parts = String(text || '').split(';').map(x => /^\s*([A-Za-z]):?\s*([\d'’.,\s]+)\/([\d'’.,\s]+)\s*GB\s*$/.exec(x)).filter(Boolean);
+  if (!parts.length) return '';
+  return `<div class="disks">${parts.map(([, l, f, c]) => {
+    const free = num(f), size = num(c), used = size ? Math.min(100, Math.max(0, Math.round((size - free) / size * 100))) : 0;
+    const cls = used >= 90 ? ' bad' : used >= 80 ? ' warn' : '';
+    return `<div class="disk${cls}" title="${l.toUpperCase()}: ${used}% used, ${free} GB free of ${size} GB"><b>${l.toUpperCase()}:</b><span class="disk-bar" aria-hidden="true"><span style="width:${used}%"></span></span><span class="disk-t">${free.toLocaleString()} GB free of ${size.toLocaleString()} GB</span></div>`;
+  }).join('')}</div>`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
