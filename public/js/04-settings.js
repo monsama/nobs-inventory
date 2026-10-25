@@ -1,4 +1,4 @@
-import { daysSince } from './01-core.js';
+import { dayText, daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -134,15 +134,10 @@ export function renderSetGraph(){
   const edit = canEdit(), ready = SERVER.graph && edit;
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
     <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below (its private key is shown once, so download it at once), then set the server settings it names.'}</p>
-    <p class="note" id="graphExpiry" style="padding:0 12px 10px"></p>
+    <div id="graphCerts"></div>
     <div class="addrel" style="padding:10px 12px"><button id="graphCert" ${edit ? '' : 'disabled'} title="${edit ? 'Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}">Create a certificate</button><button id="graphSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg"></span></div>
     <div id="graphNew"></div></div>`;
-  if (SERVER.graph) fetch('api/graph/status', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
-    const el = $('#graphExpiry');
-    if (!el || !j || !j.configured) return;
-    const days = Math.floor((new Date(j.expires) - Date.now()) / 86400000);
-    el.innerHTML = days < 60 ? `<span style="color:var(--danger)">The certificate expires ${esc(j.expires.slice(0, 10))}, in ${days} days. Create a new one and upload it to the Entra app.</span>` : `The certificate expires ${esc(j.expires.slice(0, 10))}.`;
-  }).catch(() => {});
+  if (edit) renderGraphCerts();
   const btn = $('#graphSync');
   if (btn) btn.onclick = async () => {
     const msg = $('#graphMsg');
@@ -167,13 +162,39 @@ export function renderSetGraph(){
       <p class="note">The key is shown here once and is not kept on the server. Download both files now.</p>
       <div class="addrel" style="padding:8px 0;border:0;background:none"><button id="graphGetCer">Download the certificate (.cer)</button><button id="graphGetKey" class="danger-text">Download the private key (.key)</button></div>
       <ol class="note" style="padding-left:18px">
-        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Thumbprint: <span class="mono">${esc(j.thumbprint)}</span>.</li>
+        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Entra lists it with the thumbprint <span class="mono">${esc(j.thumbprint)}</span>.</li>
         <li>On the server, save the .key file where the server can read it, and set NI_GRAPH_KEY_FILE to its path. Set NI_GRAPH_CERT_FILE to a file holding the .cer.</li>
         <li>Restart the server, then run the sync above.</li>
       </ol></div>`;
+    renderGraphCerts();
     $('#graphGetCer').onclick = () => downloadText('nobs-graph.cer', j.certPem);
     $('#graphGetKey').onclick = () => downloadText('nobs-graph.key', j.keyPem);
   };
+}
+/* The certificates made here and the one the server uses: public details only. Entra lists an uploaded certificate by the
+   same SHA-1 thumbprint, so the two lists can be compared. Removing one here does not touch Entra. */
+export async function renderGraphCerts(){
+  const r = await fetch('api/graph/status', {credentials: 'same-origin'}).catch(() => null);
+  const j = r && r.ok ? await r.json().catch(() => null) : null;
+  const el = $('#graphCerts');
+  if (!el || !j) return;
+  const day = t => esc(dayText(String(t || '').slice(0, 10)));
+  const left = t => Math.floor((new Date(t) - Date.now()) / 86400000);
+  const inList = j.configured && j.certs.some(c => c.inUse);
+  const rows = [...j.certs.map(c => ({...c, made: true})), ...(j.configured && !inList ? [{thumbprint: j.thumbprint, expires: j.expires, inUse: true, made: false}] : [])];
+  el.innerHTML = rows.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>On the server</th><th></th></tr></thead><tbody>
+    ${rows.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${c.made ? day(c.created) : '<span class="muted">not made here</span>'}</td>
+      <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
+      <td>${c.inUse ? '<span class="chip ok">In use</span>' : '<span class="muted">Not in use</span>'}</td>
+      <td>${c.made && !c.inUse ? `<button data-gcdel="${esc(c.thumbprint)}">Remove from list</button>` : ''}</td></tr>`).join('')}</tbody></table>
+    <p class="note" style="padding:8px 12px">A certificate you no longer need: remove it here, delete it in Entra (Certificates &amp; secrets) and delete its .key file. The private key is never kept here.</p>`
+    : '<p class="note" style="padding:8px 12px">No certificate made here yet, and none set on the server.</p>';
+  el.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this certificate from the list? Delete it in Entra as well, under Certificates & secrets.')) return;
+    const d = await fetch('api/graph/cert/' + encodeURIComponent(b.dataset.gcdel), {method: 'DELETE', credentials: 'same-origin'});
+    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not removed.'); return; }
+    renderGraphCerts();
+  });
 }
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
