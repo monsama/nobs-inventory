@@ -13,7 +13,7 @@ export function renderRack(){
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(R_.loc)} · ${rackUnits(R_)}U · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
+    <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   $('#rkMount').onclick = mountModal;
@@ -185,7 +185,7 @@ export function extraRows(o, fields){
 export function feedPanel(o){
   if (!LS_ON()) return '';
   const s = syncOf(o);
-  const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
+  const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="cnt">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
   const dl = (extra = '') => `<dl class="lsbox"><dt>Status</dt><dd>${syncChip(o)}</dd>
     ${o.feed ? `<dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen || 'not yet')}</dd>` : ''}
     <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd>${extra}</dl>`;
@@ -204,7 +204,7 @@ export function feedPanel(o){
 export const SW_TYPES = ['pc','server'];
 export function softwarePanel(o){
   const list = o.software || [];
-  return `<div class="panelbox"><div class="hdr">Software <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${list.length} installed</span></div>
+  return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length} installed</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
     ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing recorded.</td></tr>'}
     </tbody></table></div>
@@ -242,7 +242,7 @@ function swDetailHtml(r){
   return `<tr class="sw-detail" data-swd="${esc(r.name)}"><td colspan="4"><div class="sw-devs">
     <table class="sw-sub"><thead><tr><th>Device</th><th class="sw-opt">Type</th><th>Location</th><th class="sw-opt">User</th><th>Version</th></tr></thead><tbody>
     ${devs.map(d => { const v = versionOf(d, r.name), odd = mixed && v !== common; return `<tr>
-      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link" data-open="${d.id}">${esc(d.name)}</a></span></td>
+      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link mono" data-open="${d.id}">${esc(d.name)}</a></span></td>
       <td class="sw-opt">${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc((d.loc || '').replace(' / ', ' · '))}</td><td class="sw-opt">${esc(d.user || '')}</td>
       <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? `title="Most devices have ${esc(common)}"` : ''}>${esc(v)}</span></td></tr>`; }).join('')}
     </tbody></table></div></td></tr>`;
@@ -306,7 +306,7 @@ export function patchPanel(o){
     ports.push(`<div class="${r ? 'used' : ''}" title="${label}">${label}${r ? `<b>${esc(byId(r.from).name)}</b>` : ''}</div>`);
   }
   const trunk = rels.find(r => r.from === o.id && r.kind === 'connected');
-  return `<div class="panelbox"><div class="hdr">Ports <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${used(o)} of ${o.ports} in use${trunk ? ' · trunk to ' + esc(byId(trunk.to).name) + ' port ' + esc(portLabel(byId(trunk.to), trunk.port)) : ''}</span></div>
+  return `<div class="panelbox"><div class="hdr">Ports <span class="cnt">${used(o)} of ${o.ports} in use${trunk ? ' · trunk to ' + esc(byId(trunk.to).name) + ' port ' + esc(portLabel(byId(trunk.to), trunk.port)) : ''}</span></div>
     <div class="pp">${ports.join('')}</div></div>`;
 }
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
@@ -392,16 +392,16 @@ export function renderObj(o){
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
-      <div class="panelbox"><div class="hdr">Relations <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${rs.length}</span></div>
-        <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<div class="relrow muted">No relations yet. Add one below.</div>'}</div>
+      <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length}</span></div>
+        <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
-      <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="muted">none</span>'}</summary>
+      <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="cnt">none</span>'}</summary>
         ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This object does not hang off anything.</span></div>'}
       </details>
-      <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="muted">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
+      <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="cnt">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
     </div></div>`;
 
   bindSoftware(o);

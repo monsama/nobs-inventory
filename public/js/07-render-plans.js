@@ -72,8 +72,8 @@ export function renderPlans(){
   planSel = plan ? plan.id : null;
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = `<div class="pl-bar">
-      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet</span>'}
-      <button id="plNew" class="primary">New plan</button>
+      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet.</span>'}
+      <button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         ${editArea && planMode === 'view' ? `<button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
