@@ -286,8 +286,16 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .subnets{display:flex;flex-direction:column}
 .subnet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;padding:10px 12px;border-top:1px solid var(--bd2)}
 .subnet label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
-.subnet label.wide{grid-column:span 2}
-.subnet select[multiple]{min-height:76px}
+.subnet label.span3{grid-column:span 3}
+/* Device types: every type as a checkbox, wrapping across the full width. */
+.sn-types{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:8px 10px;border:1px solid var(--bd2);border-radius:var(--r-m)}
+.sn-types legend{padding:0 4px;font-size:12px;color:var(--muted)}
+.subnet .sn-types label.pchk{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--fg);cursor:pointer}
+.sn-types .pchk input{margin:0}
+@media (max-width:760px){
+  .subnet{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .subnet label.span3{grid-column:1 / -1}
+}
 .subnet-foot{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;gap:10px}
 /* The add form is one subnet row with a title above and the Add button below, across the full width. */
 .subnet-new{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--bd2)}
