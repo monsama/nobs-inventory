@@ -101,7 +101,7 @@ try {
   assert.ok(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byName('CSV-A') && !!__mods[0].byName('CSV-B')); }), 'the CSV rows were not imported');
 
   // LDAP: without a server address the test and sync are off; an address saved here is used by the server.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=users]');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
   assert.equal(await p.isDisabled('#ldapSync'), true, 'the LDAP sync is on without a server address');
   await p.fill('#lk_url', 'ldaps://127.0.0.1:1'); await p.press('#lk_url', 'Tab');
   await waitServer(() => loadState(db).ldap && loadState(db).ldap.url === 'ldaps://127.0.0.1:1', 'the LDAP address');

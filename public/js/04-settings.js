@@ -7,7 +7,7 @@ import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_O
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['graph','Microsoft Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -181,11 +181,11 @@ export function renderSetPane(){
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
-    graph: '<div id="setGraph"></div>',
+    directory: '<div id="setLdap"></div><div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
-    users: '<div id="setUsers"></div><div id="setLdap"></div>',
+    users: '<div id="setUsers"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
@@ -193,7 +193,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, graph: renderSetGraph, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
