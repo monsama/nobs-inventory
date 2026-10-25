@@ -11,19 +11,19 @@
 :root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:3px;--r-m:5px;--r-l:6px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
  --bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
- --gridh:#f0f0f0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
+ --gridh:#f6f6f7;--sub:#eef3fa;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#2d2d2d;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#2d2d2d;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
@@ -113,7 +113,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrows{display:flex;flex-direction:column}
 .lrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 92px;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--bd2)}
 .lrow.room{grid-template-columns:120px minmax(0,1fr) 64px 92px}
-.lrow.head{padding-top:8px;padding-bottom:8px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+/* Column headers look the same in every table: plain bold text on the header shade. Capitals are for title bars. */
+.lrow.head{padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:600;color:var(--fg);background:var(--gridh);border-bottom:2px solid var(--bd)}
 .lrow.vl{grid-template-columns:64px minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.dm{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) auto 80px}
@@ -327,7 +328,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 #setPane .panelbox{overflow:hidden;flex:none}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
-#setPane .panelbox>.hdr+p.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--panel);border-bottom:1px solid var(--bd2);color:var(--muted)}
+#setPane .panelbox>.hdr+p.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}

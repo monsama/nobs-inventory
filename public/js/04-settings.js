@@ -258,9 +258,10 @@ export function applyRole(){
   }));
 }
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
-export function ensureUser(name){
+/* source: 'lansweeper' for a person first named as a device's user by the feed; they are kept like one added by hand. */
+export function ensureUser(name, source = 'manual'){
   let u = USERS.find(x => x.name === name);
-  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source:'manual', active:true}; USERS.push(u); }
+  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
@@ -269,7 +270,7 @@ export function bindUser(o){
   if (d && d.get) return;
   const name = o.user;
   delete o.user;
-  if (!o.uid) o.uid = name ? ensureUser(name).id : null;
+  if (!o.uid) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
@@ -328,7 +329,7 @@ export function mountModal(){
 export function renderSetUsers(){
   const rows = USERS.map((u, i) => `<tr>
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
+      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
