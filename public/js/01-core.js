@@ -105,6 +105,12 @@ export const warrantyState = (o, today = new Date()) => {
   const days = Math.floor((new Date(o.warranty + 'T23:59:59') - today) / 86400000);
   return days < 0 ? 'ended' : days <= WARRANTY_SOON_DAYS ? 'soon' : 'ok';
 };
+/* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
+   all the same, and flagged so someone checks it by hand. */
+export const SCAN_OLD_DAYS = 90;
+export const scanOld = (o, today = new Date()) => !!(o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
+  && (today - new Date(o.feed.scanned + 'T00:00:00')) / 86400000 > SCAN_OLD_DAYS);
+export const scanChip = o => scanOld(o) ? `<span class="chip warn" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
@@ -190,7 +196,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-export const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
+export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -278,7 +284,7 @@ export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
   const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty)))
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o))))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

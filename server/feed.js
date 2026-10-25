@@ -52,7 +52,7 @@ export function recordsFromCsv(text) {
 }
 
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'scanned'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
@@ -197,7 +197,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     r.mask = prefixOf(r.mask) === null ? '' : r.mask;
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
-    for (const k of ['purchased', 'warranty']) r[k] = dayOf(r[k]);
+    for (const k of ['purchased', 'warranty', 'scanned']) r[k] = dayOf(r[k]);
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;
   };
@@ -227,7 +227,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
       s.seq = (s.seq || 100) + 1;
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...(r.scanned ? { scanned: r.scanned } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {})
       };
@@ -244,6 +244,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     /* Windows' role and the chassis are kept with the feed's data, for the type rules (Apply to existing devices). */
     if (found.feed && r.role) found.feed.role = r.role;
     if (found.feed && r.chassis) found.feed.chassis = r.chassis;   /* the type name is kept, so a type mapping can apply to it later */
+    /* The day Lansweeper last scanned it: a device not scanned for months is flagged for a check by hand. It is not a
+       change of the device, so it does not count as an update. */
+    if (found.feed && r.scanned) found.feed.scanned = r.scanned;
     let changed = false;
     for (const k of FEED_FIELDS) {
       const incoming = r[k];
