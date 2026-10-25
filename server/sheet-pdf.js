@@ -24,17 +24,18 @@ export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
     const need = h => { if (doc.y + h > bottom()) doc.addPage(); };
     const heading = t => { need(40); doc.moveDown(0.8).font('Helvetica-Bold').fontSize(10).fillColor('#333').text(t.toUpperCase(), M, doc.y, { characterSpacing: 0.5 }).moveDown(0.3); };
 
-    /* Header: logo, name, title; issued date and by on the right. */
-    let logoW = 0;
+    /* Header: the logo on its own line, then the company name and the title from the left margin, as the section titles;
+       issued date and by on the right of the title. */
+    let top = M;
     if (company.logo) {
-      try { doc.image(Buffer.from(company.logo.split(',')[1], 'base64'), M, M, { fit: [140, 44], valign: 'center' }); logoW = 150; } catch { logoW = 0; }
+      try { doc.image(Buffer.from(company.logo.split(',')[1], 'base64'), M, M, { fit: [180, 48], align: 'left', valign: 'top' }); top = M + 58; } catch { top = M; }
     }
-    if (!logoW) { nobsMark(doc, M, M + 4, 34); logoW = 44; }
-    doc.font('Helvetica').fontSize(10).fillColor('#444').text(company.name || 'NOBS Inventory', M + logoW, M + 2, { width: W - logoW - 150 });
-    doc.font('Helvetica-Bold').fontSize(20).fillColor('#111').text('Entry sheet', M + logoW, M + 15, { width: W - logoW - 150 });
-    doc.font('Helvetica').fontSize(9).fillColor('#444').text(`Issued ${day(sheet.issued)}\nby ${sheet.by}`, M + W - 150, M + 8, { width: 150, align: 'right' });
-    doc.moveTo(M, M + 52).lineTo(M + W, M + 52).lineWidth(1.5).strokeColor('#111').stroke();
-    doc.y = M + 58;
+    if (top === M) { nobsMark(doc, M, M, 34); top = M + 44; }
+    doc.font('Helvetica').fontSize(10).fillColor('#444').text(company.name || 'NOBS Inventory', M, top, { width: W - 160 });
+    doc.font('Helvetica-Bold').fontSize(20).fillColor('#111').text('Entry sheet', M, top + 13, { width: W - 160 });
+    doc.font('Helvetica').fontSize(9).fillColor('#444').text(`Issued ${day(sheet.issued)}\nby ${sheet.by}`, M + W - 150, top + 14, { width: 150, align: 'right' });
+    doc.moveTo(M, top + 42).lineTo(M + W, top + 42).lineWidth(1.5).strokeColor('#111').stroke();
+    doc.y = top + 48;
 
     heading('Person');
     for (const [k, v] of [['Name', sheet.person.name], ['Department', sheet.person.dept || '-'], ['Windows sign-in name', sheet.login]]) {

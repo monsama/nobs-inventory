@@ -16,12 +16,12 @@ const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleD
 
 /* The look of a printed sheet. Used for printing from the page and in the downloaded file, so both are the same. */
 const SHEET_CSS = `.sheet{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;background:#fff;max-width:720px;margin:0 auto;padding:8px 4px}
-.sheet .top{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
+.sheet .top{display:grid;grid-template-columns:1fr auto;align-items:end;gap:8px 12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
+.sheet .top .logo{grid-column:1 / -1;line-height:0}
 .sheet .top svg{width:34px;height:34px}
-.sheet .top img{max-width:160px;max-height:48px;object-fit:contain}
+.sheet .top img{max-width:220px;max-height:56px;object-fit:contain}
 .sheet .top .brand{font-size:13px;color:#444}
 .sheet .top h1{font-size:22px;margin:0}
-.sheet .top>div:nth-last-child(2){flex:1}
 .sheet .top .meta{text-align:right;font-size:12px;color:#444}
 .sheet h2{font-size:14px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em;color:#333}
 .sheet dl{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;margin:0}
@@ -51,7 +51,7 @@ export function sheetHtml(sh, logoSvg = ''){
       <p>Windows asks you to choose your own password when you first sign in. Keep this sheet private and do not write your new password on it.</p></div>`
     : `<p class="gone">The initial password is no longer on this copy of the sheet. It has been changed, or ${esc(String(sh.passwordDays || 14))} days have passed. IT can set a new one.</p>`;
   return `<div class="sheet">
-    <div class="top">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="">` : logoSvg}<div><div class="brand">${esc(COMPANY.name || 'NOBS Inventory')}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${esc(day(sh.issued))}<br>by ${esc(sh.by)}</div></div>
+    <div class="top"><div class="logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="">` : logoSvg}</div><div><div class="brand">${esc(COMPANY.name || 'NOBS Inventory')}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${esc(day(sh.issued))}<br>by ${esc(sh.by)}</div></div>
     <h2>Person</h2>
     <dl><dt>Name</dt><dd>${esc(sh.person.name)}</dd><dt>Department</dt><dd>${esc(sh.person.dept || '—')}</dd><dt>Windows sign-in name</dt><dd>${esc(sh.login)}</dd></dl>
     <h2>Sign-in</h2>${pw}
