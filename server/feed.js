@@ -101,7 +101,7 @@ function applyDepartments(s, records) {
     if (!r.user || !r.userDept) continue;
     const named = s.objs.some(o => o.user === r.user);
     let p = s.users.find(u => String(u.name || '').toLowerCase() === r.user.toLowerCase());
-    if (!p && named) { p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: '', name: r.user, dept: '', role: 'viewer', groups: [], source: 'manual', active: true }; s.users.push(p); }
+    if (!p && named) { p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: '', name: r.user, dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true }; s.users.push(p); }
     if (p && p.source !== 'ldap' && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
   }
   return n;
