@@ -9,7 +9,12 @@ import { newObjModal } from './05-new-object.js';
 export function renderRack(){
   const racks = racksList();
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
-  if (!R_){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No racks yet. Add an object and pick the type Rack.</div>'; return; }
+  if (!R_){
+    $('#toolbar').innerHTML = '';
+    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${canEdit() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
+    const b = $('#rackNew'); if (b) b.onclick = () => newObjModal({type: 'rack'});
+    return;
+  }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
