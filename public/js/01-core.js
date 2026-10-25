@@ -260,7 +260,16 @@ export const releaseRetiredPort = (to, port) => {
 };
 /* A patch panel port is written P01, P02 ... whatever the person typed. */
 export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
-export const used = (o, idx) => (idx ? idx.get(o.id) || [] : rels).filter(r => r.to === o.id && r.port != null).length;
+/* The LAG a numbered port of a device belongs to, or undefined: such a port is linked through its LAG, never alone. */
+export const lagOfPort = (o, port) => typeof port === 'number' ? (o.portGroups || []).find(g => g.lag && port >= g.from && port <= g.to) : undefined;
+/* The link that uses a LAG of this device, on either end, or undefined. */
+export const lagLinkOf = (o, g, list = rels) => list.find(r => (r.to === o.id && r.lag === g.name) || (r.from === o.id && r.fromLag === g.name));
+/* Ports in use: those with a device on them, and every member of a LAG that is linked. */
+export const used = (o, idx) => {
+  const list = idx ? idx.get(o.id) || [] : rels;
+  const lags = (o.portGroups || []).filter(g => g.lag && lagLinkOf(o, g, list)).reduce((n, g) => n + g.to - g.from + 1, 0);
+  return list.filter(r => r.to === o.id && r.port != null).length + lags;
+};
 export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';

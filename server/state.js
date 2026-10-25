@@ -189,6 +189,8 @@ export function checkState(s) {
           if (g.kind !== undefined && (typeof g.kind !== 'string' || g.kind.length > 20)) bad(`${o.name}: the kind of a port group is text of up to 20 characters.`);
           if (g.lag !== undefined && typeof g.lag !== 'boolean') bad(`${o.name}: a port group is marked as a link aggregate or not.`);
           if (o.portGroups.slice(0, i).some(p => g.from <= p.to && g.to >= p.from)) bad(`${o.name}: port groups ${g.name} and another overlap.`);
+          /* A LAG link names the LAG, so two LAGs of one device cannot share a name. */
+          if (g.lag && o.portGroups.slice(0, i).some(p => p.lag && String(p.name).toLowerCase() === String(g.name).toLowerCase())) bad(`${o.name}: two LAGs are named ${g.name}.`);
         });
       }
     }

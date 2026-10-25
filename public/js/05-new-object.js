@@ -1,4 +1,4 @@
-import { hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, toast } from './01-core.js';
+import { lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, toast } from './01-core.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render-plans.js';
@@ -48,6 +48,7 @@ export function newObjModal(pre={}){
       const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
       if (val != null) releaseRetiredPort(t, val);
       if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
+      if (lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
       rels.push({id:'r'+rid(), from:e.id, to:t.id, kind: e.type === 'monitor' ? 'attached' : 'connected', port: val, vlan:null});
       hist(e, now(), `Plugged into ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
       closeModal(); toast(e.name + ' is plugged into ' + t.name); render(); return;
@@ -60,6 +61,7 @@ export function newObjModal(pre={}){
       const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
       releaseRetiredPort(t, val);
       if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
+      if (lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
     }
     const o = O($('#nType').value, name, {model:$('#nModel').value || '—', serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
