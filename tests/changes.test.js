@@ -149,3 +149,19 @@ test('addresses are checked: a bad IP is refused, IPv6 is kept, a MAC is stored 
   mergeRecords(s, [{ name: 'PC-F', serial: 'SF', ip: '10.1.1.999' }]);
   assert.equal(s.objs[0].ip, '10.1.1.5', 'the feed stored a bad IP');
 });
+
+test('a device user with no sign-in, such as the last user from Lansweeper, is saved as a viewer', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    /* The page adds such a person without a role; earlier pages did too, so the server must accept it. */
+    const person = { id: 'u-jdoe', login: '', name: 'Jane Doe', dept: '', groups: [], source: 'manual', active: true };
+    const r = await put(srv, a.cookie, { puts: [{ kind: 'user', id: 'u-jdoe', value: person, base: 0 }, { kind: 'object', id: 'o1', value: { ...pc('o1', 'PC-1', 'x'), uid: 'u-jdoe' }, base: 0 }], dels: [] });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const now = await load(srv, a.cookie);
+    const saved = now.users.find(u => u.id === 'u-jdoe');
+    assert.ok(saved, 'the person was not saved');
+    assert.equal(saved.role, 'viewer');
+    assert.equal(now.objs.find(o => o.id === 'o1').uid, 'u-jdoe');
+  } finally { await srv.close(); }
+});
