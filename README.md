@@ -54,6 +54,17 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
 - Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
 
+## Microsoft Graph (Entra and Intune)
+
+Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number. It only reads. Set it up in four steps, all shown in the app:
+
+1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
+2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.
+3. **Certificate**: click Create a certificate. The server keeps it with its private key, encrypted with `secrets/sheet_key`; the key never leaves the server and is not in backups. Download the .cer (any time, from the list) and upload it to the app registration under Certificates & secrets → Certificates. Entra shows the same thumbprint as the list.
+4. **Test connection**, then **Sync now**. The test names a certificate Entra does not know, a wrong ID, or a missing permission. The sync also runs nightly at 06:00.
+
+To renew: create a new certificate, upload it, click Use this one, test, then remove the old one in the app and in Entra. `NI_GRAPH_TENANT`, `NI_GRAPH_CLIENT_ID`, `NI_GRAPH_CERT(_FILE)` and `NI_GRAPH_KEY(_FILE)` on the server still work and take precedence when all four are set.
+
 ## Overview, costs, contracts and licences
 
 - **Overview** (first tab): devices in use, what needs attention (ended or ending warranties, contract notices due, over-used licences, devices in repair), yearly cost of running contracts and licences, the value of the devices in use, and devices by type, site and status. Every line opens the list behind it.
