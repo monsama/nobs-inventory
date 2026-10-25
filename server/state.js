@@ -5,11 +5,11 @@ import { contractProblem, licenceProblem, listProblem } from '../public/js/costs
 import { graphSettingsProblem } from './graph-keys.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['company', 'graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['company', 'contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -99,6 +99,13 @@ export function checkState(s) {
     const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
   /* Contracts and licences, and the currency their costs are in. */
+  /* The company the inventory belongs to: its name and logo on entry sheets. The logo is a PNG or JPEG, at most about 400 KB. */
+  if (s.company !== undefined) {
+    const c = s.company;
+    if (!c || typeof c !== 'object' || Array.isArray(c)) bad('The company is a record.');
+    if (c.name !== undefined && (typeof c.name !== 'string' || c.name.length > 80)) bad('The company name is text of up to 80 characters.');
+    if (c.logo !== undefined && c.logo !== '' && (typeof c.logo !== 'string' || c.logo.length > 560000 || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(c.logo))) bad('The company logo is a PNG or JPEG of up to about 400 KB.');
+  }
   if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
   if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
   if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }

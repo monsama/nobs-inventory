@@ -331,6 +331,14 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 table.contracts tfoot td{font-weight:600;border-top:2px solid var(--bd)}
 button.link{background:none;border:0;padding:0;height:auto;color:var(--linktext);cursor:pointer;font:inherit;text-align:left}
 button.link:hover{text-decoration:underline}
+.btnlink{display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);text-decoration:none;white-space:nowrap;vertical-align:middle}
+.btnlink:hover{filter:brightness(1.08)}
+.sheet-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
+.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:#fff}
+.company-logo img{max-width:170px;max-height:52px;object-fit:contain}
+/* The logo box is white in both themes (a logo is made for paper), so its placeholder text is a fixed grey. */
+.company-logo>.muted{color:#5b6470}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
