@@ -1,11 +1,11 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
+import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
+import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderOverview } from './10-overview.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
-import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
+import { closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
 /* ---------- render ---------- */
 /* ---------- floor plans ---------- */
@@ -16,6 +16,38 @@ export let planPlace = null;
 export let planDraw = null;
 export let planDrag = null;
 let planListDrag = null, listDragDone = false;   /* a device dragged from the list; a drag is not also a click */
+/* The rack pin under a point of the screen that a device can be mounted in, or null. */
+function rackPinAt(cx, cy, o){
+  if (!o || !RACKABLE.includes(o.type)) return null;
+  const pin = document.elementsFromPoint(cx, cy).map(el => el.closest && el.closest('[data-pin]')).find(el => el && el.dataset.pin !== o.id);
+  const r = pin ? byId(pin.dataset.pin) : null;
+  return r && r.type === 'rack' ? r : null;
+}
+const markRack = r => document.querySelectorAll('[data-pin]').forEach(el => el.classList.toggle('pl-droprack', !!r && el.dataset.pin === r.id));
+/* Mount a device in a rack on the plan: the first free place from the top for its height is offered. */
+export function rackDropModal(o, rack){
+  const h0 = TYPE_U[o.type] ?? 1, units = rackUnits(rack);
+  const freeU = h => { for (let u = units - h + 1; u >= 1; u--) if (!rackCheck(rack.id, u, h, o.id)) return u; return null; };
+  const u0 = freeU(h0);
+  modal(`<div class="mh">Mount ${esc(o.name)} in ${esc(rack.name)}</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="rdU">Start U</label><input id="rdU" type="number" min="1" max="${units}" value="${u0 ?? ''}">
+      <label for="rdH">Height (U)</label><input id="rdH" type="number" min="1" max="${units}" value="${h0}">
+    </div><p class="note" id="rdErr">${u0 == null ? `${esc(rack.name)} has no ${h0} U free.` : `U${u0} is the first free place from the top. ${esc(o.name)} then shows in the rack's card on the plan.`}</p></div>
+    <div class="mf"><button id="rdCancel">Cancel</button><button id="rdOk" class="primary">Mount</button></div>`, 'sm');
+  $('#rdCancel').onclick = closeModal;
+  $('#rdOk').onclick = () => {
+    const u = +$('#rdU').value, h = +$('#rdH').value, err = rackCheck(rack.id, u, h, o.id);
+    if (err){ $('#rdErr').textContent = err; return; }
+    const prevRack = o.rack;
+    Object.assign(o, {rack: rack.id, u, h}); delete o.ontop; delete o.planPos;
+    if (rack.loc) o.loc = rack.loc;
+    followOnTop(o, prevRack);
+    hist(o, now(), `Mounted in ${rack.name} at U${u}, ${h} U high, by ${who()}`);
+    queueServerSave(); closeModal(); toast(`${o.name} mounted in ${rack.name} at U${u}`); renderPlans();
+  };
+  $('#rdU').focus();
+}
 /* The area under a point of the screen, with the place on the plan in percent, or null. */
 function dropSpot(plan, cx, cy){
   const c = $('#plCanvas'); if (!c || !plan) return null;
@@ -41,7 +73,20 @@ export const planPosOf = (plan, o) => {
   const a = plan.site ? (plan.areas || []).find(a => areaLoc(plan, a) === o.loc) : null;
   return a ? {plan: plan.id, x: round1(a.x + a.w / 2), y: round1(a.y + a.h / 2), auto: true} : null;
 };
-export const planDevices = plan => objs.filter(o => planPosOf(plan, o));
+/* A device that goes with another one on a plan: a monitor or accessory attached to a device, or a device mounted in a
+   rack. While its host is on the plan it is listed in the host's card, not drawn as a pin of its own. */
+export const planHostOf = o => {
+  const att = rels.find(r => r.from === o.id && isAttached(r.kind));
+  const h = att ? byId(att.to) : o.rack ? byId(o.rack) : null;
+  return h && h.status !== 'retired' && h !== o ? h : null;
+};
+export const planDevices = plan => {
+  const on = objs.filter(o => planPosOf(plan, o)), ids = new Set(on.map(o => o.id));
+  return on.filter(o => { const h = planHostOf(o); return !(h && ids.has(h.id)); });
+};
+/* What goes with a device on the plan: its attached devices, or what is mounted in a rack (top to bottom). */
+export const planRiders = host => objs.filter(o => o.status !== 'retired' && planHostOf(o) === host)
+  .sort((a, b) => (b.u ?? -1) - (a.u ?? -1) || a.name.localeCompare(b.name));
 export const pctOf = (client, start, size) => Math.max(0, Math.min(100, (client - start) / size * 100));
 export const round1 = v => Math.round(v * 10) / 10;
 /* The image comes from the server (saved apart from the inventory); older plans may still carry it inline. */
@@ -197,6 +242,13 @@ export function areaTag(a, removable){
   const r = areaRects(a)[0];
   return `<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
 }
+/* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
+function ridersHtml(o){
+  const list = planRiders(o);
+  if (!list.length) return '';
+  const shown = list.slice(0, 8).map(x => `<span class="pl-rider">${tico(x.type, 'tico sm')}${o.type === 'rack' && x.u != null && !x.ontop ? `<b class="mono">U${x.u}</b> ` : ''}${esc(x.name)}</span>`).join('');
+  return `<span class="pl-riders"><span class="muted">${o.type === 'rack' ? 'In this rack' : 'Attached'}</span>${shown}${list.length > 8 ? `<span class="muted">and ${list.length - 8} more</span>` : ''}</span>`;
+}
 export function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
   const src = planImgSrc(plan);
@@ -205,15 +257,16 @@ export function planCanvas(plan){
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area')).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span><span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span></span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}${pos.y < 35 ? ' below' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
   const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
-  const placed = planDevices(plan).map(o => o.id);
+  const placed = planDevices(plan).map(o => o.id), onPlan = new Set(placed);
+  const rides = o => { const h = planHostOf(o); return h && onPlan.has(h.id); };
   /* The list can be narrowed to one type, and to the devices at the plan's site or those without a location. */
   const where = st.plWhere === 'site' && plan && plan.site ? o => String(o.loc || '').split(' / ')[0] === plan.site : st.plWhere === 'none' ? o => !o.loc : () => true;
-  const rows = objs.filter(o => !placed.includes(o.id) && o.status !== 'retired' && (!st.plType || o.type === st.plType) && where(o)
+  const rows = objs.filter(o => !onPlan.has(o.id) && !rides(o) && o.status !== 'retired' && (!st.plType || o.type === st.plType) && where(o)
     && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
@@ -241,8 +294,9 @@ document.addEventListener('pointermove', e => {
     }
     if (d.moved){
       d.ghost.style.left = e.clientX + 12 + 'px'; d.ghost.style.top = e.clientY + 8 + 'px';
-      const spot = dropSpot(planById(planSel), e.clientX, e.clientY);
-      c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
+      const spot = dropSpot(planById(planSel), e.clientX, e.clientY), rack = rackPinAt(e.clientX, e.clientY, byId(d.id));
+      markRack(rack);
+      c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !rack && !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
     }
   }
   if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
@@ -260,6 +314,7 @@ document.addEventListener('pointermove', e => {
     planDrag.x = pctOf(e.clientX, r.left, r.width); planDrag.y = pctOf(e.clientY, r.top, r.height); planDrag.moved = true;
     const pin = c.querySelector(`[data-pin="${planDrag.id}"]`);
     if (pin){ pin.style.left = planDrag.x + '%'; pin.style.top = planDrag.y + '%'; }
+    planDrag.rack = rackPinAt(e.clientX, e.clientY, byId(planDrag.id)); markRack(planDrag.rack);
   }
 });
 document.addEventListener('pointerup', e => {
@@ -269,8 +324,10 @@ document.addEventListener('pointerup', e => {
       listDragDone = true; setTimeout(() => { listDragDone = false; }, 0);
       d.ghost.remove(); document.body.classList.remove('pl-dragging');
       document.querySelectorAll('.droptarget').forEach(el => el.classList.remove('droptarget'));
-      const plan = planById(planSel), o = byId(d.id), spot = dropSpot(plan, e.clientX, e.clientY);
-      if (o && spot){
+      const plan = planById(planSel), o = byId(d.id), spot = dropSpot(plan, e.clientX, e.clientY), rack = rackPinAt(e.clientX, e.clientY, o);
+      markRack(null);
+      if (o && rack) rackDropModal(o, rack);
+      else if (o && spot){
         if (spot.area) placeDevice(plan, o, round1(spot.x), round1(spot.y));
         else toast('A device goes inside an area. Drop it on one.');
       }
@@ -296,6 +353,8 @@ document.addEventListener('pointerup', e => {
     if (d.moved){
       const o = byId(d.id);
       const pl = planById(planSel);
+      markRack(null);
+      if (o && d.rack){ if (d.orig) o.planPos = d.orig; else delete o.planPos; renderPlans(); rackDropModal(o, d.rack); return; }
       if (o && pl){
         const area = areaAt(pl, d.x, d.y);
         if (!area){ if (d.orig) o.planPos = d.orig; else delete o.planPos; toast('A device stays inside an area. Drop it inside one.'); }
