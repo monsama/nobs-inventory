@@ -54,6 +54,16 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
 - Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
 
+## Entry sheets
+
+Settings → Users → Entry sheet makes a sheet for a person's first day: their devices (inventory number, type, name, model, serial number), their Windows sign-in name, a new initial password and lines to sign. It opens for printing at once and can be printed or downloaded again later.
+
+- The app does not change anything in Active Directory. Set the printed password on the person's AD account with "User must change password at next logon".
+- The password is four groups of four letters and digits (about 90 bits), without characters that are easily misread, and meets the AD complexity rule.
+- Kept sheets are encrypted (AES-256-GCM) with the key in `secrets/sheet_key` (`NI_SHEET_KEY_FILE`), which `deploy-nobs.sh` and `scripts/update.sh` create. Without it the app makes `sheet.key` in the data folder. The key is not in the database or in any backup: **keep a copy of `secrets/sheet_key` apart from the server**, or kept sheets cannot be opened after a move.
+- The password is removed from a kept sheet once it is marked as Password changed, and at the latest after 14 days (checked daily at 06:00 and whenever sheets are listed). The rest of the sheet stays. A restore never brings back a removed password.
+- Only admins can make, open and delete sheets. The log records who made or opened a sheet, never the password. A downloaded file holds the password while the kept sheet does.
+
 ## Lansweeper
 
 - Direct API: set `NI_LS_TOKEN`. The sync runs nightly at 06:00 and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:

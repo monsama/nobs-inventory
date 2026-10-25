@@ -102,6 +102,8 @@ rollback() {
 
 # Secrets added in newer versions: Compose refuses to start when a declared secret file is missing, so create it (empty = unused).
 [ -f secrets/feed_token ] || { ( umask 077; : > secrets/feed_token ); chown 1000:1000 secrets/feed_token; chmod 400 secrets/feed_token; }
+# The entry sheet key: a new random one. Keep a copy apart from the server; without it the kept sheets cannot be opened.
+[ -s secrets/sheet_key ] || { ( umask 077; head -c 32 /dev/urandom | base64 > secrets/sheet_key ); chown 1000:1000 secrets/sheet_key; chmod 400 secrets/sheet_key; echo "[INFO]  secrets/sheet_key generated - keep a copy of it"; }
 
 echo "[INFO]  Image: $NEW_IMAGE"
 docker pull "$NEW_IMAGE" >/dev/null || rollback "The image $NEW_IMAGE cannot be pulled"

@@ -285,6 +285,9 @@ table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
 table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 #setUsers td>button{width:100%;padding:3px 6px}
+.sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
+.sheet-devs .pchk{font-size:13px}
+.sheet-devs .note{margin-left:4px}
 table.grid tr:nth-child(even) td{background:var(--even)}
 table.grid tbody tr{cursor:pointer}
 table.grid tbody tr:hover td{background:var(--hover)}
@@ -360,7 +363,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
-#setPane .panelbox>.hdr+.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
+#setPane .panelbox>.hdr+.note,#setPane .panelbox>.hdr+div>p.note:first-child,.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}
