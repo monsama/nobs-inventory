@@ -93,7 +93,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
   else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
-  else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00"><span class="unit">${esc(COSTS.currency || 'CHF')}</span>`;
+  else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
   else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else {
@@ -158,7 +158,9 @@ export function propRow(o, f){
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
-  return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
+  /* An amount: the currency is in the label, so the field is as wide as the others. */
+  const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
