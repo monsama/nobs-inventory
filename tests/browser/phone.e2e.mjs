@@ -39,8 +39,19 @@ try {
     const small = await smallTargets();
     if (small.length) problems.push(`${tab}: controls too small to tap: ${small.slice(0, 5).join(', ')}`);
   }
+  // Software with a package open, and a device page: no sideways scroll, controls big enough to tap.
+  for (const [name, go] of [
+    ['software, a package open', () => p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'); c.objs[1].software = [{ name: 'Tool A', version: '1' }]; c.st.tab = 'sw'; c.st.swOpen = ['Tool A']; r.render(); })],
+    ['device page', () => p.evaluate(async () => { const c = await import('/js/01-core.js'), v = await import('/js/02-views.js'); v.openObj(c.objs[1].id); })],
+  ]) {
+    await go(); await p.waitForTimeout(200);
+    const extra = await sideways();
+    if (extra > 1) problems.push(`${name}: ${extra}px wider than the screen`);
+    const small = await smallTargets();
+    if (small.length) problems.push(`${name}: controls too small to tap: ${small.slice(0, 5).join(', ')}`);
+  }
   await p.click('#setBtn');
-  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
+  for (const tab of ['feed', 'directory', 'locations', 'vlans', 'types', 'users', 'maintenance', 'log', 'about']) {
     await p.click(`#setTabs [data-st=${tab}]`).catch(() => {});
     await p.waitForTimeout(150);
     const extra = await sideways();
