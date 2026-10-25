@@ -51,11 +51,22 @@ try {
   });
   await p.click('#tabsbar [data-tab=sw]');
   await p.click('tr[data-sw="Tool X"]');
-  await until(p, async () => (await import('/js/01-core.js')).st.swSel === 'Tool X');
-  const rows = await p.$$eval('#view .panelbox table tbody tr', trs => trs.map(tr => tr.textContent));
+  // the devices open in place, right under the package
+  await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');
+  assert.equal(await p.getAttribute('tr[data-sw="Tool X"] .sw-tg', 'aria-expanded'), 'true', 'the package says it is open');
+  const rows = await p.$$eval('tr.sw-detail table.sw-sub tbody tr', trs => trs.map(tr => tr.textContent));
   assert.equal(rows.length, 2, 'both devices with the package are listed in a table: ' + rows.join(' | '));
   assert.ok(rows.some(t => t.includes('RTR-EDGE') && t.includes('9.9')), 'the router row has its version');
   assert.ok(rows.some(t => t.includes('1.2')), 'the PC row has its version');
+  assert.equal(await p.locator('tr.sw-detail .vchip.odd').count(), 1, 'with two versions, the one that differs is marked');
+  // a second click closes it; a search for a device opens the packages it has
+  await p.click('tr[data-sw="Tool X"]');
+  assert.equal(await p.locator('tr.sw-detail').count(), 0, 'a second click closes the package');
+  await p.fill('#swQ', 'RTR-EDGE');
+  await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');
+  await p.fill('#swQ', 'no such thing');
+  await p.waitForSelector('#swBody >> text=Nothing matches');
+  await p.fill('#swQ', '');
   // Port groups: a named range of the router's ports, with a kind; an overlapping range is refused.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
   await p.click('#tabsbar [data-tab=net]');
