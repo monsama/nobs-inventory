@@ -5,10 +5,11 @@ import { HttpError } from './errors.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
+import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
 
-const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain'];
+const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
-const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain' };
+const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
 const TYPE_WORDS = [
   [/virtual machine|\bvm\b/i, 'vm'],
@@ -59,7 +60,8 @@ export function recordsFromCsv(text) {
   }));
 }
 
-const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain'];
+const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'userDept'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
@@ -79,6 +81,30 @@ export function recordsFromJson(list) {
     })).filter(x => x.name) : null;
     return r;
   });
+}
+
+/* A date as YYYY-MM-DD, from what Lansweeper writes (2027-03-31, 2027-03-31T00:00:00, 31.03.2027); anything else is no date. */
+export const dayOf = v => {
+  const t = String(v || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (!m) { const d = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t); if (d) m = [null, d[3], d[2].padStart(2, '0'), d[1].padStart(2, '0')]; }
+  if (!m || +m[1] < 1990 || +m[1] > 2100 || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) return '';
+  return `${m[1]}-${m[2]}-${m[3]}`;
+};
+
+/* The department of a device's user, from the directory Lansweeper reads. The person is made when the feed names them
+   and nobody has that name yet, as the page would; a department already set, or a directory user's, is kept. */
+function applyDepartments(s, records) {
+  let n = 0;
+  if (s.feedOn === false) return n;
+  for (const r of records) {
+    if (!r.user || !r.userDept) continue;
+    const named = s.objs.some(o => o.user === r.user);
+    let p = s.users.find(u => String(u.name || '').toLowerCase() === r.user.toLowerCase());
+    if (!p && named) { p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: '', name: r.user, dept: '', role: 'viewer', groups: [], source: 'manual', active: true }; s.users.push(p); }
+    if (p && p.source !== 'ldap' && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+  }
+  return n;
 }
 
 const findByRef = (s, ref) => s.objs.find(o => o.feed && String(o.feed.ref) === String(ref));
@@ -141,17 +167,33 @@ export function modelFor(s, name) {
   const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
   return own && s.modelMap[own] ? s.modelMap[own] : text;
 }
-export function typeFor(s, name) {
+/* Models that say what a device is better than Lansweeper's type does: Lansweeper files an industrial controller it reaches
+   over SNMP as a switch or a network device. */
+const MODEL_WORDS = [
+  [/simatic|\bs7-\d{3,4}\b|\blogo!|modicon|controllogix|compactlogix|guardlogix|micrologix|\bmelsec\b|\bplc\b|programmable (logic )?controller/i, 'plc']
+];
+/* A type mapping set in Settings wins; then a model that names what the device is; then the words of Lansweeper's type. */
+export function typeFor(s, name, model, role) {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
   if (own && s.typeMap[own]) return s.typeMap[own];
-  return (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
+  const byModel = MODEL_WORDS.find(([re]) => re.test(String(model || '')));
+  if (byModel) return byModel[1];
+  const byWords = (TYPE_WORDS.find(([re]) => re.test(text)) || [null, 'other'])[1];
+  /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
+     it moves a computer between PC and server. A virtual machine stays one. */
+  if ((role === 'server' || role === 'dc') && (byWords === 'pc' || byWords === 'other')) return 'server';
+  if (role === 'workstation' && byWords === 'server') return 'pc';
+  return byWords;
 }
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software'].some(k => counts[k] > 0);
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'people', 'networks'].some(k => counts[k] > 0);
 
-export function mergeRecords(s, records, now = new Date()) {
+/* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
+export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
+  const before = { ipLocations: s.lsIpLocations || [] };
+  if (ipLocations) s.lsIpLocations = ipLocations; else ipLocations = s.lsIpLocations || [];
   for (const r of records) if (r.model) r.model = modelFor(s, r.model);
   const policy = s.policy || {};
   const seen = stamp(now);
@@ -162,10 +204,21 @@ export function mergeRecords(s, records, now = new Date()) {
   const clean = raw => {
     const r = { ...raw };
     for (const k of ['ip', 'mac']) { const c = checkAddress(k, r[k]); r[k] = c.ok ? c.value : ''; }
+    const ip = v => { const c = checkAddress('ip', v); return c.ok ? c.value : ''; };
+    r.gateway = ip(r.gateway);
+    r.mask = prefixOf(r.mask) === null ? '' : r.mask;
+    r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
+    r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
+    for (const k of ['purchased', 'warranty']) r[k] = dayOf(r[k]);
+    r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;
   };
+  /* The room a device's address puts it in, by Lansweeper's IP locations, when the location it reports is not one. */
+  const roomByIp = r => { const l = ipLocationOf(ipLocations, r.ip); return l ? roomForIpLocation(locs, l.name) : null; };
+  const cleaned = [];
   for (const raw of records) {
     const r = clean(raw);
+    cleaned.push(r);
     if (!r.name && !r.serial) continue;
     /* With "skip IP-only devices" on, a device named only by its IP address (no serial number) is left out. */
     if (s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial){ counts.skippedIp = (counts.skippedIp || 0) + 1; continue; }
@@ -181,13 +234,13 @@ export function mergeRecords(s, records, now = new Date()) {
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     if (!found) {
       if (!r.name) continue;
-      const type = typeFor(s, r.assetType);
+      const type = typeFor(s, r.assetType, r.model, r.role);
       s.codeN = (s.codeN || 0) + 1;
       s.seq = (s.seq || 100) + 1;
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '' }, ovr: {}, loc: locs.includes(r.location) ? r.location : (locs[0] || ''),
-        ...Object.fromEntries(['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain'].map(k => [k, r[k]]).filter(([, v]) => v)),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '' }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {})
       };
       s.objs.push(obj);
@@ -213,10 +266,18 @@ export function mergeRecords(s, records, now = new Date()) {
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; changed = true; }
+    /* A device with no location gets the room its address is in; one chosen by hand, or held by the device, stays. */
+    if (!found.loc && s.feedOn !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
   }
+  counts.people = applyDepartments(s, cleaned);
+  /* Subnets to suggest, from the masks the devices' adapters report. Worked out from the whole inventory, as a push comes
+     in batches; kept from the last push when this one sent no masks. */
+  const netsBefore = JSON.stringify([s.lsNets || [], before.ipLocations]);
+  if (cleaned.some(r => r.mask)) s.lsNets = suggestNets(s.objs.filter(o => o.status !== 'retired'), s.subnets, ipLocations);
+  counts.networks = JSON.stringify([s.lsNets || [], s.lsIpLocations || []]) === netsBefore ? 0 : 1;
   counts.links = applyLinks(s, pairs, counts);
   counts.software = applySoftware(s, pairs);
   return counts;

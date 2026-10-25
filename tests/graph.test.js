@@ -73,3 +73,15 @@ test('records fill the empty fields of matching devices, keep the ones they have
   applyGraph(s, [{ ...rec, compliance: 'noncompliant' }], NOW);
   assert.match(s.history.o1[0].msg, /Compliance changed from compliant to noncompliant/);
 });
+
+test('a MAC from Intune, written without separators, is stored as the inventory writes one, and the result can be saved', async () => {
+  const { checkState } = await import('../server/state.js');
+  const records = toRecords([], [{ id: 'm1', deviceName: 'PC-9', serialNumber: 'SN9', wiFiMacAddress: '00155D012345' }, { id: 'm2', deviceName: 'PC-8', serialNumber: 'SN8', ethernetMacAddress: 'not a mac' }]);
+  assert.equal(records.find(r => r.serial === 'SN9').mac, '00:15:5d:01:23:45');
+  assert.equal(records.find(r => r.serial === 'SN8').mac, '', 'a value that is not a MAC is left out');
+  const s = { objs: [{ id: 'o1', code: 'INV-1', type: 'pc', name: 'PC-9', serial: 'SN9', status: 'active', ovr: {}, feed: null }, { id: 'o2', code: 'INV-2', type: 'pc', name: 'PC-8', serial: 'SN8', status: 'active', ovr: {}, feed: null }],
+    rels: [], users: [], locs: [], types: {}, history: {} };
+  applyGraph(s, records);
+  assert.equal(s.objs[0].mac, '00:15:5d:01:23:45');
+  checkState(s);   /* before, the sync stopped here: "00155D012345" is not a MAC address */
+});

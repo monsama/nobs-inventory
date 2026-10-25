@@ -67,10 +67,13 @@ if ($Config.NobsUrl -match 'example\.com') { throw 'Set NobsUrl in this script (
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
 $script:Wanted = [ordered]@{
     tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'OScode', 'Memory', 'Processor')
-    tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building')
+    tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
-    tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain')
+    tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled')
+    tblComputersystem = @('AssetID', 'Domainrole')
+    tblADusers     = @('Username', 'Userdomain', 'Department')
+    tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
@@ -353,6 +356,79 @@ function Get-RamText($v) {
     return ('{0} GB' -f ([math]::Round([double]$mb / 1024, 1)).ToString([Globalization.CultureInfo]::InvariantCulture))
 }
 
+# A date as yyyy-MM-dd. Lansweeper writes 1900-01-01 for no date.
+function Get-DateText($v) {
+    if ($v -is [datetime]) { if ($v.Year -lt 1990) { return '' } return $v.ToString('yyyy-MM-dd') }
+    $t = Get-Clean $v
+    if ($t -match '^(\d{4})-(\d{2})-(\d{2})' -and [int]$Matches[1] -ge 1990) { return "$($Matches[1])-$($Matches[2])-$($Matches[3])" }
+    return ''
+}
+
+# Win32_ComputerSystem.DomainRole: 0-1 workstation, 2-3 server, 4-5 domain controller.
+function Get-RoleText($v) {
+    $t = ConvertTo-Text $v
+    if ($t -notmatch '^\d$') { return '' }
+    switch ([int]$t) { { $_ -le 1 } { return 'workstation' } { $_ -le 3 } { return 'server' } default { return 'dc' } }
+}
+
+# The first IPv4 address in a list Lansweeper keeps as text ("10.1.1.5, fe80::1" or "10.1.1.5;10.1.1.6").
+function Get-FirstV4($v) {
+    foreach ($x in ((ConvertTo-Text $v) -split '[,;\s]+')) { if ($x -match '^\d{1,3}(\.\d{1,3}){3}$' -and $x -ne '0.0.0.0') { return $x } }
+    return ''
+}
+
+# Each asset's network adapters with an address: address, mask, gateway, DNS servers and DHCP.
+function Get-AdapterByAsset($conn) {
+    $map = @{}
+    $cols = @('AssetID', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled')
+    if (-not ((Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'IPAddress') -and (Test-Col 'tblNetwork' 'IPSubnet'))) { return $map }
+    $select = ($cols | ForEach-Object { Get-SelectItem 'tblNetwork' 'n' $_ }) -join ', '
+    $where = if (Test-Col 'tblNetwork' 'IPEnabled') { 'WHERE n.[IPEnabled] = 1' } else { '' }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT $select FROM [tblNetwork] n $where"
+    $cmd.CommandTimeout = 300
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $id = ConvertTo-Text $reader['n__AssetID']
+            $ip = Get-FirstV4 $reader['n__IPAddress']
+            if (-not $id -or -not $ip) { continue }
+            $dns = @((ConvertTo-Text $reader['n__DNSServerSearchOrder']) -split '[,;\s]+' | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' }) -join ', '
+            $dhcpText = ConvertTo-Text $reader['n__DHCPEnabled']
+            if (-not $map.ContainsKey($id)) { $map[$id] = New-Object System.Collections.Generic.List[object] }
+            $map[$id].Add(@{
+                ip = $ip; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
+                dhcp = $(if ($dhcpText -match '^(1|true)$') { 'dhcp' } elseif ($dhcpText -match '^(0|false)$') { 'static' } else { '' })
+            })
+        }
+    } finally { $reader.Close() }
+    return $map
+}
+
+# The adapter that carries the asset's address, or else the first one with a gateway.
+function Select-Adapter($nics, [string]$ip) {
+    if (-not $nics) { return $null }
+    foreach ($n in $nics) { if ($ip -and $n['ip'] -eq $ip) { return $n } }
+    foreach ($n in $nics) { if ($n['gateway']) { return $n } }
+    return $null
+}
+
+# Lansweeper's IP locations: named address ranges, often named after a site and room.
+function Get-IpLocations($conn) {
+    $list = New-Object System.Collections.Generic.List[object]
+    if (-not ((Test-Col 'tsysIPLocations' 'IPLocation') -and (Test-Col 'tsysIPLocations' 'StartIP') -and (Test-Col 'tsysIPLocations' 'EndIP'))) { return , @() }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT [IPLocation], [StartIP], [EndIP] FROM [tsysIPLocations]'
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $name = Get-Clean $reader['IPLocation']; $from = Get-FirstV4 $reader['StartIP']; $to = Get-FirstV4 $reader['EndIP']
+            if ($name -and $from -and $to) { $list.Add([ordered]@{ name = $name; from = $from; to = $to }) }
+        }
+    } finally { $reader.Close() }
+    return , $list.ToArray()
+}
+
 function Get-LsRecords {
     $conn = Open-LsConnection
     try {
@@ -371,6 +447,8 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
         ) -join ', '
@@ -382,6 +460,13 @@ function Get-LsRecords {
             $joins += "LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname]$netDomain FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] "
         }
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
+        if ((Test-Col 'tblComputersystem' 'AssetID') -and (Test-Col 'tblComputersystem' 'Domainrole')) {
+            $joins += 'LEFT JOIN (SELECT [AssetID], MAX([Domainrole]) AS [Domainrole] FROM [tblComputersystem] GROUP BY [AssetID]) cs ON cs.[AssetID] = a.[AssetID] '
+        }
+        # The department of the logged-on user, from the Active Directory users Lansweeper scans.
+        if ((Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')) {
+            $joins += 'LEFT JOIN (SELECT [Username], [Userdomain], MAX([Department]) AS [Department] FROM [tblADusers] GROUP BY [Username], [Userdomain]) ad ON ad.[Username] = a.[Username] AND ad.[Userdomain] = a.[Userdomain] '
+        }
         if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
 
         $where = @('1=1')
@@ -418,6 +503,11 @@ function Get-LsRecords {
                     ram = Get-RamText $reader['a__Memory']
                     user = Get-UserText $reader['a__Username']
                     domain = Get-Clean $reader['n__DNSDomain']
+                    purchased = Get-DateText $reader['c__PurchaseDate']
+                    warranty = Get-DateText $reader['c__Warrantydate']
+                    role = Get-RoleText $reader['cs__Domainrole']
+                    userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
+                    mask = ''; gateway = ''; dns = ''; dhcp = ''
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
@@ -429,6 +519,11 @@ function Get-LsRecords {
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
         $hostLinks = Get-HostLinks $conn
         foreach ($rec in $list) { if ($hostLinks.ContainsKey($rec['ref'])) { $rec['links'] = @($rec['links']) + @($hostLinks[$rec['ref']]) } }
+        $adapters = Get-AdapterByAsset $conn
+        foreach ($rec in $list) {
+            $nic = Select-Adapter $adapters[[string]$rec['ref']] $rec['ip']
+            if ($nic) { foreach ($k in @('mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
+        }
         $health = Get-HealthByAsset $conn
         foreach ($rec in $list) {
             $h = $health[$rec['ref']]
@@ -444,6 +539,7 @@ function Get-LsRecords {
             }
         }
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
+        $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }
 }
@@ -492,12 +588,15 @@ function Show-NobsCertificate {
 
 function Send-Records($records, [string]$Token) {
     Set-NobsCertificatePin
-    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0 }
+    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; people = 0 }
     $url = $Config.NobsUrl.TrimEnd('/') + '/api/feed/push'
     for ($i = 0; $i -lt $records.Count; $i += $Config.BatchSize) {
         $last = [math]::Min($i + $Config.BatchSize - 1, $records.Count - 1)
         $batch = @($records[$i..$last])
-        $body = (@{ records = $batch } | ConvertTo-Json -Depth 4 -Compress)
+        $payload = @{ records = $batch }
+        # The IP locations go with the first batch; the server keeps them for the batches after it.
+        if ($i -eq 0 -and $script:IpLocations) { $payload['ipLocations'] = @($script:IpLocations) }
+        $body = ($payload | ConvertTo-Json -Depth 4 -Compress)
         $res = Invoke-RestMethod -Uri $url -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
             -ContentType 'application/json; charset=utf-8' -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 300
         foreach ($k in @($totals.Keys)) { if ($res.counts.$k) { $totals[$k] += [int]$res.counts.$k } }

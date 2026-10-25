@@ -7,7 +7,7 @@ import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_O
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -132,10 +132,9 @@ export function renderSetGraph(){
   if (!root) return;
   const edit = canEdit(), ready = SERVER.graph && edit;
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
-    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below, then set the server settings it names.'}</p>
+    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below (its private key is shown once, so download it at once), then set the server settings it names.'}</p>
     <p class="note" id="graphExpiry" style="padding:0 12px 10px"></p>
-    <div class="addrel"><span class="note" id="graphMsg" style="flex:1"></span><button id="graphSync" ${ready ? '' : 'disabled'}>Sync from Microsoft Graph</button></div>
-    <div class="addrel"><span class="note" style="flex:1">${edit ? 'A new certificate is made here. Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}</span><button id="graphCert" ${edit ? '' : 'disabled'}>Create a certificate</button></div>
+    <div class="addrel" style="padding:10px 12px"><button id="graphCert" ${edit ? '' : 'disabled'} title="${edit ? 'Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}">Create a certificate</button><button id="graphSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg"></span></div>
     <div id="graphNew"></div></div>`;
   if (SERVER.graph) fetch('api/graph/status', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
     const el = $('#graphExpiry');
@@ -180,11 +179,12 @@ export function renderSetPane(){
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setGraph"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    directory: '<div id="setLdap"></div><div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
-    users: '<div id="setUsers"></div><div id="setLdap"></div>',
+    users: '<div id="setUsers"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
@@ -192,7 +192,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -241,8 +241,9 @@ export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = 'button[data-open],button[data-devs],button[data-sw],button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-export const RO_INPUT_OK = /^(search|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swVerX)$/;
+export const RO_NAV = 'button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+/* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
+export const RO_INPUT_OK = /^(search|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
@@ -258,7 +259,7 @@ export function applyRole(){
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 export function ensureUser(name){
   let u = USERS.find(x => x.name === name);
-  if (!u){ u = {id:userId(), login:'', name, dept:'', groups:[], source:'manual', active:true}; USERS.push(u); }
+  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source:'manual', active:true}; USERS.push(u); }
   return u;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
@@ -335,7 +336,7 @@ export function renderSetUsers(){
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. 8)" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd" class="primary">Add user</button></div></div>
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd" class="primary">Add user</button></div></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
@@ -596,7 +597,7 @@ const subnetFromRow = row => {
     name: q('[data-sn]').value.trim(), vid: q('[data-sv]').value === '' ? null : +q('[data-sv]').value,
     cidr: q('[data-sc]').value.trim(), gateway: q('[data-sg]').value.trim(),
     dns: q('[data-sd]').value.split(',').map(x => x.trim()).filter(Boolean), ranges,
-    types: [...q('[data-st]').selectedOptions].map(o => o.value)
+    types: [...row.querySelectorAll('[data-sty]:checked')].map(c => c.value)
   };
 };
 const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
@@ -605,17 +606,20 @@ const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
     <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}" ${ro}></label>
     <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}" ${ro}></label>
     <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
-    <label>Device types<select data-st multiple size="4" ${ro}>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${(n.types || []).includes(k) ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
-    <label class="wide">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
-    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
+    <label class="span3">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
+    <fieldset class="sn-types"><legend>Device types that take an address here</legend>${Object.entries(TYPES).map(([k, t]) => `<label class="pchk"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''} ${ro}>${esc(t.label)}</label>`).join('')}</fieldset>
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
   const edit = canEdit(), ro = edit ? '' : 'disabled';
+  /* Subnets the devices' adapters are in that the list does not have yet. Use fills in the form; nothing is added by itself. */
+  const suggested = (st.lsNets || []).filter(n => !SUBNETS.some(x => x.cidr === n.cidr));
   root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
     <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
-    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}`;
+    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}
+    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
   root.querySelectorAll('[data-sub]').forEach(row => {
     const i = row.dataset.sub;
@@ -625,6 +629,9 @@ export function renderSetSubnets(){
       if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
       const others = SUBNETS.filter((_, k) => k !== +i), clash = overlapProblem([...others, v]);
       if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
+      /* A subnet written with a new address keeps its devices: they point at it by its address. */
+      const was = SUBNETS[+i].cidr;
+      if (was !== v.cidr) for (const o of objs) if (o.subnet === was){ o.subnet = v.cidr; hist(o, now(), `Subnet ${v.name} is now ${v.cidr} (was ${was}), changed by ${who()}`); }
       SUBNETS[+i] = v; queueServerSave(); toast('Subnet saved'); renderSetSubnets();
     });
   });
@@ -632,6 +639,12 @@ export function renderSetSubnets(){
     const gone = SUBNETS[+b.dataset.sx];
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
+  });
+  root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
+    const n = suggested[+b.dataset.snuse], row = root.querySelector('[data-sub="new"]');
+    row.querySelector('[data-sn]').value = n.name || n.cidr; row.querySelector('[data-sc]').value = n.cidr;
+    row.querySelector('[data-sg]').value = n.gateway || ''; row.querySelector('[data-sd]').value = (n.dns || []).join(', ');
+    row.querySelector('[data-sn]').focus();
   });
   const add = $('#snAdd');
   if (add) add.onclick = () => {
@@ -787,7 +800,7 @@ export function checkAddress(k, raw){
   return {ok: true, value: v};
 }
 /* Readable names for the icons, for the dropdown. */
-export const ICON_LABEL = { pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
+export const ICON_LABEL = { plc: 'PLC / Controller', tablet: 'Tablet', pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
   ups: 'UPS', accesspoint: 'Access point', pbx: 'PBX', other: 'Other' };
@@ -1020,7 +1033,6 @@ export function renderSetFeed(){
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
-  renderSetGraph();
   $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
     btn.disabled = true; msg.textContent = 'Syncing…';

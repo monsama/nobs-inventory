@@ -3,7 +3,7 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
@@ -11,7 +11,8 @@ export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vl
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false };
+const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false,
+  mask: true, gateway: true, dns: true, dhcp: true, purchased: true, warranty: true };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
 export const docKey = (kind, id) => kind + '|' + id;
@@ -36,7 +37,8 @@ export function loadState(db) {
   }
   s.empty = rows.length === 0;
   /* A new server starts with the same feed policy as the page, so nothing is missing on either side. */
-  if (!s.policy) s.policy = { ...DEFAULT_POLICY };
+  /* A saved policy gets the fields added since it was saved, with their defaults; what it says stays. */
+  s.policy = { ...DEFAULT_POLICY, ...(s.policy || {}) };
   s.revs = revsOf(db);
   return s;
 }
@@ -60,7 +62,7 @@ export function factoryReset(db, keepUserId) {
 
 /* The rules a whole inventory must follow before it is stored. */
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
-const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx'];
+const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
 const STATUSES = ['active', 'stock', 'unused', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 export function checkState(s) {
@@ -124,6 +126,8 @@ export function checkState(s) {
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
+    /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
+    if (u.role === undefined) u.role = 'viewer';
     if (!['admin', 'viewer'].includes(u.role)) bad('A user\'s role must be admin or viewer.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
@@ -370,7 +374,14 @@ export function applyChanges(db, body, guard = () => {}) {
     else if (c.kind === 'history') s.history[c.id] = v;
     else if (c.kind === 'setting') s[c.id] = v;
   }
-  checkState(s);
+  /* A change refused as stale can be one the rest of the save needs (a connection to an object deleted in the same save).
+     Then nothing is saved and every change is answered as a conflict, so the page reloads and offers its edits again,
+     instead of a refusal it would send again and again. */
+  try { checkState(s); }
+  catch (e) {
+    if (!conflicts.length) throw e;
+    return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
+  }
   guard(s);
   writeDocs(db, s);
   const after = revsOf(db);
