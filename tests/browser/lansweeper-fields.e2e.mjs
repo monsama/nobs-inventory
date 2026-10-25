@@ -68,6 +68,29 @@ try {
   await page.click('#snAdd'); await page.waitForTimeout(300);
   assert.equal(await page.locator('.sn-suggest').count(), 0, 'a subnet once added is no longer offered');
 
+  // A device Lansweeper has not scanned for over three months is flagged to be checked by hand: on its card, its page,
+  // in the sidebar and on the overview. One scanned recently is not.
+  await page.keyboard.press('Escape');
+  await page.evaluate(async () => {
+    const core = await import('/js/01-core.js');
+    const day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+    core.byId('o1').feed = { sys: 'Lansweeper', ref: '1', scanned: day(400) }; core.byId('o2').feed = { sys: 'Lansweeper', ref: '2', scanned: day(5) };
+    core.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render();
+  });
+  await page.waitForSelector('.card[data-open=o1]');
+  assert.match(await page.textContent('.card[data-open=o1]'), /Check by hand/);
+  assert.doesNotMatch(await page.textContent('.card[data-open=o2]'), /Check by hand/);
+  assert.match(await page.textContent('#chkList'), /Check by hand\s*1/);
+  await page.click('#chkList [data-scanold]');
+  await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
+  await page.click('#chkList [data-scanold]');
+  await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await page.waitForSelector('[data-ovscan]');
+  assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
+  await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
+  await page.waitForSelector('.lsbox');
+  assert.match(await page.textContent('.lsbox'), /Last scanned.*Check by hand.*has not scanned it for over three months/s);
+
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');
 } finally { await browser.close(); server.close(); }

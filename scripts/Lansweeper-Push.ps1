@@ -61,7 +61,7 @@ $Config = @{
     # Filled in when the script is downloaded from NOBS (Settings -> Feed -> Download script); the setup offers it too.
     NobsCertThumbprint  = ''
 
-    MaxAgeDays          = 90      # only assets Lansweeper has seen in the last N days (0 = all)
+    MaxAgeDays          = 0       # 0 = all active assets; NOBS flags those not scanned for 3 months. N = only those seen in the last N days
     BatchSize           = 500     # assets per request
     DataDir             = (Join-Path $env:ProgramData 'LansweeperNobsPush')   # credential and log
 }
@@ -718,6 +718,7 @@ function Get-LsRecords {
                     domain = Get-Clean $reader['n__DNSDomain']
                     purchased = Get-DateText $reader['c__PurchaseDate']
                     warranty = Get-DateText $reader['c__Warrantydate']
+                    scanned = Get-DateText $reader['a__Lastseen']
                     role = Get-RoleText $reader['cs__Domainrole']
                     chassis = Get-ChassisText $reader['se__ChassisTypes']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
