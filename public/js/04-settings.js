@@ -6,6 +6,7 @@ import { subnetProblem } from './net.js';
 import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 import { CARD_FIELDS, cardLines } from './02-views.js';
+import { sheetModal } from './08-sheets.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
@@ -263,9 +264,9 @@ export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = 'button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+export const RO_NAV = 'button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType)$/;
+export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
@@ -359,10 +360,11 @@ export function renderSetUsers(){
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
+      <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:11%"><col style="width:12%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
@@ -376,6 +378,7 @@ export function renderSetUsers(){
   });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
+  root.querySelectorAll('[data-sheet]').forEach(b => b.onclick = () => sheetModal(USERS[+b.dataset.sheet]));
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
     const u = USERS[+sel.dataset.role];
     if (u.role === 'admin' && sel.value !== 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); renderSetUsers(); return; }

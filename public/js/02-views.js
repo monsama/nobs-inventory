@@ -1,3 +1,4 @@
+import { money } from './09-costs.js';
 import { relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
@@ -34,7 +35,7 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software'};
+export const FIXED_TABS = {overview:'Overview', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts'};
 export function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
@@ -241,6 +242,9 @@ export const TABLE_COLS = [
   {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
   {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
+  {k:'price', label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
+  {k:'supplier', label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
+  {k:'invoice', label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
   {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
@@ -248,10 +252,17 @@ export const TABLE_COLS = [
   {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
 ];
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice'];
+/* Columns added after a browser kept its choice: hidden there too until they are picked. */
+const LATER_COLS = {2: ['price', 'supplier', 'invoice']};
 export function hiddenCols(){
   if (!st.hiddenCols){
-    try { st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS; } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
+    try {
+      st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
+      const seen = +localStorage.getItem('ni-cols-v') || 1;
+      for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
+      localStorage.setItem('ni-cols-v', '2');
+    } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
 }
@@ -318,8 +329,8 @@ export function parseCsv(text){
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
 export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
 export function exportCsv(list){
-  const head = ['code','name','type','model','serial','ip','mac','location','user','status'];
-  const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label].map(csvCell).join(',')));
+  const head = ['code','name','type','model','serial','ip','mac','location','user','status','purchased','warranty','price','supplier','invoice'];
+  const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice].map(csvCell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'inventory.csv'});
   document.body.appendChild(a); a.click(); a.remove();

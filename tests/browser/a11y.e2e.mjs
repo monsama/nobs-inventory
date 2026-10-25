@@ -54,6 +54,15 @@ try {
     ['settings: network', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), st = await import('/js/04-settings.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.setTab = 'vlans'; st.openSettings(); }); await p.waitForSelector('.subnet-new'); }],
     ['settings: object types', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), st = await import('/js/04-settings.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.setTab = 'types'; st.openSettings(); }); await p.waitForSelector('.cardlines'); }],
     ['settings: about', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), st = await import('/js/04-settings.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.setTab = 'about'; st.openSettings(); }); await p.waitForSelector('#setAbout .brandmark'); }],
+    ['overview, contracts and licences', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'); (await import('/js/03-object-modals.js')).closeModal();
+      const end = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+      c.COSTS.contracts = [{ id: 'ca', name: 'Support', kind: 'support', end, renew: 12, notice: 0, cost: 900, per: 'year', devices: [c.objs[0].id] }];
+      c.COSTS.licences = [{ id: 'la', name: 'Tool A', seats: 1 }]; c.objs[0].price = 1200; c.st.tab = 'overview'; r.render(); }); }],
+    ['contracts', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'); c.st.tab = 'contracts'; r.render(); }); }],
+    ['contract dialog', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); (await import('/js/09-costs.js')).contractModal(c.COSTS.contracts[0]); }); }],
+    ['software with licences', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'); c.st.tab = 'sw'; r.render(); }); }],
+    ['licence dialog', async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); (await import('/js/09-costs.js')).licenceModal(c.COSTS.licences[0]); }); }],
+    ['entry sheet dialog', async () => { await p.evaluate(async () => { const s = await import('/js/04-settings.js'); (await import('/js/08-sheets.js')).sheetModal(s.me()); }); await p.waitForSelector('#sheetMake'); }],
     ['account dialog', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js')]); __mods[0].closeModal(); }); await p.click('#whoBtn'); await p.waitForSelector('#acFirst'); }],
   ];
   for (const theme of ['light', 'dark']) {

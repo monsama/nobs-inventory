@@ -1,4 +1,5 @@
-import { SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
+import { COSTS, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, subnetSpan } from './net.js';
 import { isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
@@ -46,7 +47,7 @@ export function renderRack(){
 
 /* ---------- object page ---------- */
 export const FIELDS = {
-  base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date']],
+  base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
   net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','Address from','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
@@ -92,6 +93,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
   else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
+  else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
   else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else {
@@ -156,7 +158,9 @@ export function propRow(o, f){
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
-  return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
+  /* An amount: the currency is in the label, so the field is as wide as the others. */
+  const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
@@ -255,10 +259,11 @@ export function renderSoftware(){
   $('#toolbar').innerHTML = `<input id="swQ" type="search" placeholder="Find software, version or device…" aria-label="Find software" value="${esc(st.swQ || '')}" style="width:260px">
     <span class="muted" id="swCount"></span><div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
-  if (!all.length){ $('#view').innerHTML = '<div class="empty">No software recorded yet. Add it on a PC or server.</div>'; return; }
+  if (!all.length){ $('#view').innerHTML = `<div class="sw-page">${licencesPanel()}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
   /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */
-  $('#view').innerHTML = `<div class="gridwrap" style="height:auto"><table class="grid sw" data-tb="own"><thead><tr>
-    <th class="sw-tgcol" aria-label="Open"></th><th data-swsort="name" class="sw-name" ${st.swSort === 'name' ? 'data-sort="asc"' : ''}>Package</th><th class="sw-ver">Versions</th><th data-swsort="devices" class="n sw-cnt" ${st.swSort === 'devices' ? 'data-sort="desc"' : ''}>Devices</th></tr></thead><tbody id="swBody"></tbody></table></div>`;
+  $('#view').innerHTML = `<div class="sw-page">${licencesPanel()}<div class="gridwrap" style="height:auto"><table class="grid sw" data-tb="own"><thead><tr>
+    <th class="sw-tgcol" aria-label="Open"></th><th data-swsort="name" class="sw-name" ${st.swSort === 'name' ? 'data-sort="asc"' : ''}>Package</th><th class="sw-ver">Versions</th><th data-swsort="devices" class="n sw-cnt" ${st.swSort === 'devices' ? 'data-sort="desc"' : ''}>Devices</th></tr></thead><tbody id="swBody"></tbody></table></div></div>`;
+  bindLicences();
   const max = Math.max(...all.map(r => r.devices.length));
   const body = () => {
     const q = (st.swQ || '').trim().toLowerCase();
@@ -271,7 +276,7 @@ export function renderSoftware(){
       const shown = r.versions.slice(0, 4);
       return `<tr class="sw-row${open ? ' open' : ''}" data-sw="${esc(r.name)}">
         <td class="sw-tgcol"><button class="sw-tg icon ghost" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the devices with ${esc(r.name)}">${swChevron}</button></td>
-        <td><b>${esc(r.name)}</b></td>
+        <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceChip(l)).join('')}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
     }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;
@@ -392,6 +397,7 @@ export function renderObj(o){
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
+      ${deviceContractsPanel(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length}</span></div>
         <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
@@ -405,6 +411,7 @@ export function renderObj(o){
     </div></div>`;
 
   bindSoftware(o);
+  bindDeviceContracts(o);
   const objView = $('#view').querySelector('.obj');
   const dirty = () => { $('#saveBtn').disabled = false; };
   objView.addEventListener('input', dirty);
@@ -581,6 +588,8 @@ export function renderObj(o){
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
       if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
+      /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
+      if (k === 'price'){ const t = v.trim().replace(/['’\s]/g, '').replace(',', '.'); if (t === '' || !isFinite(+t) || +t < 0){ if (t !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = Math.round(+t * 100) / 100; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
