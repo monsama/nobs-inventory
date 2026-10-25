@@ -1,13 +1,14 @@
 import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
+import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -96,6 +97,10 @@ export function checkState(s) {
     for (const n of s.subnets) { const problem = subnetProblem(n); if (problem) bad(problem); }
     const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
+  /* Contracts and licences, and the currency their costs are in. */
+  if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
+  if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }
+  if (s.currency !== undefined && (typeof s.currency !== 'string' || !/^[A-Za-z€$£¥]{1,5}$/.test(s.currency))) bad('The currency is a short code such as CHF or EUR.');
   if (s.models !== undefined && (!Array.isArray(s.models) || !s.models.every(m => typeof m === 'string' && m.trim() && m.length <= 120))) bad('A model name is up to 120 characters.');
   if (s.modelMap !== undefined) {
     const pairs = s.modelMap && typeof s.modelMap === 'object' && !Array.isArray(s.modelMap) ? Object.entries(s.modelMap) : null;
@@ -153,7 +158,8 @@ export function checkState(s) {
     if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
     /* Addresses are checked and written in their stored form, however the object arrived. */
     for (const k of ['ip', 'ip6', 'mac']) { if (o[k] === undefined) continue; const r = checkAddress(k, o[k]); if (!r.ok) bad(`${o.name}: ${r.msg}`); o[k] = r.value; }
-    for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain', 'subnet']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
+    if (o.price !== undefined && (typeof o.price !== 'number' || !Number.isFinite(o.price) || o.price < 0 || o.price > 1e9)) bad(`${o.name}: the price is a number of 0 or more.`);
+    for (const k of ['name', 'purpose', 'model', 'serial', 'user', 'loc', 'os', 'cpu', 'ram', 'fw', 'domain', 'subnet', 'supplier', 'invoice']) if (o[k] !== undefined && (typeof o[k] !== 'string' || o[k].length > 500)) bad(`${o.name}: ${k} is too long or not text.`);
     if (o.custom !== undefined) {
       if (!o.custom || typeof o.custom !== 'object' || Array.isArray(o.custom)) bad(`${o.name}: its own fields must be an object.`);
       else for (const [k, v] of Object.entries(o.custom)) if (v !== null && !(typeof v === 'string' && v.length <= 500) && !(typeof v === 'number' && Number.isFinite(v))) bad(`${o.name}: the value of ${k} is text of up to 500 characters or a number.`);

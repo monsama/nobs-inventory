@@ -21,7 +21,9 @@ export function takeBackup(db, reason) {
     created: new Date().toISOString(),
     reason,
     state: { objs: s.objs, rels: s.rels, users: s.users, types: s.types, history: s.history, settings },
-    planImages: db.prepare('SELECT id, data FROM plan_images').all()
+    planImages: db.prepare('SELECT id, data FROM plan_images').all(),
+    /* Entry sheets as they are stored: sealed. The key is not in the backup, so a backup alone opens none of them. */
+    sheets: db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sheets'").get() ? db.prepare('SELECT * FROM sheets').all() : []
   };
   const info = db.prepare('INSERT INTO backups (at, reason, objects, data) VALUES (?, ?, ?, ?)').run(data.created, reason, s.objs.length, JSON.stringify(data));
   db.prepare('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)').run(keep);
@@ -58,4 +60,12 @@ export function restoreBackup(db, data) {
   db.prepare('DELETE FROM plan_images').run();
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');
   for (const im of images) put.run(im.id, im.data);
+  /* Entry sheets: those missing here are added; one that is here is kept as it is, so an older backup cannot bring back
+     a password that was removed from a sheet since. */
+  const sheets = Array.isArray(data.sheets) ? data.sheets.filter(r => r && ['id', 'user_id', 'created', 'by', 'data'].every(k => typeof r[k] === 'string') && ['kept', 'changed', 'expired'].includes(r.password)) : [];
+  if (sheets.length) {
+    db.exec(`CREATE TABLE IF NOT EXISTS sheets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created TEXT NOT NULL, by TEXT NOT NULL, password TEXT NOT NULL, data TEXT NOT NULL)`);
+    const add = db.prepare('INSERT OR IGNORE INTO sheets (id, user_id, created, by, password, data) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const r of sheets) add.run(r.id, r.user_id, r.created, r.by, r.password, r.data);
+  }
 }

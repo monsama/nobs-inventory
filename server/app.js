@@ -12,6 +12,7 @@ import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from 
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph } from './graph.js';
+import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -23,7 +24,10 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null }) {
+  /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
+  const SHEET_KEY = sheetKey || crypto.randomBytes(32);
+  initSheets(db);
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
   const cfgGraph = () => (graphConfig ? graphConfig() : null);
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
@@ -290,6 +294,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
+  });
+  /* Entry sheets: admins only. The password is in the answer that makes the sheet and in a re-download until it is
+     marked as changed or PASSWORD_DAYS have passed; it is never written to the log. */
+  app.get('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
+    try { purgePasswords(db, SHEET_KEY); res.json({ sheets: listSheets(db, String(req.query.user || '')), passwordDays: PASSWORD_DAYS }); } catch (e) { next(e); }
+  });
+  app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const made = createSheet(db, SHEET_KEY, loadState(db), req.body || {}, req.user.name || req.user.login || '');
+      audit(db, req.user.id, `entry sheet ${made.id} made for ${made.sheet.person.name} (${made.sheet.devices.length} devices)`);
+      res.json(made);
+    } catch (e) { next(e); }
+  });
+  app.get('/api/sheets/:id', requireUser, requireAdmin, (req, res, next) => {
+    try { purgePasswords(db, SHEET_KEY); const s = getSheet(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${s.id} opened`); res.json(s); } catch (e) { next(e); }
+  });
+  app.post('/api/sheets/:id/changed', requireUser, requireAdmin, (req, res, next) => {
+    try { markChanged(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${req.params.id}: password marked as changed, removed from the sheet`); res.json({ ok: true }); } catch (e) { next(e); }
+  });
+  app.delete('/api/sheets/:id', requireUser, requireAdmin, (req, res, next) => {
+    try { deleteSheet(db, req.params.id); audit(db, req.user.id, `entry sheet ${req.params.id} deleted`); res.json({ ok: true }); } catch (e) { next(e); }
   });
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {

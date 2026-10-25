@@ -1,7 +1,9 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
+import { renderContracts } from './09-costs.js';
+import { renderOverview } from './10-overview.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { closeModal, modal, renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
@@ -381,6 +383,8 @@ export function render(){
   else if (st.tab === 'net') renderPorts();
   else if (st.tab === 'rack') renderRack();
   else if (st.tab === 'sw') renderSoftware();
+  else if (st.tab === 'contracts') renderContracts();
+  else if (st.tab === 'overview') renderOverview();
   else renderObj(byId(st.tab));
   fullTextTooltips();
   bindFullTextOnHover();
@@ -404,7 +408,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10};
+  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, currency: COSTS.currency || 'CHF'};
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -558,6 +562,7 @@ export function applyState(d){
   VLANS.splice(0, VLANS.length, ...(d.vlans || []));
   DOMAINS.splice(0, DOMAINS.length, ...(d.domains || []));
   MODELS.splice(0, MODELS.length, ...(d.models || []));
+  COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
   Object.assign(FIELD_LAYOUT, d.fieldLayout || {});

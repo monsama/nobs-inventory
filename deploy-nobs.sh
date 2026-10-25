@@ -84,6 +84,11 @@ step_secrets() {
     else
         info "secrets/admin_password exists - kept"
     fi
+    # The key that encrypts the kept entry sheets. Not in any backup: keep a copy of it apart from the server.
+    if [ ! -s "$BASE_DIR/secrets/sheet_key" ]; then
+        ( umask 077; gen_secret 44 > "$BASE_DIR/secrets/sheet_key" )
+        info "secrets/sheet_key generated - keep a copy of it, without it the kept entry sheets cannot be opened"
+    fi
     for s in ldap_service_password ls_token feed_token; do
         [ -f "$BASE_DIR/secrets/$s" ] || { ( umask 077; : > "$BASE_DIR/secrets/$s" ); info "secrets/$s created (empty = unused)"; }
     done
