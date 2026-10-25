@@ -65,8 +65,16 @@ export function suggestNets(records, subnets, locations) {
   for (const r of records) {
     const cidr = subnetOf(r.ip, r.mask);
     if (!cidr || known.has(cidr)) continue;
-    const n = nets.get(cidr) || { cidr, devices: 0, gateways: {}, dns: {}, names: {} };
+    const n = nets.get(cidr) || { cidr, devices: 0, gateways: {}, dns: {}, names: {}, types: {}, spans: {} };
     n.devices++;
+    /* The device types seen in the subnet, and the lowest and highest address seen per kind (DHCP or static): a
+       starting point for the subnet's ranges, to be checked against the DHCP server. */
+    if (r.type) n.types[r.type] = (n.types[r.type] || 0) + 1;
+    const a = ipNum(r.ip);
+    if (a !== null && (r.dhcp === 'dhcp' || r.dhcp === 'static')) {
+      const sp = n.spans[r.dhcp] || (n.spans[r.dhcp] = { lo: a, hi: a, n: 0 });
+      sp.lo = Math.min(sp.lo, a); sp.hi = Math.max(sp.hi, a); sp.n++;
+    }
     const l = ipLocationOf(locations, r.ip);
     if (l) n.names[l.name] = (n.names[l.name] || 0) + 1;
     if (r.gateway) n.gateways[r.gateway] = (n.gateways[r.gateway] || 0) + 1;
@@ -75,6 +83,8 @@ export function suggestNets(records, subnets, locations) {
   }
   const most = counts => Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   return [...nets.values()].sort((a, b) => b.devices - a.devices).slice(0, 200).map(n => (
-    { cidr: n.cidr, devices: n.devices, gateway: most(n.gateways), dns: most(n.dns).split(',').map(x => x.trim()).filter(Boolean), name: most(n.names) }
+    { cidr: n.cidr, devices: n.devices, gateway: most(n.gateways), dns: most(n.dns).split(',').map(x => x.trim()).filter(Boolean), name: most(n.names),
+      types: Object.entries(n.types).sort((a, b) => b[1] - a[1]).map(([type, count]) => ({ type, count })),
+      seen: Object.entries(n.spans).map(([use, sp]) => ({ use: use === 'dhcp' ? 'DHCP' : 'Static', from: ipText(sp.lo), to: ipText(sp.hi), count: sp.n })) }
   ));
 }

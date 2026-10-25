@@ -35,17 +35,29 @@ try {
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');
-  // the add-subnet form spans the box and has nothing to delete
-  await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('.subnet-new');
-  assert.equal(await page.locator('.subnet-new [data-sx]').count(), 0, 'the add form offers no Delete subnet');
-  const formW = await page.locator('.subnet-new > .subnet').evaluate(e => e.getBoundingClientRect().width);
+  // Add subnet opens the editor, which spans the box; the device types ticked and the ranges added are saved
+  await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('#snNew');
+  await page.click('#snNew'); await page.waitForSelector('.sn-edit[data-sub="new"]');
+  const formW = await page.locator('.sn-edit').evaluate(e => e.getBoundingClientRect().width);
   const boxW = await page.locator('#setSubnets').evaluate(e => e.getBoundingClientRect().width);
-  assert.ok(formW > boxW * 0.9, `the add-subnet form is ${Math.round(formW)}px wide in a ${Math.round(boxW)}px box`);
-  // device types are checkboxes; the ones ticked are saved with the subnet
-  await page.fill('.subnet-new [data-sn]', 'Office'); await page.fill('.subnet-new [data-sc]', '10.10.20.0/24'); await page.fill('.subnet-new [data-sg]', '10.10.20.1');
-  await page.check('.subnet-new [data-sty][value=pc]'); await page.check('.subnet-new [data-sty][value=printer]');
-  await page.click('#snAdd'); await page.waitForSelector('[data-sub="0"]');
-  assert.deepEqual(await page.locator('[data-sub="0"] [data-sty]:checked').evaluateAll(cs => cs.map(c => c.value)), ['pc', 'printer'], 'the ticked device types are kept');
+  assert.ok(formW > boxW * 0.9, `the subnet editor is ${Math.round(formW)}px wide in a ${Math.round(boxW)}px box`);
+  await page.fill('.sn-edit [data-sn]', 'Office'); await page.fill('.sn-edit [data-sc]', '10.10.20.0/24'); await page.fill('.sn-edit [data-sg]', '10.10.20.1');
+  await page.check('.sn-edit [data-sty][value=pc]'); await page.check('.sn-edit [data-sty][value=printer]');
+  await page.click('.sn-edit [data-radd]');
+  await page.fill('.sn-range [data-rf]', '10.10.20.50'); await page.fill('.sn-range [data-rt]', '10.10.20.99'); await page.selectOption('.sn-range [data-ru]', 'DHCP');
+  await page.click('.sn-edit [data-ssave]'); await page.waitForSelector('[data-sedit="0"]');
+  const saved = async () => page.evaluate(async () => (await import('/js/01-core.js')).SUBNETS[0]);
+  assert.deepEqual((await saved()).types, ['pc', 'printer'], 'the ticked device types are kept');
+  assert.deepEqual((await saved()).ranges, [{ from: '10.10.20.50', to: '10.10.20.99', use: 'DHCP' }]);
+  assert.match(await page.textContent('#setSubnets .sn-item'), /Office.*10\.10\.20\.0\/24.*Gateway 10\.10\.20\.1.*DHCP 10\.10\.20\.50–99.*For PC, Printer/s);
+  // a subnet in the list can be edited: Edit opens it, Save keeps the change, Cancel drops it
+  await page.click('[data-sedit="0"]'); await page.waitForSelector('.sn-edit[data-sub="0"]');
+  await page.fill('.sn-edit [data-sn]', 'Office Willisau'); await page.click('.sn-edit [data-tnone]');
+  await page.click('.sn-edit [data-ssave]'); await page.waitForSelector('[data-sedit="0"]');
+  assert.equal((await saved()).name, 'Office Willisau');
+  assert.deepEqual((await saved()).types, []);
+  await page.click('[data-sedit="0"]'); await page.fill('.sn-edit [data-sn]', 'Not this'); await page.click('.sn-edit [data-scancel]');
+  assert.equal((await saved()).name, 'Office Willisau', 'Cancel keeps the subnet as it was');
   // push token: created in the app, shown once, a download is offered
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');

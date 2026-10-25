@@ -16,7 +16,9 @@ const s0 = loadState(db);
 saveState(db, { ...s0,
   locs: ['Willisau / Lager'],
   subnets: [{ name: 'Office', vid: null, cidr: '10.10.20.0/24', gateway: '10.10.20.1', dns: ['10.10.1.5'], ranges: [], types: ['pc'] }],
-  lsNets: [{ cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5'], name: 'Willisau Lager' }],
+  lsNets: [{ cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5'], name: 'Willisau Lager',
+    types: [{ type: 'pc', count: 2 }, { type: 'printer', count: 1 }],
+    seen: [{ use: 'DHCP', from: '172.21.108.100', to: '172.21.108.180', count: 2 }, { use: 'Static', from: '172.21.108.10', to: '172.21.108.10', count: 1 }] }],
   objs: [
     { id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-SOON', status: 'active', loc: 'Willisau / Lager', ip: '10.10.20.5', gateway: '10.10.20.254', dhcp: 'dhcp', warranty: day(30), purchased: '2023-04-01', ovr: {}, feed: null },
     { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-ENDED', status: 'active', loc: 'Willisau / Lager', ip: '10.10.20.6', gateway: '10.10.20.1', dhcp: 'static', warranty: day(-10), ovr: {}, feed: null },
@@ -61,12 +63,19 @@ try {
   await page.click('#setBtn'); await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('.sn-suggest');
   assert.match(await page.textContent('.sn-suggest'), /172\.21\.108\.0\/24.*3 devices.*Willisau Lager/s);
   await page.click('[data-snuse="0"]');
-  assert.equal(await page.inputValue('.subnet-new [data-sc]'), '172.21.108.0/24');
-  assert.equal(await page.inputValue('.subnet-new [data-sn]'), 'Willisau Lager');
-  assert.equal(await page.inputValue('.subnet-new [data-sg]'), '172.21.108.1');
+  // Use opens the editor filled in: name, gateway, the device types seen there, and a range per kind of address seen
+  await page.waitForSelector('.sn-edit[data-sub="new"]');
+  assert.equal(await page.inputValue('.sn-edit [data-sc]'), '172.21.108.0/24');
+  assert.equal(await page.inputValue('.sn-edit [data-sn]'), 'Willisau Lager');
+  assert.equal(await page.inputValue('.sn-edit [data-sg]'), '172.21.108.1');
+  assert.deepEqual(await page.locator('.sn-edit [data-sty]:checked').evaluateAll(cs => cs.map(c => c.value)), ['pc', 'printer']);
+  assert.deepEqual(await page.locator('.sn-range').evaluateAll(rs => rs.map(r => [r.querySelector('[data-rf]').value, r.querySelector('[data-rt]').value, r.querySelector('[data-ru]').value])),
+    [['172.21.108.100', '172.21.108.180', 'DHCP'], ['172.21.108.10', '172.21.108.10', 'Static']]);
+  assert.match(await page.textContent('.sn-hint'), /3 devices of 2 types.*DHCP: 2, Static: 1.*check them against your DHCP server/s);
   if (shots) await page.locator('#setSubnets').screenshot({ path: path.join(shots, 'subnet-suggest.png') });
-  await page.click('#snAdd'); await page.waitForTimeout(300);
+  await page.click('.sn-edit [data-ssave]'); await page.waitForSelector('[data-sedit="0"]');
   assert.equal(await page.locator('.sn-suggest').count(), 0, 'a subnet once added is no longer offered');
+  if (shots) await page.locator('#setSubnets').screenshot({ path: path.join(shots, 'subnet-list.png') });
 
   // A device Lansweeper has not scanned for over three months is flagged to be checked by hand: on its card, its page,
   // in the sidebar and on the overview. One scanned recently is not.

@@ -4,7 +4,7 @@ import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from '
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
-import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 import { CARD_FIELDS, cardLines } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -743,72 +743,108 @@ export function passwordModal(u){
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 /* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
-const subnetFromRow = row => {
-  const q = s => row.querySelector(s);
-  const ranges = q('[data-sr]').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-    const m = /^(\S+?)\s*-\s*(\S+)(?:\s+(.+))?$/.exec(l);
-    return m ? {from: m[1], to: m[2], ...(m[3] ? {use: m[3].trim()} : {})} : {from: '', to: ''};
-  });
+/* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
+const RANGE_USES = ['DHCP', 'Static', 'Reserved'];
+const rangeRowHtml = (r = {}) => {
+  const use = r.use || '', opts = [...new Set(['', ...RANGE_USES, use])];
+  return `<div class="sn-range"><input data-rf class="mono" placeholder="10.10.20.50" value="${esc(r.from || '')}" aria-label="First address">
+    <span class="muted">to</span><input data-rt class="mono" placeholder="10.10.20.99" value="${esc(r.to || '')}" aria-label="Last address">
+    <select data-ru aria-label="Use of the range">${opts.map(u => `<option value="${esc(u)}" ${u === use ? 'selected' : ''}>${u ? esc(u) : 'No use set'}</option>`).join('')}</select>
+    <button type="button" class="sn-rx" data-rx aria-label="Remove this range" title="Remove this range">×</button></div>`;
+};
+/* A subnet as typed in the editor. A range left empty is dropped; a half-filled one is kept, so the check says what is wrong. */
+const subnetFromEditor = ed => {
+  const q = s => ed.querySelector(s);
+  const ranges = [...ed.querySelectorAll('.sn-range')].map(r => ({from: r.querySelector('[data-rf]').value.trim(), to: r.querySelector('[data-rt]').value.trim(), use: r.querySelector('[data-ru]').value}))
+    .filter(r => r.from || r.to).map(r => ({from: r.from, to: r.to, ...(r.use ? {use: r.use} : {})}));
   return {
     name: q('[data-sn]').value.trim(), vid: q('[data-sv]').value === '' ? null : +q('[data-sv]').value,
     cidr: q('[data-sc]').value.trim(), gateway: q('[data-sg]').value.trim(),
     dns: q('[data-sd]').value.split(',').map(x => x.trim()).filter(Boolean), ranges,
-    types: [...row.querySelectorAll('[data-sty]:checked')].map(c => c.value)
+    types: [...ed.querySelectorAll('[data-sty]:checked')].map(c => c.value)
   };
 };
-const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
-    <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" ${ro}></label>
-    <label>VLAN<select data-sv ${ro}><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
-    <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}" ${ro}></label>
-    <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}" ${ro}></label>
-    <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
-    <label class="span3">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
-    <fieldset class="sn-types"><legend>Device types that take an address here</legend>${Object.entries(TYPES).map(([k, t]) => `<label class="pchk"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''} ${ro}>${esc(t.label)}</label>`).join('')}</fieldset>
-    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}">Delete</button>`}</div></div>`;
+/* The editor of one subnet, for a new one or one in the list. A note says what was filled in from Lansweeper. */
+const subnetEditorHtml = (n, key, hint = '') => `<div class="sn-edit" data-sub="${key}">
+    <div class="sn-grid">
+      <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" placeholder="e.g. Office Willisau"></label>
+      <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}"></label>
+      <label>VLAN<select data-sv><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
+      <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}"></label>
+      <label class="span2">DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}"></label>
+    </div>
+    <div class="sn-sect"><div class="sn-sh">Ranges<button type="button" data-radd>Add range</button></div>
+      <div class="sn-ranges">${(n.ranges || []).map(rangeRowHtml).join('')}</div>
+      <p class="note">"Pick from range" on a device takes the first free address of a Static range, or of one without a use; DHCP and Reserved ranges are left out.</p></div>
+    <div class="sn-sect"><div class="sn-sh">Device types that take an address here<span class="sn-tq"><button type="button" class="link" data-tall>All</button><button type="button" class="link" data-tnone>None</button></span></div>
+      <div class="sn-typegrid">${Object.entries(TYPES).map(([k, t]) => `<label class="sn-type"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''}>${tico(k, 'tico sm')}<span>${esc(t.label)}</span></label>`).join('')}</div></div>
+    ${hint ? `<p class="note sn-hint">${hint}</p>` : ''}
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span><span class="grow"></span><button type="button" data-scancel>Cancel</button><button type="button" class="primary" data-ssave>${key === 'new' ? 'Add subnet' : 'Save'}</button></div></div>`;
+/* A subnet in the list: its name, address and VLAN, with the gateway, ranges and device types underneath. */
+const subnetItemHtml = (n, i, edit) => {
+  const ranges = (n.ranges || []).map(r => `${r.use ? esc(r.use) + ' ' : ''}<span class="mono">${esc(r.from)}${r.to !== r.from ? '–' + esc(r.to.split('.').pop()) : ''}</span>`).join(', ');
+  const types = (n.types || []).filter(t => TYPES[t]).map(t => TYPES[t].label);
+  const meta = [n.gateway ? `Gateway <span class="mono">${esc(n.gateway)}</span>` : '', (n.dns || []).length ? `DNS <span class="mono">${esc(n.dns.join(', '))}</span>` : '',
+    ranges ? `Ranges ${ranges}` : 'No ranges', types.length ? `For ${esc(types.slice(0, 4).join(', '))}${types.length > 4 ? ` and ${types.length - 4} more` : ''}` : 'No device types'].filter(Boolean);
+  return `<div class="sn-item"><div class="sn-head"><b>${esc(n.name)}</b><span class="mono">${esc(n.cidr)}</span>${n.vid != null ? `<span class="chip">VLAN ${n.vid}</span>` : ''}<span class="grow"></span>
+    ${edit ? `<button data-sedit="${i}">Edit</button><button data-sx="${i}">Delete</button>` : ''}</div><div class="sn-meta">${meta.join(' · ')}</div></div>`;
+};
+/* Which subnet is open in the editor: 'new', a position in the list, or none; and what a new one starts with. */
+let snEdit = null, snDraft = null;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
-  const edit = canEdit(), ro = edit ? '' : 'disabled';
-  /* Subnets the devices' adapters are in that the list does not have yet. Use fills in the form; nothing is added by itself. */
+  const edit = canEdit();
+  if (!edit) snEdit = null;
+  /* Subnets the devices' adapters are in that the list does not have yet. Use opens the editor filled in; nothing is added by itself. */
   const suggested = (st.lsNets || []).filter(n => !SUBNETS.some(x => x.cidr === n.cidr));
   root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
-    <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
-    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd">Add subnet</button></div>` : ''}
-    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
+    <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => snEdit === i ? subnetEditorHtml(n, i) : subnetItemHtml(n, i, edit && snEdit === null)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
+    ${snEdit === 'new' ? subnetEditorHtml(snDraft ? snDraft.n : {}, 'new', snDraft ? snDraft.hint : '') : edit ? `<div class="sn-addbar"><button id="snNew">Add subnet</button></div>` : ''}
+    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
-  root.querySelectorAll('[data-sub]').forEach(row => {
-    const i = row.dataset.sub;
-    if (i === 'new') return;
-    row.querySelectorAll('input,select,textarea').forEach(el => el.onchange = () => {
-      const v = subnetFromRow(row), problem = subnetProblem(v);
-      if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
-      const others = SUBNETS.filter((_, k) => k !== +i), clash = overlapProblem([...others, v]);
-      if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
-      /* A subnet written with a new address keeps its devices: they point at it by its address. */
-      const was = SUBNETS[+i].cidr;
-      if (was !== v.cidr) for (const o of objs) if (o.subnet === was){ o.subnet = v.cidr; hist(o, now(), `Subnet ${v.name} is now ${v.cidr} (was ${was}), changed by ${who()}`); }
-      SUBNETS[+i] = v; queueServerSave(); toast('Subnet saved'); renderSetSubnets();
-    });
-  });
+  const open = (key, draft = null) => { snEdit = key; snDraft = draft; renderSetSubnets(); const f = root.querySelector('.sn-edit [data-sn]'); if (f) f.focus(); };
+  root.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => open(+b.dataset.sedit));
+  const nb = $('#snNew'); if (nb) nb.onclick = () => open('new');
   root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => {
     const gone = SUBNETS[+b.dataset.sx];
+    if (!confirm(`Delete the subnet ${gone.name} (${gone.cidr})? Devices on it keep their addresses.`)) return;
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
   });
+  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
+     of address (DHCP, static) from the lowest to the highest address seen. */
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
-    const n = suggested[+b.dataset.snuse], row = root.querySelector('[data-sub="new"]');
-    row.querySelector('[data-sn]').value = n.name || n.cidr; row.querySelector('[data-sc]').value = n.cidr;
-    row.querySelector('[data-sg]').value = n.gateway || ''; row.querySelector('[data-sd]').value = (n.dns || []).join(', ');
-    row.querySelector('[data-sn]').focus();
+    const n = suggested[+b.dataset.snuse];
+    const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
+    const seen = n.seen || [];
+    const hint = `Filled in from what Lansweeper saw in ${esc(n.cidr)}: ${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${types.length ? ` of ${types.length} ${types.length === 1 ? 'type' : 'types'}` : ''}.`
+      + (seen.length ? ` Each range runs from the lowest to the highest address seen of its kind (${seen.map(x => `${x.use}: ${x.count}`).join(', ')}): check them against your DHCP server before saving.` : '');
+    open('new', {n: {name: n.name || n.cidr, cidr: n.cidr, gateway: n.gateway || '', dns: n.dns || [], types, ranges: seen.map(x => ({from: x.from, to: x.to, use: x.use}))}, hint});
   });
-  const add = $('#snAdd');
-  if (add) add.onclick = () => {
-    const row = root.querySelector('[data-sub="new"]'), v = subnetFromRow(row), problem = subnetProblem(v);
-    if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
-    const clash = overlapProblem([...SUBNETS, v]);
-    if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
-    SUBNETS.push(v); queueServerSave(); toast('Subnet added'); renderSetSubnets();
+  const ed = root.querySelector('.sn-edit');
+  if (!ed) return;
+  const key = ed.dataset.sub;
+  const bindRanges = () => ed.querySelectorAll('[data-rx]').forEach(x => x.onclick = () => x.closest('.sn-range').remove());
+  bindRanges();
+  ed.querySelector('[data-radd]').onclick = () => { ed.querySelector('.sn-ranges').insertAdjacentHTML('beforeend', rangeRowHtml({use: 'Static'})); bindRanges(); ed.querySelector('.sn-range:last-child [data-rf]').focus(); };
+  ed.querySelector('[data-tall]').onclick = () => ed.querySelectorAll('[data-sty]').forEach(c => { c.checked = true; });
+  ed.querySelector('[data-tnone]').onclick = () => ed.querySelectorAll('[data-sty]').forEach(c => { c.checked = false; });
+  ed.querySelector('[data-scancel]').onclick = () => { snEdit = null; snDraft = null; renderSetSubnets(); };
+  ed.querySelector('[data-ssave]').onclick = () => {
+    const v = subnetFromEditor(ed), problem = subnetProblem(v), msg = ed.querySelector('.snmsg');
+    if (problem){ msg.innerHTML = warn(problem); return; }
+    const others = key === 'new' ? SUBNETS : SUBNETS.filter((_, k) => k !== +key), clash = overlapProblem([...others, v]);
+    if (clash){ msg.innerHTML = warn(clash); return; }
+    if (key === 'new'){ SUBNETS.push(v); toast('Subnet added'); }
+    else {
+      /* A subnet written with a new address keeps its devices: they point at it by its address. */
+      const was = SUBNETS[+key].cidr;
+      if (was !== v.cidr) for (const o of objs) if (o.subnet === was){ o.subnet = v.cidr; hist(o, now(), `Subnet ${v.name} is now ${v.cidr} (was ${was}), changed by ${who()}`); }
+      SUBNETS[+key] = v; toast('Subnet saved');
+    }
+    snEdit = null; snDraft = null; queueServerSave(); renderSetSubnets();
   };
 }
 export function renderSetVlans(){
