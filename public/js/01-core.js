@@ -146,6 +146,8 @@ export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, statu
 export const objs = [];
 /* The models named in the inventory: those typed on a device, and those listed in Settings. Every device offers them to choose from. */
 export const MODELS = [];
+/* Contracts and licences (Settings keys contracts, licences) and the currency of every amount. Replaced as a whole when changed. */
+export const COSTS = {contracts: [], licences: [], currency: 'CHF'};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
@@ -181,7 +183,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-export const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['cards','table','map','plans','net','rack','sw'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
+export const st = {type:null, loc:null, status:null, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};

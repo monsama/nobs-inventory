@@ -285,6 +285,39 @@ table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
 table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 #setUsers td>button{width:100%;padding:3px 6px}
+/* overview */
+.ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
+.ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
+button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
+.ov-tl{font-size:12px;color:var(--muted)}
+.ov-tv{font-size:28px;font-weight:600;line-height:1.2}
+.ov-ts{font-size:12px;color:var(--muted)}
+.ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start}
+.ov-att{display:flex;flex-direction:column}
+.ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
+.ov-row:hover,.ov-bar:hover{background:var(--hover)}
+.ov-row .chip{min-width:34px;justify-content:center}
+.ov-row small{display:block;color:var(--muted);font-size:12px}
+.ov-bars{display:flex;flex-direction:column;padding:6px 0}
+.ov-bar{display:grid;grid-template-columns:minmax(120px,38%) 1fr 48px;gap:10px;align-items:center;padding:5px 12px;border:0;background:none;color:var(--fg);height:auto;font:inherit;font-size:13px;cursor:pointer;text-align:left;border-radius:0}
+.ov-lbl{display:flex;gap:6px;align-items:center;min-width:0}.ov-lbl>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-track{height:10px;border-radius:0 4px 4px 0;background:transparent}
+.ov-track>span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.ov-n{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg)}
+@media (max-width:640px){.ov{padding:8px}.ov-cols{grid-template-columns:1fr}.ov-bar{grid-template-columns:minmax(90px,40%) 1fr 40px}}
+/* costs: contracts, licences */
+.sw-page{display:flex;flex-direction:column;gap:12px}
+.sw-page>.panelbox.lic>.hdr+.note{margin:0;padding:9px 12px;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
+.lic-bar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--bd2);vertical-align:middle;margin-right:8px;overflow:hidden}
+.lic-bar>span{display:block;height:100%;background:var(--accent)}
+.lic-bar.over>span{background:var(--danger)}
+.ct-devs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-top:6px}
+.ct-devs .pchk{font-size:13px}
+table.contracts td.num,table.contracts th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.contracts tfoot td{font-weight:600;border-top:2px solid var(--bd)}
+button.link{background:none;border:0;padding:0;height:auto;color:var(--linktext);cursor:pointer;font:inherit;text-align:left}
+button.link:hover{text-decoration:underline}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
