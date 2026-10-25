@@ -1,6 +1,6 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
 import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
-import { freeAddress, ipInt, subnetSpan } from './net.js';
+import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -557,7 +557,7 @@ export function renderObj(o){
     const used = new Set(objs.filter(x => x !== o && x.ip).map(x => ipInt(x.ip)));
     [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
     const addr = freeAddress(sub, used);
-    if (!addr){ toast('No free address in the ranges of ' + sub.name + '.'); return; }
+    if (!addr){ toast((sub.ranges || []).length && sub.ranges.every(rangeKeptOut) ? `The ranges of ${sub.name} are all DHCP or reserved. Add a static range to pick from.` : 'No free address in the ranges of ' + sub.name + '.'); return; }
     const ip = $('#f_' + o.id + '_ip'); ip.value = addr; ip.dispatchEvent(new Event('input', {bubbles: true}));
     toast('Picked ' + addr + ' from ' + sub.name);
   });
