@@ -24,6 +24,7 @@ export const ICON = {
   projector:'<rect x="2" y="7" width="16" height="10" rx="2"/><path d="M18 10l4-2v8l-4-2M6 10h.01"/>',
   storage:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   modem:'<rect x="3" y="12" width="18" height="7" rx="1"/><path d="M7 12V5M12 19v2M16 15h.01M19 15h.01"/>',
+  plc:'<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 8h14M8.5 12h2M8.5 15.5h2M13.5 12h2M13.5 15.5h2M2 18h3M19 18h3"/>',
   other:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/>'
 };
 export const svg = (t, cls='i') => {
@@ -52,6 +53,7 @@ export const TYPES = {
   android:{label:'Android Device', short:'Android', color:'#84cc16', icon:'mobile'},
   ios:{label:'IOS Device', short:'iOS', color:'#65a30d', icon:'mobile'},
   mobile:{label:'Other Mobile Device', short:'Mobile', color:'#0d9488', icon:'mobile'},
+  plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -62,7 +64,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx'];
+export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
