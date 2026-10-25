@@ -89,7 +89,9 @@ table.locs td.site{color:var(--muted)}
 .pl-area-edge{fill:none;stroke:var(--accent);stroke-width:2px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;padding:2px 4px 2px 8px;border-radius:4px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;pointer-events:none;white-space:nowrap}
 .pl-area-tag .pl-x{pointer-events:auto;position:static;width:18px;height:18px;border-radius:50%}
-.pl-area.movable{pointer-events:auto;cursor:move}
+/* An area's svg covers the whole canvas; only the shape itself takes a click, so the rest of the plan stays free. */
+.pl-area.movable{pointer-events:none}
+.pl-area.movable .pl-area-fill,.pl-area.movable .pl-area-edge{pointer-events:visiblePainted;cursor:move}
 .pl-area.editing .pl-area-edge{stroke-width:3px}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
 .pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:12px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
