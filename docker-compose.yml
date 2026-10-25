@@ -5,7 +5,7 @@ services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.10}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.11}
     build: .
     restart: unless-stopped
     expose:
@@ -35,6 +35,7 @@ services:
       - ldap_service_password
       - ls_token
       - feed_token
+      - sheet_key
     volumes:
       - ni-data:/data
       - ./feed:/feed:ro
