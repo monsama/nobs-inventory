@@ -46,11 +46,14 @@ export function renderTabs(){
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}</button>`;
-  $('#tabsbar').innerHTML = views.map(viewTab).join('') + (objs.length ? '<span class="tabs-sep" aria-hidden="true"></span><span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {
+  $('#tabsbar').innerHTML = views.map(viewTab).join('');
+  /* The open objects have a row of their own under the views, shown while at least one is open. */
+  $('#objbar').hidden = !objs.length;
+  $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {
     const o = byId(id);
-    return `<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
-  }).join('');
-  $('#tabsbar').querySelectorAll('[data-tab]').forEach(el => {
+    return `<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${esc(o.name)}">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
+  }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open objects">Close all</button>' : '');
+  document.querySelectorAll('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
     el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
@@ -111,7 +114,8 @@ export function showTabMenu(e, id){
 }
 document.addEventListener('click', hideTabMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTabMenu(); });
-$('#tabsbar').addEventListener('click', e => {
+const onTabClick = e => {
+  if (e.target.closest('#closeAllTabs')){ closeObjTabs(null); return; }
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
@@ -120,7 +124,9 @@ $('#tabsbar').addEventListener('click', e => {
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
   /* From an open device, Relationships shows that device's relations. */
   if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; render(); }
-});
+};
+$('#tabsbar').addEventListener('click', onTabClick);
+$('#objbar').addEventListener('click', onTabClick);
 export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
 /* ---------- cards ---------- */

@@ -53,6 +53,17 @@ try {
     await p.mouse.move(it.x + 20, it.y + it.height / 2); await p.mouse.down();
     await p.mouse.move(tx, ty, { steps: 8 }); await p.mouse.up();
   };
+  // The list can be narrowed to one type; Anywhere and All types show everything again.
+  const listIds = () => p.$$eval('#plList [data-plitem]', bs => bs.map(b => b.dataset.plitem));
+  const all = await listIds();
+  await p.selectOption('#plType', 'switch');
+  assert.deepEqual(await listIds(), ['o1'], 'only the switch');
+  await p.selectOption('#plType', '');
+  await p.selectOption('#plWhere', 'none');
+  assert.deepEqual(await listIds(), [], 'every test device has a location');
+  await p.selectOption('#plWhere', 'site');
+  assert.deepEqual(await listIds(), all, 'all test devices are at the plan\'s site');
+  await p.selectOption('#plWhere', '');
   await drag('o3', at(80, 80));
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).byId('o3').planPos), undefined, 'outside an area: not placed');
   await drag('o3', at(37, 23));
