@@ -61,6 +61,16 @@ try {
   assert.match(await page.textContent('#toolbar'), /1 due within 60 days/);
   const c = (await core()).contracts[0];
   assert.deepEqual([c.name, c.renew, c.notice, c.cost, c.devices], ['Switch maintenance', 12, 1, 1200, ['o1']]);
+  // the summary: what the contracts cost this year and the next two (no start date, renews: the whole year each)
+  const y = new Date().getFullYear();
+  assert.match(await page.textContent('.ct-sum'), new RegExp(`${y} \\(this year\\)CHF 1.?200.*${y + 1}CHF 1.?200.*${y + 2}CHF 1.?200.*Maintenance CHF 1.?200`, 's'));
+  // Edit opens the contract to change it
+  await page.click('table.contracts button[aria-label="Edit Switch maintenance"]');
+  await page.fill('#ctCost', '1500'); await page.click('#ctOk');
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).COSTS.contracts[0].cost === 1500);
+  await page.click('table.contracts button[aria-label="Edit Switch maintenance"]');
+  await page.fill('#ctCost', '1200'); await page.click('#ctOk');
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).COSTS.contracts[0].cost === 1200);
   if (shots) await page.screenshot({ path: path.join(shots, 'contracts.png') });
 
   // on the device page; a second contract is started from there with the device in it

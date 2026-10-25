@@ -91,13 +91,17 @@ table.locs td.site{color:var(--muted)}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
 .pl-item.on{background:var(--panel2);font-weight:600}
+.pl-ghost{position:fixed;z-index:200;pointer-events:none;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
+body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
+.pl-area.droptarget .pl-area-fill{fill:rgba(37,99,235,.28)}
+.pl-area.droptarget .pl-area-edge{stroke-width:3}
 .pl-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .pl-none{padding:12px}
 .pl-tip{margin:0;padding:10px 12px;border-top:1px solid var(--bd2)}
 .pl-stage{overflow:auto;background:var(--panel2);padding:18px;min-width:0}
 .pl-canvas{position:relative;width:100%;margin:0 auto;user-select:none;touch-action:none}
 .pl-canvas.noimg{min-height:360px;background:var(--panel);border:1px dashed var(--bd);border-radius:var(--r-m)}
-.pl-noimg{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.pl-noimg{position:absolute;left:0;right:0;bottom:0;padding:16px 24px;text-align:center;color:var(--muted);font-size:13px;pointer-events:none}
 .pl-canvas>img{display:block;width:100%;height:auto;border-radius:var(--r-s);box-shadow:0 2px 14px rgba(0,0,0,.28);pointer-events:none}
 .pl-area{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .pl-area-fill{fill:rgba(37,99,235,.10)}
@@ -291,17 +295,25 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .graph-steps{margin:0;padding:4px 12px 10px 34px;display:flex;flex-direction:column;gap:12px}
 .graph-steps>li{padding-top:8px}
 .graph-steps>li+li{border-top:1px solid var(--bd2)}
+.graph-steps .form{grid-template-columns:170px minmax(0,1fr)}
 .gs-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .gs-head .chip{min-width:22px;justify-content:center}
 /* overview */
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
+.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0}
+.ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
+.ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
+.ct-sum-note{margin:0;padding:6px 12px 10px}
+table.contracts td:last-child,table.contracts th:last-child{width:1%;white-space:nowrap}
 button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-tl{font-size:12px;color:var(--muted)}
 .ov-tv{font-size:28px;font-weight:600;line-height:1.2}
 .ov-ts{font-size:12px;color:var(--muted)}
-.ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start}
+/* Panels in a row are as tall as the tallest, so a fresh inventory shows an even row of empty panels. */
+.ov-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:stretch}
+.ov-cols>.panelbox{display:flex;flex-direction:column}
 .ov-att{display:flex;flex-direction:column}
 .ov-row{display:flex;gap:10px;align-items:center;justify-content:flex-start;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--bd2);background:none;color:var(--fg);height:auto;font:inherit;cursor:pointer;border-radius:0}
 .ov-row:hover,.ov-bar:hover{background:var(--hover)}
@@ -316,6 +328,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 @media (max-width:640px){.ov{padding:8px}.ov-cols{grid-template-columns:1fr}.ov-bar{grid-template-columns:minmax(90px,40%) 1fr 40px}}
 /* costs: contracts, licences */
 .sw-page{display:flex;flex-direction:column;gap:12px}
+.sw-page>.panelbox.lic{margin:12px 12px 0}
 .sw-page>.panelbox.lic>.hdr+.note{margin:0;padding:9px 12px;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .lic-bar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--bd2);vertical-align:middle;margin-right:8px;overflow:hidden}
 .lic-bar>span{display:block;height:100%;background:var(--accent)}
@@ -329,6 +342,14 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 table.contracts tfoot td{font-weight:600;border-top:2px solid var(--bd)}
 button.link{background:none;border:0;padding:0;height:auto;color:var(--linktext);cursor:pointer;font:inherit;text-align:left}
 button.link:hover{text-decoration:underline}
+.btnlink{display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);text-decoration:none;white-space:nowrap;vertical-align:middle}
+.btnlink:hover{filter:brightness(1.08)}
+.sheet-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
+.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:#fff}
+.company-logo img{max-width:170px;max-height:52px;object-fit:contain}
+/* The logo box is white in both themes (a logo is made for paper), so its placeholder text is a fixed grey. */
+.company-logo>.muted{color:#5b6470}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
@@ -443,6 +464,11 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 /* Edited by hand: a small pencil in the muted text colour, on the name's line; its title says what it means. */
 .mk-hand{display:inline-flex;align-items:center;margin-left:6px;color:var(--muted);vertical-align:middle;flex:none}
 .card .nmrow{display:flex;align-items:center;min-width:0}
+/* On a card the pencil sits in the top right corner, a little larger; the header keeps room for it. */
+.card{position:relative}
+.card .mk-hand{position:absolute;top:9px;right:10px;margin:0}
+.card .mk-hand svg{width:15px;height:15px}
+.card:has(.mk-hand) .ch{padding-right:22px}
 .card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
@@ -576,6 +602,10 @@ a.link:hover{text-decoration:underline}
 .pchk{display:inline-flex;gap:6px;align-items:center;font-size:12px;white-space:normal;min-width:0}
 .pchk input{height:auto}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;padding:10px 12px}
+.trules td input:not([type=checkbox]),.trules td select{width:100%}
+.trules tr.off td{opacity:.55}
+.trules td.act{white-space:nowrap}
+.pgrid-extra{border-top:1px solid var(--bd2);grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .hist{list-style:none;margin:0;padding:6px 12px 10px;font-size:12px}
 .hist li{display:flex;gap:10px;align-items:center;padding:4px 0;line-height:1.5;border-bottom:1px dashed var(--bd2)}
 .hist li:last-child{border-bottom:none}

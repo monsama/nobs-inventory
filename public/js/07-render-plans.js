@@ -1,6 +1,6 @@
 import { setAppVersion, setPlans } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
+import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderOverview } from './10-overview.js';
@@ -15,6 +15,15 @@ export let planMode = 'view';
 export let planPlace = null;
 export let planDraw = null;
 export let planDrag = null;
+let planListDrag = null, listDragDone = false;   /* a device dragged from the list; a drag is not also a click */
+/* The area under a point of the screen, with the place on the plan in percent, or null. */
+function dropSpot(plan, cx, cy){
+  const c = $('#plCanvas'); if (!c || !plan) return null;
+  const r = c.getBoundingClientRect();
+  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+  const x = pctOf(cx, r.left, r.width), y = pctOf(cy, r.top, r.height);
+  return {x, y, area: areaAt(plan, x, y)};
+}
 /* The rectangles of an area being drawn, before Done. */
 export let planParts = [];
 /* The area that new rectangles are added to, after it is clicked. */
@@ -85,13 +94,13 @@ export function renderPlans(){
         <button id="plDel" class="danger-text">Delete plan</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
       <span class="grow"></span>
-      ${plan ? `<span class="muted">${(plan.areas || []).length} areas · ${planDevices(plan).length} devices</span>` : ''}
+      ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
   const body = plan ? `<div class="pl-body">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
         <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices"></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Choose a device, then click the plan to place it. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${planCanvas(plan)}</div></div>`
     : `<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p><button class="primary" id="plNew2">New plan</button></div>`;
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
@@ -110,7 +119,13 @@ export function renderPlans(){
   if (!plan) return;
   renderPlanList(plan);
   $('#plQ').oninput = () => renderPlanList(plan);
-  $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
+  $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
+  /* A device can also be dragged from the list into an area: it is placed where it is dropped and gets the area's room. */
+  $('#plList').onpointerdown = e => {
+    const b = e.target.closest('[data-plitem]'); if (!b || e.button !== 0 || !canEdit()) return;
+    listDragDone = false;
+    planListDrag = {id: b.dataset.plitem, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label: b.querySelector('.pl-n').textContent};
+  };
   const c = $('#plCanvas');
   c.onpointerdown = e => {
     if (e.target.closest('.pl-pin,.pl-x') || e.button !== 0) return;
@@ -208,6 +223,19 @@ export function drawPreview(){
 }
 document.addEventListener('pointermove', e => {
   const c = $('#plCanvas'); if (!c) return;
+  if (planListDrag){
+    const d = planListDrag;
+    if (!d.moved && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 5){
+      d.moved = true;
+      d.ghost = document.createElement('div'); d.ghost.className = 'pl-ghost'; d.ghost.textContent = d.label; document.body.appendChild(d.ghost);
+      document.body.classList.add('pl-dragging');
+    }
+    if (d.moved){
+      d.ghost.style.left = e.clientX + 12 + 'px'; d.ghost.style.top = e.clientY + 8 + 'px';
+      const spot = dropSpot(planById(planSel), e.clientX, e.clientY);
+      c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
+    }
+  }
   if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
   if (planAreaDrag){
     const r = c.getBoundingClientRect(), d = planAreaDrag;
@@ -225,7 +253,20 @@ document.addEventListener('pointermove', e => {
     if (pin){ pin.style.left = planDrag.x + '%'; pin.style.top = planDrag.y + '%'; }
   }
 });
-document.addEventListener('pointerup', () => {
+document.addEventListener('pointerup', e => {
+  if (planListDrag){
+    const d = planListDrag; planListDrag = null;
+    if (d.moved){
+      listDragDone = true; setTimeout(() => { listDragDone = false; }, 0);
+      d.ghost.remove(); document.body.classList.remove('pl-dragging');
+      document.querySelectorAll('.droptarget').forEach(el => el.classList.remove('droptarget'));
+      const plan = planById(planSel), o = byId(d.id), spot = dropSpot(plan, e.clientX, e.clientY);
+      if (o && spot){
+        if (spot.area) placeDevice(plan, o, round1(spot.x), round1(spot.y));
+        else toast('A device goes inside an area. Drop it on one.');
+      }
+    }
+  }
   if (planDraw){
     const d = planDraw; planDraw = null;
     const rect = {x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0)};
@@ -408,7 +449,9 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, currency: COSTS.currency || 'CHF'};
+  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
+  if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
@@ -563,6 +606,8 @@ export function applyState(d){
   DOMAINS.splice(0, DOMAINS.length, ...(d.domains || []));
   MODELS.splice(0, MODELS.length, ...(d.models || []));
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
+  st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
+  COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';
   SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
   Object.assign(FIELD_LAYOUT, d.fieldLayout || {});
@@ -577,7 +622,7 @@ export function applyState(d){
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
-  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
+  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   objs.forEach(bindUser);
 }
 /* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history

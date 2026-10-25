@@ -1,4 +1,5 @@
-import { dayText, daysSince } from './01-core.js';
+import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
+import { COMPANY, dayText, daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -122,6 +123,71 @@ export function renderTypeMap(){
   };
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }
+/* The type rules: shipped with the app and editable here. The first rule that matches a device decides its type. A copy
+   of the shipped list is kept once it is changed; Back to the defaults goes back to the shipped one. */
+export function renderTypeRules(){
+  const el = $('#setTypeRules'); if (!el) return;
+  if (!LS_ON()){ el.innerHTML = ''; return; }
+  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const own = Array.isArray(st.typeRules);
+  const rules = own ? st.typeRules : DEFAULT_TYPE_RULES;
+  const opt = (map, sel) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(typeof v === 'string' ? v : v.label)}</option>`).join('');
+  el.innerHTML = `<div class="panelbox"><div class="hdr">Type rules <span class="cnt">${own ? 'changed' : 'as shipped'} · ${rules.length}</span></div>
+    <p class="note">The type a device from Lansweeper gets: the first rule that matches decides, top to bottom. The names in the table above come first, and Windows' own word (workstation or server) last. Words are separated by commas; a word of three letters or less matches a whole word only.</p>
+    <div style="overflow-x:auto"><table class="grid mini trules" style="min-width:760px;table-layout:fixed"><colgroup><col style="width:44px"><col style="width:200px"><col><col style="width:180px"><col style="width:112px"></colgroup>
+      <thead><tr><th>On</th><th>Looks at</th><th>Contains any of</th><th>Type</th><th></th></tr></thead><tbody>
+      ${rules.map((x, i) => `<tr${x.on === false ? ' class="off"' : ''}><td><input type="checkbox" data-tron="${i}" ${x.on !== false ? 'checked' : ''} aria-label="Rule ${i + 1} on" ${ro}></td>
+        <td><select data-trf="${i}" aria-label="Rule ${i + 1} looks at" ${ro}>${opt(RULE_FIELDS, x.field)}</select></td>
+        <td><input data-trw="${i}" value="${esc(x.words)}" aria-label="Rule ${i + 1} words" ${ro}></td>
+        <td><select data-trt="${i}" aria-label="Rule ${i + 1} type" ${ro}>${opt(TYPES, x.to)}</select></td>
+        <td class="act"><button class="icon ghost" data-trup="${i}" aria-label="Move rule ${i + 1} up" title="Up" ${ro || (i ? '' : 'disabled')}>↑</button><button class="icon ghost" data-trdn="${i}" aria-label="Move rule ${i + 1} down" title="Down" ${ro || (i < rules.length - 1 ? '' : 'disabled')}>↓</button><button class="icon ghost" data-trdel="${i}" aria-label="Remove rule ${i + 1}" title="Remove" ${ro}>×</button></td></tr>`).join('')}
+      </tbody></table></div>
+    <div class="addrel" style="padding:10px 12px"><button id="trAdd" ${ro}>Add a rule</button>${own ? `<button id="trReset" ${ro}>Back to the defaults</button>` : ''}<div class="grow"></div><button id="trApply" class="primary" ${ro}>Apply to existing devices…</button></div></div>`;
+  if (!edit) return;
+  /* Any change keeps a copy of the list: from then on it is this inventory's own. */
+  const put = list => { st.typeRules = list; queueServerSave(); renderTypeRules(); };
+  const copy = () => rules.map(x => ({...x}));
+  el.querySelectorAll('[data-tron]').forEach(c => c.onchange = () => { const l = copy(); l[+c.dataset.tron].on = c.checked; put(l); });
+  el.querySelectorAll('[data-trf]').forEach(c => c.onchange = () => { const l = copy(); l[+c.dataset.trf].field = c.value; put(l); });
+  el.querySelectorAll('[data-trt]').forEach(c => c.onchange = () => { const l = copy(); l[+c.dataset.trt].to = c.value; put(l); });
+  el.querySelectorAll('[data-trw]').forEach(c => c.onchange = () => { if (!c.value.trim()){ toast('A rule needs words to look for.'); c.value = rules[+c.dataset.trw].words; return; } const l = copy(); l[+c.dataset.trw].words = c.value.trim(); put(l); });
+  const move = (i, d) => { const l = copy(); [l[i], l[i + d]] = [l[i + d], l[i]]; put(l); };
+  el.querySelectorAll('[data-trup]').forEach(b => b.onclick = () => move(+b.dataset.trup, -1));
+  el.querySelectorAll('[data-trdn]').forEach(b => b.onclick = () => move(+b.dataset.trdn, 1));
+  el.querySelectorAll('[data-trdel]').forEach(b => b.onclick = () => { const l = copy(); l.splice(+b.dataset.trdel, 1); put(l); });
+  $('#trAdd').onclick = () => { put([{field: 'model', words: 'new words', to: 'other', on: true}, ...copy()]); const w = el.querySelector('[data-trw="0"]'); if (w){ w.focus(); w.select(); } };
+  const reset = $('#trReset'); if (reset) reset.onclick = () => { if (confirm('Go back to the rules shipped with the app? Your changes to the rules are lost.')) put(null); };
+  $('#trApply').onclick = retypeModal;
+}
+/* Apply to existing devices: what would change, each with a box; only the ticked ones change. A type set by hand is
+   never in the list. */
+async function retypeModal(){
+  await flushSave();
+  const r = await fetch('api/feed/retype', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: '{}'});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok){ toast(j.error || 'The rules could not be checked.'); return; }
+  const list = j.changes || [];
+  const label = t => esc(TYPES[t] ? TYPES[t].label : t);
+  modal(`<div class="mh">Apply the type rules to existing devices</div>
+    <div class="mb">${list.length ? `<p class="note">${list.length} ${list.length === 1 ? 'device from Lansweeper gets' : 'devices from Lansweeper get'} another type by the rules. Untick the ones to leave as they are. A type set by hand is never changed, and each change is in the device's history.</p>
+      <div style="overflow:auto;max-height:52vh"><table class="grid mini" style="min-width:680px"><thead><tr><th><input type="checkbox" id="rtAll" checked aria-label="All"></th><th>Device</th><th>Lansweeper type</th><th>Model</th><th>Now</th><th>Becomes</th></tr></thead><tbody>
+      ${list.map(x => `<tr><td><input type="checkbox" data-rt="${esc(x.id)}" checked aria-label="Change ${esc(x.name)}"></td><td><b>${esc(x.name)}</b> <span class="code">${esc(x.code)}</span></td><td>${esc(x.assetType)}</td><td>${esc(x.model)}</td><td>${label(x.from)}</td><td><b>${label(x.to)}</b></td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="note">Every device from Lansweeper already has the type the rules give it.</p>'}</div>
+    <div class="mf"><button id="rtCancel">${list.length ? 'Cancel' : 'Close'}</button>${list.length ? `<button id="rtOk" class="primary">Change ${list.length} ${list.length === 1 ? 'device' : 'devices'}</button>` : ''}</div>`, 'wide');
+  $('#rtCancel').onclick = closeModal;
+  if (!list.length) return;
+  const boxes = () => [...document.querySelectorAll('[data-rt]')];
+  const count = () => { const n = boxes().filter(b => b.checked).length; $('#rtOk').textContent = `Change ${n} ${n === 1 ? 'device' : 'devices'}`; $('#rtOk').disabled = !n; };
+  $('#rtAll').onchange = e => { boxes().forEach(b => { b.checked = e.target.checked; }); count(); };
+  boxes().forEach(b => b.onchange = count);
+  $('#rtOk').onclick = async () => {
+    const ids = boxes().filter(b => b.checked).map(b => b.dataset.rt);
+    const x = await fetch('api/feed/retype', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
+    const k = await x.json().catch(() => ({}));
+    if (!x.ok){ toast(k.error || 'Not changed.'); return; }
+    closeModal(); toast(`${k.changed} ${k.changed === 1 ? 'device' : 'devices'} changed type`); await reloadFromServer();
+  };
+}
 /* Microsoft Graph: the join status, Intune enrolment and compliance of the devices, matched by serial number. Set up in
    four steps; the server makes the certificate and keeps its key, so no file is copied to the server. */
 const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
@@ -219,12 +285,12 @@ export function renderSetPane(){
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div><div id="setTypeRules"></div>' + (LS_ON() ? policyPane : ''),
     directory: '<div id="setLdap"></div><div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
-    users: '<div id="setUsers"></div>',
+    users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
@@ -232,7 +298,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -423,6 +489,39 @@ export function renderSetUsers(){
       if (!r.ok){ toast('Added ' + name + ', but the password was not set. Use Password in the list.'); st.setTab = 'users'; openSettings(); return; }
     }
     toast('Added ' + name); st.setTab = 'users'; openSettings();
+  };
+}
+/* The company the inventory belongs to: its name and logo, printed on entry sheets instead of NOBS Inventory. A logo is
+   scaled to fit 600 × 200 and kept as a PNG, so an SVG, WebP or GIF works as well. */
+export function renderSetCompany(){
+  const el = $('#setCompany'); if (!el) return;
+  const edit = canEdit();
+  el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
+    <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
+    <div class="form" style="padding:10px 12px">
+      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
+      <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
+        <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
+        <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>
+    </div><p class="note" id="coMsg" role="status" style="padding:0 12px 10px"></p></div>`;
+  $('#coName').onchange = e => { COMPANY.name = e.target.value.trim(); queueServerSave(); toast('Company name saved'); };
+  $('#coPick').onclick = () => $('#coFile').click();
+  const del = $('#coDel'); if (del) del.onclick = () => { COMPANY.logo = ''; queueServerSave(); renderSetCompany(); toast('Logo removed'); };
+  $('#coFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const msg = $('#coMsg');
+    if (f.size > 5 * 1024 * 1024){ msg.textContent = 'The file is larger than 5 MB.'; return; }
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('This file is not an image the browser can read.')); i.src = url; });
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth || 600, h = img.naturalHeight || 200, k = Math.min(1, 600 / w, 200 / h);
+      const c = Object.assign(document.createElement('canvas'), {width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k))});
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const png = c.toDataURL('image/png');
+      if (png.length > 560000){ msg.textContent = 'The logo is too detailed to keep. Try a simpler or smaller picture.'; return; }
+      COMPANY.logo = png; queueServerSave(); renderSetCompany(); toast('Logo saved');
+    } catch (err) { msg.textContent = err.message; }
   };
 }
 /* A manual user without a login: the login and the first password are set together, so the user can sign in at once. */

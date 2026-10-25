@@ -160,7 +160,7 @@ test('feed import over HTTP saves the merge', async () => {
 test('Lansweeper asset type names land in the matching app type', async () => {
   const { mergeRecords } = await import('../server/feed.js');
   const expected = {
-    'Windows': 'pc', 'Apple Mac': 'pc', 'Computer': 'pc', 'Laptop': 'pc', 'Linux': 'server', 'VMware': 'server',
+    'Windows': 'pc', 'Apple Mac': 'pc', 'Computer': 'pc', 'Laptop': 'notebook', 'Notebook': 'notebook', 'Camera': 'camera', 'Linux': 'server', 'VMware': 'server',
     'Switch': 'switch', 'Router': 'router', 'Firewall': 'firewall', 'Printer': 'printer', 'Tablet': 'mobile', 'iPad': 'ios',
     'iPhone': 'ios', 'Android': 'android', 'Mobile': 'mobile', 'Modem': 'modem', 'Phone': 'sip', 'VoIP': 'sip', 'VOIP phone': 'sip', 'DECT': 'sip', 'DECT handset': 'sip', 'Telefon': 'sip', 'Gigaset': 'sip',
     'Wireless Access point': 'accesspoint', 'Wifi': 'accesspoint', 'UPS': 'other', 'Network device': 'other', 'Webserver': 'other', 'Web': 'other', 'Virtual machine': 'vm'

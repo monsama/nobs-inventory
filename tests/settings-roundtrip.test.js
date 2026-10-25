@@ -74,3 +74,11 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
   for (const k of ['mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty']) assert.ok(back.policy[k] !== undefined, 'the overwrite policy knows ' + k);
   db.close(); fresh.close();
 });
+
+test('the company name and logo are kept; a logo that is not a PNG or JPEG is refused', async () => {
+  const { checkState } = await import('../server/state.js');
+  const base = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
+  checkState({ ...base, company: { name: 'Example AG', logo: 'data:image/png;base64,iVBORw0KGgo=' } });
+  assert.throws(() => checkState({ ...base, company: { name: 'x', logo: 'data:image/svg+xml;base64,PHN2Zz4=' } }), /PNG or JPEG/);
+  assert.throws(() => checkState({ ...base, company: { name: 'x'.repeat(81) } }), /80 characters/);
+});

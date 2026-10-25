@@ -51,6 +51,19 @@ try {
   assert.deepEqual(await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort()), ['o4', 'o5'], 'the PC and its monitor are drawn');
   await p.selectOption('#mapFocus', '');
   await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  // A type filter: the filtered objects are drawn with the objects linked to them, so the switch's links show.
+  const typeOf = id => p.evaluate(async id => (await import('/js/01-core.js')).byId(id).type, id);
+  const t2 = await typeOf('o2');
+  await p.evaluate(async t => { const core = await import('/js/01-core.js'); core.st.type = t; (await import('/js/02-views.js')).renderMap(); }, t2);
+  await p.waitForFunction(() => /relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  const ids = await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id));
+  assert.ok(ids.includes('o2') && ids.includes('o1'), 'a filtered device and the switch it is linked to: ' + ids.join(','));
+  // A filter with no relations at all: the message names the filter, and the toolbar still works to switch back.
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.type = 'no-such-type'; (await import('/js/02-views.js')).renderMap(); });
+  await p.waitForSelector('#mapClr');
+  await p.selectOption('#mapFocus', 'o1');
+  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).st.type = null; });
   assert.deepEqual(errors, [], 'page errors');
   console.log('relationships of one object: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

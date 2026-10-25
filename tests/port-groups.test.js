@@ -52,3 +52,7 @@ test('a LAG is linked to one other LAG only', () => {
     { id: 'l1', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Core', fromLag: 'Uplink' },
     { id: 'l2', from: 'a', to: 'b', kind: 'uplink', port: null, lag: 'Core', fromLag: 'Uplink' }])), /linked twice/);
 });
+
+test('two LAGs of one device cannot share a name, since a LAG link names its LAG', () => {
+  assert.throws(() => checkState(base({ portGroups: [{ name: 'Core', from: 25, to: 26, lag: true }, { name: 'core', from: 27, to: 28, lag: true }] })), /two LAGs are named core/);
+});

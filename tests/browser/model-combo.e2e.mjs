@@ -44,6 +44,17 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').model === 'HP EliteDesk 800 G6');
   await page.fill(field, 'Len'); await page.keyboard.press('Escape');
   assert.equal(await page.isHidden(list), true, 'Escape closes the list');
+  // the empty field says what it is for; a new model is marked; a near miss offers the model in the list
+  assert.equal(await page.getAttribute(field, 'placeholder'), 'Type or pick a model');
+  const note = '#f_o1_model_note';
+  await page.fill(field, 'Fujitsu Esprimo P758');
+  assert.match(await page.textContent(note), /New model – added to the list when saved/);
+  await page.fill(field, 'Dell Latitde 5440');
+  assert.match(await page.textContent(note), /Did you mean Dell Latitude 5440\?/);
+  await page.click(note + ' .combo-use');
+  assert.equal(await page.inputValue(field), 'Dell Latitude 5440');
+  assert.equal(await page.isHidden(note), true, 'the note goes once the model is one in the list');
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').model === 'Dell Latitude 5440');
   // a model the feed owns is locked, list included
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o4'));
   await page.waitForSelector('[data-k=model][disabled]');

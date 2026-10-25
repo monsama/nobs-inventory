@@ -6,6 +6,7 @@ import { startServer, signIn } from './helpers.js';
 import { loadState, saveState } from '../server/state.js';
 import { setPassword } from '../server/auth.js';
 import { takeBackup, restoreBackup } from '../server/backup.js';
+import { pdfText } from './pdf-text.js';
 import { newPassword, purgePasswords, sheetKeyOf, openSheet, sealSheet, PASSWORD_DAYS } from '../server/sheets.js';
 
 /* Entry sheets: a person's devices and the initial password of their AD account, kept sealed so they can be printed
@@ -63,16 +64,28 @@ test('a sheet is made from the inventory, kept sealed, opened again, and its pas
     const list = (await srv.call('GET', '/api/sheets?user=u-anna', { cookie: a.cookie })).json;
     assert.deepEqual(list.sheets.map(s => [s.id, s.password]), [[id, 'kept']]);
     assert.equal((await srv.call('GET', '/api/sheets/' + id, { cookie: a.cookie })).json.sheet.password, sheet.password);
+    // as a PDF, with the company's name: the password is on it while the kept sheet has it
+    const s0 = loadState(srv.db); saveState(srv.db, { ...s0, company: { name: 'Example AG', logo: '' } });
+    const pdfOf = async () => { const r = await fetch(srv.base + `/api/sheets/${id}/pdf`, { headers: { cookie: a.cookie } }); return { r, text: pdfText(Buffer.from(await r.arrayBuffer())) }; };
+    let pdf = await pdfOf();
+    assert.equal(pdf.r.status, 200);
+    assert.equal(pdf.r.headers.get('content-type'), 'application/pdf');
+    assert.match(pdf.r.headers.get('content-disposition'), /entry-sheet-Anna-Muster-\d{4}-\d{2}-\d{2}\.pdf/);
+    for (const t of [sheet.password, 'Anna Muster', 'Example AG', 'SN-1', 'MON-001', 'Start 1 November', 'Entry sheet']) assert.ok(pdf.text.includes(t), 'not on the PDF: ' + t);
     assert.equal((await srv.call('POST', `/api/sheets/${id}/changed`, { cookie: a.cookie })).status, 200);
     const again = (await srv.call('GET', '/api/sheets/' + id, { cookie: a.cookie })).json;
     assert.equal(again.password, 'changed');
     assert.equal(again.sheet.password, undefined, 'the password is gone from the kept sheet');
     assert.deepEqual(again.sheet.devices.map(d => d.name), ['WIL-NB-001', 'MON-001'], 'the rest of the sheet stays');
+    pdf = await pdfOf();
+    assert.ok(!pdf.text.includes(sheet.password), 'the password is still on the PDF');
+    assert.ok(pdf.text.includes('no longer on this copy'));
 
     // a viewer may not see, make or open sheets
     const v = await signIn(srv, 'viewer', 'viewerpass123');
     assert.equal((await srv.call('GET', '/api/sheets?user=u-anna', { cookie: v.cookie })).status, 403);
     assert.equal((await srv.call('GET', '/api/sheets/' + id, { cookie: v.cookie })).status, 403);
+    assert.equal((await fetch(srv.base + `/api/sheets/${id}/pdf`, { headers: { cookie: v.cookie } })).status, 403);
     assert.equal((await srv.call('POST', '/api/sheets', { cookie: v.cookie, body: { userId: 'u-anna', deviceIds: [], login: 'x' } })).status, 403);
 
     // what the inventory does not hold is refused

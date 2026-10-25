@@ -3,16 +3,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { loadState, saveState, applyChanges, factoryReset } from './state.js';
+import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
 import { cleanIpLocations } from './lsnet.js';
-import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
+import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
+import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
@@ -209,8 +210,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
         if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
       };
+      /* The names of objects and users being removed are read before they are gone. */
+      const removes = Array.isArray(req.body?.dels) && req.body.dels.some(c => c && (c.kind === 'object' || c.kind === 'user'));
+      const before = removes ? loadState(db) : null;
       const result = applyChanges(db, req.body, guard);
-      audit(db, req.user.id, 'save changes');
+      const skipped = result && Array.isArray(result.conflicts) && result.conflicts.length ? ` (${result.conflicts.length} not saved: changed by someone else first)` : '';
+      audit(db, req.user.id, describeChanges(req.body, before) + skipped);
       res.json(result);
     } catch (e) { next(e); }
   });
@@ -243,6 +248,33 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     }
   });
 
+  /* The type rules applied to the devices already in the inventory. Without ids: the devices whose type would change.
+     With ids: those of them change, after a backup. A type set by hand is never changed, nor a device that is not from
+     Lansweeper or is retired. */
+  /* Set by hand: marked so when changed on the device page, or an earlier change by a person is in its history. */
+  const typeSetByHand = (s, o) => (o.ovr && o.ovr.type === false) || (s.history[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
+  const retypes = s => s.objs.filter(o => o.feed && o.feed.sys === 'Lansweeper' && o.status !== 'retired' && o.type !== 'rack' && !typeSetByHand(s, o))
+    .map(o => ({ o, to: typeFor(s, o.feed.assetType, o.model, o.feed.role, o.name, o.feed.chassis) }))
+    .filter(x => x.to !== x.o.type && (KNOWN_TYPES.includes(x.to) || (s.types || {})[x.to]));
+  app.post('/api/feed/retype', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const s = loadState(db);
+      const list = retypes(s);
+      const ids = Array.isArray(req.body && req.body.ids) ? new Set(req.body.ids.map(String)) : null;
+      if (!ids) return res.json({ changes: list.map(({ o, to }) => ({ id: o.id, code: o.code, name: o.name, model: o.model || '', assetType: o.feed.assetType || '', from: o.type, to })) });
+      const pick = list.filter(x => ids.has(x.o.id));
+      if (!pick.length) return res.json({ changed: 0 });
+      autoBackup(db, 'before applying the type rules');
+      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      for (const { o, to } of pick) {
+        (s.history[o.id] ??= []).unshift({ t: now, msg: `Type changed from ${o.type} to ${to} by the type rules (${req.user.name || req.user.login})` });
+        o.type = to;
+      }
+      saveState(db, s);
+      audit(db, req.user.id, `type rules applied to ${pick.length} devices`);
+      res.json({ changed: pick.length });
+    } catch (e) { next(e); }
+  });
   app.post('/api/feed/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       lsRequire('api');
@@ -362,6 +394,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   app.get('/api/sheets/:id', requireUser, requireAdmin, (req, res, next) => {
     try { purgePasswords(db, SHEET_KEY); const s = getSheet(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${s.id} opened`); res.json(s); } catch (e) { next(e); }
+  });
+  /* The sheet as a PDF, with the company's name and logo. It holds the password while the kept sheet does. */
+  app.get('/api/sheets/:id/pdf', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      purgePasswords(db, SHEET_KEY);
+      const s = getSheet(db, SHEET_KEY, req.params.id);
+      const pdf = await sheetPdf(s.sheet, loadState(db).company || {});
+      audit(db, req.user.id, `entry sheet ${s.id} downloaded as PDF`);
+      const file = `entry-sheet-${s.sheet.person.name.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${String(s.sheet.issued).slice(0, 10)}.pdf`;
+      res.type('application/pdf').attachment(file).set('Cache-Control', 'no-store').send(pdf);
+    } catch (e) { next(e); }
   });
   app.post('/api/sheets/:id/changed', requireUser, requireAdmin, (req, res, next) => {
     try { markChanged(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${req.params.id}: password marked as changed, removed from the sheet`); res.json({ ok: true }); } catch (e) { next(e); }

@@ -46,6 +46,21 @@ try {
   assert.equal(area.x, 20, 'the box of the area moved too');
   const pc = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'o2').planPos);
   assert.deepEqual([pc.x, pc.y], [22, 30], 'the device inside the area moved with it');
+  // A device dragged from the list into the area is placed where it is dropped and gets the area's room;
+  // dropped outside any area it stays off the plan.
+  const drag = async (id, [tx, ty]) => {
+    const it = await p.locator(`[data-plitem=${id}]`).boundingBox();
+    await p.mouse.move(it.x + 20, it.y + it.height / 2); await p.mouse.down();
+    await p.mouse.move(tx, ty, { steps: 8 }); await p.mouse.up();
+  };
+  await drag('o3', at(80, 80));
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).byId('o3').planPos), undefined, 'outside an area: not placed');
+  await drag('o3', at(37, 23));
+  await until(p, async () => !!(await import('/js/01-core.js')).byId('o3').planPos);
+  const o3 = await p.evaluate(async () => (await import('/js/01-core.js')).byId('o3'));
+  assert.deepEqual([o3.planPos.plan, Math.round(o3.planPos.x), Math.round(o3.planPos.y)], ['pl1', 37, 23], 'placed where dropped');
+  assert.equal(o3.loc, 'Zürich HQ / Hall', 'the device is in the area\'s room');
+  assert.ok(await p.isVisible('[data-pin=o3]'), 'the device shows on the plan');
   // A clicked area takes more rectangles: Add rectangle draws one, Done widens the area to take it.
   const [cx, cy] = at(25, 17);
   await p.mouse.move(cx, cy); await p.mouse.down(); await p.mouse.up();
