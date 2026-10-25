@@ -386,6 +386,19 @@ td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
 table.grid tr:nth-child(even) td{background:var(--even)}
 table.grid tbody tr{cursor:pointer}
 table.grid tbody tr:hover td{background:var(--hover)}
+/* Pinned columns (selection, code, name) stay on the left while a wide table scrolls; a shade marks their edge. */
+table.grid[data-pinned="1"] tr>:nth-child(1),table.grid[data-pinned="2"] tr>:nth-child(-n+2),table.grid[data-pinned="3"] tr>:nth-child(-n+3){position:sticky;z-index:1}
+table.grid[data-pinned] tr>:nth-child(1){left:var(--pin0)}
+table.grid[data-pinned] tr>:nth-child(2){left:var(--pin1)}
+table.grid[data-pinned] tr>:nth-child(3){left:var(--pin2)}
+table.grid[data-pinned] thead tr>:nth-child(-n+3){z-index:3}
+/* Sticky cells keep their own edges, and the selection column shows no ellipsis of its own. */
+table.grid[data-pinned]{border-collapse:separate;border-spacing:0}
+table.grid tr>.selcol,table.grid[data-pinned] tbody tr>td:first-child{text-overflow:clip;padding-left:10px;padding-right:4px}
+table.grid[data-pinned] tbody tr>td:nth-child(-n+3){background:var(--bg)}
+table.grid[data-pinned] tbody tr:nth-child(even)>td:nth-child(-n+3){background:var(--even)}
+table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover)}
+table.grid[data-pinned="3"] tr>:nth-child(3),table.grid[data-pinned="2"] tr>:nth-child(2),table.grid[data-pinned="1"] tr>:nth-child(1){box-shadow:4px 0 6px -4px rgba(0,0,0,.35)}
 table.grid td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
 table.grid.mini{min-width:640px}
 table.grid.mini tbody tr{cursor:default}

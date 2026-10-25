@@ -32,8 +32,18 @@ export function applyTable(t){
   const s = TBL[tableKey(t)]; const head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
   [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
-  t.style.tableLayout = Object.keys(s.widths).length ? 'fixed' : '';
-  [...head.cells].forEach(th => { const w = s.widths[th.dataset.ci]; th.style.width = w ? w + 'px' : ''; });
+  /* A column is as wide as it was dragged to, or as its default (data-w). When every column has a width, the table is
+     exactly as wide as its columns, so the box around it scrolls sideways instead of squeezing them. */
+  const ws = [...head.cells].map(th => s.widths[th.dataset.ci] || +th.dataset.w || 0);
+  const all = ws.every(Boolean);
+  t.style.tableLayout = all || Object.keys(s.widths).length ? 'fixed' : '';
+  [...head.cells].forEach((th, i) => { th.style.width = ws[i] ? ws[i] + 'px' : ''; });
+  t.style.width = all ? ws.reduce((a, b) => a + b, 0) + 'px' : '';
+  t.style.minWidth = all ? '100%' : '';
+  /* Columns marked to stay (selection, code, name) stay on the left while the table scrolls, as long as they come first. */
+  let left = 0, pinned = 0;
+  for (const th of head.cells){ if (!th.dataset.pin || !th.style.width) break; t.style.setProperty('--pin' + pinned, left + 'px'); left += parseFloat(th.style.width); pinned++; }
+  t.dataset.pinned = pinned;
   applyView(t);
 }
 /* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */

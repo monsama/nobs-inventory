@@ -242,25 +242,25 @@ export function addSearchHits(){
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
-  {k:'code', label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
-  {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
-  {k:'type', label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
-  {k:'model', label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
-  {k:'ip', label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
-  {k:'mac', label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
-  {k:'serial', label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
-  {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
-  {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
-  {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
-  {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
-  {k:'price', label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
-  {k:'supplier', label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
-  {k:'invoice', label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
-  {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
-  {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
+  {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
+  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
+  {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
+  {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
+  {k:'mac', w:150, label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
+  {k:'serial', w:160, label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
+  {k:'loc', w:190, label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
+  {k:'rack', w:130, label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
+  {k:'user', w:160, label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'warranty', w:130, label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
+  {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
+  {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
+  {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
+  {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
+  {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
-  {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
-  {k:'ls', label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
+  {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
+  {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice'];
@@ -309,8 +309,8 @@ export function renderTable(){
   const idx = relIndex();   /* one index of the relations for all rows */
   const shown = TABLE_COLS.filter(c => c.fixed || !hiddenCols().includes(c.k));
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
-    <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    ${shown.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
+    <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
+    ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
     ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
