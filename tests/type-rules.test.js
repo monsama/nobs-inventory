@@ -26,6 +26,7 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Remote Access Controller', 'HPE iLO 5', 'srv01-ilo'), 'bmc', 'an iLO');
   assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'vm', 'the OmniStack controller is a VM, not an iLO');
   assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
+  assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'argoimm04.argo.intern'), 'bmc', 'an IBM IMM');
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-silo'), 'pc', 'ilo as a whole word only');
   assert.equal(t('VoIP', 'ALE International OXO050/042.001 GW_050/042', 'ALE International 172.21.103.5'), 'pbx', 'an OmniPCX Office is a phone system');
   assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');

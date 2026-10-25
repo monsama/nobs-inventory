@@ -591,6 +591,8 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .form label{color:var(--muted);font-size:12px}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
+/* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
+input.inherit::placeholder{color:var(--muted);font-style:italic;opacity:1}
 /* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
 .fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)}
 .wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}

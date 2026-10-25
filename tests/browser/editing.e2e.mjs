@@ -96,6 +96,23 @@ try {
   assert.match(await p.textContent('#toast'), /Added 2 subnets; 10\.100\.100\.0\/24 without its gateway 192\.168\.1\.1; skipped 10\.10\.30\.0\/25/);
   await p.click('#setClose');
 
+  // a device whose address is in a subnet takes that subnet, its gateway and its DNS servers without storing them
+  await core(async () => {
+    const c = await import('/js/01-core.js');
+    c.SUBNETS.push({ name: 'Office', cidr: '10.20.0.0/24', vid: null, gateway: '10.20.0.1', dns: ['10.20.0.5', '10.20.0.6'], ranges: [{ from: '10.20.0.100', to: '10.20.0.120', use: 'Static' }], types: [] });
+    c.byId('p1').ip = '10.20.0.42';
+    (await import('/js/02-views.js')).openObj('p1');
+  });
+  await p.waitForSelector('#f_p1_subnet');
+  assert.match(await p.textContent('#f_p1_subnet option[value=""]'), /Auto: Office · 10\.20\.0\.0\/24 \(from the address\)/);
+  assert.equal(await p.getAttribute('#f_p1_gateway', 'placeholder'), '10.20.0.1 · from Office');
+  assert.equal(await p.getAttribute('#f_p1_dns', 'placeholder'), '10.20.0.5, 10.20.0.6 · from Office');
+  assert.equal(await p.inputValue('#f_p1_gateway'), '', 'the gateway is not written into the device');
+  assert.equal(await p.isDisabled('[data-pick="p1"]'), false, 'Pick from range works with the subnet from the address');
+  if (process.env.NI_SHOTS){ await p.locator('#f_p1_subnet').scrollIntoViewIfNeeded(); const b = await p.locator('#f_p1_ip').boundingBox(); await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'subnet-inherit.png'), clip: { x: b.x - 140, y: b.y - 10, width: 560, height: 230 } }); }
+  await p.fill('#f_p1_gateway', '10.20.0.254'); await p.locator('#f_p1_gateway').press('Tab');
+  await until(p, async () => (await import('/js/01-core.js')).byId('p1').gateway === '10.20.0.254');
+
   // no racks: New rack opens New object with the type Rack
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
