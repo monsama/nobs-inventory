@@ -6,6 +6,8 @@ Inventory for PCs, servers, storage, phones, network gear, patch panels and rack
 
 Each version is a tag (`v0.2.0`) with a downloadable archive and checksum on the GitHub releases page, and a Docker image `ghcr.io/monsama/nobs-inventory:<version>`. The install pulls that image; it builds from source only if the pull fails.
 
+To release, raise the version on main (`node scripts/bump-version.mjs 0.9.7`), then either push the tag with `scripts/release.sh 0.9.7`, or run the **release** workflow by hand on main (Actions → release → Run workflow): it tags the version in `VERSION` and publishes it. A version that is already tagged is refused.
+
 ## Set up
 
 On a Linux server with Docker and the Compose plugin:
