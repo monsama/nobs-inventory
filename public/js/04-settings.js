@@ -596,7 +596,10 @@ export function renderSetLdap(){
     await flushSave();
     const r = await fetch('api/ldap/test', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
-    msg.innerHTML = r.ok ? `<span style="color:var(--ok)">Connected. ${j.people} users are in scope.</span>` : bad(j.error || 'The directory cannot be reached.');
+    /* Connected, but nobody in the sign-in group: most often the group's name or DN is not the one in the directory. */
+    msg.innerHTML = !r.ok ? bad(j.error || 'The directory cannot be reached.')
+      : j.people ? `<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`
+      : bad('Connected, but no user is in the sign-in group. Check the group\'s name or DN, and the search base.');
   };
   $('#ldapSync').onclick = async () => {
     const msg = $('#ldapMsg'), btn = $('#ldapSync');
