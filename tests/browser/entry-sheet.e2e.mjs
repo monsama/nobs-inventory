@@ -7,6 +7,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { pdfText } from '../pdf-text.js';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-sheet-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -37,6 +38,12 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
   await page.click('#setBtn'); await page.click('#setTabs [data-st=users]');
+  // the company: its name and logo go on the sheets instead of NOBS Inventory; an SVG logo is kept as a PNG
+  await page.fill('#coName', 'Argolite AG'); await page.locator('#coName').press('Tab');
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';
+  await page.setInputFiles('#coFile', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+  await page.waitForSelector('.company-logo img');
+  assert.match(await page.getAttribute('.company-logo img', 'src'), /^data:image\/png;base64,/);
   const row = page.locator('#setUsers tr', { hasText: 'Anna Muster' });
   await row.locator('[data-sheet]').click();
   await page.waitForSelector('#sheetMake');
@@ -49,8 +56,11 @@ try {
   await page.waitForSelector('#sheetPw');
   const pw = (await page.textContent('#sheetPw')).trim();
   assert.match(pw, /^[A-Za-z2-9]{4}(-[A-Za-z2-9]{4}){3}$/);
+  /* Printing starts after the sheet is shown (the logo is loaded first): wait for it. */
+  await page.waitForFunction(() => !!window.__printed);
   const printed = await page.evaluate(() => window.__printed);
-  for (const t of [pw, 'Anna Muster', 'Logistik', 'amuster', 'SN-LAT-1', 'MON-001', 'Desk 4, first floor', 'signature']) assert.ok(printed.includes(t), 'printed sheet lacks ' + t);
+  for (const t of [pw, 'Anna Muster', 'Logistik', 'amuster', 'SN-LAT-1', 'MON-001', 'Desk 4, first floor', 'signature', 'Argolite AG', 'data:image/png;base64,']) assert.ok(printed.includes(t), 'printed sheet lacks ' + t);
+  assert.ok(!printed.includes('NOBS Inventory'), 'the company replaces NOBS Inventory on the sheet');
   assert.ok(!printed.includes('OTHER-PC'));
   assert.equal(await page.locator('[data-sprint]').count(), 1, 'the sheet is kept');
   assert.match(await page.textContent('#mdl'), /On the sheet until/);
@@ -60,18 +70,22 @@ try {
     await p2.screenshot({ path: path.join(shots, 'sheet-print.png'), fullPage: true }); await p2.close();
   }
 
-  // downloaded again: the same sheet, with the password while it is kept
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-sdown]')]);
-  const file = fs.readFileSync(await dl.path(), 'utf8');
-  assert.match(dl.suggestedFilename(), /^entry-sheet-Anna-Muster-\d{4}-\d{2}-\d{2}\.html$/);
-  assert.ok(file.includes(pw) && file.includes('SN-MON-1') && file.startsWith('<!doctype html>'));
+  // downloaded as a PDF: the same sheet, with the password while it is kept, and the company's name
+  const pdfLink = 'a.btnlink[href$="/pdf"]';
+  await page.waitForSelector('.company-logo img, #sheetPw');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click(pdfLink)]);
+  const raw = fs.readFileSync(await dl.path());
+  assert.match(dl.suggestedFilename(), /^entry-sheet-Anna-Muster-\d{4}-\d{2}-\d{2}\.pdf$/);
+  assert.equal(raw.subarray(0, 5).toString(), '%PDF-');
+  const file = pdfText(raw);
+  assert.ok(file.includes(pw) && file.includes('SN-MON-1') && file.includes('Argolite AG'), 'the PDF lacks the password, a serial or the company');
 
   // marked as changed: the password leaves the kept sheet, the rest stays
   await page.click('[data-schanged]');
   await page.waitForSelector('#mdl .chip.ok');
   assert.equal(await page.locator('[data-schanged]').count(), 0);
-  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-sdown]')]);
-  const file2 = fs.readFileSync(await dl2.path(), 'utf8');
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click(pdfLink)]);
+  const file2 = pdfText(fs.readFileSync(await dl2.path()));
   assert.ok(!file2.includes(pw), 'the password is gone from the kept sheet');
   assert.ok(file2.includes('SN-LAT-1') && /no longer on this copy/.test(file2));
 

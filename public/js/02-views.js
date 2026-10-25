@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -147,7 +147,7 @@ export const CARD_FIELDS = {
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
 export const CARD_DEFAULTS = {
-  pc: ['ip', 'user', 'loc', 'warranty'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
+  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
   accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
   monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
   patch: ['ports', 'loc', 'purpose', 'serial'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
@@ -565,12 +565,27 @@ export function mapExportSvg(){
   return s.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#888');
 }
 
+/* The toolbar controls that redraw the map; bound also when the map is empty, so it can be switched back. */
+function bindMapToolbar(){
+  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
+  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
+  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
+  $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; const svg = $('#mapSvg'); if (svg) svg.classList.toggle('labels', st.mapLabels); };
+}
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
   const focus = st.mapFocus && byId(st.mapFocus) ? byId(st.mapFocus) : null;
   if (st.mapFocus && !focus) st.mapFocus = null;
   const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
-  const nodes = around ? objs.filter(o => around.has(o.id)) : filtered();
+  /* With a filter on (a type, a place, a search), the map shows the objects it finds and the objects linked to them, so
+     a notebook's monitor or switch is drawn with it; a relation needs both ends on the map. */
+  const found = around ? null : filtered(), narrowed = !!found && found.length < objs.length;
+  let nodes = around ? objs.filter(o => around.has(o.id)) : found;
+  if (narrowed){
+    const ids = new Set(found.map(o => o.id));
+    rels.filter(r => (ids.has(r.from) || ids.has(r.to)) && (st.mapAttached || !isAttached(r.kind))).forEach(r => { ids.add(r.from); ids.add(r.to); });
+    nodes = objs.filter(o => ids.has(o.id));
+  }
   const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <label class="muted" for="mapFocus">Relations of</label>
@@ -586,7 +601,11 @@ export function renderMap(){
   MAP.L = mapLayout(nodes);
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
-    $('#view').innerHTML = '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+    $('#view').innerHTML = narrowed
+      ? `<div class="empty">None of the ${found.length} objects in the current filter has relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
+      : '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+    const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
+    bindMapToolbar();
     return;
   }
   $('#mapCount').textContent = MAP.L.list.length + ' objects · ' + MAP.L.edges.length + ' relations';
@@ -624,10 +643,7 @@ export function renderMap(){
     const z0 = MAP.zoom, z1 = Math.min(2.5, Math.max(0.3, z0 * (e.deltaY < 0 ? 1.1 : 0.91)));
     MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
   }, {passive: false});
-  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
-  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
-  $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; svg.classList.toggle('labels', st.mapLabels); };
-  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
+  bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
   $('#mapFind').addEventListener('input', e => {
     st.mapFind = e.target.value;
@@ -676,10 +692,12 @@ export function renderPorts(){
   const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);
   /* Each group has its own colour on the front panel, shown in the legend below it. A LAG group has dashed ports. */
   const groupColour = i => `hsl(${(i * 97) % 360} 60% 42%)`;
+  /* A port in a linked LAG is in use by the device on the other end of the LAG. */
+  const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
   const portBtn = p => {
-    const inc = onPort(p), up = outPort(p);
-    const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : null;
-    const isUp = !!up || (inc[0] && isUplink(inc[0].kind));
+    const inc = onPort(p), up = outPort(p), lu = lagUse(p);
+    const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : lu ? lu.d : null;
+    const isUp = !!up || (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
     const poe = dev && (dev.type === 'sip');
     const note = (sw.portNotes || {})[p];
     const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
@@ -707,6 +725,8 @@ export function renderPorts(){
     if (r.fromLag != null && r.from === sw.id) rows.push({p: 'LAG ' + r.fromLag, d: byId(r.to), r, sub: flat(behind(byId(r.to)))});
   });
   const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
+  const selLag = st.portNo != null ? lagUse(st.portNo) : null;
+  const selGroup = st.portNo != null ? groupOf(st.portNo) : null;
 
   $('#view').innerHTML = `<div id="net">
     <div class="panelbox"><div class="hdr">Port setup</div>
@@ -725,7 +745,7 @@ export function renderPorts(){
       <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="What is on this port, e.g. Printer, 3rd floor" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
+    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button>`}</div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
       <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag"> LAG</label><button id="pgAdd">Add group</button></div></div>
@@ -745,6 +765,7 @@ export function renderPorts(){
     if (!name){ toast('Give the group a name.'); return; }
     if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
     if (groups0.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
+    if (groups0.some(g => g.name.toLowerCase() === name.toLowerCase())){ toast(`There is already a group named ${name}. Give it another name.`); return; }
     if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to)){ toast('A device is on one of these ports. Move it first.'); return; }
     const lag = $('#pgLag').checked;
     sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})}];

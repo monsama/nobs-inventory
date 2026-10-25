@@ -103,3 +103,49 @@ test('subnets the adapters report and the inventory lacks are suggested, with th
   mergeRecords(s, recordsFromJson([{ name: 'E1', ref: 'e1', ip: '192.168.5.10', mask: '255.255.255.0', gateway: '192.168.5.1' }]), now);
   assert.deepEqual(s.lsNets.map(n => n.cidr).sort(), ['10.10.20.0/24', '172.21.108.0/24', '192.168.5.0/24']);
 });
+
+test('a drive or motion controller that Lansweeper files as a switch is a PLC / controller; a real switch stays one', async () => {
+  const { typeFor } = await import('../server/feed.js');
+  assert.equal(typeFor({}, 'Switch', 'SIEMENS AG, Digital Factory, Motion Control System SINAMICS G120 CU240E-2'), 'plc');
+  assert.equal(typeFor({}, 'Network device', 'Allen-Bradley PowerFlex 525'), 'plc');
+  assert.equal(typeFor({}, 'Switch', 'Siemens SCALANCE XC208'), 'switch');
+  assert.equal(typeFor({ typeMap: { switch: 'switch' } }, 'Switch', 'SINAMICS G120'), 'switch', 'a mapping set in Settings still wins');
+});
+
+test('every box in Feed may overwrite does what it says: location, room from IP, IPv6, Windows update, software, monitors, departments', () => {
+  const pc = (extra = {}) => ({ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: 'Willisau / Büro', ovr: {}, feed: { sys: 'Lansweeper', ref: '1' }, ...extra });
+  const mon = { id: 'm', code: 'INV-2', type: 'monitor', name: 'MON-A', status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref: '2' } };
+  const rec = { name: 'PC-A', ref: '1', ip: '172.21.108.14', ip6: '2001:DB8::14', patch: 'KB5066835 (2026-10-14)', location: 'Willisau / Lager',
+    user: 'Anna Muster', userDept: 'Logistik', software: [{ name: 'Tool A', version: '1' }], links: [{ kind: 'attached', ref: '2' }] };
+  const run = (policy, objs = [pc(), { ...mon }], users = []) => {
+    const s = base({ policy, objs, users });
+    mergeRecords(s, recordsFromJson([rec, { name: 'MON-A', ref: '2' }]), now, IP_LOCATIONS);
+    return s;
+  };
+  const all = { loc: true, ipRoom: true, ip6: true, patch: true, software: true, links: true, dept: true, user: true };
+  let s = run(all);
+  let o = s.objs.find(x => x.id === 'a');
+  assert.equal(o.loc, 'Willisau / Lager', 'Location: Lansweeper\'s room replaces the one the device had');
+  assert.match(s.history.a[0].msg, /Location changed from Willisau \/ Büro to Willisau \/ Lager/);
+  assert.equal(o.ip6, '2001:db8::14', 'IPv6 is kept in its stored form');
+  assert.equal(o.patch, 'KB5066835 (2026-10-14)');
+  assert.deepEqual(o.software.map(x => x.name), ['Tool A']);
+  assert.ok(s.rels.some(r => r.from === 'a' && r.to === 'm' && r.kind === 'attached'), 'the monitor is attached');
+
+  s = run({ loc: false, ipRoom: true, ip6: false, patch: false, software: false, links: false, dept: false, user: true });
+  o = s.objs.find(x => x.id === 'a');
+  assert.equal(o.loc, 'Willisau / Büro', 'Location off: the room stays');
+  assert.equal(o.ip6, undefined); assert.equal(o.patch, undefined);
+  assert.equal(o.software, undefined, 'Installed software off');
+  assert.equal(s.rels.length, 0, 'Monitors off');
+  assert.ok(!s.users.some(u => u.dept === 'Logistik'), 'Departments off');
+
+  // Room from IP location: fills an empty location when on, leaves it empty when off
+  assert.equal(run({ ipRoom: true }, [pc({ loc: '' }), { ...mon }]).objs.find(x => x.id === 'a').loc, 'Willisau / Lager');
+  assert.equal(run({ ipRoom: false }, [pc({ loc: '' }), { ...mon }]).objs.find(x => x.id === 'a').loc, '');
+  // An IPv6 that is not one is not stored
+  const bad = base({ policy: all, objs: [pc()] });
+  mergeRecords(bad, recordsFromJson([{ ...rec, ip6: 'fe80::zz' }]), now);
+  assert.equal(bad.objs[0].ip6, undefined);
+  checkState(s);
+});

@@ -1,5 +1,5 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
-import { COSTS, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, subnetSpan } from './net.js';
 import { isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
@@ -49,7 +49,7 @@ export function renderRack(){
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
   net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','Address from','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
+  pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], notebook:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
@@ -101,7 +101,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`;
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
-    if (k === 'model') ctl = comboHtml(ctl, id);
+    if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
   }
   return ctl;
 }
@@ -124,8 +124,45 @@ function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
 }
-function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); input.focus(); }
-document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')) comboOpen(c, false); });
+function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); }
+/* Under a model typed in: a model not in the list yet is new and is added when saved; one very like a model in the list
+   is likely a typo, and the one in the list can be taken with one click. */
+const squash = t => t.toLowerCase().replace(/[\s\-_.,/]+/g, '');
+function editDistance(a, b){
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for (let i = 1; i <= a.length; i++){
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+export function closeModel(v, names){
+  const q = squash(v); if (q.length < 4) return null;
+  const same = names.find(m => squash(m) === q); if (same) return same;
+  let best = null, bd = 3;
+  for (const m of names){ const d = editDistance(q, squash(m)); if (d < bd){ bd = d; best = m; } }
+  return bd <= (q.length >= 8 ? 2 : 1) ? best : null;
+}
+function comboNote(input){
+  const note = document.getElementById(input.id + '_note'); if (!note) return;
+  const v = input.value.trim(), names = (COMBO_SOURCES[input.dataset.k] || (() => []))();
+  const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };   /* the note and its empty first column */
+  if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
+  const near = closeModel(v, names);
+  note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
+  note.innerHTML = near ? `Did you mean ${esc(near)}? <button type="button" class="link combo-use" data-v="${esc(near)}">Use it</button>` : 'New model – added to the list when saved.';
+  show(true);
+}
+document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });
+/* "Use it": the model from the list replaces the one typed, and is saved like a pick. */
+document.addEventListener('click', e => {
+  const b = e.target.closest('.combo-use'); if (!b) return;
+  const note = b.closest('.fieldnote'), input = document.getElementById(note.id.replace(/_note$/, ''));
+  if (!input || input.disabled) return;
+  input.value = b.dataset.v; comboNote(input); input.dispatchEvent(new Event('change', {bubbles: true})); input.focus();
+});
 document.addEventListener('mousedown', e => {
   const c = comboOf(e.target);
   document.querySelectorAll('.combo .combo-list:not([hidden])').forEach(l => { if (l.closest('.combo') !== c) comboClose(l.closest('.combo')); });
@@ -160,7 +197,8 @@ export function propRow(o, f){
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
+  const comboNoteSlot = k === 'model' && !taken ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${fieldNote(o, k)}`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
@@ -205,7 +243,7 @@ export function feedPanel(o){
   return `<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : `<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (monitors)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
-export const SW_TYPES = ['pc','server'];
+export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [];
   return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length} installed</span></div>
@@ -390,7 +428,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
-        ${o.type === 'pc' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
+        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
@@ -436,7 +474,9 @@ export function renderObj(o){
   const fitTargets = () => {
     const k = $('#arKind').value;
     $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
-    $('#arPort').placeholder = k === 'connected' ? 'Port no., or P04 on a patch panel' : k === 'uplink' ? 'Port no.' : 'Port (opt.)';
+    /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
+    $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
+    $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
   $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd}</option>`).join('');
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
@@ -594,6 +634,7 @@ export function renderObj(o){
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
         hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
+        o.ovr = {...(o.ovr || {}), type: false};   /* set by hand: the type rules leave it alone */
         /* A device that becomes a switch gets the port counts a new switch has, where it has none yet. */
         if (v === 'switch'){ o.ports ??= 24; o.sfp ??= 4; }
       }
@@ -681,7 +722,9 @@ document.addEventListener('keydown', e => {
 });
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
-export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>`;
+/* Two groups: the fields of a device, and what else the feed brings (each with what it does as a tooltip). */
+export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>
+  <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => `<label class="pchk" title="${esc(FEED_EXTRA_HINT[k])}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`).join('')}</div>`;
 export function bindPolicy(root){
   root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => { st.policy[c.dataset.pol] = c.checked; render(); });
 }

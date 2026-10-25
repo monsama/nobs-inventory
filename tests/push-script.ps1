@@ -16,8 +16,13 @@ Check 'role 1' (Get-RoleText 1) 'workstation'
 Check 'role 3' (Get-RoleText 3) 'server'
 Check 'role 5' (Get-RoleText 5) 'dc'
 Check 'role null' (Get-RoleText ([DBNull]::Value)) ''
+Check 'chassis notebook' (Get-ChassisText 10) 'notebook'
+Check 'chassis desktop' (Get-ChassisText '3') 'desktop'
+Check 'chassis unknown' (Get-ChassisText 99) ''
 Check 'first v4' (Get-FirstV4 'fe80::1, 10.1.1.5') '10.1.1.5'
 Check 'first v4 none' (Get-FirstV4 '0.0.0.0') ''
+Check 'first v6 global' (Get-FirstV6 '10.1.1.5, fe80::5%12, 2001:DB8::42') '2001:db8::42'
+Check 'first v6 link-local only' (Get-FirstV6 'fe80::1, ::1') ''
 
 # A fake connection: each command answers with the rows of a DataTable.
 function New-Table($cols, $rows) { $dt = New-Object System.Data.DataTable; foreach ($c in $cols) { [void]$dt.Columns.Add($c) }; foreach ($r in $rows) { $row = $dt.NewRow(); $row.ItemArray = [object[]]$r; $dt.Rows.Add($row) }; return , $dt }
@@ -46,6 +51,15 @@ Check 'adapter fallback has gateway' (Select-Adapter $map['7'] '1.2.3.4')['gatew
 $locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @(@('Willisau Lager','172.21.108.1','172.21.108.254'), @('', '1.1.1.1', '1.1.1.2'))))
 Check 'ip locations read' $locs.Count 1
 Check 'ip location name' $locs[0].name 'Willisau Lager'
+
+# What the push leaves out is counted in Lansweeper and said in the log.
+$Config = @{ MaxAgeDays = 0 }
+$script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }
+$left = Get-LeftOut (New-Conn (New-Table @('total','inactive','old') @(,@('120', '15', '0')))) 100
+Check 'left out: inactive' $left.inactive 15
+Check 'left out: no name' $left.noName 5
+Check 'left out: log line' (Format-LeftOut $left) 'Lansweeper has 120 asset(s); left out: 15 not active in Lansweeper (state other than Active), 5 without a name'
+Check 'left out: none' (Format-LeftOut ([ordered]@{ total = 3; inactive = 0; old = 0; noName = 0 })) 'Lansweeper has 3 asset(s); all are sent'
 
 # The upload: IP locations go with the first batch only.
 $Config = @{ NobsUrl = 'https://nobs.example.ch'; BatchSize = 2 }

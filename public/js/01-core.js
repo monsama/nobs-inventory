@@ -36,7 +36,8 @@ export const svg = (t, cls='i') => {
 /* ---------- reference data ---------- */
 /* Object types are data: name, short name, colour and icon. Edited in Settings → Object types. */
 export const TYPES = {
-  pc:{label:'PC / Notebook', short:'PC', color:'#1565c0', icon:'pc'},
+  pc:{label:'PC', short:'PC', color:'#1565c0', icon:'pc'},
+  notebook:{label:'Notebook', short:'NB', color:'#2563eb', icon:'laptop'},
   server:{label:'Server', short:'Server', color:'#6a3fb5', icon:'server'},
   vm:{label:'Virtual machine', short:'VM', color:'#7c3aed', icon:'server'},
   accesspoint:{label:'Access point', short:'AP', color:'#0891b2', icon:'accesspoint'},
@@ -54,6 +55,7 @@ export const TYPES = {
   ios:{label:'iOS device', short:'iOS', color:'#a21caf', icon:'mobile'},
   mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
   plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
+  camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -64,7 +66,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
+export const BUILTIN = ['pc','notebook','camera','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
@@ -92,7 +94,10 @@ export const setPlans = v => { PLANS = v; };
 export const LS_ON = () => st.useLansweeper !== false;
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
-export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location', status:'Status'};
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
+/* What else the feed brings, not a field of its own: each has a box in "Feed may overwrite" too. */
+export const FEED_EXTRA = {ipRoom:'Room from IP location', software:'Installed software', links:'Monitors attached to PCs', dept:'Departments of people'};
+export const FEED_EXTRA_HINT = {ipRoom:'A device without a location gets the room its IP address is in, from Lansweeper\'s IP locations', software:'The software Lansweeper finds replaces what it found before; software added by hand stays', links:'Monitors are attached to the PC Lansweeper scanned them on', dept:'A person named by Lansweeper gets the department from the directory Lansweeper reads, when they have none'};
 /* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
 export const WARRANTY_SOON_DAYS = 90;
 export const warrantyState = (o, today = new Date()) => {
@@ -135,7 +140,7 @@ export const KIND_HINTS = {
   attached:'A monitor or accessory attached to a PC, docking station or server.',
   hosted:'A virtual machine that runs on this physical server.'
 };
-export const KIND_TARGETS = {attached:['pc','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -148,6 +153,8 @@ export const objs = [];
 export const MODELS = [];
 /* Contracts and licences (Settings keys contracts, licences) and the currency of every amount. Replaced as a whole when changed. */
 export const COSTS = {contracts: [], licences: [], currency: 'CHF'};
+/* The company the inventory belongs to (setting company): its name and logo (a PNG data URL) on entry sheets. */
+export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
@@ -253,7 +260,16 @@ export const releaseRetiredPort = (to, port) => {
 };
 /* A patch panel port is written P01, P02 ... whatever the person typed. */
 export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
-export const used = (o, idx) => (idx ? idx.get(o.id) || [] : rels).filter(r => r.to === o.id && r.port != null).length;
+/* The LAG a numbered port of a device belongs to, or undefined: such a port is linked through its LAG, never alone. */
+export const lagOfPort = (o, port) => typeof port === 'number' ? (o.portGroups || []).find(g => g.lag && port >= g.from && port <= g.to) : undefined;
+/* The link that uses a LAG of this device, on either end, or undefined. */
+export const lagLinkOf = (o, g, list = rels) => list.find(r => (r.to === o.id && r.lag === g.name) || (r.from === o.id && r.fromLag === g.name));
+/* Ports in use: those with a device on them, and every member of a LAG that is linked. */
+export const used = (o, idx) => {
+  const list = idx ? idx.get(o.id) || [] : rels;
+  const lags = (o.portGroups || []).filter(g => g.lag && lagLinkOf(o, g, list)).reduce((n, g) => n + g.to - g.from + 1, 0);
+  return list.filter(r => r.to === o.id && r.port != null).length + lags;
+};
 export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';

@@ -184,3 +184,23 @@ test('a stale change that the rest of the save needs makes the whole save a conf
     assert.equal(now.rels.find(x => x.id === 'r1').port, 2, 'B\'s change stands');
   } finally { await srv.close(); }
 });
+
+test('the log says what a save changed: objects by name, relations, settings, and what was refused', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const last = () => srv.db.prepare('SELECT action FROM audit ORDER BY id DESC LIMIT 1').get().action;
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'x'), base: 0 }, { kind: 'object', id: 'o2', value: pc('o2', 'PC-2', 'x'), base: 0 }, { kind: 'object', id: 'o3', value: pc('o3', 'PC-3', 'x'), base: 0 }], dels: [] });
+    assert.equal(last(), 'saved: added PC-1, PC-2, PC-3');
+    const rev = (await load(srv, a.cookie)).revs;
+    const r2 = await put(srv, a.cookie, {
+      puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'y'), base: rev['object|o1'] }, { kind: 'rel', id: 'r1', value: { from: 'o1', to: 'o3', kind: 'connected' }, base: 0 },
+        { kind: 'setting', id: 'locs', value: ['Zürich HQ / Büro'], base: rev['setting|locs'] ?? 0 }],
+      dels: [{ kind: 'object', id: 'o2', base: rev['object|o2'] }],
+    });
+    assert.equal(r2.status, 200, JSON.stringify(r2.json));
+    assert.equal(last(), 'saved: changed PC-1; removed PC-2; 1 relation added; settings: locations');
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'z'), base: rev['object|o1'] }], dels: [] });
+    assert.equal(last(), 'saved: changed PC-1 (1 not saved: changed by someone else first)');
+  } finally { await srv.close(); }
+});

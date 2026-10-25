@@ -79,6 +79,7 @@ $script:Wanted = [ordered]@{
     tsysOS         = @('OScode', 'OSname')
     tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled')
     tblComputersystem = @('AssetID', 'Domainrole')
+    tblSystemEnclosure = @('AssetID', 'ChassisTypes')
     tblADusers     = @('Username', 'Userdomain', 'Department')
     tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
@@ -524,6 +525,16 @@ function Get-DateText($v) {
     return ''
 }
 
+# Win32_SystemEnclosure.ChassisTypes as a word: what the type rules look at to tell a notebook from a desktop.
+function Get-ChassisText($v) {
+    $t = (ConvertTo-Text $v) -replace '[^\d].*$', ''
+    if ($t -notmatch '^\d+$') { return '' }
+    $names = @{ 3 = 'desktop'; 4 = 'low profile desktop'; 5 = 'pizza box'; 6 = 'mini tower'; 7 = 'tower'; 8 = 'portable'; 9 = 'laptop'; 10 = 'notebook'
+        11 = 'hand held'; 12 = 'docking station'; 13 = 'all in one'; 14 = 'sub notebook'; 15 = 'space-saving'; 16 = 'lunch box'; 17 = 'main server chassis'
+        23 = 'rack mount chassis'; 24 = 'sealed-case pc'; 30 = 'tablet'; 31 = 'convertible'; 32 = 'detachable'; 33 = 'iot gateway'; 34 = 'embedded pc'; 35 = 'mini pc'; 36 = 'stick pc' }
+    if ($names.ContainsKey([int]$t)) { return $names[[int]$t] } else { return '' }
+}
+
 # Win32_ComputerSystem.DomainRole: 0-1 workstation, 2-3 server, 4-5 domain controller.
 function Get-RoleText($v) {
     $t = ConvertTo-Text $v
@@ -534,6 +545,15 @@ function Get-RoleText($v) {
 # The first IPv4 address in a list Lansweeper keeps as text ("10.1.1.5, fe80::1" or "10.1.1.5;10.1.1.6").
 function Get-FirstV4($v) {
     foreach ($x in ((ConvertTo-Text $v) -split '[,;\s]+')) { if ($x -match '^\d{1,3}(\.\d{1,3}){3}$' -and $x -ne '0.0.0.0') { return $x } }
+    return ''
+}
+
+# The first global IPv6 address in such a list: link-local (fe80::), loopback and unspecified ones are left out.
+function Get-FirstV6($v) {
+    foreach ($x in ((ConvertTo-Text $v) -split '[,;\s]+')) {
+        $a = ($x -replace '%.*$', '').ToLowerInvariant()
+        if ($a -match '^[0-9a-f:]+$' -and $a.Contains(':') -and $a -notmatch '^(fe[89ab][0-9a-f]:|::1?$)') { return $a }
+    }
     return ''
 }
 
@@ -557,7 +577,7 @@ function Get-AdapterByAsset($conn) {
             $dhcpText = ConvertTo-Text $reader['n__DHCPEnabled']
             if (-not $map.ContainsKey($id)) { $map[$id] = New-Object System.Collections.Generic.List[object] }
             $map[$id].Add(@{
-                ip = $ip; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
+                ip = $ip; ip6 = Get-FirstV6 $reader['n__IPAddress']; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
                 dhcp = $(if ($dhcpText -match '^(1|true)$') { 'dhcp' } elseif ($dhcpText -match '^(0|false)$') { 'static' } else { '' })
             })
         }
@@ -589,6 +609,36 @@ function Get-IpLocations($conn) {
     return , $list.ToArray()
 }
 
+# What the push leaves out, and why: assets not active in Lansweeper, assets not seen within MaxAgeDays, and assets
+# without a name. Counted in Lansweeper itself, so the log says why the inventory has fewer devices than Lansweeper.
+function Get-LeftOut($conn, [int]$Read) {
+    $hasState = Test-Col 'tblAssetCustom' 'State'
+    $useAge = $Config.MaxAgeDays -gt 0 -and (Test-Col 'tblAssets' 'Lastseen')
+    $active = if ($hasState) { 'c.[State] = 1' } else { '1=1' }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT COUNT(*) AS [total], " +
+        $(if ($hasState) { "SUM(CASE WHEN c.[State] = 1 THEN 0 ELSE 1 END)" } else { '0' }) + " AS [inactive], " +
+        $(if ($useAge) { "SUM(CASE WHEN $active AND (a.[Lastseen] IS NULL OR a.[Lastseen] < @since) THEN 1 ELSE 0 END)" } else { '0' }) + " AS [old] " +
+        "FROM [tblAssets] a " + $(if ($hasState) { 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID]' } else { '' })
+    if ($useAge) { [void]$cmd.Parameters.AddWithValue('@since', (Get-Date).AddDays(-$Config.MaxAgeDays)) }
+    $reader = $cmd.ExecuteReader()
+    try {
+        if (-not $reader.Read()) { return $null }
+        $num = { param($v) if ($v -is [DBNull] -or $null -eq $v -or "$v" -eq '') { 0 } else { [int]$v } }
+        $total = & $num $reader['total']; $inactive = & $num $reader['inactive']; $old = & $num $reader['old']
+        return [ordered]@{ total = $total; inactive = $inactive; old = $old; noName = [Math]::Max(0, $total - $inactive - $old - $Read) }
+    } finally { $reader.Close() }
+}
+function Format-LeftOut($l) {
+    if (-not $l) { return '' }
+    $parts = @()
+    if ($l.inactive) { $parts += "$($l.inactive) not active in Lansweeper (state other than Active)" }
+    if ($l.old) { $parts += "$($l.old) not seen in the last $($Config.MaxAgeDays) days (MaxAgeDays; 0 sends all)" }
+    if ($l.noName) { $parts += "$($l.noName) without a name" }
+    if (-not $parts.Count) { return "Lansweeper has $($l.total) asset(s); all are sent" }
+    return "Lansweeper has $($l.total) asset(s); left out: " + ($parts -join ', ')
+}
+
 function Get-LsRecords {
     $conn = Open-LsConnection
     try {
@@ -608,7 +658,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
-            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
         ) -join ', '
@@ -622,6 +672,9 @@ function Get-LsRecords {
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
         if ((Test-Col 'tblComputersystem' 'AssetID') -and (Test-Col 'tblComputersystem' 'Domainrole')) {
             $joins += 'LEFT JOIN (SELECT [AssetID], MAX([Domainrole]) AS [Domainrole] FROM [tblComputersystem] GROUP BY [AssetID]) cs ON cs.[AssetID] = a.[AssetID] '
+        }
+        if ((Test-Col 'tblSystemEnclosure' 'AssetID') -and (Test-Col 'tblSystemEnclosure' 'ChassisTypes')) {
+            $joins += 'LEFT JOIN (SELECT [AssetID], MAX([ChassisTypes]) AS [ChassisTypes] FROM [tblSystemEnclosure] GROUP BY [AssetID]) se ON se.[AssetID] = a.[AssetID] '
         }
         # The department of the logged-on user, from the Active Directory users Lansweeper scans.
         if ((Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')) {
@@ -666,8 +719,9 @@ function Get-LsRecords {
                     purchased = Get-DateText $reader['c__PurchaseDate']
                     warranty = Get-DateText $reader['c__Warrantydate']
                     role = Get-RoleText $reader['cs__Domainrole']
+                    chassis = Get-ChassisText $reader['se__ChassisTypes']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
-                    mask = ''; gateway = ''; dns = ''; dhcp = ''
+                    ip6 = ''; mask = ''; gateway = ''; dns = ''; dhcp = ''
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
@@ -675,6 +729,7 @@ function Get-LsRecords {
                 })
             }
         } finally { $reader.Close() }
+        try { $script:LeftOut = Get-LeftOut $conn $list.Count } catch { Write-PushLog "Could not count the assets left out: $($_.Exception.Message)" 'WARN' }
         $links = Get-SwitchLinks $conn
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
         $hostLinks = Get-HostLinks $conn
@@ -682,7 +737,7 @@ function Get-LsRecords {
         $adapters = Get-AdapterByAsset $conn
         foreach ($rec in $list) {
             $nic = Select-Adapter $adapters[[string]$rec['ref']] $rec['ip']
-            if ($nic) { foreach ($k in @('mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
+            if ($nic) { foreach ($k in @('ip6', 'mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
         }
         $health = Get-HealthByAsset $conn
         foreach ($rec in $list) {
@@ -820,6 +875,8 @@ try {
     Write-PushLog 'Reading Lansweeper ...'
     $records = Get-LsRecords
     Write-PushLog "$($records.Count) active asset(s) with a name"
+    $leftOut = Format-LeftOut $script:LeftOut
+    if ($leftOut) { Write-PushLog $leftOut }
 
     if ($DryRun) {
         $records | Select-Object -First 3 | ForEach-Object { Write-PushLog ("  " + (($_.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')) }

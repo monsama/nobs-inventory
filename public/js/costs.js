@@ -74,6 +74,21 @@ export function contractStatus(c, today = new Date()){
 }
 /* The cost of a year: a monthly cost times twelve; a one-off cost is not a yearly one. */
 export const yearlyCost = c => !(c.cost > 0) ? 0 : c.per === 'month' ? c.cost * 12 : c.per === 'once' ? 0 : c.cost;
+/* What a contract costs in one calendar year: each month it runs in that year at a twelfth of its yearly cost (a month
+   it starts or ends in counts whole), and a one-off cost in the year it starts. A contract that renews by itself is
+   counted as running on; one that does not, up to its end. */
+export function costInYear(c, year){
+  if (!(c.cost > 0)) return 0;
+  const y = String(year);
+  if (c.per === 'once') return (c.start || c.end || '').slice(0, 4) === y ? c.cost : 0;
+  const last = c.renew > 0 ? '' : (c.end || '');
+  let months = 0;
+  for (let m = 1; m <= 12; m++){
+    const from = `${y}-${String(m).padStart(2, '0')}-01`, to = `${y}-${String(m).padStart(2, '0')}-31`;
+    if ((!c.start || c.start <= to) && (!last || last >= from)) months++;
+  }
+  return Math.round(yearlyCost(c) * months / 12 * 100) / 100;
+}
 
 /* The devices a licence counts: those not retired with a package whose name holds the licence's name. */
 export function licenceUse(l, objs){

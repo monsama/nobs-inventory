@@ -3,17 +3,19 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 import { graphSettingsProblem } from './graph-keys.js';
+import { typeRulesProblem } from '../public/js/type-rules.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['typeRules', 'company', 'graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['typeRules', 'company', 'contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false,
+const DEFAULT_POLICY = { ip: true, ip6: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: true, av: false, domain: true, user: false, loc: false,
+  software: true, links: true, dept: true, ipRoom: true,
   mask: true, gateway: true, dns: true, dhcp: true, purchased: true, warranty: true };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
@@ -64,7 +66,7 @@ export function factoryReset(db, keepUserId) {
 
 /* The rules a whole inventory must follow before it is stored. */
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
-const KNOWN_TYPES = ['pc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
+export const KNOWN_TYPES = ['pc', 'notebook', 'camera', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
 const STATUSES = ['active', 'stock', 'unused', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 export function checkState(s) {
@@ -99,7 +101,16 @@ export function checkState(s) {
     const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
   /* Contracts and licences, and the currency their costs are in. */
+  /* The company the inventory belongs to: its name and logo on entry sheets. The logo is a PNG or JPEG, at most about 400 KB. */
+  if (s.company !== undefined) {
+    const c = s.company;
+    if (!c || typeof c !== 'object' || Array.isArray(c)) bad('The company is a record.');
+    if (c.name !== undefined && (typeof c.name !== 'string' || c.name.length > 80)) bad('The company name is text of up to 80 characters.');
+    if (c.logo !== undefined && c.logo !== '' && (typeof c.logo !== 'string' || c.logo.length > 560000 || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(c.logo))) bad('The company logo is a PNG or JPEG of up to about 400 KB.');
+  }
   if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
+  /* The type rules: null for the ones shipped, or the list edited in Settings → Feed. */
+  if (s.typeRules !== undefined && s.typeRules !== null) { const p = typeRulesProblem(s.typeRules, new Set([...KNOWN_TYPES, ...Object.keys(s.types || {})])); if (p) bad(p); }
   if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
   if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }
   if (s.currency !== undefined && (typeof s.currency !== 'string' || !/^[A-Za-z€$£¥]{1,5}$/.test(s.currency))) bad('The currency is a short code such as CHF or EUR.');
@@ -178,6 +189,8 @@ export function checkState(s) {
           if (g.kind !== undefined && (typeof g.kind !== 'string' || g.kind.length > 20)) bad(`${o.name}: the kind of a port group is text of up to 20 characters.`);
           if (g.lag !== undefined && typeof g.lag !== 'boolean') bad(`${o.name}: a port group is marked as a link aggregate or not.`);
           if (o.portGroups.slice(0, i).some(p => g.from <= p.to && g.to >= p.from)) bad(`${o.name}: port groups ${g.name} and another overlap.`);
+          /* A LAG link names the LAG, so two LAGs of one device cannot share a name. */
+          if (g.lag && o.portGroups.slice(0, i).some(p => p.lag && String(p.name).toLowerCase() === String(g.name).toLowerCase())) bad(`${o.name}: two LAGs are named ${g.name}.`);
         });
       }
     }
@@ -330,6 +343,42 @@ export function saveState(db, s) {
 /* The page's saves. Each change says which kind of record it is, its new value (or none, for a delete) and the
    revision it was based on. A change based on an old revision is not applied: someone else changed that record
    first. The other changes are applied. New objects get their code here, so codes stay unique. */
+/* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
+   many relations, users, types and which settings. The history lines that go with an object change are not counted. */
+const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', company: 'company', locs: 'locations', sites: 'sites',
+  vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
+  policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames' };
+export function describeChanges(body, before) {
+  const puts = (body && body.puts) || [], dels = (body && body.dels) || [];
+  const names = list => list.length <= 5 ? list.join(', ') : `${list.slice(0, 5).join(', ')} and ${list.length - 5} more`;
+  const nameOf = (kind, id) => {
+    const p = puts.find(c => c.kind === kind && c.id === id);
+    if (p && p.value && typeof p.value === 'object') return p.value.name || p.value.login || id;
+    const list = kind === 'object' ? before?.objs : before?.users;
+    const o = (list || []).find(x => String(x.id) === id);
+    return (o && (o.name || o.login)) || id;
+  };
+  const parts = [];
+  const objs = puts.filter(c => c.kind === 'object');
+  const added = objs.filter(c => !c.base).map(c => nameOf('object', c.id)), changed = objs.filter(c => c.base).map(c => nameOf('object', c.id));
+  const removed = dels.filter(c => c.kind === 'object').map(c => nameOf('object', c.id));
+  if (added.length) parts.push('added ' + names(added));
+  if (changed.length) parts.push('changed ' + names(changed));
+  if (removed.length) parts.push('removed ' + names(removed));
+  const rels = [puts.filter(c => c.kind === 'rel' && !c.base).length, puts.filter(c => c.kind === 'rel' && c.base).length, dels.filter(c => c.kind === 'rel').length];
+  const n = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`;
+  if (rels[0]) parts.push(n(rels[0], 'relation') + ' added');
+  if (rels[1]) parts.push(n(rels[1], 'relation') + ' changed');
+  if (rels[2]) parts.push(n(rels[2], 'relation') + ' removed');
+  const users = [...puts, ...dels].filter(c => c.kind === 'user').map(c => nameOf('user', c.id));
+  if (users.length) parts.push('users ' + names(users));
+  const types = [...puts, ...dels].filter(c => c.kind === 'type').map(c => c.id);
+  if (types.length) parts.push('object types ' + names(types));
+  const settings = [...new Set([...puts, ...dels].filter(c => c.kind === 'setting').map(c => SETTING_NAMES[c.id] || c.id))];
+  if (settings.length) parts.push('settings: ' + settings.join(', '));
+  return parts.length ? 'saved: ' + parts.join('; ') : 'saved history notes';
+}
+
 export function applyChanges(db, body, guard = () => {}) {
   const bad = msg => { throw new HttpError(400, msg); };
   const puts = body && body.puts, dels = body && body.dels;

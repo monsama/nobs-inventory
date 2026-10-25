@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contractProblem, contractStatus, licenceProblem, licenceUse, listProblem, yearlyCost } from '../public/js/costs.js';
+import { contractProblem, contractStatus, licenceProblem, licenceUse, listProblem, yearlyCost, costInYear } from '../public/js/costs.js';
 import { checkState } from '../server/state.js';
 import { startServer, signIn } from './helpers.js';
 
@@ -31,6 +31,16 @@ test('the yearly cost counts a monthly cost twelve times and a one-off cost not 
   assert.equal(yearlyCost({ cost: 50, per: 'month' }), 600);
   assert.equal(yearlyCost({ cost: 5000, per: 'once' }), 0);
   assert.equal(yearlyCost({}), 0);
+});
+
+test('the cost in a calendar year counts the months a contract runs in it; a one-off cost counts in the year it starts', () => {
+  assert.equal(costInYear({ cost: 1200, per: 'year', start: '2026-07-01', end: '2027-06-30', renew: 12 }, 2026), 600, 'from July: half a year');
+  assert.equal(costInYear({ cost: 1200, per: 'year', start: '2026-07-01', end: '2027-06-30', renew: 12 }, 2028), 1200, 'renews: runs on');
+  assert.equal(costInYear({ cost: 1200, per: 'year', start: '2026-07-01', end: '2027-06-30', renew: 0 }, 2027), 600, 'ends in June');
+  assert.equal(costInYear({ cost: 1200, per: 'year', end: '2025-12-31', renew: 0 }, 2026), 0, 'ended before');
+  assert.equal(costInYear({ cost: 100, per: 'month' }, 2026), 1200, 'no dates: the whole year');
+  assert.equal(costInYear({ cost: 5000, per: 'once', start: '2026-03-01' }, 2026), 5000);
+  assert.equal(costInYear({ cost: 5000, per: 'once', start: '2026-03-01' }, 2027), 0);
 });
 
 test('a licence counts the devices, not retired, that have software with its name; more than its seats is over-use', () => {
