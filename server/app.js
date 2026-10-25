@@ -6,6 +6,7 @@ import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
+import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
@@ -293,7 +294,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
       const s = loadState(db);
-      const counts = mergeRecords(s, recordsFromJson(records));
+      const counts = mergeRecords(s, recordsFromJson(records), new Date(), cleanIpLocations(req.body.ipLocations));
       if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push'); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });

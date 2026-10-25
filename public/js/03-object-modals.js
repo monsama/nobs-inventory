@@ -1,4 +1,4 @@
-import { SUBNETS } from './01-core.js';
+import { SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, subnetSpan } from './net.js';
 import { isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
@@ -46,8 +46,8 @@ export function renderRack(){
 
 /* ---------- object page ---------- */
 export const FIELDS = {
-  base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user']],
-  net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
+  base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date']],
+  net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','Address from','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
   pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
@@ -91,6 +91,8 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const opts = [...new Set([...DOMAINS.map(d => d.name), cur].filter(Boolean))];
     ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(d => `<option ${d === cur ? 'selected' : ''} title="${esc((DOMAINS.find(x => x.name === d) || {}).desc || '')}">${esc(d)}</option>`).join('')}</select>`;
   }
+  else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
+  else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else {
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
@@ -111,7 +113,24 @@ export function propRow(o, f){
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
-  return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>`;
+  return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
+}
+/* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
+export function fieldNote(o, k){
+  let t = '', cls = 'warn';
+  if (k === 'gateway' && o.gateway){
+    const sn = subnetFor(o);
+    if (sn && sn.gateway && sn.gateway !== o.gateway) t = `Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`;
+  }
+  if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') { t = 'The warranty has ended.'; cls = 'bad'; } else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
+  return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
+}
+/* The subnet a device is in: the one picked on it, or else the one its address falls in. */
+export function subnetFor(o){
+  const picked = SUBNETS.find(n => n.cidr === o.subnet);
+  if (picked) return picked;
+  const ip = ipInt(o.ip);
+  return ip === null ? null : SUBNETS.find(n => { const sp = subnetSpan(n); return sp && ip >= sp.first && ip <= sp.last; }) || null;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
 export function extraRows(o, fields){

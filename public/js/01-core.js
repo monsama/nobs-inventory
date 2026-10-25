@@ -91,7 +91,15 @@ export const setPlans = v => { PLANS = v; };
 export const LS_ON = () => st.useLansweeper !== false;
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
-export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', user:'User', loc:'Location', status:'Status'};
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location', status:'Status'};
+/* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
+export const WARRANTY_SOON_DAYS = 90;
+export const warrantyState = (o, today = new Date()) => {
+  if (!o.warranty || !/^\d{4}-\d{2}-\d{2}$/.test(o.warranty)) return null;
+  const days = Math.floor((new Date(o.warranty + 'T23:59:59') - today) / 86400000);
+  return days < 0 ? 'ended' : days <= WARRANTY_SOON_DAYS ? 'soon' : 'ok';
+};
+export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
    attached (a monitor or accessory on a PC or docking station) and hosted (a virtual machine on its host, shown as "runs on"). */
@@ -235,7 +243,7 @@ export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
   const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status)))
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty)))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

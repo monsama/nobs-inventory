@@ -1,4 +1,4 @@
-import { graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -15,6 +15,8 @@ export function renderSide(){
   const sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])];
   $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>` +
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`).join('')).join('');
+  /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
+  $('#wtyList').innerHTML = [['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => `<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`).join('');
   $('#statList').innerHTML = Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
 $('#side').addEventListener('click', e => {
@@ -22,11 +24,12 @@ $('#side').addEventListener('click', e => {
   if ('type' in b.dataset) st.type = b.dataset.type || null;
   if ('loc' in b.dataset) st.loc = st.loc === b.dataset.loc ? null : b.dataset.loc;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
+  if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards';
   document.body.classList.remove('side-open');
   render();
 });
-$('#clearF').onclick = () => { st.type = st.loc = st.status = null; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
+$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = null; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
@@ -138,6 +141,8 @@ export function cardHtml(o){
   else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
   if (o.loc) lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
   if (o.user) lines.push(['User', esc(o.user)]);
+  const w = warrantyState(o);
+  if (w) lines.push(['Warranty', `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>`]);
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
@@ -206,6 +211,7 @@ export const TABLE_COLS = [
   {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
   {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
   {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},

@@ -3,7 +3,7 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
@@ -11,7 +11,8 @@ export const PAGE_SETTINGS = ['autoBackups', 'fieldLayout', 'locs', 'sites', 'vl
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false };
+const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false,
+  mask: true, gateway: true, dns: true, dhcp: true, purchased: true, warranty: true };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
 export const docKey = (kind, id) => kind + '|' + id;
@@ -36,7 +37,8 @@ export function loadState(db) {
   }
   s.empty = rows.length === 0;
   /* A new server starts with the same feed policy as the page, so nothing is missing on either side. */
-  if (!s.policy) s.policy = { ...DEFAULT_POLICY };
+  /* A saved policy gets the fields added since it was saved, with their defaults; what it says stays. */
+  s.policy = { ...DEFAULT_POLICY, ...(s.policy || {}) };
   s.revs = revsOf(db);
   return s;
 }

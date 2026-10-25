@@ -61,6 +61,12 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Push from the Lansweeper server (no API needed, works with a local install): in Settings → Feed, click **Create token** (admin), then **Download script**. Copy `Lansweeper-Push.ps1` to the Lansweeper server and run it there as the user that installed Lansweeper: `.\Lansweeper-Push.ps1 -SetCredential` (paste the token), `-DryRun` to check, then `-RegisterTask` for a daily run. The token is shown once; **Revoke** stops the script. The server also accepts a token set in `secrets/feed_token` (`NI_FEED_TOKEN`), but that is not needed.
 - Report file: upload a CSV under Settings → Feed, or set `NI_FEED_CSV=/feed/report.csv` with the report in `./feed`. Used when no token is set.
 - Matching is by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
+- Besides the device, the push reads what this Lansweeper version has (a column it lacks is skipped and logged):
+  - the network adapter's subnet mask, gateway, DNS servers and DHCP. A gateway other than its subnet's is marked on the device, and subnets the adapters are in that the inventory does not list are offered under Settings → Network → Subnets, to add with one click;
+  - Lansweeper's IP locations. A device with no location gets the room whose name matches the IP location of its address (`Bern Lager` → `Bern / Lager`);
+  - purchase date and warranty end. Warranties that end within 90 days, or have ended, are marked and can be filtered in the sidebar;
+  - the Windows role (workstation, server, domain controller), which decides PC or server for a new device;
+  - the department of the logged-on user, from the Active Directory users Lansweeper scans.
 
 ## Updating
 
