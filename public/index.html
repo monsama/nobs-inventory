@@ -412,7 +412,9 @@ table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
 table.sw-sub th{position:static;text-align:left;font-weight:600;font-size:13px;color:var(--fg);background:var(--gridh)!important;padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
 table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
 table.sw-sub tr:last-child td{border-bottom:0}
-table.sw-sub tr:hover td{background:var(--hover)}
+/* The list of devices sits inside the software table: one colour, no stripes and no hover from the outer table. */
+table.grid.sw .sw-detail:hover>td{background:var(--panel)}
+table.grid.sw table.sw-sub td,table.grid.sw table.sw-sub tr:hover td{background:var(--bg)}
 .sw-dev{display:inline-flex;align-items:center;gap:8px}
 table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
 table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
