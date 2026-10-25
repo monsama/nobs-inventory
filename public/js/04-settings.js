@@ -224,7 +224,7 @@ export async function renderSetAbout(){
   if (!$('#setAbout')) return;   /* Settings was closed while the version was loading */
   $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
     <div class="muted" style="font-size:12px;line-height:1.6">
-      <b style="font-size:14px">NOBS Inventory</b><br>
+      <div class="brandmark" style="margin-bottom:8px;color:var(--fg)"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div>
       Version ${esc(version || 'unknown')}<br>
       An inventory of PCs, servers, phones, switches and other devices, with their relations.<br>
       <i>No BS, just inventory.</i><br>

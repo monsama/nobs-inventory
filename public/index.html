@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NOBS Inventory</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: the NOBS editor frame - top bar, sidebar of filters, tab bar, toolbar, work area, status bar.
@@ -175,7 +176,14 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* top bar */
 #bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
 #brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
-#brand .logo{width:22px;height:22px;border-radius:var(--r-s);background:var(--accentbtn);color:var(--accentfg);display:grid;place-items:center;font-size:11px;font-family:var(--mono)}
+#brand .logo{width:24px;height:24px;flex:none;display:block}
+#brand b{font-weight:800;letter-spacing:.2px}
+#brand .word{font-weight:400;color:var(--muted)}
+/* The sign-in screen and About show the logo larger. */
+.brandmark{display:flex;align-items:center;gap:10px;font-size:18px}
+.brandmark img{width:36px;height:36px;flex:none}
+.brandmark b{font-weight:800}
+.brandmark span{color:var(--muted)}
 #brand small{font-weight:500;color:var(--muted)}
 #search{width:300px;max-width:100%}
 .grow{flex:1}
@@ -584,7 +592,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 
 <div id="bar">
   <button id="sideBtn" class="icon" title="Filters" aria-label="Show filters"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-  <div id="brand"><span class="logo">NI</span>NOBS Inventory</div>
+  <div id="brand"><img class="logo" src="logo.svg" alt=""><span><b>NOBS</b> <span class="word">Inventory</span></span></div>
   <input id="search" type="search" placeholder="Search code, name, IP, MAC, serial, user…" aria-label="Search">
   <label class="pchk" title="Search every device, not only the filtered ones" style="white-space:nowrap"><input type="checkbox" id="searchAll"> All devices</label>
   <button id="newBtn" class="primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New object</button>
