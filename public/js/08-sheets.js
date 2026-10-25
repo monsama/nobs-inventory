@@ -12,7 +12,8 @@ const call = async (method, url, body) => {
   if (!r.ok) throw new Error(j.error || 'The server refused it (' + r.status + ').');
   return j;
 };
-const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }); };
+/* A day as the rest of the app writes it, 25.10.2026, as on the PDF. */
+const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
 
 /* The look of a printed sheet. Used for printing from the page and in the downloaded file, so both are the same. */
 const SHEET_CSS = `.sheet{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;background:#fff;max-width:720px;margin:0 auto;padding:8px 4px}
@@ -94,13 +95,13 @@ export async function sheetModal(u, fresh = null){
       <td class="act"><div class="sheet-acts"><button data-sprint="${s.id}">Print</button><a class="btnlink" href="api/sheets/${encodeURIComponent(s.id)}/pdf" download>Download PDF</a>${s.password === 'kept' ? `<button data-schanged="${s.id}" title="The person has signed in and chosen their own password: remove it from the kept sheet">Password changed</button>` : ''}<button class="icon ghost" data-sdel="${s.id}" aria-label="Delete this sheet">×</button></div></td></tr>`).join('')}</tbody></table>`
     : '<p class="note">No sheet has been made for this person yet.</p>';
   const made = fresh ? `<div class="panelbox sheet-new"><div class="hdr">New initial password</div><div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
-      <div class="addrel" style="padding:0"><code class="mono" id="sheetPw" style="font-size:18px;letter-spacing:.06em">${esc(fresh.sheet.password)}</code><button id="sheetCopy">Copy</button></div>
+      <div class="sheet-pw"><code class="mono" id="sheetPw">${esc(fresh.sheet.password)}</code><button id="sheetCopy">Copy</button></div>
       <p class="note">Set it on the AD account <b class="mono">${esc(fresh.sheet.login)}</b> with "User must change password at next logon". It is printed on the sheet.</p></div></div>` : '';
   modal(`<div class="mh">Entry sheet for ${esc(u.name)}</div>
     <div class="mb">${made}
       <div class="panelbox"><div class="hdr">New sheet</div>
         <p class="note">The sheet lists the devices handed out and a new initial password for the person's Windows account. Set that password in Active Directory with "User must change password at next logon". The app does not change anything in AD.</p>
-        <div class="form" style="padding:10px 12px">
+        <div class="form sheet-form" style="padding:10px 12px">
           <label for="sheetLogin">Windows sign-in name</label><input id="sheetLogin" class="mono" autocomplete="off" value="${esc(u.login || '')}">
           <label>Devices</label><div class="sheet-devs">${devs}</div>
           <label for="sheetNote">Note</label><textarea id="sheetNote" rows="2" maxlength="500" placeholder="First day, desk, anything else to write on the sheet"></textarea>
