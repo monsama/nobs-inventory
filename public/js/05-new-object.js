@@ -19,7 +19,7 @@ export function newObjModal(pre={}){
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nLoc">Location</label><select id="nLoc">${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
-      <label for="nUp">Plug into</label><select id="nUp"><option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && (hasPorts(o) || ['sip', 'pc', 'patch'].includes(o.type))).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
+      <label for="nUp">Plug into</label><select id="nUp"><option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && (hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type))).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
       <label for="nPort">Port</label><input id="nPort" class="mono" placeholder="e.g. 12, or P04 on a patch panel">
     </div><p class="note">The object gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');

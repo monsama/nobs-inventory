@@ -13,7 +13,7 @@ import { HttpError } from './errors.js';
 
 export const PASSWORD_DAYS = 14;
 /* The names of the built-in types, as the page shows them (TYPES in public/js/01-core.js). A type of one's own has its label in the state. */
-const TYPE_LABELS = { pc: 'PC / Notebook', server: 'Server', vm: 'Virtual machine', accesspoint: 'Access point', sip: 'VoIP phone', pbx: 'Telephone system',
+const TYPE_LABELS = { pc: 'PC', notebook: 'Notebook', camera: 'Camera / Recorder', server: 'Server', vm: 'Virtual machine', accesspoint: 'Access point', sip: 'VoIP phone', pbx: 'Telephone system',
   monitor: 'Monitor', switch: 'Switch', printer: 'Printer', patch: 'Patch panel', router: 'Router', firewall: 'Firewall', modem: 'Modem', storage: 'Storage',
   android: 'Android device', ios: 'iOS device', mobile: 'Other mobile device', plc: 'PLC / Controller', rack: 'Rack', other: 'Other' };
 

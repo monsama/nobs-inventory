@@ -79,6 +79,7 @@ $script:Wanted = [ordered]@{
     tsysOS         = @('OScode', 'OSname')
     tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled')
     tblComputersystem = @('AssetID', 'Domainrole')
+    tblSystemEnclosure = @('AssetID', 'ChassisTypes')
     tblADusers     = @('Username', 'Userdomain', 'Department')
     tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
@@ -524,6 +525,16 @@ function Get-DateText($v) {
     return ''
 }
 
+# Win32_SystemEnclosure.ChassisTypes as a word: what the type rules look at to tell a notebook from a desktop.
+function Get-ChassisText($v) {
+    $t = (ConvertTo-Text $v) -replace '[^\d].*$', ''
+    if ($t -notmatch '^\d+$') { return '' }
+    $names = @{ 3 = 'desktop'; 4 = 'low profile desktop'; 5 = 'pizza box'; 6 = 'mini tower'; 7 = 'tower'; 8 = 'portable'; 9 = 'laptop'; 10 = 'notebook'
+        11 = 'hand held'; 12 = 'docking station'; 13 = 'all in one'; 14 = 'sub notebook'; 15 = 'space-saving'; 16 = 'lunch box'; 17 = 'main server chassis'
+        23 = 'rack mount chassis'; 24 = 'sealed-case pc'; 30 = 'tablet'; 31 = 'convertible'; 32 = 'detachable'; 33 = 'iot gateway'; 34 = 'embedded pc'; 35 = 'mini pc'; 36 = 'stick pc' }
+    if ($names.ContainsKey([int]$t)) { return $names[[int]$t] } else { return '' }
+}
+
 # Win32_ComputerSystem.DomainRole: 0-1 workstation, 2-3 server, 4-5 domain controller.
 function Get-RoleText($v) {
     $t = ConvertTo-Text $v
@@ -617,7 +628,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
-            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
         ) -join ', '
@@ -631,6 +642,9 @@ function Get-LsRecords {
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
         if ((Test-Col 'tblComputersystem' 'AssetID') -and (Test-Col 'tblComputersystem' 'Domainrole')) {
             $joins += 'LEFT JOIN (SELECT [AssetID], MAX([Domainrole]) AS [Domainrole] FROM [tblComputersystem] GROUP BY [AssetID]) cs ON cs.[AssetID] = a.[AssetID] '
+        }
+        if ((Test-Col 'tblSystemEnclosure' 'AssetID') -and (Test-Col 'tblSystemEnclosure' 'ChassisTypes')) {
+            $joins += 'LEFT JOIN (SELECT [AssetID], MAX([ChassisTypes]) AS [ChassisTypes] FROM [tblSystemEnclosure] GROUP BY [AssetID]) se ON se.[AssetID] = a.[AssetID] '
         }
         # The department of the logged-on user, from the Active Directory users Lansweeper scans.
         if ((Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')) {
@@ -675,6 +689,7 @@ function Get-LsRecords {
                     purchased = Get-DateText $reader['c__PurchaseDate']
                     warranty = Get-DateText $reader['c__Warrantydate']
                     role = Get-RoleText $reader['cs__Domainrole']
+                    chassis = Get-ChassisText $reader['se__ChassisTypes']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
                     ip6 = ''; mask = ''; gateway = ''; dns = ''; dhcp = ''
                     ref = ConvertTo-Text $reader['a__AssetID']
