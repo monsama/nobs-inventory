@@ -1,10 +1,11 @@
 import { $, st } from './01-core.js';
-import { newObjModal } from './05-new-object.js';
+import { newObjModal, linkObjModal } from './05-new-object.js';
 import { me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, render, signOut } from './07-render-plans.js';
 import { openObj } from './02-views.js';
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
+$('#linkBtn').onclick = () => linkObjModal();
 $('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
 $('#signOutBtn').onclick = () => signOut();

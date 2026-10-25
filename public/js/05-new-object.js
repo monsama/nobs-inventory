@@ -21,7 +21,7 @@ const EXAMPLES = {
 };
 /* How a new object of a type is connected: a monitor is attached to a computer, a virtual machine runs on a server, a rack
    or patch panel is not plugged into anything; everything else is plugged into a switch, patch panel, phone or computer. */
-const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'Attached to', port: false, ok: o => ['pc', 'notebook', 'server'].includes(o.type)}
+export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'Attached to', port: false, ok: o => ['pc', 'notebook', 'server'].includes(o.type)}
   : type === 'vm' ? {kind: 'hosted', label: 'Runs on', port: false, ok: o => o.type === 'server'}
   : ['rack', 'patch'].includes(type) ? null
   : {kind: 'connected', label: 'Plug into', port: true, ok: o => hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type)};
@@ -29,7 +29,6 @@ export function newObjModal(pre={}){
   const c = pre.copy;
   modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="nExist">Existing object</label><div class="ctlrow"><select id="nExist"><option value="">None: create a new object</option>${linkCandidates().map(o => { const p = plugOf(o); return `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${p ? ' · on ' + esc(p.name) : ''}</option>`; }).join('')}</select></div>
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
@@ -47,7 +46,6 @@ export function newObjModal(pre={}){
   /* The form follows the type: its examples, how it is connected, and a rack's height. */
   const show = (id, on) => { $('#' + id).hidden = !on; document.querySelector(`label[for="${id}"]`).hidden = !on; };
   const fitType = () => {
-    if ($('#nExist').value) return;
     const type = $('#nType').value, ex = EXAMPLES[type] || ['', ''], link = LINK_OF(type), keep = $('#nUp').value;
     $('#nName').placeholder = ex[0] ? 'e.g. ' + ex[0] : 'A name';
     $('#nModel').placeholder = ex[1] ? 'e.g. ' + ex[1] : 'Model';
@@ -59,38 +57,12 @@ export function newObjModal(pre={}){
       if ([...$('#nUp').options].some(x => x.value === keep)) $('#nUp').value = keep;
     } else $('#nUp').value = '';
   };
-  /* The list of what an existing object can be plugged into does not depend on a type. */
-  const plugList = () => { $('#nUp').innerHTML = `<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && (hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type))).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}`; };
   fitType();
   if (pre.sw){ $('#nUp').value = pre.sw; $('#nPort').value = pre.port; }
   $('#nType').onchange = fitType;
   $('#nName').focus();
   $('#nCancel').onclick = closeModal;
-  /* Picking an existing object turns the dialog into a link: its details are not changed, only where it is plugged. */
-  $('#nExist').onchange = e => {
-    const link = !!e.target.value;
-    /* The details of a linked object are not shown, so only the plug and port are left to fill in. */
-    ['nType', 'nName', 'nModel', 'nSerial', 'nLoc'].forEach(id => { $('#' + id).hidden = link; document.querySelector(`label[for="${id}"]`).hidden = link; });
-    $('#nOk').textContent = link ? 'Link' : 'Create';
-    if (link){ show('nUnits', false); show('nUp', true); show('nPort', true); document.querySelector('label[for="nUp"]').textContent = 'Plug into'; plugList(); }
-    else fitType();
-  };
   $('#nOk').onclick = () => {
-    const ex = $('#nExist').value;
-    if (ex){
-      const e = byId(ex), upId = $('#nUp').value, pp = $('#nPort').value.trim();
-      if (!upId){ toast('Pick what it is plugged into first.'); return; }
-      const t = byId(upId);
-      if (e.id === t.id){ toast('An object cannot be plugged into itself.'); return; }
-      if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already plugged into ${t.name}.`); return; }
-      const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
-      if (val != null) releaseRetiredPort(t, val);
-      if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
-      if (lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
-      rels.push({id:'r'+rid(), from:e.id, to:t.id, kind: e.type === 'monitor' ? 'attached' : 'connected', port: val, vlan:null});
-      hist(e, now(), `Plugged into ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
-      closeModal(); toast(e.name + ' is plugged into ' + t.name); render(); return;
-    }
     const name = $('#nName').value.trim();
     if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
     const upId = $('#nUp').value;
@@ -135,3 +107,42 @@ export function newObjModal(pre={}){
 
 
 
+/* Link object: connect an object that already exists. How it is linked follows its type: a monitor is attached to a
+   computer, a virtual machine runs on a server, anything else is plugged into a port. Its details are not changed. */
+export function linkObjModal(pre = {}){
+  const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => LINK_OF(o.type));
+  if (!list.length){ toast('There is nothing to link yet. Create an object first.'); return; }
+  const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
+  modal(`<div class="mh">Link object</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => a.name.localeCompare(b.name)).map(o => `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
+      <label for="lkTo">Plug into</label><select id="lkTo"></select>
+      <label for="lkPort">Port</label><input id="lkPort" class="mono" placeholder="e.g. 12, or P04 on a patch panel">
+    </div><p class="note" id="lkNote">Only the link is added; the object's details stay as they are.</p></div>
+    <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">Link</button></div>`, 'sm');
+  if (pre.obj && list.some(o => o.id === pre.obj)) $('#lkObj').value = pre.obj;
+  const fit = () => {
+    const o = byId($('#lkObj').value), link = LINK_OF(o.type), keep = $('#lkTo').value;
+    document.querySelector('label[for="lkTo"]').textContent = link.label;
+    $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${t.id}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
+    if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
+    $('#lkPort').hidden = document.querySelector('label[for="lkPort"]').hidden = !link.port;
+  };
+  fit();
+  $('#lkObj').onchange = fit;
+  $('#lkObj').focus();
+  $('#lkCancel').onclick = closeModal;
+  $('#lkOk').onclick = () => {
+    const e = byId($('#lkObj').value), link = LINK_OF(e.type), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
+    if (!t){ toast('There is nothing it can be linked to yet.'); return; }
+    if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
+    const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
+    if (val != null) releaseRetiredPort(t, val);
+    if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
+    if (val != null && lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
+    rels.push({id: 'r' + rid(), from: e.id, to: t.id, kind: link.kind, port: val, vlan: null});
+    const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into'}[link.kind];
+    hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
+    closeModal(); toast(`${e.name}: ${verb.toLowerCase()} ${t.name}`); render();
+  };
+}
