@@ -67,12 +67,17 @@ $bad = try { Get-NobsUrlText 'not an address' ; 'accepted' } catch { 'refused' }
 Check 'url with a space refused' $bad 'refused'
 $cfgFile = Join-Path ([IO.Path]::GetTempPath()) ("nobs-cfg-" + [guid]::NewGuid() + '.ps1')
 Set-Content -LiteralPath $cfgFile -Value @('$Config.MaxAgeDays = 30', "`$Config.NobsUrl = 'https://old.example.ch'")
-Save-LocalConfig $cfgFile "https://inventory.example.ch" 'AB12'
+Save-LocalConfig $cfgFile @{ NobsUrl = 'https://inventory.example.ch'; NobsCertThumbprint = 'AB12'; SqlFromLansweeper = $true }
 $lines = Get-Content -LiteralPath $cfgFile
 Check 'config keeps other lines' ($lines -contains '$Config.MaxAgeDays = 30') 'True'
 Check 'config has the new address once' (@($lines | Where-Object { $_ -match 'NobsUrl' }).Count) 1
 Check 'config address' ($lines -contains "`$Config.NobsUrl = 'https://inventory.example.ch'") 'True'
 Check 'config thumbprint' ($lines -contains "`$Config.NobsCertThumbprint = 'AB12'") 'True'
+Check 'config switch' ($lines -contains '$Config.SqlFromLansweeper = $true') 'True'
+Save-LocalConfig $cfgFile @{ NobsUrl = 'https://other.example.ch'; NobsCertThumbprint = '' }
+$lines = Get-Content -LiteralPath $cfgFile
+Check 'config replaced, empty left out' ((@($lines | Where-Object { $_ -match 'NobsUrl|NobsCertThumbprint' }) -join '|')) "`$Config.NobsUrl = 'https://other.example.ch'"
+Check 'config keeps the switch' ($lines -contains '$Config.SqlFromLansweeper = $true') 'True'
 Remove-Item -LiteralPath $cfgFile
 
 # The token is checked with an empty push: accepted, wrong (401), or the push turned off (403).

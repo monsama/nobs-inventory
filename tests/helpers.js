@@ -11,10 +11,10 @@ export function tempDataDir() {
 }
 
 /* Starts the app on a random port with its own database file. */
-export async function startServer({ dir = tempDataDir(), ldap = null, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined } = {}) {
+export async function startServer({ dir = tempDataDir(), ldap = null, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined, certProbe = undefined } = {}) {
   const db = openDb(path.join(dir, 'inventory.db'));
   bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-  const app = createApp({ db, ldap, feedToken, graphConfig, sheetKey, graphFetch });
+  const app = createApp({ db, ldap, feedToken, graphConfig, sheetKey, graphFetch, certProbe });
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   return {

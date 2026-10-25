@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import tls from 'node:tls';
+import crypto from 'node:crypto';
+import { generateGraphCert } from '../server/cert.js';
 import { startServer, signIn } from './helpers.js';
 
 /* Checks on the edges of the server: the address in the push script, a CSV import with a byte-order mark and
@@ -11,8 +14,8 @@ const state = (extra = {}) => ({ objs: [], rels: [], users: [adminUser], types: 
   policy: { ip: true, mac: true, os: true, model: true }, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0, ...extra });
 
 /* A request with its own Host header; fetch does not allow one, so this uses node's http. */
-const rawGet = (srv, host, cookie, path) => new Promise((resolve, reject) => {
-  const req = http.request({ host: '127.0.0.1', port: srv.base.split(':').pop(), path, method: 'GET', headers: { Host: host, Cookie: cookie } }, res => {
+const rawGet = (srv, host, cookie, path, extra = {}) => new Promise((resolve, reject) => {
+  const req = http.request({ host: '127.0.0.1', port: srv.base.split(':').pop(), path, method: 'GET', headers: { Host: host, Cookie: cookie, ...extra } }, res => {
     let body = ''; res.on('data', c => { body += c; }); res.on('end', () => resolve({ status: res.statusCode, body }));
   });
   req.on('error', reject); req.end();
@@ -35,6 +38,23 @@ test('the push script carries the address of the server, and a Host header that 
       assert.doesNotMatch(r.body, /Write-Host/);
     }
   } finally { await srv.close(); }
+});
+
+test('behind HTTPS the push script carries the thumbprint of the certificate the proxy presents, so Windows need not trust it', async () => {
+  const made = generateGraphCert({ commonName: 'inventory.example.ch' });
+  const proxy = tls.createServer({ key: made.keyPem, cert: made.certPem }, s => s.end());
+  await new Promise(r => proxy.listen(0, '127.0.0.1', r));
+  const srv = await startServer({ certProbe: { host: '127.0.0.1', port: proxy.address().port } });
+  try {
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    const want = crypto.createHash('sha1').update(new crypto.X509Certificate(made.certPem).raw).digest('hex').toUpperCase();
+    const viaHttps = await rawGet(srv, 'inventory.example.ch', admin.cookie, '/api/feed/push-script', { 'X-Forwarded-Proto': 'https' });
+    assert.equal(viaHttps.status, 200);
+    assert.match(viaHttps.body, /NobsUrl\s*=\s*'https:\/\/inventory\.example\.ch'/);
+    assert.match(viaHttps.body, new RegExp(`NobsCertThumbprint\\s*=\\s*'${want}'`));
+    const plain = await rawGet(srv, 'inventory.example.ch', admin.cookie, '/api/feed/push-script');
+    assert.match(plain.body, /NobsCertThumbprint\s*=\s*''/, 'no thumbprint over plain HTTP');
+  } finally { await srv.close(); proxy.close(); }
 });
 
 test('a CSV export with a byte-order mark and semicolons is imported; a file without a name column is refused', async () => {

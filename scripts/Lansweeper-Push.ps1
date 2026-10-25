@@ -24,6 +24,7 @@
     .\Lansweeper-Push.ps1 -Setup                         # ask for the address and the token again
     .\Lansweeper-Push.ps1 -SetCredential                 # store a new NOBS feed token only (DPAPI)
     .\Lansweeper-Push.ps1 -SetSqlCredential              # store a SQL login for the Lansweeper database (DPAPI)
+    .\Lansweeper-Push.ps1 -ShowLansweeperDb              # show the database login Lansweeper uses (server, database, user; no password)
     .\Lansweeper-Push.ps1 -DryRun                        # read Lansweeper, show the first records, send nothing
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
@@ -39,6 +40,7 @@ param(
     [switch]$RegisterTask,
     [switch]$FindTables,
     [switch]$ShowCertificate,
+    [switch]$ShowLansweeperDb,
     [string]$TaskTime = '06:30'
 )
 
@@ -50,11 +52,13 @@ $Config = @{
     # Full SQL Server: e.g. 'Server=LSSERVER\SQLEXPRESS;Database=lansweeperdb;Integrated Security=True'
     SqlConnectionString = 'Server=(localdb)\.\LSInstance;Database=lansweeperdb;Integrated Security=True;Connect Timeout=30'
     SqlUseStoredCredential = $true      # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
+    SqlFromLansweeper   = $false        # $true = the database login Lansweeper itself uses, read from its configuration at each run
+                                        #         (run as administrator, Windows PowerShell 5.1). Nothing is stored.
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
     NobsUrl             = 'https://inventory.example.com'   # replaced by the address the script was downloaded from
-    # Thumbprint of the NOBS certificate, when Windows does not trust it (e.g. Caddy's internal CA).
-    # Get it with: .\Lansweeper-Push.ps1 -ShowCertificate. Leave empty when the certificate is trusted.
+    # Thumbprint of the NOBS certificate, used only when Windows does not trust it (e.g. a self-signed one).
+    # Filled in when the script is downloaded from NOBS (Settings -> Feed -> Download script); the setup offers it too.
     NobsCertThumbprint  = ''
 
     MaxAgeDays          = 90      # only assets Lansweeper has seen in the last N days (0 = all)
@@ -112,12 +116,18 @@ function Get-NobsUrlText([string]$Text) {
     return $u.TrimEnd('/')
 }
 
-# Writes the address (and a pinned certificate) into Lansweeper-Push.config.ps1, keeping any other line there.
-function Save-LocalConfig([string]$Path, [string]$Url, [string]$Thumbprint) {
+# Writes settings into Lansweeper-Push.config.ps1 as $Config.Name = value lines, replacing those it sets and keeping the rest.
+# An empty text is left out.
+function Save-LocalConfig([string]$Path, [hashtable]$Values) {
+    $names = ($Values.Keys | ForEach-Object { [regex]::Escape($_) }) -join '|'
     $keep = @()
-    if (Test-Path -LiteralPath $Path) { $keep = @(Get-Content -LiteralPath $Path | Where-Object { $_ -notmatch '^\s*\$Config\.(NobsUrl|NobsCertThumbprint)\s*=' }) }
-    $lines = @($keep) + @("`$Config.NobsUrl = '$($Url -replace "'", "''")'")
-    if ($Thumbprint) { $lines += "`$Config.NobsCertThumbprint = '$Thumbprint'" }
+    if (Test-Path -LiteralPath $Path) { $keep = @(Get-Content -LiteralPath $Path | Where-Object { $_ -notmatch "^\s*\`$Config\.($names)\s*=" }) }
+    $lines = @($keep)
+    foreach ($k in ($Values.Keys | Sort-Object)) {
+        $v = $Values[$k]
+        if ($v -is [bool]) { $lines += "`$Config.$k = `$$($v.ToString().ToLowerInvariant())" }
+        elseif ("$v") { $lines += "`$Config.$k = '$("$v" -replace "'", "''")'" }
+    }
     Set-Content -LiteralPath $Path -Value $lines -Encoding UTF8
 }
 
@@ -153,7 +163,7 @@ function Confirm-TrustCertificate([switch]$NoSave) {
     if ((Read-Host 'Trust this certificate for the push? (y/n)') -notmatch '^[yj]') { return $false }
     $Config.NobsCertThumbprint = $cert.Thumbprint
     Set-NobsCertificatePin
-    if (-not $NoSave) { Save-LocalConfig $script:LocalConfig $Config.NobsUrl $Config.NobsCertThumbprint; Write-PushLog "Certificate $($cert.Thumbprint) trusted, kept in $($script:LocalConfig)" }
+    if (-not $NoSave) { Save-LocalConfig $script:LocalConfig @{ NobsUrl = $Config.NobsUrl; NobsCertThumbprint = $Config.NobsCertThumbprint }; Write-PushLog "Certificate $($cert.Thumbprint) trusted, kept in $($script:LocalConfig)" }
     return $true
 }
 
@@ -188,9 +198,21 @@ function Invoke-Setup {
         Write-Host $why -ForegroundColor Yellow
         if ($try -ge 3) { throw 'The token was not accepted. Run .\Lansweeper-Push.ps1 -Setup to try again.' }
     }
-    Save-LocalConfig $script:LocalConfig $Config.NobsUrl $Config.NobsCertThumbprint
     Save-Token $secure
+    Save-LocalConfig $script:LocalConfig @{ NobsUrl = $Config.NobsUrl; NobsCertThumbprint = $Config.NobsCertThumbprint }
     Write-PushLog "Setup saved: $($Config.NobsUrl) in $($script:LocalConfig), the token for $env:USERNAME on $env:COMPUTERNAME"
+    # The Lansweeper database: when this account cannot open it, offer Lansweeper's own login.
+    try { (Open-LsConnection).Close(); Write-Host 'The Lansweeper database opens.' -ForegroundColor Green }
+    catch {
+        Write-Host "The Lansweeper database does not open for $env:USERNAME`: $($_.Exception.Message)" -ForegroundColor Yellow
+        if ((Read-Host "Use the database login Lansweeper itself uses, read from its configuration at each run? Needs administrator rights. (y/n)") -match '^[yj]') {
+            $Config.SqlFromLansweeper = $true; $Config.SqlUseStoredCredential = $false
+            (Open-LsConnection).Close()
+            Write-Host 'The Lansweeper database opens with Lansweeper''s own login.' -ForegroundColor Green
+            Save-LocalConfig $script:LocalConfig @{ SqlFromLansweeper = $true; SqlUseStoredCredential = $false }
+            Write-PushLog "Lansweeper's own database login is used, read at each run (kept in $($script:LocalConfig))"
+        } else { Write-Host 'Store a SQL login with .\Lansweeper-Push.ps1 -SetSqlCredential, or run the push as an account with database rights.' }
+    }
 }
 $script:Interactive = [Environment]::UserInteractive -and -not ([Environment]::GetCommandLineArgs() -match '^-NonI')
 
@@ -262,9 +284,52 @@ function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
     return "CAST(NULL AS nvarchar(200)) AS [$out]"
 }
 
+# The configuration files that may hold Lansweeper's database login: the one of its service (found by the service's path),
+# then the usual places of the service and of the website.
+function Get-LansweeperConfigFiles {
+    $files = New-Object System.Collections.Generic.List[string]
+    try {
+        Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object { $_.Name -like 'Lansweeper*' -and $_.PathName } | ForEach-Object {
+            $exe = ($_.PathName -replace '^"([^"]+)".*$', '$1') -replace '^(\S+\.exe).*$', '$1'
+            $files.Add("$exe.config"); $files.Add((Join-Path (Split-Path $exe) 'Lansweeper.Service.dll.config'))
+        }
+    } catch { }
+    foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ }) {
+        foreach ($rel in @('Lansweeper\Service\Lansweeper.Service.exe.config', 'Lansweeper\Service\lansweeperservice.exe.config', 'Lansweeper\Website\web.config')) { $files.Add((Join-Path $root $rel)) }
+    }
+    return @($files | Select-Object -Unique | Where-Object { Test-Path -LiteralPath $_ })
+}
+
+# The connection string Lansweeper uses, from the first of its configuration files that has one. A protected (encrypted)
+# section is opened by .NET with the machine's key, which needs administrator rights.
+function Get-LansweeperConnectionString {
+    $files = Get-LansweeperConfigFiles
+    if (-not $files) { throw 'No Lansweeper configuration was found on this machine. Run the push on the Lansweeper server, or set SqlConnectionString.' }
+    Add-Type -AssemblyName System.Configuration
+    $why = @()
+    foreach ($f in $files) {
+        try {
+            $map = New-Object System.Configuration.ExeConfigurationFileMap
+            $map.ExeConfigFilename = $f
+            $cfg = [System.Configuration.ConfigurationManager]::OpenMappedExeConfiguration($map, [System.Configuration.ConfigurationUserLevel]::None)
+            foreach ($cs in $cfg.ConnectionStrings.ConnectionStrings) {
+                if ($cs.ConnectionString -match '(?i)(initial catalog|database)\s*=') { return $cs.ConnectionString }
+            }
+            $why += "$f has no database connection"
+        } catch { $why += "$f`: $($_.Exception.Message)" }
+    }
+    throw ("Lansweeper's database login could not be read (run as administrator, in Windows PowerShell 5.1). " + ($why -join '; '))
+}
+
+function Show-LansweeperDb {
+    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder (Get-LansweeperConnectionString)
+    Write-PushLog "Lansweeper's database: server $($csb.DataSource), database $($csb.InitialCatalog), $(if ($csb.IntegratedSecurity) { 'Windows login' } else { "user $($csb.UserID)" }). The password is not shown."
+}
+
 function Open-LsConnection {
-    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString
-    if ($Config.SqlUseStoredCredential) {
+    $csb = if ($Config.SqlFromLansweeper) { New-Object System.Data.SqlClient.SqlConnectionStringBuilder (Get-LansweeperConnectionString) }
+           else { New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString }
+    if ($Config.SqlUseStoredCredential -and -not $Config.SqlFromLansweeper) {
         $cred = Get-StoredSqlCredential
         $csb['Integrated Security'] = $false
         $csb['User ID'] = $cred.UserName
@@ -735,6 +800,7 @@ try {
     }
     if ($RegisterTask) { Register-PushTask; exit 0 }
     if ($ShowCertificate) { Show-NobsCertificate; exit 0 }
+    if ($ShowLansweeperDb) { Show-LansweeperDb; exit 0 }
     if ($FindTables) {
         $lines = Find-LsTables
         $file = Join-Path $Config.DataDir 'tables.txt'
