@@ -421,7 +421,10 @@ export function mapLayout(nodes){
   const focused = !!MAP.focused;
   const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (focused || st.mapAttached || !isAttached(r.kind)));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
-  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes;
+  /* With attached devices off, a device that is only attached to another one (a monitor on a PC) is left out too, not
+     drawn as a loose box; a monitor attached to nothing still shows when objects without relations are shown. */
+  const attachedOnly = o => !connected.has(o.id) && rels.some(r => r.from === o.id && isAttached(r.kind) && ids.has(r.to));
+  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes.filter(o => focused || st.mapAttached || !attachedOnly(o));
   const inList = new Set(list.map(o => o.id));
   const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
@@ -619,7 +622,8 @@ export function renderMap(){
     bindMapToolbar();
     return;
   }
-  $('#mapCount').textContent = MAP.L.list.length + ' objects · ' + MAP.L.edges.length + ' relations';
+  const nL = MAP.L.list.length, nE = MAP.L.edges.length;
+  $('#mapCount').textContent = `${nL} ${nL === 1 ? 'object' : 'objects'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
   $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relationship map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
     <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
