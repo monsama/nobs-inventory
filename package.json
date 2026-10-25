@@ -23,7 +23,7 @@
     "ldapjs": "^3.0.7"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "axe-core": "^4.10.2",
     "eslint": "^10.13.0",
     "globals": "^15.15.0",
