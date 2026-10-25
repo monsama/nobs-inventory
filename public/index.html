@@ -86,7 +86,9 @@ table.locs td.site{color:var(--muted)}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
-.pl-q input{width:100%;height:28px;box-sizing:border-box}
+.pl-q>input{width:100%;height:28px;box-sizing:border-box}
+.pl-filters{display:flex;gap:6px;margin-top:6px}
+.pl-filters select{flex:1 1 0;min-width:0;height:28px}
 .pl-list{overflow:auto;flex:1;min-height:0}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
@@ -231,7 +233,13 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:3px;height:2px;border-radius:1px;background:var(--accent);opacity:.5;pointer-events:none}
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
 .tab .x:hover{color:var(--fg);background:var(--hover)}
-.tabs-sep{width:1px;align-self:stretch;margin:6px 6px;background:var(--bd);flex:none}
+#objbar{display:flex;gap:4px;background:var(--panel);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:34px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
+#objbar[hidden]{display:none}
+#objbar>*{flex:none}
+#objbar .tab.objtab{height:24px}
+#objbar .tab.objtab .mono{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+#objbar .grow{flex:1 1 auto}
+.objbar-close{height:24px;padding:0 10px;font-size:12px}
 .tabs-cap{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;align-self:center;padding:0 4px;flex:none}
 .tab.objtab{background:var(--panel);border-color:var(--bd);padding-left:8px;border-radius:4px}
 .tab.objtab .tsw{width:8px;height:8px;border-radius:50%;flex:none}
@@ -406,7 +414,9 @@ table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
 table.sw-sub th{position:static;text-align:left;font-weight:600;font-size:13px;color:var(--fg);background:var(--gridh)!important;padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
 table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
 table.sw-sub tr:last-child td{border-bottom:0}
-table.sw-sub tr:hover td{background:var(--hover)}
+/* The list of devices sits inside the software table: one colour, no stripes and no hover from the outer table. */
+table.grid.sw .sw-detail:hover>td{background:var(--panel)}
+table.grid.sw table.sw-sub td,table.grid.sw table.sw-sub tr:hover td{background:var(--bg)}
 .sw-dev{display:inline-flex;align-items:center;gap:8px}
 table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
 table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
@@ -715,6 +725,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 
   <section id="content">
     <nav id="tabsbar" aria-label="Views"></nav>
+    <nav id="objbar" aria-label="Open objects" hidden></nav>
     <div id="toolbar" class="toolbar"></div>
     <div id="view" class="view"></div>
   </section>
