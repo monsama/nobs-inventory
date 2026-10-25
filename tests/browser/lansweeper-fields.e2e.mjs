@@ -135,6 +135,21 @@ try {
   assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
   await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
 
+  // with no sync at all, what only a sync fills in is hidden: the last power event, the scan flag, the Lansweeper
+  // column, and the Graph chip while Graph is not set up. The values are kept.
+  const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);
+  await offView(true);
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('label[for=f_o1_boot]').count(), 1, 'shown with Lansweeper on');
+  await offView(false);
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('label[for=f_o1_boot]').count(), 0, 'hidden with Lansweeper off');
+  assert.equal(await page.evaluate(async () => (await import('/js/01-core.js')).byId('o1').boot), 'Shutdown 01.10.2026', 'the value is kept');
+  assert.equal(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('o1'); o.feed = { sys: 'Lansweeper', scanned: '2020-01-01' }; return c.scanOld(o); }), false, 'no scan flag');
+  assert.equal(await page.evaluate(async () => (await import('/js/02-views.js')).tableCols().some(c => c.k === 'ls')), false, 'no Lansweeper column');
+  assert.deepEqual(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const a = c.graphChip(c.byId('o1')); c.SYNC.graph = true; const b = c.graphChip(c.byId('o1')); c.SYNC.graph = false; return [a, !!b]; }), ['', true], 'Graph chip only with Graph set up');
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
+
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');
 } finally { await browser.close(); server.close(); }

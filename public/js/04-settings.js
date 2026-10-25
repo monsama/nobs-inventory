@@ -1,5 +1,5 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince } from './01-core.js';
+import { COMPANY, dayText, daysSince, SYNC } from './01-core.js';
 import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -279,7 +279,7 @@ export async function renderSetGraph(){
 async function refreshGraph(){
   const r = await fetch('api/me', {credentials: 'same-origin'}).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => null) : null;
-  if (j) SERVER.graph = !!j.graph;
+  if (j) SYNC.graph = SERVER.graph = !!j.graph;
   await renderSetGraph();
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).

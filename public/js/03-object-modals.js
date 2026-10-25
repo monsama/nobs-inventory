@@ -1,7 +1,7 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -159,7 +159,7 @@ export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).f
 export function avCtl(o, id, edit){
   const items = avEntries(o);
   /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
-  const live = LS_ON() && st.feedOn !== false && feedLinked(o);
+  const live = lsLive() && feedLinked(o);
   const label = x => live ? x : x.split(',')[0].trim();
   return `<div class="avpick">${items.map((x, i) => `<span class="avitem"${live || label(x) === x ? '' : ` title="${esc(x)}"`}>${esc(label(x))}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
     ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}`
@@ -260,7 +260,7 @@ export function propRow(o, f){
   if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
   /* Disks filled in by Lansweeper show as bars; typed by hand they stay a text field, with the bars underneath. */
   if (k === 'av' && taken) ctl = avCtl(o, `f_${o.id}_${k}`, false);
-  const bars = k === 'disk' ? diskBars(o.disk, LS_ON() && st.feedOn !== false && feedLinked(o)) : '';
+  const bars = k === 'disk' ? diskBars(o.disk, lsLive() && feedLinked(o)) : '';
   if (bars && taken) ctl = bars;
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
@@ -497,6 +497,7 @@ export function renderObj(o){
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
   const lay = FIELD_LAYOUT[o.type] || {};
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
+  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
   fields = fields.filter(f => f[0].startsWith('custom.') || !(lay.hidden || []).includes(f[0]))
     .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
     .sort((a, b) => at(a) - at(b));
