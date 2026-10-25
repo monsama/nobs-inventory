@@ -1,4 +1,4 @@
-FROM node:22.22-alpine3.24
+FROM node:26.12-alpine3.24
 # Security fixes Alpine has published since the base image was built (OpenSSL, ...).
 RUN apk upgrade --no-cache
 WORKDIR /app
