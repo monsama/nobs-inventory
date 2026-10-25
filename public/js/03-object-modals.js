@@ -22,7 +22,7 @@ export function renderRack(){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
-      const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? top.ports + '+' + top.sfp + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? top.cap + ' · ' + top.proto : top.model;
+      const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
       cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
         <span class="nm">${esc(top.name)}</span><span class="sub">${esc(top.code)} · ${esc(sub)}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
@@ -71,7 +71,8 @@ export function entriesHtml(o){
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
-  if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${LOCS.map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
+  if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.loc ? '' : 'selected'}>No location</option>${(o.loc && !LOCS.includes(o.loc) ? [o.loc, ...LOCS] : LOCS).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
   else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
@@ -517,7 +518,11 @@ export function renderObj(o){
       if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       if (k === 'units') v = +v || 42;
-      if (k === 'type' && o.type !== v && TYPES[v]){ hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`); }
+      if (k === 'type' && o.type !== v && TYPES[v]){
+        hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
+        /* A device that becomes a switch gets the port counts a new switch has, where it has none yet. */
+        if (v === 'switch'){ o.ports ??= 24; o.sfp ??= 4; }
+      }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       if (feedLinked(o) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;

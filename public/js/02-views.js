@@ -131,12 +131,12 @@ export function cardHtml(o){
   if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
   else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
   if (o.type === 'server') lines.push(['Kind', o.kind === 'vm' ? 'Virtual machine' : 'Physical']);
-  if (o.type === 'storage') lines.push(['Capacity', `${esc(o.cap)} · ${esc(o.proto)}`]);
-  if (o.type === 'switch') lines.push(['Ports', `${o.ports} + ${o.sfp} SFP · ${used(o)} used`]);
+  if (o.type === 'storage' && (o.cap || o.proto)) lines.push(['Capacity', esc([o.cap, o.proto].filter(Boolean).join(' · '))]);
+  if (o.type === 'switch') lines.push(['Ports', `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o)} used`]);
   else if (o.type === 'patch') lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
   else if (hasPorts(o) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
   else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
-  lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
+  if (o.loc) lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
   if (o.user) lines.push(['User', esc(o.user)]);
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
@@ -352,7 +352,7 @@ const fitMap = (t, px) => {
   const text = String(t ?? ''), max = Math.floor((MAP_W - 16) / (px * 0.56));
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 };
-export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? o.cap + ' · ' + o.proto : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
+export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
 export const mapH = () => 91;
 
@@ -532,6 +532,7 @@ export function renderMap(){
     <input id="mapFind" type="search" placeholder="Find object…" style="width:200px" value="${esc(st.mapFind)}" aria-label="Find object">
     <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
     <button id="mapExport">Export SVG</button>`;
+  MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.L = mapLayout(nodes);
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
@@ -561,7 +562,7 @@ export function renderMap(){
     if (!d.moved) return;
     if (d.pan){ MAP.px = d.ox + dx; MAP.py = d.oy + dy; mapApply(); return; }
     st.mapPos[d.id] = {x: d.ox + dx / MAP.zoom, y: d.oy + dy / MAP.zoom};
-    MAP.L = mapLayout(filtered()); $('#mapG').innerHTML = mapInner(MAP.L);
+    MAP.L = mapLayout(MAP.nodes); $('#mapG').innerHTML = mapInner(MAP.L);
     mapHighlight(d.id);
   });
   svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); });
@@ -615,7 +616,7 @@ export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
   if (!devs.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
   const sw = byId(st.portsDevice) || devs[0];
-  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)} · ${esc(s.loc.split(' / ')[0])}</option>`).join('')}</select>
+  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; render(); };

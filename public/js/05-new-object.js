@@ -67,7 +67,8 @@ export function newObjModal(pre={}){
     if (o.type === 'patch') o.ports = 24;
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who());
     const up = $('#nUp').value;
-    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (/^\d+$/.test(p) && hasPorts(t)) p = +p;
+    /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
+    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (p && t.type === 'patch') p = patchPort(p); else if (/^\d+$/.test(p) && hasPorts(t)) p = +p;
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: o.type === 'monitor' ? 'attached' : 'connected', port: p || null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && (o[k] === undefined || ['ports','sfp','pfx'].includes(k))) o[k] = c[k]; });
