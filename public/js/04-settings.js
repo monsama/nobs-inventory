@@ -5,6 +5,7 @@ import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
+import { CARD_FIELDS, cardLines } from './02-views.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
@@ -182,8 +183,8 @@ export function renderSetPane(){
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     directory: '<div id="setLdap"></div><div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
-    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
+    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
@@ -688,7 +689,7 @@ export function renderSetVlans(){
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
-  $('#setDomains').innerHTML = `<div class="hdr" style="margin-top:14px">Domains <span class="cnt">${DOMAINS.length}</span></div>
+  $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
     <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><span class="mono">${esc(d.name)}</span><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
     <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd" class="primary">Add domain</button></div>`;
   const root = $('#setDomains');
@@ -826,15 +827,15 @@ export const fieldKey = label => {
 /* The fields a type has beyond the built-in ones. They are filled in by hand on every object of that type. */
 export function renderSetTypeFields(){
   let box = $('#setTypeFields');
-  if (!box){ box = document.createElement('div'); box.id = 'setTypeFields'; $('#setTypes').appendChild(box); }
+  if (!box) return;
   const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
-  box.innerHTML = `<div class="hdr" style="margin-top:14px">Fields per type</div>
+  box.innerHTML = `<div class="panelbox"><div class="hdr">Fields per type</div>
     <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
     <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
     <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
+    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
   /* A field's name can be changed; its key stays, so the values already entered are kept. */
   box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
@@ -857,6 +858,19 @@ export function renderSetTypeFields(){
   $('#tfAdd').onclick = add;
   $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
   renderBuiltinFields(box, type);
+  renderCardLines(box, type);
+}
+/* The four lines a card shows for this type. Every card of the type shows the same four, so cards line up. */
+export function renderCardLines(box, type){
+  const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
+  const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
+  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">On the card</div>
+    <p class="note" style="padding:0 12px 8px">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
+    <div class="cardlines">${cur.map((k, i) => `<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => `<option value="${esc(v)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}
+      <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`);
+  const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
+  box.querySelectorAll('[data-cl]').forEach(sel => sel.onchange = () => { const next = [...cur]; next[+sel.dataset.cl] = sel.value; save(next); });
+  $('#clReset').onclick = () => save(null);
 }
 /* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
 export function renderBuiltinFields(box, type){
@@ -867,15 +881,15 @@ export function renderBuiltinFields(box, type){
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
-  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...patch}; save(next); };
-  box.insertAdjacentHTML('beforeend', `<div class="hdr" style="margin-top:14px">Built-in fields</div>
+  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch}; save(next); };
+  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Built-in fields</div>
     <p class="note" style="padding:0 12px 8px">Rename a field, hide it for this type (its values are kept), or move it up or down. The stored name of a field does not change.</p>
     <div class="lrows">${ordered.map((f, i) => {
       const hidden = (lay.hidden || []).includes(f[0]);
       return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}"><span class="mono muted">${esc(f[0])}</span>
         <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
         <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
-    }).join('')}</div>`);
+    }).join('')}</div></div>`);
   box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
     const k = i.dataset.flab, name = i.value.trim(), labels = {...(lay.labels || {})};
     if (!name || name === ordered.find(f => f[0] === k)[1]) delete labels[k]; else labels[k] = name;

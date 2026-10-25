@@ -87,8 +87,9 @@ export function checkState(s) {
     const ok = s.fieldLayout && typeof s.fieldLayout === 'object' && !Array.isArray(s.fieldLayout) && Object.values(s.fieldLayout).every(l => l && typeof l === 'object'
       && (l.order === undefined || (Array.isArray(l.order) && l.order.every(k => typeof k === 'string' && k.length <= 60)))
       && (l.hidden === undefined || (Array.isArray(l.hidden) && l.hidden.every(k => typeof k === 'string' && k.length <= 60)))
-      && (l.labels === undefined || (l.labels && typeof l.labels === 'object' && Object.values(l.labels).every(v => typeof v === 'string' && v.length <= 40))));
-    if (!ok) bad('The field layout of a type is a list of names, hidden names and new labels.');
+      && (l.labels === undefined || (l.labels && typeof l.labels === 'object' && Object.values(l.labels).every(v => typeof v === 'string' && v.length <= 40)))
+      && (l.card === undefined || (Array.isArray(l.card) && l.card.length <= 4 && l.card.every(k => typeof k === 'string' && k.length <= 60))));
+    if (!ok) bad('The field layout of a type is a list of names, hidden names, new labels and up to four card lines.');
   }
   if (s.subnets !== undefined) {
     if (!Array.isArray(s.subnets)) bad('The subnets must be a list.');
