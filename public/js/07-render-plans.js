@@ -98,7 +98,9 @@ export function renderPlans(){
     </div>`;
   const body = plan ? `<div class="pl-body">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
-        <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices"></div>
+        <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices">
+          <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => `<option value="${k}" ${st.plType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
+          <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? `<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${esc(plan.site)}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
         <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${planCanvas(plan)}</div></div>`
@@ -119,6 +121,8 @@ export function renderPlans(){
   if (!plan) return;
   renderPlanList(plan);
   $('#plQ').oninput = () => renderPlanList(plan);
+  $('#plType').onchange = e => { st.plType = e.target.value || null; renderPlanList(plan); };
+  $('#plWhere').onchange = e => { st.plWhere = e.target.value || null; renderPlanList(plan); };
   $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
   /* A device can also be dragged from the list into an area: it is placed where it is dropped and gets the area's room. */
   $('#plList').onpointerdown = e => {
@@ -205,7 +209,10 @@ export function planCanvas(plan){
 export function renderPlanList(plan){
   const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
   const placed = planDevices(plan).map(o => o.id);
-  const rows = objs.filter(o => !placed.includes(o.id) && o.status !== 'retired' && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
+  /* The list can be narrowed to one type, and to the devices at the plan's site or those without a location. */
+  const where = st.plWhere === 'site' && plan && plan.site ? o => String(o.loc || '').split(' / ')[0] === plan.site : st.plWhere === 'none' ? o => !o.loc : () => true;
+  const rows = objs.filter(o => !placed.includes(o.id) && o.status !== 'retired' && (!st.plType || o.type === st.plType) && where(o)
+    && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
 export function placeDevice(plan, o, x, y){
