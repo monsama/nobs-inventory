@@ -72,8 +72,8 @@ export function renderPlans(){
   planSel = plan ? plan.id : null;
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = `<div class="pl-bar">
-      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet</span>'}
-      <button id="plNew" class="primary">New plan</button>
+      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet.</span>'}
+      <button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         ${editArea && planMode === 'view' ? `<button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
@@ -675,8 +675,8 @@ export async function loadFromServer(user){
 }/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
 export function loginModal(err = '', login = ''){
   document.body.classList.add('signed-out');
-  modal(`<div class="mh">Sign in to NOBS Inventory</div>
-    <div class="mb"><form id="loginForm" class="form" style="padding:0">
+  modal(`<div class="mh">Sign in</div>
+    <div class="mb"><div class="brandmark" style="margin:2px 0 16px"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div><form id="loginForm" class="form" style="padding:0">
       <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
       <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
     </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p></div>

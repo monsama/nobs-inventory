@@ -67,6 +67,11 @@ try {
   await p.fill('#swQ', 'no such thing');
   await p.waitForSelector('#swBody >> text=Nothing matches');
   await p.fill('#swQ', '');
+  // keyboard only: the chevron is a button; Enter opens the package, Enter again closes it
+  await p.focus('tr[data-sw="Tool X"] .sw-tg'); await p.keyboard.press('Enter');
+  await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');
+  await p.keyboard.press('Enter');
+  assert.equal(await p.locator('tr.sw-detail').count(), 0, 'Enter on the chevron closes the package again');
   // Port groups: a named range of the router's ports, with a kind; an overlapping range is refused.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
   await p.click('#tabsbar [data-tab=net]');

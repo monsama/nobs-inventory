@@ -44,6 +44,11 @@ try {
   assert.equal(await p.locator('#mapSvg .mnode').count(), 3, 'more than the switch and its direct links are drawn');
   const shown = await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort());
   assert.deepEqual(shown, ['o1', 'o2', 'o3'], 'the wrong objects are drawn: ' + shown.join(','));
+  // A PC whose only links are its monitors: its relations show the PC and the monitors, with "Attached devices" off.
+  assert.equal(await p.isChecked('#mapAttached'), false);
+  await p.selectOption('#mapFocus', 'o5');
+  await p.waitForFunction(() => /^2 objects · 1 relation/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  assert.deepEqual(await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort()), ['o4', 'o5'], 'the PC and its monitor are drawn');
   await p.selectOption('#mapFocus', '');
   await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.deepEqual(errors, [], 'page errors');
