@@ -22,6 +22,11 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Windows CE', 'Microsoft Corporation Windows CE', 'HMI_Panel'), 'plc', 'an operator panel');
   assert.equal(t('Network device', 'Novar GmbH', 'Novar GmbH 172.21.103.109'), 'plc', 'Novar (Honeywell) building automation');
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-hmilton'), 'pc', 'hmi as a whole word only');
+  assert.equal(t('Network device', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG'), 'pbx', 'a TAS phone system');
+  assert.equal(t('Remote Access Controller', 'HPE iLO 5', 'srv01-ilo'), 'bmc', 'an iLO');
+  assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'vm', 'the OmniStack controller is a VM, not an iLO');
+  assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
+  assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-silo'), 'pc', 'ilo as a whole word only');
   assert.equal(t('VoIP', 'ALE International OXO050/042.001 GW_050/042', 'ALE International 172.21.103.5'), 'pbx', 'an OmniPCX Office is a phone system');
   assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');
   assert.equal(t('Network device', 'Hewlett-Packard 8360-24XF2C v2 (JL722C)', 'core-sw'), 'switch', 'an Aruba CX 8360 is a switch');
