@@ -43,16 +43,16 @@ export const TYPES = {
   sip:{label:'VoIP phone', short:'VoIP', color:'#15803d', icon:'sip'},
   pbx:{label:'Telephone system', short:'PBX', color:'#0f766e', icon:'pbx'},
   monitor:{label:'Monitor', short:'Monitor', color:'#64748b', icon:'monitor'},
-  switch:{label:'Switch', short:'Switch', color:'#ea580c', icon:'switch'},
+  switch:{label:'Switch', short:'Switch', color:'#c2410c', icon:'switch'},
   printer:{label:'Printer', short:'Printer', color:'#a16207', icon:'printer'},
   patch:{label:'Patch panel', short:'Patch', color:'#0f766e', icon:'patch'},
   router:{label:'Router', short:'Router', color:'#1e3a8a', icon:'router'},
   firewall:{label:'Firewall', short:'Firewall', color:'#b91c1c', icon:'firewall'},
   modem:{label:'Modem', short:'Modem', color:'#78716c', icon:'modem'},
   storage:{label:'Storage', short:'Storage', color:'#0891b2', icon:'storage'},
-  android:{label:'Android Device', short:'Android', color:'#84cc16', icon:'mobile'},
-  ios:{label:'IOS Device', short:'iOS', color:'#65a30d', icon:'mobile'},
-  mobile:{label:'Other Mobile Device', short:'Mobile', color:'#0d9488', icon:'mobile'},
+  android:{label:'Android device', short:'Android', color:'#4d7c0f', icon:'mobile'},
+  ios:{label:'iOS device', short:'iOS', color:'#a21caf', icon:'mobile'},
+  mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
   plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
@@ -78,7 +78,8 @@ export const TYPE_FIELDS = {};
 export const DOMAINS = [];
 /* The layout of the built-in fields per type: { type: { order: [keys], hidden: [keys], labels: { key: name } } }. */
 export const FIELD_LAYOUT = {};
-export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return v ? `${v.vid} · ${v.name}` : String(vid); };
+/* "8 · Users"; a VLAN named only after its number ("VLAN 8") is just "8", so it never reads "VLAN 8 · VLAN 8". */
+export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return !v ? String(vid) : new RegExp(`^(vlan\\s*)?${v.vid}$`, 'i').test(String(v.name).trim()) ? String(v.vid) : `${v.vid} · ${v.name}`; };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
 export const SITES = [];
 /* Racks are objects of type rack. Their height is the units field. */
@@ -159,7 +160,16 @@ export const markHtml = o => {
   const byHand = !!o.handAt && Date.parse(o.handAt) > SYNC.time;
   return (isNew ? '<span class="mk mk-new">New</span>' : '') + (byHand ? '<span class="mk mk-hand">Edited by hand</span>' : '');
 };
-export const byId = id => objs.find(o => o.id === id);
+/* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
+   was refilled, sorted or spliced is never answered from a stale index: a miss rebuilds it once. */
+let ID_AT = new Map();
+const idAt = id => { const i = ID_AT.get(id); return i !== undefined && objs[i] && objs[i].id === id ? objs[i] : undefined; };
+export const byId = id => {
+  const hit = idAt(id);
+  if (hit) return hit;
+  ID_AT = new Map(objs.map((o, i) => [o.id, i]));
+  return idAt(id);
+};
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
 
@@ -215,7 +225,14 @@ export const portLabel = (target, p) => {
   if (typeof p === 'number' && hasPorts(target)) return pfxOf(target) + p;
   return String(p);
 };
-export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
+/* The relations of every object, built once for a view that draws many objects; relsOf and used take it instead of
+   going through all relations for each object. Built fresh for each draw, so it always matches rels. */
+export function relIndex(){
+  const m = new Map(), add = (id, r) => { const l = m.get(id); if (l) l.push(r); else m.set(id, [r]); };
+  for (const r of rels){ add(r.from, r); if (r.to !== r.from) add(r.to, r); }
+  return m;
+}
+export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => r.from === o.id || r.to === o.id)).map(r => {
   const out = r.from === o.id;
   const other = byId(out ? r.to : r.from);
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
@@ -234,7 +251,7 @@ export const releaseRetiredPort = (to, port) => {
 };
 /* A patch panel port is written P01, P02 ... whatever the person typed. */
 export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
-export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
+export const used = (o, idx) => (idx ? idx.get(o.id) || [] : rels).filter(r => r.to === o.id && r.port != null).length;
 export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';

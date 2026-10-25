@@ -1,6 +1,9 @@
-# NOBS Inventory
+<img src="public/logo.svg" alt="" width="56" align="left">
 
-Inventory for PCs, servers, storage, phones, network gear, patch panels and racks. A small Node/Express API stores everything in one SQLite file. The page is `public/index.html` with `public/app.js`. With a server it signs in and saves there. Without a server it keeps its data in the browser. The demo inventory is in `public/demo.js` and is loaded only when someone asks for it; a server never sends it.
+# NOBS Inventory
+<br clear="left">
+
+Inventory for PCs, servers, storage, phones, network gear, PLCs, patch panels and racks, with their relations. A small Node/Express API stores everything in one SQLite file. The page is `public/index.html` with its modules in `public/js/`. It shows nothing until you sign in, and saves everything on the server.
 
 ## Releases
 

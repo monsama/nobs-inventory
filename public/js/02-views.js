@@ -1,4 +1,4 @@
-import { WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -123,31 +123,59 @@ export function relSummary(rs){
   const net = rs.filter(x => !isAttached(x.r.kind)).length, att = rs.length - net;
   return [net ? net + (net === 1 ? ' relation' : ' relations') : '', att ? att + ' attached' : ''].filter(Boolean).join(' · ');
 }
-export function cardHtml(o){
-  const rs = relsOf(o);
-  const lines = [];
-  if (o.purpose) lines.push(['Purpose', esc(o.purpose)]);
-  /* The fields the type has, when this object has a value for them. */
-  for (const f of TYPE_FIELDS[o.type] || []) { const v = (o.custom || {})[f.key]; if (v != null && v !== '') lines.push([f.label, esc(String(v))]); }
-  /* A device named by its address does not list it twice. */
-  if (o.ip && o.ip !== o.name) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
-  if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
-  else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
-  if (o.type === 'server') lines.push(['Kind', o.kind === 'vm' ? 'Virtual machine' : 'Physical']);
-  if (o.type === 'storage' && (o.cap || o.proto)) lines.push(['Capacity', esc([o.cap, o.proto].filter(Boolean).join(' · '))]);
-  if (o.type === 'switch') lines.push(['Ports', `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o)} used`]);
-  else if (o.type === 'patch') lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
-  else if (hasPorts(o) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
-  else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
-  if (o.loc) lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
-  if (o.user) lines.push(['User', esc(o.user)]);
-  const w = warrantyState(o);
-  if (w) lines.push(['Warranty', `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>`]);
+/* What a card line can show: its label, and the value for a device ('' when the device has none). */
+const mono = v => v ? `<span class="mono">${esc(String(v))}</span>` : '';
+export const CARD_FIELDS = {
+  ip: ['IP', o => mono(o.ip)],
+  mac: ['MAC', o => mono(o.mac)],
+  user: ['User', o => esc(o.user || '')],
+  loc: ['Location', o => esc((o.loc || '').replace(' / ', ' · '))],
+  warranty: ['Warranty', o => { const w = warrantyState(o); return w ? `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>` : ''; }],
+  serial: ['Serial', o => mono(o.serial)],
+  os: ['OS', o => esc(o.os || '')],
+  fw: ['Firmware', o => esc(o.fw || '')],
+  ports: ['Ports', (o, idx) => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o, idx)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o, idx)} used` : ''],
+  ext: ['Extension', o => mono(o.ext)],
+  kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : 'Physical') : ''],
+  cap: ['Capacity', o => esc([o.cap, o.proto].filter(Boolean).join(' · '))],
+  ssid: ['Wi-Fi', o => esc(o.ssid || '')],
+  domain: ['Domain', o => esc(o.domain || '')],
+  units: ['Height', o => o.units ? o.units + ' U' : ''],
+  purpose: ['Purpose', o => esc(o.purpose || '')],
+};
+/* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
+   in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
+export const CARD_DEFAULTS = {
+  pc: ['ip', 'user', 'loc', 'warranty'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
+  accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
+  monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
+  patch: ['ports', 'loc', 'purpose', 'serial'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
+  modem: ['ip', 'loc', 'serial', 'purpose'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
+  ios: ['user', 'os', 'serial', 'loc'], mobile: ['user', 'os', 'serial', 'loc'], plc: ['ip', 'fw', 'loc', 'serial'],
+  rack: ['loc', 'units', 'purpose', 'serial'], other: ['ip', 'user', 'loc', 'serial'],
+};
+export const cardLines = type => {
+  const set = (FIELD_LAYOUT[type] || {}).card;
+  return (Array.isArray(set) && set.length ? [...set, '', '', '', ''] : CARD_DEFAULTS[type] || CARD_DEFAULTS.other).slice(0, 4);
+};
+/* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
+export function cardLine(o, key, idx){
+  if (key.startsWith('custom.')){
+    const f = (TYPE_FIELDS[o.type] || []).find(x => x.key === key.slice(7)), v = (o.custom || {})[key.slice(7)];
+    return [f ? f.label : key.slice(7), v != null && v !== '' ? esc(String(v)) : ''];
+  }
+  const c = CARD_FIELDS[key];
+  return c ? [c[0], c[1](o, idx)] : ['', ''];
+}
+/* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
+export function cardHtml(o, idx){
+  const rs = relsOf(o, idx);
+  const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
-    <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+    <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
@@ -167,13 +195,14 @@ export function renderCardsBody(){
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     return;
   }
-  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(cardHtml).join('')}</div>`; return; }
+  const idx = relIndex(), card = o => cardHtml(o, idx);
+  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
   st.groupsClosed ??= {};
   $('#view').innerHTML = groups.map(g => {
     const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
-    return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(cardHtml).join('')}</div></section>`;
+    return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(card).join('')}</div></section>`;
   }).join('');
   $('#view').querySelectorAll('.grphdr').forEach(h => {
     const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
@@ -213,7 +242,7 @@ export const TABLE_COLS = [
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
   {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
   {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
-  {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
+  {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
@@ -255,11 +284,12 @@ export function renderTable(){
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => { if (!bk.value) return; st.bulk.forEach(id => { const o = byId(id); o.loc = bk.value; hist(o, now(), 'Moved to ' + bk.value + ' (bulk)'); }); toast(n + ' moved to ' + bk.value); renderTable(); render(); };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
+  const idx = relIndex();   /* one index of the relations for all rows */
   const shown = TABLE_COLS.filter(c => c.fixed || !hiddenCols().includes(c.k));
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
     <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o)).join('')}</tr>`).join('')}
+    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
@@ -364,10 +394,12 @@ export const mapH = () => 91;
 
 export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
-  /* Attached devices are left out of the map unless asked for, so the map shows the network. */
-  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (st.mapAttached || !isAttached(r.kind)));
+  /* Attached devices are left out of the map unless asked for, so the map shows the network. Showing one object's
+     relations shows all of them, its monitors and accessories included, and the object itself even without any. */
+  const focused = !!MAP.focused;
+  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (focused || st.mapAttached || !isAttached(r.kind)));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
-  const list = st.mapOnly ? nodes.filter(o => connected.has(o.id)) : nodes;
+  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes;
   const inList = new Set(list.map(o => o.id));
   const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
@@ -539,6 +571,7 @@ export function renderMap(){
     <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
     <button id="mapExport">Export SVG</button>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
+  MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
@@ -674,7 +707,7 @@ export function renderPorts(){
       <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span><button id="psSave" class="primary">Save ports</button></div>
     </div>
     ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
-    <div class="panelbox"><div class="hdr">Front panel <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
+    <div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
       <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
         <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
       ${groups0.length ? `<div class="pgrouplegend">${groups0.map((g, i) => `<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${esc(g.name)} <span class="muted">${esc(pfxOf(sw) + g.from)}${g.to !== g.from ? '–' + esc(pfxOf(sw) + g.to) : ''}</span>${g.lag ? '<b>LAG</b>' : ''}</span>`).join('')}</div>` : ''}
@@ -682,8 +715,8 @@ export function renderPorts(){
     </div>
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="What is on this port, e.g. Printer, 3rd floor" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path"><span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button></div>`}</div>` : ''}
-    <div class="panelbox"><div class="hdr">Port groups <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<div class="relrow muted">No port groups yet. A group names a range of ports, such as the uplinks.</div>'}</div>
+    <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
+      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
       <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag"> LAG</label><button id="pgAdd">Add group</button></div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
       ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>

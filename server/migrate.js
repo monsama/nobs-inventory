@@ -1,5 +1,5 @@
-/* Brings older data up to the current types. Phones and tablets are now three types: Android Device, IOS Device and
-   Other Mobile Device. Racks used to be a list in the settings; now each rack is an object of type rack, with the same
+/* Brings older data up to the current types. Phones and tablets are now three types: Android device, iOS device and
+   Other mobile device. Racks used to be a list in the settings; now each rack is an object of type rack, with the same
    id, so the devices mounted in it keep their place. Running it again changes nothing. */
 const TYPE_RENAMES = { iphone: 'ios', tablet: 'mobile', smartphone: 'mobile' };
 

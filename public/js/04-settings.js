@@ -1,10 +1,11 @@
-import { daysSince } from './01-core.js';
+import { dayText, daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
+import { CARD_FIELDS, cardLines } from './02-views.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
@@ -12,7 +13,7 @@ export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf">${canEdit() ? '<button id="setReset" style="margin-right:auto">Clear inventory</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
+    <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   $('#setClose').onclick = () => { closeModal(); render(); };
   const sr = $('#setReset');
@@ -133,15 +134,10 @@ export function renderSetGraph(){
   const edit = canEdit(), ready = SERVER.graph && edit;
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
     <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below (its private key is shown once, so download it at once), then set the server settings it names.'}</p>
-    <p class="note" id="graphExpiry" style="padding:0 12px 10px"></p>
+    <div id="graphCerts"></div>
     <div class="addrel" style="padding:10px 12px"><button id="graphCert" ${edit ? '' : 'disabled'} title="${edit ? 'Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}">Create a certificate</button><button id="graphSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg"></span></div>
     <div id="graphNew"></div></div>`;
-  if (SERVER.graph) fetch('api/graph/status', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
-    const el = $('#graphExpiry');
-    if (!el || !j || !j.configured) return;
-    const days = Math.floor((new Date(j.expires) - Date.now()) / 86400000);
-    el.innerHTML = days < 60 ? `<span style="color:var(--danger)">The certificate expires ${esc(j.expires.slice(0, 10))}, in ${days} days. Create a new one and upload it to the Entra app.</span>` : `The certificate expires ${esc(j.expires.slice(0, 10))}.`;
-  }).catch(() => {});
+  if (edit) renderGraphCerts();
   const btn = $('#graphSync');
   if (btn) btn.onclick = async () => {
     const msg = $('#graphMsg');
@@ -166,13 +162,39 @@ export function renderSetGraph(){
       <p class="note">The key is shown here once and is not kept on the server. Download both files now.</p>
       <div class="addrel" style="padding:8px 0;border:0;background:none"><button id="graphGetCer">Download the certificate (.cer)</button><button id="graphGetKey" class="danger-text">Download the private key (.key)</button></div>
       <ol class="note" style="padding-left:18px">
-        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Thumbprint: <span class="mono">${esc(j.thumbprint)}</span>.</li>
+        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Entra lists it with the thumbprint <span class="mono">${esc(j.thumbprint)}</span>.</li>
         <li>On the server, save the .key file where the server can read it, and set NI_GRAPH_KEY_FILE to its path. Set NI_GRAPH_CERT_FILE to a file holding the .cer.</li>
         <li>Restart the server, then run the sync above.</li>
       </ol></div>`;
+    renderGraphCerts();
     $('#graphGetCer').onclick = () => downloadText('nobs-graph.cer', j.certPem);
     $('#graphGetKey').onclick = () => downloadText('nobs-graph.key', j.keyPem);
   };
+}
+/* The certificates made here and the one the server uses: public details only. Entra lists an uploaded certificate by the
+   same SHA-1 thumbprint, so the two lists can be compared. Removing one here does not touch Entra. */
+export async function renderGraphCerts(){
+  const r = await fetch('api/graph/status', {credentials: 'same-origin'}).catch(() => null);
+  const j = r && r.ok ? await r.json().catch(() => null) : null;
+  const el = $('#graphCerts');
+  if (!el || !j) return;
+  const day = t => esc(dayText(String(t || '').slice(0, 10)));
+  const left = t => Math.floor((new Date(t) - Date.now()) / 86400000);
+  const inList = j.configured && j.certs.some(c => c.inUse);
+  const rows = [...j.certs.map(c => ({...c, made: true})), ...(j.configured && !inList ? [{thumbprint: j.thumbprint, expires: j.expires, inUse: true, made: false}] : [])];
+  el.innerHTML = rows.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>On the server</th><th></th></tr></thead><tbody>
+    ${rows.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${c.made ? day(c.created) : '<span class="muted">not made here</span>'}</td>
+      <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
+      <td>${c.inUse ? '<span class="chip ok">In use</span>' : '<span class="muted">Not in use</span>'}</td>
+      <td>${c.made && !c.inUse ? `<button data-gcdel="${esc(c.thumbprint)}">Remove from list</button>` : ''}</td></tr>`).join('')}</tbody></table>
+    <p class="note" style="padding:8px 12px">A certificate you no longer need: remove it here, delete it in Entra (Certificates &amp; secrets) and delete its .key file. The private key is never kept here.</p>`
+    : '<p class="note" style="padding:8px 12px">No certificate made here yet, and none set on the server.</p>';
+  el.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this certificate from the list? Delete it in Entra as well, under Certificates & secrets.')) return;
+    const d = await fetch('api/graph/cert/' + encodeURIComponent(b.dataset.gcdel), {method: 'DELETE', credentials: 'same-origin'});
+    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not removed.'); return; }
+    renderGraphCerts();
+  });
 }
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
@@ -182,8 +204,8 @@ export function renderSetPane(){
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
     directory: '<div id="setLdap"></div><div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
-    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
+    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
@@ -202,7 +224,7 @@ export async function renderSetAbout(){
   if (!$('#setAbout')) return;   /* Settings was closed while the version was loading */
   $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
     <div class="muted" style="font-size:12px;line-height:1.6">
-      <b style="font-size:14px">NOBS Inventory</b><br>
+      <div class="brandmark" style="margin-bottom:8px;color:var(--fg)"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div>
       Version ${esc(version || 'unknown')}<br>
       An inventory of PCs, servers, phones, switches and other devices, with their relations.<br>
       <i>No BS, just inventory.</i><br>
@@ -257,9 +279,10 @@ export function applyRole(){
   }));
 }
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
-export function ensureUser(name){
+/* source: 'lansweeper' for a person first named as a device's user by the feed; they are kept like one added by hand. */
+export function ensureUser(name, source = 'manual'){
   let u = USERS.find(x => x.name === name);
-  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source:'manual', active:true}; USERS.push(u); }
+  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
@@ -268,7 +291,7 @@ export function bindUser(o){
   if (d && d.get) return;
   const name = o.user;
   delete o.user;
-  if (!o.uid) o.uid = name ? ensureUser(name).id : null;
+  if (!o.uid) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
@@ -325,19 +348,23 @@ export function mountModal(){
 }
 
 export function renderSetUsers(){
+  /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
+  const devCount = new Map();
+  for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
+  const devicesOfUser = name => devCount.get(name) || 0;
   const rows = USERS.map((u, i) => `<tr>
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : '<span class="chip kept">Manual</span>'}</td>
-      <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
+      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept">Manual</span>'}</td>
+      <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
-      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
-  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">${USERS.filter(u => u.active).length} active</span></div>
+      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
+  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
+    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd" class="primary">Add user</button></div></div>
-    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
@@ -516,6 +543,8 @@ export function factoryResetModal(){
 }
 /* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
    account's password is not stored there: the server reads it from its environment. */
+/* The same default as the server: the login at the domain the search base names. */
+const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -526,14 +555,19 @@ export function renderSetLdap(){
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account's password is not stored here: the server reads it from its environment (NI_LDAP_SERVICE_PASSWORD).</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
-      ${field('bindTemplate', 'Sign-in name', 'EXAMPLE\\{login}  or  {login}@example.ch')}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
-      ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
-      ${field('userFilter', 'User filter', '(objectClass=person)')}
+      ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
-      ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
     </div>
+    <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
+      <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
+        ${field('bindTemplate', 'Sign-in name', bindDefault(L.searchBase) + '   (or EXAMPLE\\{login})')}
+        ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
+        ${field('userFilter', 'User filter', '(objectClass=person)')}
+      </div>
+      <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
+    </details>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
@@ -608,7 +642,7 @@ const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
     <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
     <label class="span3">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
     <fieldset class="sn-types"><legend>Device types that take an address here</legend>${Object.entries(TYPES).map(([k, t]) => `<label class="pchk"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''} ${ro}>${esc(t.label)}</label>`).join('')}</fieldset>
-    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}">Delete</button>`}</div></div>`;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
@@ -618,7 +652,7 @@ export function renderSetSubnets(){
   root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
     <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
-    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}
+    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd">Add subnet</button></div>` : ''}
     ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
   root.querySelectorAll('[data-sub]').forEach(row => {
@@ -661,7 +695,7 @@ export function renderSetVlans(){
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
     ${VLANS.length ? VLANS.map((v, i) => { const n = usedBy(v.vid); return `<div class="lrow vl"><span class="mono">${v.vid}</span><input data-vn="${i}" maxlength="60" value="${esc(v.name)}" aria-label="Name of VLAN ${v.vid}"><input data-vdesc="${i}" maxlength="120" value="${esc(v.desc || '')}" placeholder="Description" aria-label="Description of VLAN ${v.vid}"><span class="n">${n}</span>
       <button data-vd="${i}" ${n || subnetsOn(v.vid) ? `disabled title="${subnetsOn(v.vid) ? 'A subnet is on this VLAN' : 'In use by ' + n + ' connections'}"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No VLANs yet. Add the ones your network uses.</p>'}</div>
-    <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><input id="vlDesc" maxlength="120" placeholder="Description (optional)" aria-label="VLAN description"><button id="vlAdd" class="primary">Add VLAN</button></div>
+    <div class="lpanel-add"><input id="vlId" type="number" min="1" max="4094" placeholder="ID, e.g. 10" aria-label="VLAN ID" style="width:120px"><input id="vlName" placeholder="Name, e.g. Users" aria-label="VLAN name"><input id="vlDesc" maxlength="120" placeholder="Description (optional)" aria-label="VLAN description"><button id="vlAdd">Add VLAN</button></div>
     ${SUBNETS.some(n => n.vid != null) ? `<p class="note lnote">${SUBNETS.filter(n => n.vid != null).map(n => `VLAN ${n.vid} carries ${esc(n.name)}, ${esc(n.cidr)}`).join(' · ')}</p>` : ''}
     <p class="note lnote" id="vlMsg">IDs run from 1 to 4094. Each VLAN ID is listed once.</p>`;
   const root = $('#setVlans');
@@ -688,9 +722,9 @@ export function renderSetVlans(){
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
-  $('#setDomains').innerHTML = `<div class="hdr" style="margin-top:14px">Domains <span class="cnt">${DOMAINS.length}</span></div>
+  $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
     <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><span class="mono">${esc(d.name)}</span><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
-    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd" class="primary">Add domain</button></div>`;
+    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>`;
   const root = $('#setDomains');
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
   root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
@@ -721,7 +755,7 @@ export function renderSetLocs(){
     <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
       <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Used by</span><span></span></div>
         ${SITES.length ? SITES.map(siteRow).join('') : '<p class="note lempty">No sites yet. Add the first one below.</p>'}</div>
-      <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd" class="primary">Add site</button></div>
+      <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd">Add site</button></div>
       <p class="note lnote" id="nsMsg">A site is a town or a building.</p></section>
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Used by</span><span></span></div>
@@ -809,7 +843,7 @@ export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] 
 export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
   const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
-  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
+  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
     <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
 export function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
@@ -826,15 +860,15 @@ export const fieldKey = label => {
 /* The fields a type has beyond the built-in ones. They are filled in by hand on every object of that type. */
 export function renderSetTypeFields(){
   let box = $('#setTypeFields');
-  if (!box){ box = document.createElement('div'); box.id = 'setTypeFields'; $('#setTypes').appendChild(box); }
+  if (!box) return;
   const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
-  box.innerHTML = `<div class="hdr" style="margin-top:14px">Fields per type</div>
+  box.innerHTML = `<div class="panelbox"><div class="hdr">Fields per type</div>
     <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
     <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
     <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd" class="primary">Add field</button></div>`;
+    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
   /* A field's name can be changed; its key stays, so the values already entered are kept. */
   box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
@@ -857,6 +891,19 @@ export function renderSetTypeFields(){
   $('#tfAdd').onclick = add;
   $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
   renderBuiltinFields(box, type);
+  renderCardLines(box, type);
+}
+/* The four lines a card shows for this type. Every card of the type shows the same four, so cards line up. */
+export function renderCardLines(box, type){
+  const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
+  const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
+  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">On the card</div>
+    <p class="note" style="padding:0 12px 8px">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
+    <div class="cardlines">${cur.map((k, i) => `<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => `<option value="${esc(v)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}
+      <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`);
+  const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
+  box.querySelectorAll('[data-cl]').forEach(sel => sel.onchange = () => { const next = [...cur]; next[+sel.dataset.cl] = sel.value; save(next); });
+  $('#clReset').onclick = () => save(null);
 }
 /* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
 export function renderBuiltinFields(box, type){
@@ -867,15 +914,15 @@ export function renderBuiltinFields(box, type){
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
-  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...patch}; save(next); };
-  box.insertAdjacentHTML('beforeend', `<div class="hdr" style="margin-top:14px">Built-in fields</div>
+  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch}; save(next); };
+  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Built-in fields</div>
     <p class="note" style="padding:0 12px 8px">Rename a field, hide it for this type (its values are kept), or move it up or down. The stored name of a field does not change.</p>
     <div class="lrows">${ordered.map((f, i) => {
       const hidden = (lay.hidden || []).includes(f[0]);
       return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}"><span class="mono muted">${esc(f[0])}</span>
         <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
         <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
-    }).join('')}</div>`);
+    }).join('')}</div></div>`);
   box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
     const k = i.dataset.flab, name = i.value.trim(), labels = {...(lay.labels || {})};
     if (!name || name === ordered.find(f => f[0] === k)[1]) delete labels[k]; else labels[k] = name;
@@ -903,7 +950,7 @@ export function renderSetTypes(){
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
   }).join('');
   $('#setTypes').innerHTML = `<div style="overflow-x:auto"><table class="grid mini types" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:100px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd" class="primary">Add type</button></div>`;
+    <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd">Add type</button></div>`;
   const root = $('#setTypes');
   renderSetTypeFields();
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NOBS Inventory</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: the NOBS editor frame - top bar, sidebar of filters, tab bar, toolbar, work area, status bar.
@@ -11,20 +12,20 @@
 :root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:3px;--r-m:5px;--r-l:6px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
  --bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
- --gridh:#f0f0f0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
+ --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#a3520a;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#2d2d2d;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#2d2d2d;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
 
@@ -37,6 +38,19 @@ input[type=file]{max-width:100%;min-width:0;font-size:12px}
 input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px}
 /* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
 select{padding-left:2px}
+/* Fields inside a label would take the label's small text; they keep the size of every other field. */
+label>input,label>select,label>textarea{font-size:13px}
+code{font-family:var(--mono)}
+/* A text field with the app's own pick list, drawn like the other dropdowns. */
+.combo{position:relative;min-width:0}
+.combo>input{width:100%;padding-right:26px}
+.combo-arrow{position:absolute;right:1px;top:1px;bottom:1px;width:24px;height:auto;padding:0;border:0;background:none;color:var(--muted)}
+.combo-arrow:hover{color:var(--fg)}
+.combo>input:disabled+.combo-arrow{opacity:.4;pointer-events:none}
+.combo-list{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:60;margin:0;padding:4px 0;list-style:none;max-height:260px;overflow:auto;background:var(--in);border:1px solid var(--bd);border-radius:var(--r-s);box-shadow:var(--shadow)}
+.combo-list li{padding:5px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-list li:hover,.combo-list li.active{background:var(--hover)}
+.combo-list li[aria-selected="true"]{font-weight:600}
 textarea{height:auto;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
@@ -44,11 +58,12 @@ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;padding:14px}
-.locpanel .hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
+/* A count in a title bar, the same everywhere: muted, normal case. */
+.hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
 .locpanel{min-width:0}
 table.locs{width:100%;table-layout:fixed}
 table.locs th,table.locs td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-table.locs td input{width:100%;height:30px;min-width:0;box-sizing:border-box}
+table.locs td input{width:100%;height:28px;min-width:0;box-sizing:border-box}
 table.locs td.n,table.locs th.n{text-align:right;color:var(--muted)}
 table.locs td.act{width:1%}
 table.locs td.site{color:var(--muted)}
@@ -71,7 +86,7 @@ table.locs td.site{color:var(--muted)}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
-.pl-q input{width:100%;height:30px;box-sizing:border-box}
+.pl-q input{width:100%;height:28px;box-sizing:border-box}
 .pl-list{overflow:auto;flex:1;min-height:0}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
@@ -113,19 +128,20 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrows{display:flex;flex-direction:column}
 .lrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 92px;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--bd2)}
 .lrow.room{grid-template-columns:120px minmax(0,1fr) 64px 92px}
-.lrow.head{padding-top:8px;padding-bottom:8px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+/* Column headers look the same in every table: plain bold text on the header shade. Capitals are for title bars. */
+.lrow.head{padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:600;color:var(--fg);background:var(--gridh);border-bottom:2px solid var(--bd)}
 .lrow.vl{grid-template-columns:64px minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.dm{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) auto 80px}
-.lrow input{width:100%;min-width:0;height:30px;box-sizing:border-box}
-.lrow .n{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.lrow input{width:100%;min-width:0;height:28px;box-sizing:border-box}
+.lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow button{width:100%;white-space:nowrap}
 .lrow.head .n{text-align:right}
 .lempty{padding:14px 12px;margin:0;color:var(--muted)}
 .lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
-.lpanel-add input{flex:1;min-width:0;height:30px;box-sizing:border-box}
-.lpanel-add select{flex:0 0 160px;height:30px;min-width:0}
+.lpanel-add input{flex:1;min-width:0;height:28px;box-sizing:border-box}
+.lpanel-add select{flex:0 0 160px;height:28px;min-width:0}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
 .pchk-slot{display:inline-block;width:24px;flex:none}
@@ -164,7 +180,15 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* top bar */
 #bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
 #brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
-#brand .logo{width:22px;height:22px;border-radius:var(--r-s);background:var(--accentbtn);color:var(--accentfg);display:grid;place-items:center;font-size:11px;font-family:var(--mono)}
+#toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
+#brand .logo{width:24px;height:24px;flex:none;display:block}
+#brand b{font-weight:800;letter-spacing:.2px}
+#brand .word{font-weight:400;color:var(--muted)}
+/* The sign-in screen and About show the logo larger. */
+.brandmark{display:flex;align-items:center;gap:10px;font-size:18px}
+.brandmark img{width:36px;height:36px;flex:none}
+.brandmark b{font-weight:800}
+.brandmark span{color:var(--muted)}
 #brand small{font-weight:500;color:var(--muted)}
 #search{width:300px;max-width:100%}
 .grow{flex:1}
@@ -181,10 +205,10 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* main frame */
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
-.hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
+.hdr{background:var(--panel2);padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
 .hdr button{height:22px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 #side>.hdr:first-child{height:38px}
-.item{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
+.item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
 .item.sel{background:var(--accentbtn);color:var(--accentfg)}
 .item.sel .cnt{color:inherit;opacity:.85}
@@ -217,6 +241,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .statusbar span{display:inline-flex;align-items:center;gap:5px}
 
 /* cards */
+/* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
+.card{content-visibility:auto;contain-intrinsic-size:auto 150px}
+table.grid tbody tr{content-visibility:auto;contain-intrinsic-size:auto 27px}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal}
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
@@ -236,6 +263,10 @@ svg.cu{fill:currentColor;stroke:none}
 .card .hd{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:8px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv dd.none{color:var(--muted);opacity:.6}
+.cardlines{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px 12px;align-items:end;padding:10px 12px 12px}
+.cardlines label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+@media (max-width:760px){.cardlines{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rels{border-top:1px solid var(--bd2);padding:6px 10px;display:flex;flex-direction:column;gap:3px;font-size:12px;flex:1}
 .rels .r{display:flex;gap:6px;align-items:baseline;min-width:0}
 .rels .r .k{color:var(--muted);flex:none}
@@ -287,6 +318,9 @@ table.grid.sw th.sw-cnt{width:170px}
   table.grid.sw th.sw-cnt{width:110px}
   .sw-bar{width:36px}
   .sw-devs{margin-left:12px}
+  .sw-dev a{display:inline-flex;align-items:center;min-height:36px}   /* big enough to tap */
+  #setPane .form{grid-template-columns:minmax(0,1fr)!important;gap:4px 0}   /* on a phone a settings label sits above its field */
+  #setPane .form>label{margin-top:6px}
 }
 .sw-tg{width:24px;height:24px;padding:0;color:var(--muted)}
 .sw-tg svg{transition:transform .15s ease}
@@ -295,13 +329,13 @@ table.grid.sw th.sw-cnt{width:170px}
 .vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
 .vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
 .vchip i{font-style:normal;color:var(--muted);font-family:inherit}
-.vchip.odd{border-color:var(--warn);color:var(--warn)}
+.vchip.odd{border-color:var(--warn);color:var(--warntext)}
 .sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
 .sw-bar>span{display:block;height:100%;background:var(--accent)}
 table.grid.sw .sw-detail>td{padding:0 0 10px 0;background:var(--panel);white-space:normal}
 .sw-devs{margin:0 12px 0 36px;border:1px solid var(--bd2);border-left:3px solid var(--accent);border-radius:var(--r-s);background:var(--bg);overflow:auto}
 table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
-table.sw-sub th{position:static;text-align:left;font-weight:600;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
+table.sw-sub th{position:static;text-align:left;font-weight:600;font-size:13px;color:var(--fg);background:var(--gridh)!important;padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
 table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
 table.sw-sub tr:last-child td{border-bottom:0}
 table.sw-sub tr:hover td{background:var(--hover)}
@@ -315,6 +349,18 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .panelbox{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--bg);min-width:0}
 .panelbox>.hdr{border-radius:var(--r-m) var(--r-m) 0 0}
 .panelbox .panelbox>.hdr{background:var(--panel)}
+/* Settings: every section is a box of its own, with space between. The title bar is the darkest band, the line that says
+   what the section is for sits on a lighter one, and the content on the page colour. */
+#setPane{display:flex;flex-direction:column;gap:16px}
+#setPane>div:not(.panelbox),#setPane>div:not(.panelbox)>div:not(.panelbox){display:flex;flex-direction:column;gap:16px}
+#setPane div:empty:not(.panelbox *){display:none}
+#setPane .panelbox{overflow:hidden;flex:none}
+.ldap-adv{border-top:1px solid var(--bd2)}
+.ldap-adv>summary{padding:9px 12px;cursor:pointer;color:var(--muted);font-size:12px}
+.ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
+#setPane>*,#setPane>*>*{flex-shrink:0}
+#setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
+#setPane .panelbox>.hdr+.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}
@@ -344,7 +390,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .subnet-new>.subnet{padding:0;border-top:0}
 .subnet-new>#snAdd{align-self:flex-end}
 .snmsg{font-size:12px}
-.relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
+.relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
 .mk-new{background:var(--accent);color:#fff}
 .mk-hand{border:1px solid var(--accent);color:var(--accent);background:var(--bg)}
@@ -397,8 +443,9 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .form label{color:var(--muted);font-size:12px}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
-.fieldnote.warn{color:var(--warn)} .fieldnote.bad{color:var(--danger)}
-.wty.soon{color:var(--warn);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
+/* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
+.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)}
+.wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
 /* Subnets Lansweeper's adapters report that are not listed yet. */
 .sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
 .sn-suggest .snrow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
@@ -420,7 +467,9 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .relrow button{height:22px;width:22px}
-a.link{color:var(--accent);cursor:pointer;text-decoration:none}
+/* Links have their own shade, readable on the page and on the tinted section bands in either theme. */
+a,a.link{color:var(--linktext)}
+a.link{cursor:pointer;text-decoration:none}
 a.link:hover{text-decoration:underline}
 .addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
 .addrel select,.addrel input{min-width:0}
@@ -519,7 +568,7 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .sechdr{cursor:pointer;user-select:none}
 /* Object page panels: title left-aligned after the fold arrow, count on the right. */
 .obj .panelbox>.hdr{justify-content:flex-start;position:relative;text-align:left}
-.obj .panelbox>.hdr>span.muted{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+.obj .panelbox>.hdr>span.muted,.obj .panelbox>.hdr>span.cnt{position:absolute;right:12px;top:50%;transform:translateY(-50%);margin:0}
 .sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
@@ -560,7 +609,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 
 <div id="bar">
   <button id="sideBtn" class="icon" title="Filters" aria-label="Show filters"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-  <div id="brand"><span class="logo">NI</span>NOBS Inventory</div>
+  <div id="brand"><img class="logo" src="logo.svg" alt=""><span><b>NOBS</b> <span class="word">Inventory</span></span></div>
   <input id="search" type="search" placeholder="Search code, name, IP, MAC, serial, user…" aria-label="Search">
   <label class="pchk" title="Search every device, not only the filtered ones" style="white-space:nowrap"><input type="checkbox" id="searchAll"> All devices</label>
   <button id="newBtn" class="primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New object</button>
