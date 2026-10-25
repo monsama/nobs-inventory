@@ -252,22 +252,41 @@ document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c 
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
-export function propRow(o, f){
+document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
+/* Fields every object keeps on its page: they cannot be hidden or cleared. */
+export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
+/* Counts and sizes: emptying them is setting a number, so they are not offered to clear. */
+const NO_CLEAR = ['ports', 'sfp', 'units'];
+/* The ⋯ menu of a field on the object page: hide it on this device or on every device of the type, empty it, or,
+   for a field of the type's own, delete it. A hidden field shown again through "Show hidden fields" offers to show it. */
+export function fieldMenu(o, f, hiddenBy = ''){
+  const k = f[0], t = TYPES[o.type] ? TYPES[o.type].label : o.type;
+  if (FIXED_FIELDS.includes(k)) return '<span class="fm-slot" aria-hidden="true"></span>';
+  const own = k.startsWith('custom.'), val = own ? (o.custom || {})[k.slice(7)] : o[k];
+  const empty = val == null || val === '' || (k === 'user' && !o.uid && !o.hotdesk);
+  const b = (act, text, extra = '') => `<button type="button" data-fm="${act}" data-fk="${esc(k)}" ${extra}>${text}</button>`;
+  const items = hiddenBy === 'device' ? [b('show', 'Show on this device')]
+    : hiddenBy === 'type' ? [b('showtype', `Show on every ${esc(t)}`)]
+    : [b('hide', 'Hide on this device'), b('hidetype', `Hide on every ${esc(t)}`),
+       NO_CLEAR.includes(k) ? '' : b('clear', 'Clear value…', empty ? 'disabled title="The field is empty"' : ''),
+       own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
+  return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
+}
+export function propRow(o, f, menu = ''){
   const k = f[0];
   const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
-  let ctl = fieldCtl(o, f);
-  if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
-  /* Disks filled in by Lansweeper show as bars; typed by hand they stay a text field, with the bars underneath. */
-  if (k === 'av' && taken) ctl = avCtl(o, `f_${o.id}_${k}`, false);
+  /* A field from Lansweeper can be typed over: the value typed is kept, and its From feed box is unticked. */
+  const ctl = fieldCtl(o, f);
+  /* Disks from Lansweeper show as bars under the field. */
   const bars = k === 'disk' ? diskBars(o.disk, lsLive() && feedLinked(o)) : '';
-  if (bars && taken) ctl = bars;
-  const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
+  const box = linked ? `<label class="pchk pchk-only" title="Ticked: Lansweeper fills this in. Type a value to keep your own; tick again to follow Lansweeper."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
-  const comboNoteSlot = k === 'model' && !taken ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
-  const barsBelow = bars && !taken ? `<span></span>${bars}` : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
+  const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
+  const barsBelow = bars ? `<span></span>${bars}` : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
 }
 /* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
    the space left. Returns '' when the text is not in that form. */
@@ -301,10 +320,9 @@ export function subnetFor(o){
   return ip === null ? null : SUBNETS.find(n => { const sp = subnetSpan(n); return sp && ip >= sp.first && ip <= sp.last; }) || null;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
-export function extraRows(o, fields){
-  if (!o.feed || !LS_ON()) return '';
-  return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
-    .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
+export function extraFields(o, fields){
+  if (!o.feed || !LS_ON()) return [];
+  return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k)).map(k => [k, FIELD_LABEL[k], fieldKind(k)]);
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 export function feedPanel(o){
@@ -497,10 +515,22 @@ export function renderObj(o){
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
   const lay = FIELD_LAYOUT[o.type] || {};
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
-  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
-  fields = fields.filter(f => f[0].startsWith('custom.') || !(lay.hidden || []).includes(f[0]))
+  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]))
     .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
     .sort((a, b) => at(a) - at(b));
+  fields.push(...extraFields(o, fields));
+  /* A field hidden on this device, or on every device of the type (from the ⋯ menu or Settings). Its value is kept,
+     and "Show hidden fields" brings the hidden ones back for a moment, each with its own way to show it again. */
+  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : (lay.hidden || []).includes(f[0]) ? 'type' : '';
+  const nHidden = fields.filter(hiddenBy).length;
+  if (!nHidden && st.showHidden === o.id) st.showHidden = null;
+  const reveal = nHidden > 0 && st.showHidden === o.id;
+  if (!reveal) fields = fields.filter(f => !hiddenBy(f));
+  const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
+  const row = f => {
+    const h = hiddenBy(f), html = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
+    return h ? html.replace('<label for=', `<label class="fm-hid" title="Hidden on ${h === 'device' ? 'this device' : 'every ' + esc(TYPES[o.type].label)}" for=`) : html;
+  };
   const chain = pathUp(o);
   /* The way up to the network: one row per device, with the relation and its port on the line between two rows. */
   const netPath = `<ol class="netpath">${chain.map((n, i) => `<li class="ps${i === 0 ? ' me' : ''}">
@@ -512,10 +542,11 @@ export function renderObj(o){
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
         ${rackFields(o)}
-        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
+        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
+        ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${feedPanel(o)}
     </div>
     <div class="col">
@@ -753,6 +784,61 @@ export function renderObj(o){
     if (rerender) render(); else $('#saveBtn').disabled = true;
   };
   $('#saveBtn').onclick = () => saveObj();
+  /* Typing over a value from Lansweeper keeps it: the field's From feed box is unticked, and the save keeps it as set here. */
+  objView.addEventListener('input', e => {
+    if (e.target.matches('[data-ovr]')) return;
+    const box = e.target.closest('.ctlrow') && e.target.closest('.ctlrow').querySelector('[data-ovr]');
+    if (box) box.checked = false;
+  });
+  /* The ⋯ menu of each field. One is open at a time; a click elsewhere or Escape closes it. */
+  objView.querySelectorAll('details.fmenu').forEach(d => d.addEventListener('toggle', () => { if (d.open) objView.querySelectorAll('details.fmenu[open]').forEach(x => { if (x !== d) x.open = false; }); }));
+  const fmReveal = $('#fmReveal');
+  if (fmReveal) fmReveal.onclick = () => { st.showHidden = st.showHidden === o.id ? null : o.id; render(); };
+  objView.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => {
+    const k = b.dataset.fk, act = b.dataset.fm, t = TYPES[o.type].label;
+    const f = fields.find(x => x[0] === k), name = f ? f[1] : k;
+    b.closest('details').open = false;
+    if (act === 'hide' || act === 'hidetype') st.showHidden = null;
+    if (act === 'hide' || act === 'show'){
+      const h = (o.hide || []).filter(x => x !== k); if (act === 'hide') h.push(k);
+      if (h.length) o.hide = h; else delete o.hide;
+      hist(o, now(), `${name} ${act === 'hide' ? 'hidden' : 'shown again'} on this device by ${who()}`);
+      toast(act === 'hide' ? `${name} is hidden on ${o.name}. Its value is kept.` : `${name} is shown again on ${o.name}`); render(); return;
+    }
+    if (act === 'hidetype' || act === 'showtype'){
+      const lay = FIELD_LAYOUT[o.type] || {}, h = (lay.hidden || []).filter(x => x !== k); if (act === 'hidetype') h.push(k);
+      FIELD_LAYOUT[o.type] = {...lay, hidden: h};
+      toast(act === 'hidetype' ? `${name} is hidden on every ${t}. The values are kept; Settings › Per type shows it again.` : `${name} is shown again on every ${t}`); render(); return;
+    }
+    if (act === 'clear'){
+      const el = objView.querySelector(`[data-k="${CSS.escape(k)}"]`); if (!el) return;
+      const fromFeed = feedLinked(o) && LS_ON() && !!FIELD_LABEL[k];
+      modal(`<div class="mh">Clear ${esc(name)}?</div>
+        <div class="mb"><p class="note">The value of ${esc(name)} on ${esc(o.name)} is removed. The history keeps a note.${fromFeed ? ' Lansweeper no longer fills it in on this device; tick its From feed box to let it again.' : ''}</p></div>
+        <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Clear</button></div>`, 'sm');
+      $('#fmCancel').onclick = closeModal;
+      $('#fmOk').onclick = () => {
+        closeModal();
+        if (k === 'user'){ delete o.hotdesk; o.uid = null; el.value = ''; }
+        else el.value = '';
+        if (fromFeed){ const box = el.closest('.ctlrow') && el.closest('.ctlrow').querySelector('[data-ovr]'); if (box) box.checked = false; }
+        saveObj(true);
+      };
+      return;
+    }
+    if (act === 'delete'){
+      const key = k.slice(7), n = objs.filter(x => x.type === o.type && x.custom && x.custom[key] != null && x.custom[key] !== '').length;
+      modal(`<div class="mh">Delete the field ${esc(name)}?</div>
+        <div class="mb"><p class="note">${esc(name)} is removed from every ${esc(t)}.${n ? ` ${n} ${n === 1 ? 'device has' : 'devices have'} a value; the values are kept, and adding a field of the same name brings them back.` : ''}</p></div>
+        <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Delete field</button></div>`, 'sm');
+      $('#fmCancel').onclick = closeModal;
+      $('#fmOk').onclick = () => {
+        const list = (TYPE_FIELDS[o.type] || []).filter(x => x.key !== key);
+        if (list.length) TYPE_FIELDS[o.type] = list; else delete TYPE_FIELDS[o.type];
+        closeModal(); toast(`${name} deleted from ${t}`); render();
+      };
+    }
+  });
   /* Antivirus: a picked or typed product is added, × removes one; each change is saved at once. */
   const avAdd = $('#view').querySelector('[data-combo="av"]'), avHid = $('#view').querySelector('input[type=hidden][data-k="av"]');
   if (avAdd && avHid){
