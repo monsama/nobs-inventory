@@ -159,26 +159,80 @@ export function bindSoftware(o){
     hist(o, now(), 'Software added: ' + name); render();
   };
 }
-/* Every package across the PCs and servers; pick one to list where it is installed. */
-export function renderSoftware(){
+/* Every package across the PCs and servers. A package opens in place to list the devices it is installed on,
+   with the version on each; a version other than the most common one is marked, as it is usually the one to update. */
+const swPackages = () => {
   const map = {};
   objs.forEach(o => (o.software || []).forEach(p => {
-    (map[p.name] ??= {name: p.name, versions: new Set(), devices: []});
-    map[p.name].versions.add(p.version || '—'); if (!map[p.name].devices.includes(o)) map[p.name].devices.push(o);
+    const r = (map[p.name] ??= {name: p.name, counts: {}, devices: []});
+    const v = p.version || '—';
+    r.counts[v] = (r.counts[v] || 0) + 1;
+    if (!r.devices.includes(o)) r.devices.push(o);
   }));
-  const rows = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-  /* The package picked in this view has its own selection, separate from the device of the Ports view. */
-  const sel = rows.find(r => r.name === st.swSel);
-  $('#toolbar').innerHTML = `<span class="muted">${rows.length} packages · ${objs.filter(o => (o.software || []).length).length} devices</span><div class="grow"></div><span class="muted hide-n">Add software on a PC or server</span>`;
-  /* The devices of the picked package come first, so they are in sight without scrolling past the whole list. */
-  const detail = sel ? `<div class="panelbox" style="margin:12px"><div class="hdr">${esc(sel.name)} is installed on ${sel.devices.length} ${sel.devices.length === 1 ? 'device' : 'devices'}</div><div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Device</th><th>Type</th><th>Location</th><th>Version</th></tr></thead><tbody>
-    ${[...sel.devices].sort((x, y) => x.name.localeCompare(y.name)).map(d => `<tr><td><a class="link" data-open="${d.id}">${esc(d.name)}</a></td><td>${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc(d.loc || '')}</td><td class="mono">${esc(((d.software || []).find(x => x.name === sel.name) || {}).version || '')}</td></tr>`).join('')}
-    </tbody></table></div></div>` : '';
-  $('#view').innerHTML = rows.length ? `${detail}<div class="gridwrap" style="height:auto"><table class="grid"><thead><tr><th>Package</th><th>Versions</th><th>Devices</th></tr></thead><tbody>
-    ${rows.map(r => `<tr data-sw="${esc(r.name)}" ${sel && sel.name === r.name ? 'style="background:var(--hover)"' : ''}><td><b>${esc(r.name)}</b></td><td class="mono">${esc([...r.versions].join(', '))}</td><td class="n">${r.devices.length}</td></tr>`).join('')}
-    </tbody></table></div>`
-    : '<div class="empty">No software recorded yet. Add it on a PC or server.</div>';
-  $('#view').querySelectorAll('[data-sw]').forEach(tr => tr.onclick = () => { st.swSel = st.swSel === tr.dataset.sw ? null : tr.dataset.sw; render(); });
+  return Object.values(map).map(r => ({...r, versions: Object.entries(r.counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true}))}));
+};
+const versionOf = (d, name) => ((d.software || []).find(x => x.name === name) || {}).version || '—';
+const swChevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function swDetailHtml(r){
+  const common = r.versions[0][0], mixed = r.versions.length > 1;
+  const devs = [...r.devices].sort((x, y) => versionOf(y, r.name).localeCompare(versionOf(x, r.name), undefined, {numeric: true}) || x.name.localeCompare(y.name));
+  return `<tr class="sw-detail" data-swd="${esc(r.name)}"><td colspan="4"><div class="sw-devs">
+    <table class="sw-sub"><thead><tr><th>Device</th><th class="sw-opt">Type</th><th>Location</th><th class="sw-opt">User</th><th>Version</th></tr></thead><tbody>
+    ${devs.map(d => { const v = versionOf(d, r.name), odd = mixed && v !== common; return `<tr>
+      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link" data-open="${d.id}">${esc(d.name)}</a></span></td>
+      <td class="sw-opt">${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc((d.loc || '').replace(' / ', ' · '))}</td><td class="sw-opt">${esc(d.user || '')}</td>
+      <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? `title="Most devices have ${esc(common)}"` : ''}>${esc(v)}</span></td></tr>`; }).join('')}
+    </tbody></table></div></td></tr>`;
+}
+export function renderSoftware(){
+  const all = swPackages();
+  st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
+  st.swSort ??= 'name';
+  const devCount = objs.filter(o => (o.software || []).length).length;
+  $('#toolbar').innerHTML = `<input id="swQ" type="search" placeholder="Find software, version or device…" aria-label="Find software" value="${esc(st.swQ || '')}" style="width:260px">
+    <span class="muted" id="swCount"></span><div class="grow"></div>
+    <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
+  if (!all.length){ $('#view').innerHTML = '<div class="empty">No software recorded yet. Add it on a PC or server.</div>'; return; }
+  /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */
+  $('#view').innerHTML = `<div class="gridwrap" style="height:auto"><table class="grid sw" data-tb="own"><thead><tr>
+    <th class="sw-tgcol" aria-label="Open"></th><th data-swsort="name" class="sw-name" ${st.swSort === 'name' ? 'data-sort="asc"' : ''}>Package</th><th class="sw-ver">Versions</th><th data-swsort="devices" class="n sw-cnt" ${st.swSort === 'devices' ? 'data-sort="desc"' : ''}>Devices</th></tr></thead><tbody id="swBody"></tbody></table></div>`;
+  const max = Math.max(...all.map(r => r.devices.length));
+  const body = () => {
+    const q = (st.swQ || '').trim().toLowerCase();
+    /* A search for a device opens the packages it has, so the match is in sight. */
+    const hits = r => !q ? 'none' : r.name.toLowerCase().includes(q) || r.versions.some(([v]) => v.toLowerCase().includes(q)) ? 'package' : r.devices.some(d => d.name.toLowerCase().includes(q)) ? 'device' : '';
+    const rows = all.filter(r => hits(r)).sort(st.swSort === 'devices' ? (a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
+    $('#swCount').textContent = q ? `${rows.length} of ${all.length} packages` : `${all.length} packages · ${devCount} devices`;
+    $('#swBody').innerHTML = rows.length ? rows.map(r => {
+      const open = st.swOpen.includes(r.name) || hits(r) === 'device';
+      const shown = r.versions.slice(0, 4);
+      return `<tr class="sw-row${open ? ' open' : ''}" data-sw="${esc(r.name)}">
+        <td class="sw-tgcol"><button class="sw-tg icon ghost" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the devices with ${esc(r.name)}">${swChevron}</button></td>
+        <td><b>${esc(r.name)}</b></td>
+        <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
+        <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
+    }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;
+    $('#swCollapse').hidden = !st.swOpen.length;
+  };
+  body();
+  /* Opening and closing changes only that package's rows, so the list keeps its scroll position. */
+  const toggle = tr => {
+    const name = tr.dataset.sw, open = !tr.classList.contains('open');
+    st.swOpen = open ? [...st.swOpen, name] : st.swOpen.filter(n => n !== name);
+    tr.classList.toggle('open', open);
+    const btn = tr.querySelector('.sw-tg'); btn.setAttribute('aria-expanded', open); btn.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} the devices with ${name}`);
+    const next = tr.nextElementSibling;
+    if (next && next.classList.contains('sw-detail')) next.remove();
+    if (open) tr.insertAdjacentHTML('afterend', swDetailHtml(all.find(r => r.name === name)));
+    $('#swCollapse').hidden = !st.swOpen.length;
+  };
+  $('#swBody').addEventListener('click', e => {
+    if (e.target.closest('[data-open]')) return;   /* a device link opens the device */
+    const tr = e.target.closest('tr.sw-row'); if (tr) toggle(tr);
+  });
+  $('#swQ').addEventListener('input', e => { st.swQ = e.target.value; body(); });
+  $('#swCollapse').onclick = () => { st.swOpen = []; body(); };
+  $('#view').querySelectorAll('[data-swsort]').forEach(th => th.onclick = () => { st.swSort = th.dataset.swsort; renderSoftware(); });
 }
 /* A patch panel's ports, with the device on each one and the trunk into the switch. */
 export function patchPanel(o){

@@ -267,6 +267,43 @@ table.grid th .rz{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-
 table.grid th .rz:hover{background:var(--accent);opacity:.45}
 /* Sorting: click a header. Filtering: a box under each header (the big tables only). */
 table.grid th[data-sort="asc"]::after{content:' \25B2';font-size:9px;color:var(--muted)}
+/* Software: a package opens in place to list its devices. */
+table.grid.sw{width:100%;min-width:0;table-layout:fixed}
+table.grid.sw tr:nth-child(even) td{background:none}
+table.grid.sw .sw-row{cursor:pointer}
+table.grid.sw .sw-row:hover td{background:var(--hover)}
+table.grid.sw .sw-row.open td{background:var(--panel);border-bottom-color:transparent}
+table.grid.sw td{padding:5px 8px;max-width:none}
+table.grid.sw th[data-swsort]{cursor:pointer}
+table.grid.sw th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
+.sw-tgcol{width:34px;padding:0 0 0 6px!important}
+table.grid.sw th.sw-name{width:34%}
+table.grid.sw th.sw-cnt{width:170px}
+@media (max-width:760px){
+  table.grid.sw .sw-ver,table.sw-sub .sw-opt{display:none}
+  table.grid.sw th.sw-name{width:auto}
+  table.grid.sw th.sw-cnt{width:110px}
+  .sw-bar{width:36px}
+  .sw-devs{margin-left:12px}
+}
+.sw-tg{width:24px;height:24px;padding:0;color:var(--muted)}
+.sw-tg svg{transition:transform .15s ease}
+.sw-row.open .sw-tg svg{transform:rotate(90deg)}
+.sw-row.open .sw-tg{color:var(--accent)}
+.vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
+.vchip i{font-style:normal;color:var(--muted);font-family:inherit}
+.vchip.odd{border-color:var(--warn);color:var(--warn)}
+.sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
+.sw-bar>span{display:block;height:100%;background:var(--accent)}
+table.grid.sw .sw-detail>td{padding:0 0 10px 0;background:var(--panel);white-space:normal}
+.sw-devs{margin:0 12px 0 36px;border:1px solid var(--bd2);border-left:3px solid var(--accent);border-radius:var(--r-s);background:var(--bg);overflow:auto}
+table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
+table.sw-sub th{position:static;text-align:left;font-weight:600;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
+table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
+table.sw-sub tr:last-child td{border-bottom:0}
+table.sw-sub tr:hover td{background:var(--hover)}
+.sw-dev{display:inline-flex;align-items:center;gap:8px}
 table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
 table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
 table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;padding:1px 4px}
