@@ -18,6 +18,9 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('WebServer', 'Saia-Burgess Controls Saia', 'Saia PCD Web-Server'), 'plc');
   assert.equal(t('Network device', 'HMS Industrial Networks', 'HMS Industrial Networks 172.21.103.102'), 'plc');
   assert.equal(t('Network device', '', 'NETGEAR GS108Ev3'), 'switch');
+  assert.equal(t('VoIP', 'ALE International OXO050/042.001 GW_050/042', 'ALE International 172.21.103.5'), 'pbx', 'an OmniPCX Office is a phone system');
+  assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');
+  assert.equal(t('Network device', 'Hewlett-Packard 8360-24XF2C v2 (JL722C)', 'core-sw'), 'switch', 'an Aruba CX 8360 is a switch');
   assert.equal(t('WebServer', '', '403 Forbidden'), 'other');
   assert.equal(t('Windows', '', 'acmepc11'), 'pc');
   // a short word matches a whole word only

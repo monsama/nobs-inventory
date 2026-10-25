@@ -341,6 +341,42 @@ export function saveState(db, s) {
 /* The page's saves. Each change says which kind of record it is, its new value (or none, for a delete) and the
    revision it was based on. A change based on an old revision is not applied: someone else changed that record
    first. The other changes are applied. New objects get their code here, so codes stay unique. */
+/* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
+   many relations, users, types and which settings. The history lines that go with an object change are not counted. */
+const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', company: 'company', locs: 'locations', sites: 'sites',
+  vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
+  policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames' };
+export function describeChanges(body, before) {
+  const puts = (body && body.puts) || [], dels = (body && body.dels) || [];
+  const names = list => list.length <= 5 ? list.join(', ') : `${list.slice(0, 5).join(', ')} and ${list.length - 5} more`;
+  const nameOf = (kind, id) => {
+    const p = puts.find(c => c.kind === kind && c.id === id);
+    if (p && p.value && typeof p.value === 'object') return p.value.name || p.value.login || id;
+    const list = kind === 'object' ? before?.objs : before?.users;
+    const o = (list || []).find(x => String(x.id) === id);
+    return (o && (o.name || o.login)) || id;
+  };
+  const parts = [];
+  const objs = puts.filter(c => c.kind === 'object');
+  const added = objs.filter(c => !c.base).map(c => nameOf('object', c.id)), changed = objs.filter(c => c.base).map(c => nameOf('object', c.id));
+  const removed = dels.filter(c => c.kind === 'object').map(c => nameOf('object', c.id));
+  if (added.length) parts.push('added ' + names(added));
+  if (changed.length) parts.push('changed ' + names(changed));
+  if (removed.length) parts.push('removed ' + names(removed));
+  const rels = [puts.filter(c => c.kind === 'rel' && !c.base).length, puts.filter(c => c.kind === 'rel' && c.base).length, dels.filter(c => c.kind === 'rel').length];
+  const n = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`;
+  if (rels[0]) parts.push(n(rels[0], 'relation') + ' added');
+  if (rels[1]) parts.push(n(rels[1], 'relation') + ' changed');
+  if (rels[2]) parts.push(n(rels[2], 'relation') + ' removed');
+  const users = [...puts, ...dels].filter(c => c.kind === 'user').map(c => nameOf('user', c.id));
+  if (users.length) parts.push('users ' + names(users));
+  const types = [...puts, ...dels].filter(c => c.kind === 'type').map(c => c.id);
+  if (types.length) parts.push('object types ' + names(types));
+  const settings = [...new Set([...puts, ...dels].filter(c => c.kind === 'setting').map(c => SETTING_NAMES[c.id] || c.id))];
+  if (settings.length) parts.push('settings: ' + settings.join(', '));
+  return parts.length ? 'saved: ' + parts.join('; ') : 'saved history notes';
+}
+
 export function applyChanges(db, body, guard = () => {}) {
   const bad = msg => { throw new HttpError(400, msg); };
   const puts = body && body.puts, dels = body && body.dels;

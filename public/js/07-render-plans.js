@@ -94,7 +94,7 @@ export function renderPlans(){
         <button id="plDel" class="danger-text">Delete plan</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
       <span class="grow"></span>
-      ${plan ? `<span class="muted">${(plan.areas || []).length} areas · ${planDevices(plan).length} devices</span>` : ''}
+      ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
   const body = plan ? `<div class="pl-body">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
