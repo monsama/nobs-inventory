@@ -938,10 +938,18 @@ export function renderSetVlans(){
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
+  const counts = new Map();
+  for (const o of objs) if (o.domain && o.status !== 'retired' && !DOMAINS.some(d => d.name.toLowerCase() === o.domain.toLowerCase())) counts.set(o.domain, (counts.get(o.domain) || 0) + 1);
+  const seen = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
     <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><input data-dname="${i}" class="mono" maxlength="60" value="${esc(d.name)}" aria-label="Domain ${esc(d.name)}"><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
-    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>`;
+    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>
+    ${seen.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen on devices, not listed yet</p>${canEdit() && seen.length > 1 ? `<button id="dmUseAll">Add all ${seen.length}</button>` : ''}</div>${seen.map(([d, n], i) => `<div class="snrow"><span class="mono">${esc(d)}</span><span class="grow">${n} ${n === 1 ? 'device' : 'devices'}</span>${canEdit() ? `<button data-dmuse="${i}">Add</button>` : ''}</div>`).join('')}</div>` : ''}`;
   const root = $('#setDomains');
+  /* Domains the devices are in (from Lansweeper, or typed on a device) that the list does not have yet. */
+  const addSeen = list => { for (const [d] of list) if (!DOMAINS.some(x => x.name.toLowerCase() === d.toLowerCase())) DOMAINS.push({name: d}); DOMAINS.sort((a, b) => a.name.localeCompare(b.name)); queueServerSave(); renderSetDomains(); render(); };
+  root.querySelectorAll('[data-dmuse]').forEach(b => b.onclick = () => { const x = seen[+b.dataset.dmuse]; addSeen([x]); toast('Added ' + x[0]); });
+  const all = $('#dmUseAll'); if (all) all.onclick = () => { addSeen(seen); toast(`Added ${seen.length} domains`); };
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
   root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
   /* A domain can be renamed; the objects in it move with it. */
