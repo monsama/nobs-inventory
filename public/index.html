@@ -57,7 +57,7 @@ button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--
 button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;padding:14px}
+.locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start}
 /* A count in a title bar, the same everywhere: muted, normal case. */
 .hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
 .locpanel{min-width:0}
@@ -138,6 +138,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow.head{padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:600;color:var(--fg);background:var(--gridh);border-bottom:2px solid var(--bd)}
 .lrow.vl{grid-template-columns:64px minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.dm{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
+.lrow.tmap{grid-template-columns:minmax(0,1fr) 220px 92px}
+.lpanel-add #vlId{flex:none;width:130px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) 100px 80px}
 .lrow input{width:100%;min-width:0;height:28px;box-sizing:border-box}
 .lrow .n{text-align:right;font-variant-numeric:tabular-nums}
@@ -443,6 +445,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ldap-adv>summary{padding:9px 12px;cursor:pointer;color:var(--muted);font-size:12px}
 .ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
+#setPane>#setLocs>.locgrid{display:grid}
 #setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
 /* Settings sections open and close by their title: the arrow and title on the left, the count or state on the right. */
 #setPane .panelbox>.hdr.sechdr{justify-content:flex-start;gap:8px}
