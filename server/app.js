@@ -16,6 +16,7 @@ import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGrap
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
+import tls from 'node:tls';
 import { syncLdapUsers } from './ldap-sync.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -25,7 +26,7 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'caddy', port: 443 } }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SHEET_KEY = sheetKey || crypto.randomBytes(32);
   initSheets(db);
@@ -421,15 +422,30 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
   /* The push script, with this server's address already in it. */
-  app.get('/api/feed/push-script', requireUser, requireAdmin, (req, res, next) => {
+  /* The SHA-1 thumbprint of the certificate the proxy presents for a host name, as Windows writes it ('' when it cannot
+     be read). The push script pins it, so a certificate Windows does not trust (the self-signed one of a new install)
+     works without a question; a trusted one is not affected by the pin. */
+  const proxyThumbprint = hostname => new Promise(resolve => {
+    const ip = /^[\d.]+$|:/.test(hostname);
+    const sock = tls.connect({ host: certProbe.host, port: certProbe.port, servername: ip ? undefined : hostname, rejectUnauthorized: false }, () => {
+      const c = sock.getPeerCertificate();
+      sock.end();
+      resolve(c && c.fingerprint ? c.fingerprint.replace(/:/g, '').toUpperCase() : '');
+    });
+    sock.setTimeout(3000, () => { sock.destroy(); resolve(''); });
+    sock.on('error', () => resolve(''));
+  });
+  app.get('/api/feed/push-script', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const text = fs.readFileSync(path.join(publicDir, '..', 'scripts', 'Lansweeper-Push.ps1'), 'utf8');
       /* The address is written into a script that people run, so only a plain host name or address is accepted. */
       const host = req.get('host') || '';
       if (!/^[A-Za-z0-9.-]+(:\d{1,5})?$|^\[[0-9a-fA-F:.]+\](:\d{1,5})?$/.test(host)) throw new HttpError(400, 'The address of this server could not be read from the request.');
       const origin = `${req.protocol}://${host}`;
+      const thumb = req.protocol === 'https' ? await proxyThumbprint(host.replace(/:\d+$/, '').replace(/^\[|\]$/g, '')) : '';
       res.attachment('Lansweeper-Push.ps1').type('text/plain; charset=utf-8')
-        .send(text.replace(/NobsUrl(\s*)=\s*'[^']*'/, (_, sp) => `NobsUrl${sp}= '${origin}'`));
+        .send(text.replace(/NobsUrl(\s*)=\s*'[^']*'/, (_, sp) => `NobsUrl${sp}= '${origin}'`)
+          .replace(/NobsCertThumbprint(\s*)=\s*'[^']*'/, (_, sp) => `NobsCertThumbprint${sp}= '${/^[0-9A-F]{40}$/.test(thumb) ? thumb : ''}'`));
     } catch (e) { next(e); }
   });
 

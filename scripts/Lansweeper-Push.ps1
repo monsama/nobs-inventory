@@ -13,14 +13,18 @@
     sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not linked by
     the inventory: those connections are kept by hand.
 
-    The token is the one the NOBS administrator set on the server (NI_FEED_TOKEN). It is stored on this
-    machine with -SetCredential, protected by Windows (DPAPI): only this user on this machine can read it.
+    The first run asks for the NOBS address and the feed token (Settings -> Feed -> Create token), checks both
+    against the server, and keeps them: the address in Lansweeper-Push.config.ps1 next to this script, the token
+    protected by Windows (DPAPI), so only this user on this machine can read it. -Setup asks again.
 
     Runs with the built-in Windows PowerShell 5.1 (also PowerShell 7).
 
 .EXAMPLE
-    .\Lansweeper-Push.ps1 -SetCredential                 # store the NOBS feed token (DPAPI)
+    .\Lansweeper-Push.ps1                                # first run: asks for the address and the token, then pushes
+    .\Lansweeper-Push.ps1 -Setup                         # ask for the address and the token again
+    .\Lansweeper-Push.ps1 -SetCredential                 # store a new NOBS feed token only (DPAPI)
     .\Lansweeper-Push.ps1 -SetSqlCredential              # store a SQL login for the Lansweeper database (DPAPI)
+    .\Lansweeper-Push.ps1 -ShowLansweeperDb              # show the database login Lansweeper uses (server, database, user; no password)
     .\Lansweeper-Push.ps1 -DryRun                        # read Lansweeper, show the first records, send nothing
     .\Lansweeper-Push.ps1                                # normal push
     .\Lansweeper-Push.ps1 -RegisterTask                  # daily scheduled task
@@ -30,11 +34,13 @@
 [CmdletBinding()]
 param(
     [switch]$DryRun,
+    [switch]$Setup,
     [switch]$SetCredential,
     [switch]$SetSqlCredential,
     [switch]$RegisterTask,
     [switch]$FindTables,
     [switch]$ShowCertificate,
+    [switch]$ShowLansweeperDb,
     [string]$TaskTime = '06:30'
 )
 
@@ -46,11 +52,13 @@ $Config = @{
     # Full SQL Server: e.g. 'Server=LSSERVER\SQLEXPRESS;Database=lansweeperdb;Integrated Security=True'
     SqlConnectionString = 'Server=(localdb)\.\LSInstance;Database=lansweeperdb;Integrated Security=True;Connect Timeout=30'
     SqlUseStoredCredential = $true      # $true = SQL login stored with -SetSqlCredential (for a Windows account without database rights)
+    SqlFromLansweeper   = $false        # $true = the database login Lansweeper itself uses, read from its configuration at each run
+                                        #         (run as administrator, Windows PowerShell 5.1). Nothing is stored.
 
     # NOBS Inventory address, without /api. Use the same address the browser uses.
     NobsUrl             = 'https://inventory.example.com'   # replaced by the address the script was downloaded from
-    # Thumbprint of the NOBS certificate, when Windows does not trust it (e.g. Caddy's internal CA).
-    # Get it with: .\Lansweeper-Push.ps1 -ShowCertificate. Leave empty when the certificate is trusted.
+    # Thumbprint of the NOBS certificate, used only when Windows does not trust it (e.g. a self-signed one).
+    # Filled in when the script is downloaded from NOBS (Settings -> Feed -> Download script); the setup offers it too.
     NobsCertThumbprint  = ''
 
     MaxAgeDays          = 90      # only assets Lansweeper has seen in the last N days (0 = all)
@@ -62,7 +70,6 @@ $Config = @{
 $ErrorActionPreference = 'Stop'
 $script:LocalConfig = Join-Path $PSScriptRoot 'Lansweeper-Push.config.ps1'
 if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
-if ($Config.NobsUrl -match 'example\.com') { throw 'Set NobsUrl in this script (or in Lansweeper-Push.config.ps1) to the address of NOBS Inventory before the push can run.' }
 
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
 $script:Wanted = [ordered]@{
@@ -98,6 +105,116 @@ function Write-PushLog([string]$Message, [string]$Level = 'INFO') {
     if (-not (Test-Path $Config.DataDir)) { New-Item -ItemType Directory -Path $Config.DataDir -Force | Out-Null }
     Add-Content -Path (Join-Path $Config.DataDir 'push.log') -Value $line -Encoding UTF8
 }
+
+# The address as NOBS needs it: https:// when no scheme is given, without a trailing / or /api.
+function Get-NobsUrlText([string]$Text) {
+    $u = "$Text".Trim().TrimEnd('/')
+    if (-not $u) { return '' }
+    if ($u -notmatch '^[a-z]+://') { $u = 'https://' + $u }
+    $u = $u -replace '/api$', ''
+    if ($u -notmatch '^https?://[^/\s]+(/[^\s]*)?$') { throw "'$Text' is not an address such as https://inventory.example.ch" }
+    return $u.TrimEnd('/')
+}
+
+# Writes settings into Lansweeper-Push.config.ps1 as $Config.Name = value lines, replacing those it sets and keeping the rest.
+# An empty text is left out.
+function Save-LocalConfig([string]$Path, [hashtable]$Values) {
+    $names = ($Values.Keys | ForEach-Object { [regex]::Escape($_) }) -join '|'
+    $keep = @()
+    if (Test-Path -LiteralPath $Path) { $keep = @(Get-Content -LiteralPath $Path | Where-Object { $_ -notmatch "^\s*\`$Config\.($names)\s*=" }) }
+    $lines = @($keep)
+    foreach ($k in ($Values.Keys | Sort-Object)) {
+        $v = $Values[$k]
+        if ($v -is [bool]) { $lines += "`$Config.$k = `$$($v.ToString().ToLowerInvariant())" }
+        elseif ("$v") { $lines += "`$Config.$k = '$("$v" -replace "'", "''")'" }
+    }
+    Set-Content -LiteralPath $Path -Value $lines -Encoding UTF8
+}
+
+function Save-Token([System.Security.SecureString]$Token) {
+    if (-not (Test-Path $Config.DataDir)) { New-Item -ItemType Directory -Path $Config.DataDir -Force | Out-Null }
+    (New-Object System.Management.Automation.PSCredential('nobs-feed', $Token)) | Export-Clixml -Path (Join-Path $Config.DataDir 'cred-nobs.xml')
+}
+
+# The HTTP status of a failed request (0 when the server did not answer).
+function Get-HttpStatus($err) { if ($err.Exception.Response) { return [int]$err.Exception.Response.StatusCode } else { return 0 } }
+
+# Sends an empty push: the server checks the token and changes nothing. Returns '' when the token is right, else why not.
+function Test-NobsToken([string]$Token) {
+    Set-NobsCertificatePin
+    try {
+        Invoke-RestMethod -Uri ($Config.NobsUrl.TrimEnd('/') + '/api/feed/push') -Method Post -Body '{"records":[]}' `
+            -ContentType 'application/json' -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 30 | Out-Null
+        return ''
+    } catch {
+        $code = Get-HttpStatus $_
+        if ($code -eq 401) { return 'The token is wrong. Create a new one in NOBS: Settings -> Feed -> Create token.' }
+        if ($code -eq 429) { return 'Too many wrong tokens from this address. Wait 15 minutes.' }
+        if ($code -eq 403) { return 'NOBS takes no push now: in Settings -> Feed, turn Lansweeper on and choose the script push.' }
+        return "NOBS did not answer: $($_.Exception.Message)"
+    }
+}
+
+# Shows the certificate NOBS presents and asks whether to trust it. Yes pins its thumbprint (and keeps it in the settings
+# file, unless the setup saves it later). Windows PowerShell 5.1 only: PowerShell 7 ignores a pinned thumbprint.
+function Confirm-TrustCertificate([switch]$NoSave) {
+    $cert = Get-NobsCertificate
+    Write-Host "Windows does not trust the certificate of $(([Uri]$Config.NobsUrl).Host): $($cert.Subject), thumbprint $($cert.Thumbprint), valid until $($cert.NotAfter.ToString('yyyy-MM-dd'))" -ForegroundColor Yellow
+    if ((Read-Host 'Trust this certificate for the push? (y/n)') -notmatch '^[yj]') { return $false }
+    $Config.NobsCertThumbprint = $cert.Thumbprint
+    Set-NobsCertificatePin
+    if (-not $NoSave) { Save-LocalConfig $script:LocalConfig @{ NobsUrl = $Config.NobsUrl; NobsCertThumbprint = $Config.NobsCertThumbprint }; Write-PushLog "Certificate $($cert.Thumbprint) trusted, kept in $($script:LocalConfig)" }
+    return $true
+}
+
+# Asks for the address and the token, checks both against the server, and keeps them.
+function Invoke-Setup {
+    Write-Host ''
+    Write-Host 'NOBS Inventory push - setup' -ForegroundColor Cyan
+    $default = if ($Config.NobsUrl -notmatch 'example\.com') { $Config.NobsUrl } else { '' }
+    for (;;) {
+        $answer = Read-Host ("Address of NOBS Inventory, as in the browser" + $(if ($default) { " [$default]" } else { ' (e.g. https://inventory.example.ch)' }))
+        if (-not $answer) { $answer = $default }
+        try { $Config.NobsUrl = Get-NobsUrlText $answer } catch { Write-Host $_.Exception.Message -ForegroundColor Yellow; continue }
+        if (-not $Config.NobsUrl) { continue }
+        Set-NobsCertificatePin
+        try { Invoke-RestMethod -Uri ($Config.NobsUrl + '/api/health') -TimeoutSec 20 | Out-Null; break }
+        catch {
+            $msg = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message }
+            if ($msg -match 'trust|certificate|SSL|TLS|Zertifikat') {
+                if ($Config.NobsCertThumbprint) { throw "The trusted certificate is still refused: $msg. Run the script with Windows PowerShell 5.1 (powershell.exe); PowerShell 7 does not use a trusted thumbprint." }
+                if (Confirm-TrustCertificate -NoSave) { continue }
+            } else { Write-Host "No answer from $($Config.NobsUrl): $msg" -ForegroundColor Yellow }
+        }
+    }
+    Write-Host "Connected to $($Config.NobsUrl)" -ForegroundColor Green
+    for ($try = 1; ; $try++) {
+        $secure = Read-Host -AsSecureString 'Feed token (NOBS: Settings -> Feed -> Create token)'
+        $plain = (New-Object System.Management.Automation.PSCredential('x', $secure)).GetNetworkCredential().Password
+        $why = Test-NobsToken $plain
+        # 403: the token is right, but NOBS takes no push yet. Keep it and say what to turn on.
+        if ($why -like 'NOBS takes no push*') { Write-Host $why -ForegroundColor Yellow; break }
+        if (-not $why) { break }
+        Write-Host $why -ForegroundColor Yellow
+        if ($try -ge 3) { throw 'The token was not accepted. Run .\Lansweeper-Push.ps1 -Setup to try again.' }
+    }
+    Save-Token $secure
+    Save-LocalConfig $script:LocalConfig @{ NobsUrl = $Config.NobsUrl; NobsCertThumbprint = $Config.NobsCertThumbprint }
+    Write-PushLog "Setup saved: $($Config.NobsUrl) in $($script:LocalConfig), the token for $env:USERNAME on $env:COMPUTERNAME"
+    # The Lansweeper database: when this account cannot open it, offer Lansweeper's own login.
+    try { (Open-LsConnection).Close(); Write-Host 'The Lansweeper database opens.' -ForegroundColor Green }
+    catch {
+        Write-Host "The Lansweeper database does not open for $env:USERNAME`: $($_.Exception.Message)" -ForegroundColor Yellow
+        if ((Read-Host "Use the database login Lansweeper itself uses, read from its configuration at each run? Needs administrator rights. (y/n)") -match '^[yj]') {
+            $Config.SqlFromLansweeper = $true; $Config.SqlUseStoredCredential = $false
+            (Open-LsConnection).Close()
+            Write-Host 'The Lansweeper database opens with Lansweeper''s own login.' -ForegroundColor Green
+            Save-LocalConfig $script:LocalConfig @{ SqlFromLansweeper = $true; SqlUseStoredCredential = $false }
+            Write-PushLog "Lansweeper's own database login is used, read at each run (kept in $($script:LocalConfig))"
+        } else { Write-Host 'Store a SQL login with .\Lansweeper-Push.ps1 -SetSqlCredential, or run the push as an account with database rights.' }
+    }
+}
+$script:Interactive = [Environment]::UserInteractive -and -not ([Environment]::GetCommandLineArgs() -match '^-NonI')
 
 function Get-StoredToken {
     $path = Join-Path $Config.DataDir 'cred-nobs.xml'
@@ -167,9 +284,52 @@ function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
     return "CAST(NULL AS nvarchar(200)) AS [$out]"
 }
 
+# The configuration files that may hold Lansweeper's database login: the one of its service (found by the service's path),
+# then the usual places of the service and of the website.
+function Get-LansweeperConfigFiles {
+    $files = New-Object System.Collections.Generic.List[string]
+    try {
+        Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object { $_.Name -like 'Lansweeper*' -and $_.PathName } | ForEach-Object {
+            $exe = ($_.PathName -replace '^"([^"]+)".*$', '$1') -replace '^(\S+\.exe).*$', '$1'
+            $files.Add("$exe.config"); $files.Add((Join-Path (Split-Path $exe) 'Lansweeper.Service.dll.config'))
+        }
+    } catch { }
+    foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ }) {
+        foreach ($rel in @('Lansweeper\Service\Lansweeper.Service.exe.config', 'Lansweeper\Service\lansweeperservice.exe.config', 'Lansweeper\Website\web.config')) { $files.Add((Join-Path $root $rel)) }
+    }
+    return @($files | Select-Object -Unique | Where-Object { Test-Path -LiteralPath $_ })
+}
+
+# The connection string Lansweeper uses, from the first of its configuration files that has one. A protected (encrypted)
+# section is opened by .NET with the machine's key, which needs administrator rights.
+function Get-LansweeperConnectionString {
+    $files = Get-LansweeperConfigFiles
+    if (-not $files) { throw 'No Lansweeper configuration was found on this machine. Run the push on the Lansweeper server, or set SqlConnectionString.' }
+    Add-Type -AssemblyName System.Configuration
+    $why = @()
+    foreach ($f in $files) {
+        try {
+            $map = New-Object System.Configuration.ExeConfigurationFileMap
+            $map.ExeConfigFilename = $f
+            $cfg = [System.Configuration.ConfigurationManager]::OpenMappedExeConfiguration($map, [System.Configuration.ConfigurationUserLevel]::None)
+            foreach ($cs in $cfg.ConnectionStrings.ConnectionStrings) {
+                if ($cs.ConnectionString -match '(?i)(initial catalog|database)\s*=') { return $cs.ConnectionString }
+            }
+            $why += "$f has no database connection"
+        } catch { $why += "$f`: $($_.Exception.Message)" }
+    }
+    throw ("Lansweeper's database login could not be read (run as administrator, in Windows PowerShell 5.1). " + ($why -join '; '))
+}
+
+function Show-LansweeperDb {
+    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder (Get-LansweeperConnectionString)
+    Write-PushLog "Lansweeper's database: server $($csb.DataSource), database $($csb.InitialCatalog), $(if ($csb.IntegratedSecurity) { 'Windows login' } else { "user $($csb.UserID)" }). The password is not shown."
+}
+
 function Open-LsConnection {
-    $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString
-    if ($Config.SqlUseStoredCredential) {
+    $csb = if ($Config.SqlFromLansweeper) { New-Object System.Data.SqlClient.SqlConnectionStringBuilder (Get-LansweeperConnectionString) }
+           else { New-Object System.Data.SqlClient.SqlConnectionStringBuilder $Config.SqlConnectionString }
+    if ($Config.SqlUseStoredCredential -and -not $Config.SqlFromLansweeper) {
         $cred = Get-StoredSqlCredential
         $csb['Integrated Security'] = $false
         $csb['User ID'] = $cred.UserName
@@ -572,18 +732,24 @@ public static class NobsCertPin {
 }
 
 # Connects to NOBS and prints its certificate's thumbprint, for NobsCertThumbprint.
-function Show-NobsCertificate {
+function Get-NobsCertificate {
     $uri = [Uri]$Config.NobsUrl
     $tcp = New-Object System.Net.Sockets.TcpClient $uri.Host, $uri.Port
     try {
         $ssl = New-Object System.Net.Security.SslStream $tcp.GetStream(), $false, ([System.Net.Security.RemoteCertificateValidationCallback] { param($a, $b, $c, $d) $true })
         try { $ssl.AuthenticateAsClient($uri.Host, $null, [System.Security.Authentication.SslProtocols]::Tls12, $false) }
         catch { throw "TLS handshake with $($uri.Host) failed: $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message })" }
-        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ssl.RemoteCertificate
+        return New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ssl.RemoteCertificate
+    } finally { $tcp.Close() }
+}
+function Show-NobsCertificate {
+    $uri = [Uri]$Config.NobsUrl
+    $cert = Get-NobsCertificate
+    if ($cert) {
         Write-PushLog "Certificate of $($uri.Host): $($cert.Subject)"
         Write-PushLog "Thumbprint: $($cert.Thumbprint)  (valid until $($cert.NotAfter.ToString('yyyy-MM-dd')))"
         Write-PushLog 'Put the thumbprint in NobsCertThumbprint. Caddy renews its certificate, so check it again when pushes start failing.'
-    } finally { $tcp.Close() }
+    }
 }
 
 function Send-Records($records, [string]$Token) {
@@ -616,11 +782,14 @@ function Register-PushTask {
 }
 
 try {
+    if ($Setup) { Invoke-Setup; exit 0 }
     if ($SetCredential) {
-        if (-not (Test-Path $Config.DataDir)) { New-Item -ItemType Directory -Path $Config.DataDir -Force | Out-Null }
-        $tok = Read-Host -AsSecureString 'NOBS feed token (set on the server as NI_FEED_TOKEN)'
-        (New-Object System.Management.Automation.PSCredential('nobs-feed', $tok)) | Export-Clixml -Path (Join-Path $Config.DataDir 'cred-nobs.xml')
-        Write-PushLog "NOBS token stored for $env:USERNAME on $env:COMPUTERNAME"
+        if ($Config.NobsUrl -match 'example\.com') { Invoke-Setup; exit 0 }
+        $tok = Read-Host -AsSecureString 'Feed token (NOBS: Settings -> Feed -> Create token)'
+        $why = Test-NobsToken (New-Object System.Management.Automation.PSCredential('x', $tok)).GetNetworkCredential().Password
+        if ($why -like 'NOBS takes no push*') { Write-PushLog $why 'WARN' } elseif ($why) { throw $why }
+        Save-Token $tok
+        Write-PushLog "NOBS token checked and stored for $env:USERNAME on $env:COMPUTERNAME"
         exit 0
     }
     if ($SetSqlCredential) {
@@ -631,6 +800,7 @@ try {
     }
     if ($RegisterTask) { Register-PushTask; exit 0 }
     if ($ShowCertificate) { Show-NobsCertificate; exit 0 }
+    if ($ShowLansweeperDb) { Show-LansweeperDb; exit 0 }
     if ($FindTables) {
         $lines = Find-LsTables
         $file = Join-Path $Config.DataDir 'tables.txt'
@@ -638,6 +808,13 @@ try {
         $lines | ForEach-Object { Write-Host $_ }
         Write-PushLog "Found $($lines.Count) column(s). Saved to $file"
         exit 0
+    }
+
+    # Not set up yet: ask, when someone is there to answer. A scheduled run says what to do instead.
+    $needsSetup = ($Config.NobsUrl -match 'example\.com') -or -not (Test-Path (Join-Path $Config.DataDir 'cred-nobs.xml'))
+    if ($needsSetup -and -not $DryRun -and -not $FindTables) {
+        if ($script:Interactive) { Invoke-Setup }
+        else { throw 'Not set up: run .\Lansweeper-Push.ps1 -Setup once, as the account that runs the push, to give the NOBS address and the feed token.' }
     }
 
     Write-PushLog 'Reading Lansweeper ...'
@@ -651,7 +828,14 @@ try {
     }
 
     $token = Get-StoredToken
-    $totals = Send-Records $records $token
+    try { $totals = Send-Records $records $token }
+    catch {
+        # A certificate Windows does not trust (a self-signed one, say): when someone is there, offer to trust it and send again.
+        $msg = "$($_.Exception.Message) $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message })"
+        if (-not ($script:Interactive -and -not $Config.NobsCertThumbprint -and $msg -match 'trust|certificate|SSL|TLS|Zertifikat')) { throw }
+        if (-not (Confirm-TrustCertificate)) { throw }
+        $totals = Send-Records $records $token
+    }
     Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded" -f `
         $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded)
     exit 0
