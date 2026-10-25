@@ -12,19 +12,19 @@
 :root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:3px;--r-m:5px;--r-l:6px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
  --bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
- --gridh:#f6f6f7;--sub:#eef3fa;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
+ --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#a3520a;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
@@ -323,7 +323,7 @@ table.grid.sw th.sw-cnt{width:170px}
 .vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
 .vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
 .vchip i{font-style:normal;color:var(--muted);font-family:inherit}
-.vchip.odd{border-color:var(--warn);color:var(--warn)}
+.vchip.odd{border-color:var(--warn);color:var(--warntext)}
 .sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
 .sw-bar>span{display:block;height:100%;background:var(--accent)}
 table.grid.sw .sw-detail>td{padding:0 0 10px 0;background:var(--panel);white-space:normal}
@@ -437,8 +437,9 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .form label{color:var(--muted);font-size:12px}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
-.fieldnote.warn{color:var(--warn)} .fieldnote.bad{color:var(--danger)}
-.wty.soon{color:var(--warn);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
+/* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
+.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)}
+.wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
 /* Subnets Lansweeper's adapters report that are not listed yet. */
 .sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
 .sn-suggest .snrow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}

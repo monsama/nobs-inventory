@@ -27,7 +27,9 @@ try {
   await page.waitForSelector('.card');
   await open('p1'); await page.waitForSelector('.obj .form');
   assert.equal(await page.locator('[data-k=ports]').count(), 0, 'a printer without ports shows no port fields');
-  await page.click('details.menu summary'); await page.click('#addPortsBtn');
+  // keyboard only: More opens with Enter, the item is reached with Tab and taken with Enter
+  await page.focus('details.menu summary'); await page.keyboard.press('Enter');
+  await page.focus('#addPortsBtn'); await page.keyboard.press('Enter');
   await page.waitForSelector('[data-k=ports]');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.k), 'ports', 'the cursor is in Ports');
   await page.fill('[data-k=ports]', '2'); await page.locator('[data-k=ports]').press('Tab');
