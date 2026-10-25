@@ -114,10 +114,10 @@ export async function sheetModal(u, fresh = null){
           <label>Devices</label><div class="sheet-devs">${devs}</div>
           <label for="sheetNote">Note</label><textarea id="sheetNote" rows="2" maxlength="500" placeholder="First day, desk, anything else to write on the sheet"></textarea>
         </div>
-        <div class="addrel" style="padding:0 12px 10px"><button id="sheetMake" class="primary">Make sheet and print</button><span class="note" id="sheetErr"></span></div></div>
+        <div class="addrel" style="padding:10px 12px"><button id="sheetMake" class="primary">Make sheet and print</button><span class="note" id="sheetErr"></span></div></div>
       <div class="panelbox"><div class="hdr">Kept sheets <span class="cnt">${list.sheets.length}</span></div>
         <p class="note">Kept encrypted on the server, to print again. The password stays on a kept sheet until it is marked as changed, at most ${days} days.</p>
-        <div style="overflow-x:auto;padding:0 12px 10px">${kept}</div></div>
+        <div style="overflow-x:auto;padding:10px 12px">${kept}</div></div>
     </div>
     <div class="mf"><button id="sheetClose">Close</button></div>`, 'wide');
   $('#sheetClose').onclick = closeModal;
