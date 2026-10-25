@@ -537,6 +537,15 @@ function Get-FirstV4($v) {
     return ''
 }
 
+# The first global IPv6 address in such a list: link-local (fe80::), loopback and unspecified ones are left out.
+function Get-FirstV6($v) {
+    foreach ($x in ((ConvertTo-Text $v) -split '[,;\s]+')) {
+        $a = ($x -replace '%.*$', '').ToLowerInvariant()
+        if ($a -match '^[0-9a-f:]+$' -and $a.Contains(':') -and $a -notmatch '^(fe[89ab][0-9a-f]:|::1?$)') { return $a }
+    }
+    return ''
+}
+
 # Each asset's network adapters with an address: address, mask, gateway, DNS servers and DHCP.
 function Get-AdapterByAsset($conn) {
     $map = @{}
@@ -557,7 +566,7 @@ function Get-AdapterByAsset($conn) {
             $dhcpText = ConvertTo-Text $reader['n__DHCPEnabled']
             if (-not $map.ContainsKey($id)) { $map[$id] = New-Object System.Collections.Generic.List[object] }
             $map[$id].Add(@{
-                ip = $ip; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
+                ip = $ip; ip6 = Get-FirstV6 $reader['n__IPAddress']; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
                 dhcp = $(if ($dhcpText -match '^(1|true)$') { 'dhcp' } elseif ($dhcpText -match '^(0|false)$') { 'static' } else { '' })
             })
         }
@@ -667,7 +676,7 @@ function Get-LsRecords {
                     warranty = Get-DateText $reader['c__Warrantydate']
                     role = Get-RoleText $reader['cs__Domainrole']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
-                    mask = ''; gateway = ''; dns = ''; dhcp = ''
+                    ip6 = ''; mask = ''; gateway = ''; dns = ''; dhcp = ''
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()
                     software = $null
@@ -682,7 +691,7 @@ function Get-LsRecords {
         $adapters = Get-AdapterByAsset $conn
         foreach ($rec in $list) {
             $nic = Select-Adapter $adapters[[string]$rec['ref']] $rec['ip']
-            if ($nic) { foreach ($k in @('mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
+            if ($nic) { foreach ($k in @('ip6', 'mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
         }
         $health = Get-HealthByAsset $conn
         foreach ($rec in $list) {
