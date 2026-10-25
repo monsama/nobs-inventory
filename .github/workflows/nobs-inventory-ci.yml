@@ -59,8 +59,8 @@ jobs:
             deploy-nobs.sh scripts Dockerfile docker-compose.yml Caddyfile .env.example \
             package.json package-lock.json server public VERSION README.md
           tar -tzf check.tar.gz > /dev/null
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           load: true
