@@ -165,3 +165,22 @@ test('a device user with no sign-in, such as the last user from Lansweeper, is s
     assert.equal(now.objs.find(o => o.id === 'o1').uid, 'u-jdoe');
   } finally { await srv.close(); }
 });
+
+test('a stale change that the rest of the save needs makes the whole save a conflict, not a refusal sent again and again', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const rel = { id: 'r1', from: 'a', to: 'b', kind: 'connected', port: 1, vlan: null };
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'a', value: pc('a', 'PC-A', 'x'), base: 0 }, { kind: 'object', id: 'b', value: pc('b', 'PC-B', 'x'), base: 0 }, { kind: 'rel', id: 'r1', value: rel, base: 0 }], dels: [] });
+    const old = (await load(srv, a.cookie)).revs;
+    // B changes the connection's port.
+    await put(srv, a.cookie, { puts: [{ kind: 'rel', id: 'r1', value: { ...rel, port: 2 }, base: old['rel|r1'] }], dels: [] });
+    // A, holding the old revision, deletes PC-A and its connection.
+    const r = await put(srv, a.cookie, { puts: [], dels: [{ kind: 'object', id: 'a', base: old['object|a'] }, { kind: 'rel', id: 'r1', base: old['rel|r1'] }] });
+    assert.equal(r.status, 200, 'refused: ' + JSON.stringify(r.json));
+    assert.deepEqual(r.json.conflicts.sort(), ['object|a', 'rel|r1']);
+    const now = await load(srv, a.cookie);
+    assert.ok(now.objs.some(o => o.id === 'a'), 'nothing is saved: PC-A is still there');
+    assert.equal(now.rels.find(x => x.id === 'r1').port, 2, 'B\'s change stands');
+  } finally { await srv.close(); }
+});

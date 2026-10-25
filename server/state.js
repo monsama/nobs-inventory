@@ -372,7 +372,14 @@ export function applyChanges(db, body, guard = () => {}) {
     else if (c.kind === 'history') s.history[c.id] = v;
     else if (c.kind === 'setting') s[c.id] = v;
   }
-  checkState(s);
+  /* A change refused as stale can be one the rest of the save needs (a connection to an object deleted in the same save).
+     Then nothing is saved and every change is answered as a conflict, so the page reloads and offers its edits again,
+     instead of a refusal it would send again and again. */
+  try { checkState(s); }
+  catch (e) {
+    if (!conflicts.length) throw e;
+    return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
+  }
   guard(s);
   writeDocs(db, s);
   const after = revsOf(db);

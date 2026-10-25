@@ -27,3 +27,24 @@ test('the nightly import reads the report file and merges it; it does nothing wh
     assert.equal(loadState(srv.db).objs[0].model, 'Dell P2422H 24"');
   } finally { await srv.close(); }
 });
+
+test('a nightly run that throws (a secret file that can no longer be read) is logged and does not bring the server down', async t => {
+  const { startScheduler } = await import('../server/index.js');
+  const dir = tempDataDir();
+  const srv = await startServer({ dir });
+  const escaped = [];
+  const onRejection = e => escaped.push(e);
+  process.on('unhandledRejection', onRejection);
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: new Date(2026, 9, 21, 5, 59, 50) });
+  const logged = [];
+  const timer = startScheduler(srv.db, {}, { ldapConfig: () => { throw new Error('cannot read NI_LDAP_SERVICE_PASSWORD_FILE'); } }, (...a) => logged.push(a.join(' ')));
+  try {
+    t.mock.timers.tick(30_000);   /* 06:00:20: the nightly run starts */
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    assert.deepEqual(escaped, [], 'the error escaped the scheduler');
+    assert.ok(logged.some(l => l.includes('nightly sync failed') && l.includes('NI_LDAP_SERVICE_PASSWORD_FILE')), 'the failure is logged: ' + logged.join(' | '));
+  } finally {
+    clearInterval(timer); t.mock.timers.reset(); process.off('unhandledRejection', onRejection); await srv.close();
+  }
+});

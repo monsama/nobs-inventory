@@ -6,6 +6,15 @@ import { loadState, saveState } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp } from './feed.js';
+import { checkAddress } from './validate.js';
+
+/* Intune writes a MAC as twelve hex digits with no separators (00155D012345). It is stored the way the inventory writes
+   one, 00:15:5d:01:23:45; a value that is not a MAC is left out, so it cannot make the whole sync fail its checks. */
+export const macOf = raw => {
+  const v = String(raw || '').trim();
+  const r = checkAddress('mac', /^[0-9a-f]{12}$/i.test(v) ? v.match(/../g).join(':') : v);
+  return v && r.ok ? r.value : '';
+};
 
 export const GRAPH = 'https://graph.microsoft.com/v1.0';
 const GRAPH_ORIGIN = 'https://graph.microsoft.com';
@@ -79,7 +88,7 @@ export function toRecords(devices, managed) {
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
       owner: clean(m.userPrincipalName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
-      model: clean([m.manufacturer, m.model].filter(Boolean).join(' ')), mac: clean(m.wiFiMacAddress || m.ethernetMacAddress),
+      model: clean([m.manufacturer, m.model].filter(Boolean).join(' ')), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes),
     };
   });
