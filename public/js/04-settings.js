@@ -438,7 +438,7 @@ export function renderSetUsers(){
   const devicesOfUser = name => devCount.get(name) || 0;
   const rows = USERS.map((u, i) => `<tr>
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept">Manual</span>'}</td>
+      <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
