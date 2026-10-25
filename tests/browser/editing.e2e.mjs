@@ -49,6 +49,16 @@ try {
   await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('[data-dname="0"]');
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
+  // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
+  await core(async () => { const c = await import('/js/01-core.js'); c.byId('s1').domain = 'corp.local'; c.byId('s2').domain = 'corp.local'; c.byId('p1').domain = 'lab.local';
+    (await import('/js/04-settings.js')).renderSetDomains(); });
+  assert.match(await p.textContent('#setDomains .sn-suggest'), /acme\.intern\s*2 devices.*lab\.local\s*1 device/s);
+  await p.click('[data-dmuse="0"]');
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.local'));
+  assert.equal(await p.locator('#dmUseAll').count(), 0, 'Add all only with two or more left');
+  await p.click('[data-dmuse="0"]');
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'lab.local'));
+  assert.equal(await p.locator('#setDomains .sn-suggest').count(), 0, 'nothing left to offer');
   await p.click('#setClose');
 
   // a linked LAG renamed: the link follows; its size cannot change while linked
