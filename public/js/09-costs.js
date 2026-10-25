@@ -1,7 +1,7 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
-import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, licenceUse, yearlyCost } from './costs.js';
+import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, yearlyCost } from './costs.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render-plans.js';
 
@@ -30,6 +30,18 @@ const sorted = list => [...list].map(c => ({ c, s: contractStatus(c) }))
 export const contractsDue = () => COSTS.contracts.filter(c => contractStatus(c).state === 'soon');
 export const contractsOf = o => COSTS.contracts.filter(c => (c.devices || []).includes(o.id));
 
+/* What all contracts cost this year and the next two, with this year by kind. */
+function costSummary(all){
+  const y0 = new Date().getFullYear(), years = [y0, y0 + 1, y0 + 2];
+  const per = years.map(y => all.reduce((t, c) => t + costInYear(c, y), 0));
+  if (!per.some(v => v > 0)) return '';
+  const kinds = Object.entries(CONTRACT_KINDS).map(([k, l]) => [l, all.filter(c => c.kind === k).reduce((t, c) => t + costInYear(c, y0), 0)]).filter(([, v]) => v > 0);
+  return `<div class="ct-sum" aria-label="Contract costs per year">
+    ${years.map((y, i) => `<div class="ov-tile"><span class="muted">${y}${i === 0 ? ' (this year)' : ''}</span><b>${money(Math.round(per[i] * 100) / 100) || money(0)}</b></div>`).join('')}
+    ${kinds.length ? `<div class="ct-kinds"><span class="muted">${y0} by kind</span>${kinds.map(([l, v]) => `<span>${esc(l)} <b>${money(Math.round(v * 100) / 100)}</b></span>`).join('')}</div>` : ''}
+  </div>
+  <p class="note ct-sum-note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p>`;
+}
 export function renderContracts(){
   const q = (st.ctQ || '').trim().toLowerCase();
   const all = COSTS.contracts;
@@ -49,13 +61,14 @@ export function renderContracts(){
     $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;
     return;
   }
-  $('#view').innerHTML = `<div class="gridwrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
-      <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th></tr></thead><tbody>
+  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
+      <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
     ${rows.map(({ c }) => `<tr><td><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
-      <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${contractChip(c)}</td></tr>`).join('')
-      || `<tr><td colspan="6" class="muted" style="padding:14px">Nothing matches “${esc(st.ctQ)}”.</td></tr>`}
-    </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td></td></tr></tfoot>` : ''}</table></div>`;
+      <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${contractChip(c)}</td>
+      <td class="num"><button data-contract="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">Edit</button></td></tr>`).join('')
+      || `<tr><td colspan="7" class="muted" style="padding:14px">Nothing matches “${esc(st.ctQ)}”.</td></tr>`}
+    </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="2"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
 }
 

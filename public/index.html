@@ -91,6 +91,10 @@ table.locs td.site{color:var(--muted)}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
 .pl-item.on{background:var(--panel2);font-weight:600}
+.pl-ghost{position:fixed;z-index:200;pointer-events:none;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
+body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
+.pl-area.droptarget .pl-area-fill{fill:rgba(37,99,235,.28)}
+.pl-area.droptarget .pl-area-edge{stroke-width:3}
 .pl-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .pl-none{padding:12px}
 .pl-tip{margin:0;padding:10px 12px;border-top:1px solid var(--bd2)}
@@ -297,6 +301,11 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
+.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0}
+.ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
+.ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
+.ct-sum-note{margin:0;padding:6px 12px 10px}
+table.contracts td:last-child,table.contracts th:last-child{width:1%;white-space:nowrap}
 button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-tl{font-size:12px;color:var(--muted)}
 .ov-tv{font-size:28px;font-weight:600;line-height:1.2}

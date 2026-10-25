@@ -15,6 +15,15 @@ export let planMode = 'view';
 export let planPlace = null;
 export let planDraw = null;
 export let planDrag = null;
+let planListDrag = null, listDragDone = false;   /* a device dragged from the list; a drag is not also a click */
+/* The area under a point of the screen, with the place on the plan in percent, or null. */
+function dropSpot(plan, cx, cy){
+  const c = $('#plCanvas'); if (!c || !plan) return null;
+  const r = c.getBoundingClientRect();
+  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+  const x = pctOf(cx, r.left, r.width), y = pctOf(cy, r.top, r.height);
+  return {x, y, area: areaAt(plan, x, y)};
+}
 /* The rectangles of an area being drawn, before Done. */
 export let planParts = [];
 /* The area that new rectangles are added to, after it is clicked. */
@@ -91,7 +100,7 @@ export function renderPlans(){
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
         <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices"></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Choose a device, then click the plan to place it. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${planCanvas(plan)}</div></div>`
     : `<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p><button class="primary" id="plNew2">New plan</button></div>`;
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
@@ -110,7 +119,13 @@ export function renderPlans(){
   if (!plan) return;
   renderPlanList(plan);
   $('#plQ').oninput = () => renderPlanList(plan);
-  $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
+  $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
+  /* A device can also be dragged from the list into an area: it is placed where it is dropped and gets the area's room. */
+  $('#plList').onpointerdown = e => {
+    const b = e.target.closest('[data-plitem]'); if (!b || e.button !== 0 || !canEdit()) return;
+    listDragDone = false;
+    planListDrag = {id: b.dataset.plitem, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label: b.querySelector('.pl-n').textContent};
+  };
   const c = $('#plCanvas');
   c.onpointerdown = e => {
     if (e.target.closest('.pl-pin,.pl-x') || e.button !== 0) return;
@@ -208,6 +223,19 @@ export function drawPreview(){
 }
 document.addEventListener('pointermove', e => {
   const c = $('#plCanvas'); if (!c) return;
+  if (planListDrag){
+    const d = planListDrag;
+    if (!d.moved && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 5){
+      d.moved = true;
+      d.ghost = document.createElement('div'); d.ghost.className = 'pl-ghost'; d.ghost.textContent = d.label; document.body.appendChild(d.ghost);
+      document.body.classList.add('pl-dragging');
+    }
+    if (d.moved){
+      d.ghost.style.left = e.clientX + 12 + 'px'; d.ghost.style.top = e.clientY + 8 + 'px';
+      const spot = dropSpot(planById(planSel), e.clientX, e.clientY);
+      c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
+    }
+  }
   if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
   if (planAreaDrag){
     const r = c.getBoundingClientRect(), d = planAreaDrag;
@@ -225,7 +253,20 @@ document.addEventListener('pointermove', e => {
     if (pin){ pin.style.left = planDrag.x + '%'; pin.style.top = planDrag.y + '%'; }
   }
 });
-document.addEventListener('pointerup', () => {
+document.addEventListener('pointerup', e => {
+  if (planListDrag){
+    const d = planListDrag; planListDrag = null;
+    if (d.moved){
+      listDragDone = true; setTimeout(() => { listDragDone = false; }, 0);
+      d.ghost.remove(); document.body.classList.remove('pl-dragging');
+      document.querySelectorAll('.droptarget').forEach(el => el.classList.remove('droptarget'));
+      const plan = planById(planSel), o = byId(d.id), spot = dropSpot(plan, e.clientX, e.clientY);
+      if (o && spot){
+        if (spot.area) placeDevice(plan, o, round1(spot.x), round1(spot.y));
+        else toast('A device goes inside an area. Drop it on one.');
+      }
+    }
+  }
   if (planDraw){
     const d = planDraw; planDraw = null;
     const rect = {x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0)};
