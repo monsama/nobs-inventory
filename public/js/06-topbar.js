@@ -1,10 +1,11 @@
 import { $, st } from './01-core.js';
-import { newObjModal } from './05-new-object.js';
+import { newObjModal, linkObjModal } from './05-new-object.js';
 import { me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, render, signOut } from './07-render-plans.js';
 import { openObj } from './02-views.js';
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
+$('#linkBtn').onclick = () => linkObjModal();
 $('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
 $('#whoBtn').onclick = () => (me() ? accountModal() : loginModal());
 $('#signOutBtn').onclick = () => signOut();
@@ -15,7 +16,6 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
-$('#searchAll').addEventListener('change', e => { st.searchAll = e.target.checked; render(); });
 $('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; render(); });
 document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]')) openObj(t.dataset.open); });
 
@@ -32,8 +32,18 @@ export function applyTable(t){
   const s = TBL[tableKey(t)]; const head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
   [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
-  t.style.tableLayout = Object.keys(s.widths).length ? 'fixed' : '';
-  [...head.cells].forEach(th => { const w = s.widths[th.dataset.ci]; th.style.width = w ? w + 'px' : ''; });
+  /* A column is as wide as it was dragged to, or as its default (data-w). When every column has a width, the table is
+     exactly as wide as its columns, so the box around it scrolls sideways instead of squeezing them. */
+  const ws = [...head.cells].map(th => s.widths[th.dataset.ci] || +th.dataset.w || 0);
+  const all = ws.every(Boolean);
+  t.style.tableLayout = all || Object.keys(s.widths).length ? 'fixed' : '';
+  [...head.cells].forEach((th, i) => { th.style.width = ws[i] ? ws[i] + 'px' : ''; });
+  t.style.width = all ? ws.reduce((a, b) => a + b, 0) + 'px' : '';
+  t.style.minWidth = all ? '100%' : '';
+  /* Columns marked to stay (selection, code, name) stay on the left while the table scrolls, as long as they come first. */
+  let left = 0, pinned = 0;
+  for (const th of head.cells){ if (!th.dataset.pin || !th.style.width) break; t.style.setProperty('--pin' + pinned, left + 'px'); left += parseFloat(th.style.width); pinned++; }
+  t.dataset.pinned = pinned;
   applyView(t);
 }
 /* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */

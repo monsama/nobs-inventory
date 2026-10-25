@@ -53,11 +53,13 @@ export function recordsFromCsv(text) {
 
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
   'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'scanned'];
+/* Lists joined with "; " (every antivirus product, every drive) are longer than one value. */
+const LONG_TEXT = ['av', 'disk'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
   return list.map(raw => {
     const r = {};
-    for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, 200) : '';
+    for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
     /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. */
     r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && l.kind === 'attached').slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),

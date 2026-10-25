@@ -72,6 +72,12 @@ try {
   assert.match(await page.textContent('.tf-box'), /Fields on the PC page.*Own fields of PC.*On the PC card/s);
   assert.equal(await page.locator('.tf-box .sechdr').count(), 1);
   assert.equal(await page.locator('.tf-box').evaluate(e => e.classList.contains('collapsed')), false, 'choosing the type does not close the section');
+  // each type lists the fields its own page has: a rack and a patch panel have no network fields, a PC has them and can get ports
+  const fieldsOf = async t => { await page.selectOption('#tfType', t); await page.waitForTimeout(100); return page.locator('#tfBuiltin [data-flab]').evaluateAll(is => is.map(i => i.dataset.flab)); };
+  const rackF = await fieldsOf('rack'), patchF = await fieldsOf('patch'), pcF = await fieldsOf('pc');
+  assert.ok(!rackF.includes('ip') && !rackF.includes('ports') && rackF.includes('units'), 'rack: ' + rackF.join(','));
+  assert.ok(!patchF.includes('ip') && patchF.includes('ports'), 'patch panel: ' + patchF.join(','));
+  assert.ok(pcF.includes('ip') && pcF.includes('ports'), 'pc: ' + pcF.join(','));
   // push token: created in the app, shown once, a download is offered
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');

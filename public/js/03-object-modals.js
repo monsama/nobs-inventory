@@ -1,27 +1,56 @@
-import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
-import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
+import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
+import { openObj } from './02-views.js';
 /* ---------- racks ---------- */
+/* A new rack: what a rack has (its name, room, height in U and optionally its model and serial number), nothing more.
+   It is shown in Racks right away. */
+export function rackNewModal(){
+  const n = racksList().length + 1;
+  modal(`<div class="mh">New rack</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
+      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
+      <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
+      <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
+      <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">
+    </div><p class="note" id="rnErr">Devices are mounted in it from Racks with Mount device…, or by dropping them on the rack on a floor plan.</p></div>
+    <div class="mf"><button id="rnCancel">Cancel</button><button id="rnOk" class="primary">Add rack</button></div>`, 'sm');
+  $('#rnCancel').onclick = closeModal;
+  $('#rnOk').onclick = () => {
+    const name = $('#rnName').value.trim(), units = +$('#rnUnits').value;
+    if (!name){ $('#rnErr').textContent = 'Give the rack a name.'; $('#rnName').focus(); return; }
+    if (objs.some(o => o.type === 'rack' && o.name.toLowerCase() === name.toLowerCase())){ $('#rnErr').textContent = `There is already a rack named ${name}.`; return; }
+    if (!Number.isInteger(units) || units < 1 || units > 60){ $('#rnErr').textContent = 'The height is a number of U from 1 to 60.'; return; }
+    const o = O('rack', name, {model: $('#rnModel').value.trim() || '—', serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
+    objs.push(o); hist(o, now(), 'Created manually by ' + who());
+    st.rackId = o.id; st.tab = 'rack'; queueServerSave(); closeModal(); toast(name + ' added'); render();
+  };
+  $('#rnName').focus();
+}
 export function renderRack(){
   const racks = racksList();
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
     $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${canEdit() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
-    const b = $('#rackNew'); if (b) b.onclick = () => newObjModal({type: 'rack'});
+    const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+    ${canEdit() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
+  const rn = $('#rkNew'); if (rn) rn.onclick = rackNewModal;
+  $('#rkOpen').onclick = () => openObj(R_.id);
   $('#rkMount').onclick = mountModal;
   const cells = [];
   for (let n = rackUnits(R_); n >= 1; n--){
@@ -59,9 +88,17 @@ export const FIELDS = {
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
-  accesspoint:[['ssid','Wi-Fi networks']],
+  accesspoint:[['ssid','Wi-Fi networks']], bmc:[['fw','Firmware']],
   monitor:[], printer:[], other:[]
 };
+/* Types without a network address of their own: a monitor hangs off a PC, a rack and a patch panel are passive. */
+export const NO_NET_TYPES = ['monitor', 'rack', 'patch'];
+/* The built-in fields of a type: everyone's, the network ones unless the type has no address, and the type's own. */
+export const typeFieldsOf = type => [...FIELDS.base.filter(f => !(f[0] === 'user' && NO_USER_TYPES.includes(type))), ...(NO_NET_TYPES.includes(type) ? [] : FIELDS.net), ...(FIELDS[type] || [])];
+/* Types nobody uses as a person's device: a rack and a patch panel have no user. */
+export const NO_USER_TYPES = ['rack', 'patch'];
+/* Network ports can be added to a device of a type that has an address but no ports of its own (a PC, a printer). */
+export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type] || []).some(f => f[0] === 'ports');
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
 export function accessoriesHtml(o){
   const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
@@ -86,10 +123,12 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
     const cur = o[k] || '';
     const opts = SUBNETS.filter(n => (n.types || []).includes(o.type) || n.cidr === cur);
-    const sn = SUBNETS.find(n => n.cidr === cur);
+    /* Without a subnet picked, the one the address is in applies by itself, shown as the first choice. */
+    const auto = cur ? null : subnetFor(o);
+    const sn = SUBNETS.find(n => n.cidr === cur) || auto;
     /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
     const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
-    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${cur ? '' : 'disabled'}>Pick from range</button>`;
+    ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(auto.name)} · ${esc(auto.cidr)} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${sn ? '' : 'disabled'}>Pick from range</button>`;
   }
   else if (kind === 'domain'){
     /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
@@ -101,26 +140,46 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
   else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
+  else if (k === 'av') ctl = avCtl(o, id, true);
   else {
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
-    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`;
+    /* A device without its own gateway or DNS servers uses those of its subnet: shown in grey, not stored on the device. */
+    const from = (k === 'gateway' || k === 'dns') && !val ? subnetFor(o) : null;
+    const inherited = from ? (k === 'gateway' ? from.gateway : (from.dns || []).join(', ')) : '';
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}${inherited ? ' inherit' : ''}" value="${esc(val ?? '')}"${inherited ? ` placeholder="${esc(inherited)} · from ${esc(from.name)}" title="From the subnet ${esc(from.name)}. Type a value to set one for this device."` : ''}>`;
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
     if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
   }
   return ctl;
 }
+/* Antivirus: one entry per product, as chips. A product can be added from the list of those seen on the devices and
+   common ones, or typed; each chip can be removed. Kept on the device as one text, entries separated by "; ". */
+export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).filter(Boolean);
+export function avCtl(o, id, edit){
+  const items = avEntries(o);
+  /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
+  const live = lsLive() && feedLinked(o);
+  const label = x => live ? x : x.split(',')[0].trim();
+  return `<div class="avpick">${items.map((x, i) => `<span class="avitem"${live || label(x) === x ? '' : ` title="${esc(x)}"`}>${esc(label(x))}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
+    ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}`
+      : (items.length ? '' : '<span class="muted">None</span>')}</div>`;
+}
+const AV_COMMON = ['Microsoft Defender Antivirus', 'Microsoft Defender for Endpoint', 'Cortex XDR', 'CrowdStrike Falcon', 'SentinelOne', 'Sophos Intercept X',
+  'ESET Endpoint Security', 'Trend Micro Apex One', 'Bitdefender GravityZone', 'Kaspersky Endpoint Security', 'Symantec Endpoint Protection', 'Trellix Endpoint Security', 'WithSecure Elements'];
+/* Product names seen on the devices (without the scan state Lansweeper adds) and the common ones, sorted. */
+const avNames = () => [...new Set([...objs.flatMap(x => avEntries(x).map(e => e.split(',')[0].trim())), ...AV_COMMON].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* A text field with a list to pick from: the field, an arrow that opens the list, and the list. */
 export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
-const COMBO_SOURCES = { model: () => modelNames() };
+const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames() };
 const comboOf = el => el && el.closest && el.closest('.combo');
 function comboOpen(c, all){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   if (input.disabled) return;
   const q = all ? '' : input.value.trim().toLowerCase();
-  const items = (COMBO_SOURCES[input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
+  const items = (COMBO_SOURCES[input.dataset.combo || input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
   if (!items.length){ comboClose(c); return; }
   list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" data-v="${esc(m)}" aria-selected="${m === input.value ? 'true' : 'false'}">${esc(m)}</li>`).join('');
   list.hidden = false; input.setAttribute('aria-expanded', 'true');
@@ -129,7 +188,7 @@ function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
 }
-function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); }
+function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); input.dispatchEvent(new Event('combopick', {bubbles: true})); }
 /* Under a model typed in: a model not in the list yet is new and is added when saved; one very like a model in the list
    is likely a typo, and the one in the list can be taken with one click. */
 const squash = t => t.toLowerCase().replace(/[\s\-_.,/]+/g, '');
@@ -193,17 +252,55 @@ document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c 
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
-export function propRow(o, f){
+document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
+/* Fields every object keeps on its page: they cannot be hidden or cleared. */
+export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
+/* Counts and sizes: emptying them is setting a number, so they are not offered to clear. */
+const NO_CLEAR = ['ports', 'sfp', 'units'];
+/* The ⋯ menu of a field on the object page: hide it on this device or on every device of the type, empty it, or,
+   for a field of the type's own, delete it. A hidden field shown again through "Show hidden fields" offers to show it. */
+export function fieldMenu(o, f, hiddenBy = ''){
+  const k = f[0], t = TYPES[o.type] ? TYPES[o.type].label : o.type;
+  if (FIXED_FIELDS.includes(k)) return '<span class="fm-slot" aria-hidden="true"></span>';
+  const own = k.startsWith('custom.'), val = own ? (o.custom || {})[k.slice(7)] : o[k];
+  const empty = val == null || val === '' || (k === 'user' && !o.uid && !o.hotdesk);
+  const b = (act, text, extra = '') => `<button type="button" data-fm="${act}" data-fk="${esc(k)}" ${extra}>${text}</button>`;
+  const items = hiddenBy === 'device' ? [b('show', 'Show on this device')]
+    : hiddenBy === 'type' ? [b('showtype', `Show on every ${esc(t)}`)]
+    : [b('hide', 'Hide on this device'), b('hidetype', `Hide on every ${esc(t)}`),
+       NO_CLEAR.includes(k) ? '' : b('clear', 'Clear value…', empty ? 'disabled title="The field is empty"' : ''),
+       own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
+  return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
+}
+export function propRow(o, f, menu = ''){
   const k = f[0];
   const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
-  let ctl = fieldCtl(o, f);
-  if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
-  const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
+  /* A field from Lansweeper can be typed over: the value typed is kept, and its From feed box is unticked. */
+  const ctl = fieldCtl(o, f);
+  /* Disks from Lansweeper show as bars under the field. */
+  const bars = k === 'disk' ? diskBars(o.disk, lsLive() && feedLinked(o)) : '';
+  const box = linked ? `<label class="pchk pchk-only" title="Ticked: Lansweeper fills this in. Type a value to keep your own; tick again to follow Lansweeper."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
-  const comboNoteSlot = k === 'model' && !taken ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${fieldNote(o, k)}`;
+  const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
+  const barsBelow = bars ? `<span></span>${bars}` : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
+}
+/* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
+   the space left. Returns '' when the text is not in that form. */
+export function diskBars(text, live = true){
+  const num = v => +String(v).replace(/[^\d]/g, '');
+  const parts = String(text || '').split(';').map(x => /^\s*([A-Za-z]):?\s*([\d'’.,\s]+)\/([\d'’.,\s]+)\s*GB\s*$/.exec(x)).filter(Boolean);
+  if (!parts.length) return '';
+  /* Without a running sync the free space is out of date: only each drive's size is shown. */
+  if (!live) return `<div class="disks sizes">${parts.map(([, l, , c]) => `<span class="disk-size"><b>${l.toUpperCase()}:</b> ${num(c).toLocaleString()} GB</span>`).join('')}</div>`;
+  return `<div class="disks">${parts.map(([, l, f, c]) => {
+    const free = num(f), size = num(c), used = size ? Math.min(100, Math.max(0, Math.round((size - free) / size * 100))) : 0;
+    const cls = used >= 90 ? ' bad' : used >= 80 ? ' warn' : '';
+    return `<div class="disk${cls}" title="${l.toUpperCase()}: ${used}% used, ${free} GB free of ${size} GB"><b>${l.toUpperCase()}:</b><span class="disk-bar" aria-hidden="true"><span style="width:${used}%"></span></span><span class="disk-t">${free.toLocaleString()} GB free of ${size.toLocaleString()} GB</span></div>`;
+  }).join('')}</div>`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
@@ -223,10 +320,9 @@ export function subnetFor(o){
   return ip === null ? null : SUBNETS.find(n => { const sp = subnetSpan(n); return sp && ip >= sp.first && ip <= sp.last; }) || null;
 }
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
-export function extraRows(o, fields){
-  if (!o.feed || !LS_ON()) return '';
-  return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k))
-    .map(k => propRow(o, [k, FIELD_LABEL[k], fieldKind(k)])).join('');
+export function extraFields(o, fields){
+  if (!o.feed || !LS_ON()) return [];
+  return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k)).map(k => [k, FIELD_LABEL[k], fieldKind(k)]);
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 export function feedPanel(o){
@@ -321,7 +417,7 @@ export function renderSoftware(){
       const shown = r.versions.slice(0, 4);
       return `<tr class="sw-row${open ? ' open' : ''}" data-sw="${esc(r.name)}">
         <td class="sw-tgcol"><button class="sw-tg icon ghost" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the devices with ${esc(r.name)}">${swChevron}</button></td>
-        <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceChip(l)).join('')}</td>
+        <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceMark(l)).join('')}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
     }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;
@@ -409,7 +505,7 @@ export function renderObj(o){
   /* Network links first, then the attached devices, each under its own heading when both are there. */
   const net = rs.filter(x => !isAttached(x.r.kind)), att = rs.filter(x => isAttached(x.r.kind)), byGroup = [...net, ...att];
   const groupHead = i => (net.length && att.length && i === 0 ? '<div class="relgroup">Network</div>' : '') + (net.length && att.length && i === net.length ? '<div class="relgroup">Attached</div>' : '');
-  let fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
+  let fields = typeFieldsOf(o.type);
   /* A type that usually has no ports (a PC, a printer) shows the port fields only for a device that has ports, or after
      More -> Add network ports. Setting the ports back to 0 hides them again. */
   const typePorts = fields.some(f => f[0] === 'ports'), extraPorts = !typePorts && (o.ports > 0 || st.addPorts === o.id);
@@ -419,9 +515,23 @@ export function renderObj(o){
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
   const lay = FIELD_LAYOUT[o.type] || {};
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
-  fields = fields.filter(f => f[0].startsWith('custom.') || !(lay.hidden || []).includes(f[0]))
+  fields = fields
     .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
     .sort((a, b) => at(a) - at(b));
+  fields.push(...extraFields(o, fields));
+  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
+  /* A field hidden on this device, or on every device of the type (from the ⋯ menu or Settings). Its value is kept,
+     and "Show hidden fields" brings the hidden ones back for a moment, each with its own way to show it again. */
+  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : (lay.hidden || []).includes(f[0]) ? 'type' : '';
+  const nHidden = fields.filter(hiddenBy).length;
+  if (!nHidden && st.showHidden === o.id) st.showHidden = null;
+  const reveal = nHidden > 0 && st.showHidden === o.id;
+  if (!reveal) fields = fields.filter(f => !hiddenBy(f));
+  const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
+  const row = f => {
+    const h = hiddenBy(f), html = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
+    return h ? html.replace('<label for=', `<label class="fm-hid" title="Hidden on ${h === 'device' ? 'this device' : 'every ' + esc(TYPES[o.type].label)}" for=`) : html;
+  };
   const chain = pathUp(o);
   /* The way up to the network: one row per device, with the relation and its port on the line between two rows. */
   const netPath = `<ol class="netpath">${chain.map((n, i) => `<li class="ps${i === 0 ? ' me' : ''}">
@@ -430,13 +540,14 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${!typePorts && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
         ${rackFields(o)}
-        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
+        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
+        ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${feedPanel(o)}
     </div>
     <div class="col">
@@ -554,10 +665,10 @@ export function renderObj(o){
   });
   /* Choosing a subnet enables the pick button, so the address can be picked before the object is saved. */
   const subSel = $('#f_' + o.id + '_subnet');
-  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value; };
+  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value && !subnetFor({...o, subnet: ''}); };
   /* Pick from range: the first address of the chosen subnet's ranges that no other device uses, not its gateway or DNS. */
   $('#view').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
-    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value);
+    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value) || subnetFor({...o, subnet: ''});
     if (!sub){ toast('Choose a subnet first.'); return; }
     const used = new Set(objs.filter(x => x !== o && x.ip).map(x => ipInt(x.ip)));
     [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
@@ -633,7 +744,13 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = el.value;
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
-      if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
+      if (k === 'user'){
+        const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
+        if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; }
+        /* A user picked by hand on a linked device is kept: the next sync does not put the Lansweeper user back. */
+        if (feedLinked(o) && was !== (v || '')){ o.ovr.user = false; kept.push(FIELD_LABEL.user || 'User'); }
+        return;
+      }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       if (k === 'price'){ const t = v.trim().replace(/['’\s]/g, '').replace(',', '.'); if (t === '' || !isFinite(+t) || +t < 0){ if (t !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = Math.round(+t * 100) / 100; }
@@ -674,6 +791,78 @@ export function renderObj(o){
     if (rerender) render(); else $('#saveBtn').disabled = true;
   };
   $('#saveBtn').onclick = () => saveObj();
+  /* Typing over a value from Lansweeper keeps it: the field's From feed box is unticked, and the save keeps it as set here. */
+  objView.addEventListener('input', e => {
+    if (e.target.matches('[data-ovr]')) return;
+    const box = e.target.closest('.ctlrow') && e.target.closest('.ctlrow').querySelector('[data-ovr]');
+    if (box) box.checked = false;
+  });
+  /* The ⋯ menu of each field. One is open at a time; a click elsewhere or Escape closes it. */
+  objView.querySelectorAll('details.fmenu').forEach(d => d.addEventListener('toggle', () => { if (d.open) objView.querySelectorAll('details.fmenu[open]').forEach(x => { if (x !== d) x.open = false; }); }));
+  const fmReveal = $('#fmReveal');
+  if (fmReveal) fmReveal.onclick = () => { st.showHidden = st.showHidden === o.id ? null : o.id; render(); };
+  objView.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => {
+    const k = b.dataset.fk, act = b.dataset.fm, t = TYPES[o.type].label;
+    const f = fields.find(x => x[0] === k), name = f ? f[1] : k;
+    b.closest('details').open = false;
+    if (act === 'hide' || act === 'hidetype') st.showHidden = null;
+    if (act === 'hide' || act === 'show'){
+      const h = (o.hide || []).filter(x => x !== k); if (act === 'hide') h.push(k);
+      if (h.length) o.hide = h; else delete o.hide;
+      hist(o, now(), `${name} ${act === 'hide' ? 'hidden' : 'shown again'} on this device by ${who()}`);
+      toast(act === 'hide' ? `${name} is hidden on ${o.name}. Its value is kept.` : `${name} is shown again on ${o.name}`); render(); return;
+    }
+    if (act === 'hidetype' || act === 'showtype'){
+      const lay = FIELD_LAYOUT[o.type] || {}, h = (lay.hidden || []).filter(x => x !== k); if (act === 'hidetype') h.push(k);
+      FIELD_LAYOUT[o.type] = {...lay, hidden: h};
+      toast(act === 'hidetype' ? `${name} is hidden on every ${t}. The values are kept; Show hidden fields brings it back.` : `${name} is shown again on every ${t}`); render(); return;
+    }
+    if (act === 'clear'){
+      const el = objView.querySelector(`[data-k="${CSS.escape(k)}"]`); if (!el) return;
+      const fromFeed = feedLinked(o) && LS_ON() && !!FIELD_LABEL[k];
+      modal(`<div class="mh">Clear ${esc(name)}?</div>
+        <div class="mb"><p class="note">The value of ${esc(name)} on ${esc(o.name)} is removed. The history keeps a note.${fromFeed ? ' Lansweeper no longer fills it in on this device; tick its From feed box to let it again.' : ''}</p></div>
+        <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Clear</button></div>`, 'sm');
+      $('#fmCancel').onclick = closeModal;
+      $('#fmOk').onclick = () => {
+        closeModal();
+        el.value = '';
+        if (fromFeed){ const box = el.closest('.ctlrow') && el.closest('.ctlrow').querySelector('[data-ovr]'); if (box) box.checked = false; }
+        saveObj(true);
+      };
+      return;
+    }
+    if (act === 'delete'){
+      const key = k.slice(7), n = objs.filter(x => x.type === o.type && x.custom && x.custom[key] != null && x.custom[key] !== '').length;
+      modal(`<div class="mh">Delete the field ${esc(name)}?</div>
+        <div class="mb"><p class="note">${esc(name)} is removed from every ${esc(t)}.${n ? ` ${n} ${n === 1 ? 'device has' : 'devices have'} a value; the values are kept, and adding a field of the same name brings them back.` : ''}</p></div>
+        <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Delete field</button></div>`, 'sm');
+      $('#fmCancel').onclick = closeModal;
+      $('#fmOk').onclick = () => {
+        const list = (TYPE_FIELDS[o.type] || []).filter(x => x.key !== key);
+        if (list.length) TYPE_FIELDS[o.type] = list; else delete TYPE_FIELDS[o.type];
+        /* Nothing stays hidden under its name, so a field added again later is shown. */
+        const lay = FIELD_LAYOUT[o.type]; if (lay && lay.hidden) lay.hidden = lay.hidden.filter(x => x !== k);
+        objs.forEach(x => { if (x.type === o.type && x.hide){ x.hide = x.hide.filter(h => h !== k); if (!x.hide.length) delete x.hide; } });
+        closeModal(); toast(`${name} deleted from ${t}`); render();
+      };
+    }
+  });
+  /* Antivirus: a picked or typed product is added, × removes one; each change is saved at once. */
+  const avAdd = $('#view').querySelector('[data-combo="av"]'), avHid = $('#view').querySelector('input[type=hidden][data-k="av"]');
+  if (avAdd && avHid){
+    const cur = () => avHid.value.split(';').map(x => x.trim()).filter(Boolean);
+    const set = list => { avHid.value = list.join('; '); saveObj(false); render(); };
+    const add = () => {
+      const v = avAdd.value.trim().replace(/;/g, ',');
+      if (!v) return;
+      if (cur().some(x => x.split(',')[0].trim().toLowerCase() === v.toLowerCase())){ toast(v + ' is already listed.'); avAdd.value = ''; return; }
+      set([...cur(), v]);
+    };
+    avAdd.addEventListener('combopick', add);
+    avAdd.addEventListener('keydown', e => { if (e.key === 'Enter' && avAdd.closest('.combo').querySelector('.combo-list').hidden){ e.preventDefault(); add(); } });
+    $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
+  }
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
@@ -715,7 +904,12 @@ export function modal(html, cls=''){
 }
 /* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
 export let modalOpener = null;
-export const closeModal = () => { $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus(); };
+/* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
+export const closeModal = () => {
+  const wasSettings = !!$('#modalHost #setPane');
+  $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
+  if (wasSettings) render();
+};
 document.addEventListener('keydown', e => {
   if (!$('#mdl')) return;
   if (e.key === 'Escape' && $('#mdl .locked')) return;

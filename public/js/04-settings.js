@@ -1,7 +1,7 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince } from './01-core.js';
-import { collapsedPanels, rememberPanel, FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
-import { overlapProblem } from './net.js';
+import { COMPANY, dayText, daysSince, SYNC } from './01-core.js';
+import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
@@ -19,7 +19,7 @@ export function openSettings(){
     <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   collapsibleSections($('#setPane'), 'set:');
-  $('#setClose').onclick = () => { closeModal(); render(); };
+  $('#setClose').onclick = closeModal;
   const sr = $('#setReset');
   if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
@@ -279,7 +279,7 @@ export async function renderSetGraph(){
 async function refreshGraph(){
   const r = await fetch('api/me', {credentials: 'same-origin'}).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => null) : null;
-  if (j) SERVER.graph = !!j.graph;
+  if (j) SYNC.graph = SERVER.graph = !!j.graph;
   await renderSetGraph();
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
@@ -368,11 +368,11 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType)$/;
+export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
-  $('#newBtn').disabled = ro;
+  $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
@@ -419,7 +419,7 @@ export function rackCheck(rackId, u, h, exceptId){
 export function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and a linked object keeps the feed slot free. */
-  const slot = LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '';
+  const slot = (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '') + (canEdit() ? '<span class="fm-slot" aria-hidden="true"></span>' : '');
   return `<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => `<option value="${r.id}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>${slot}</div>
     <div class="rk-mount" ${o.rack && o.u != null && !o.ontop ? '' : 'hidden'}><label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span><input type="number" min="1" data-rk="u" value="${o.u ?? ''}" style="width:64px" aria-label="Start U"><span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div></div>
     <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => `<option value="${x.id}" ${o.ontop===x.id ? 'selected' : ''}>${esc(x.name)} · U${x.u}</option>`).join('')}</select>${slot}</div>`;
@@ -467,7 +467,7 @@ export function renderSetUsers(){
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:11%"><col style="width:12%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
@@ -838,7 +838,7 @@ export function renderSetSubnets(){
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
     <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => snEdit === i ? subnetEditorHtml(n, i) : subnetItemHtml(n, i, edit && snEdit === null)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
     ${snEdit === 'new' ? subnetEditorHtml(snDraft ? snDraft.n : {}, 'new', snDraft ? snDraft.hint : '') : edit ? `<div class="sn-addbar"><button id="snNew">Add subnet</button></div>` : ''}
-    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
+    ${suggested.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen by Lansweeper, not listed yet</p>${edit && snEdit === null && suggested.length > 1 ? `<button id="snUseAll">Use all ${suggested.length}</button>` : ''}</div>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
   const open = (key, draft = null) => { snEdit = key; snDraft = draft; renderSetSubnets(); const f = root.querySelector('.sn-edit [data-sn]'); if (f) f.focus(); };
   root.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => open(+b.dataset.sedit));
@@ -851,13 +851,34 @@ export function renderSetSubnets(){
   });
   /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
      of address (DHCP, static) from the lowest to the highest address seen. */
+  /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
+  const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],
+    types: (n.types || []).map(t => t.type).filter(t => TYPES[t]), ranges: (n.seen || []).map(x => ({from: x.from, to: x.to, use: x.use}))});
+  /* Use all: every suggestion is added. A gateway, DNS server or range that does not fit is left out of that subnet, and one
+     that overlaps a subnet already listed is skipped; the message says what was done. */
+  const all = $('#snUseAll');
+  if (all) all.onclick = () => {
+    const added = [], trimmed = [], skipped = [];
+    for (const n of suggested) {
+      const v = fromSuggestion(n), cut = [], span = subnetSpan(v), inside = a => { const x = ipInt(a); return x !== null && span && x >= span.first && x <= span.last; };
+      if (v.gateway && !inside(v.gateway)){ cut.push(`gateway ${v.gateway}`); v.gateway = ''; }
+      if (v.dns.some(d => ipInt(d) === null)){ v.dns = v.dns.filter(d => ipInt(d) !== null); cut.push('DNS'); }
+      const ok = v.ranges.filter(r => inside(r.from) && inside(r.to) && ipInt(r.from) <= ipInt(r.to));
+      if (ok.length < v.ranges.length){ v.ranges = ok; cut.push('a range'); }
+      if (subnetProblem(v) || overlapProblem([...SUBNETS, v])){ skipped.push(n.cidr); continue; }
+      SUBNETS.push(v); added.push(n.cidr); if (cut.length) trimmed.push(`${n.cidr} without its ${cut.join(' and ')}`);
+    }
+    if (added.length) queueServerSave();
+    toast(`Added ${added.length} ${added.length === 1 ? 'subnet' : 'subnets'}${trimmed.length ? `; ${trimmed.join(', ')}` : ''}${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Check their ranges against your DHCP server.`);
+    renderSetSubnets();
+  };
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
     const n = suggested[+b.dataset.snuse];
     const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
     const seen = n.seen || [];
     const hint = `Filled in from what Lansweeper saw in ${esc(n.cidr)}: ${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${types.length ? ` of ${types.length} ${types.length === 1 ? 'type' : 'types'}` : ''}.`
       + (seen.length ? ` Each range runs from the lowest to the highest address seen of its kind (${seen.map(x => `${x.use}: ${x.count}`).join(', ')}): check them against your DHCP server before saving.` : '');
-    open('new', {n: {name: n.name || n.cidr, cidr: n.cidr, gateway: n.gateway || '', dns: n.dns || [], types, ranges: seen.map(x => ({from: x.from, to: x.to, use: x.use}))}, hint});
+    open('new', {n: fromSuggestion(n), hint});
   });
   const ed = root.querySelector('.sn-edit');
   if (!ed) return;
@@ -917,10 +938,18 @@ export function renderSetVlans(){
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
+  const counts = new Map();
+  for (const o of objs) if (o.domain && o.status !== 'retired' && !DOMAINS.some(d => d.name.toLowerCase() === o.domain.toLowerCase())) counts.set(o.domain, (counts.get(o.domain) || 0) + 1);
+  const seen = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
     <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><input data-dname="${i}" class="mono" maxlength="60" value="${esc(d.name)}" aria-label="Domain ${esc(d.name)}"><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
-    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>`;
+    <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>
+    ${seen.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen on devices, not listed yet</p>${canEdit() && seen.length > 1 ? `<button id="dmUseAll">Add all ${seen.length}</button>` : ''}</div>${seen.map(([d, n], i) => `<div class="snrow"><span class="mono">${esc(d)}</span><span class="grow">${n} ${n === 1 ? 'device' : 'devices'}</span>${canEdit() ? `<button data-dmuse="${i}">Add</button>` : ''}</div>`).join('')}</div>` : ''}`;
   const root = $('#setDomains');
+  /* Domains the devices are in (from Lansweeper, or typed on a device) that the list does not have yet. */
+  const addSeen = list => { for (const [d] of list) if (!DOMAINS.some(x => x.name.toLowerCase() === d.toLowerCase())) DOMAINS.push({name: d}); DOMAINS.sort((a, b) => a.name.localeCompare(b.name)); queueServerSave(); renderSetDomains(); render(); };
+  root.querySelectorAll('[data-dmuse]').forEach(b => b.onclick = () => { const x = seen[+b.dataset.dmuse]; addSeen([x]); toast('Added ' + x[0]); });
+  const all = $('#dmUseAll'); if (all) all.onclick = () => { addSeen(seen); toast(`Added ${seen.length} domains`); };
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
   root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
   /* A domain can be renamed; the objects in it move with it. */
@@ -1042,7 +1071,7 @@ export function checkAddress(k, raw){
 export const ICON_LABEL = { plc: 'PLC / Controller', tablet: 'Tablet', pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
-  ups: 'UPS', accesspoint: 'Access point', pbx: 'PBX', other: 'Other' };
+  ups: 'UPS', accesspoint: 'Access point', pbx: 'PBX', bmc: 'Remote management', other: 'Other' };
 export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
 /* A dropdown that shows the icon and its name, for the object type's icon. */
 export function iconChoice(k, t){
@@ -1118,8 +1147,9 @@ export function renderCardLines(box, type){
 /* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
 export function renderBuiltinFields(box, type){
   const lay = FIELD_LAYOUT[type] || {};
-  const base = [...FIELDS.base, ...(type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[type] || [])];
-  if (!base.some(f => f[0] === 'ports')) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
+  /* The same fields the type's object page has; Ports and Port naming for a type that can be given ports. */
+  const base = typeFieldsOf(type);
+  if (canAddPorts(type)) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   const seen = new Set(), builtins = base.filter(f => !seen.has(f[0]) && seen.add(f[0]));
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));

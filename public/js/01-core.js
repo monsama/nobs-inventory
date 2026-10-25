@@ -18,6 +18,7 @@ export const ICON = {
   ups:'<rect x="3" y="5" width="16" height="14" rx="2"/><path d="M19 9h2v6h-2M11 8l-2 5h4l-2 4"/>',
   accesspoint:'<path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="14" r="1.2"/><path d="M12 15.5V21"/>',
   camera:'<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>',
+  bmc:'<rect x="3" y="11" width="18" height="9" rx="1.5"/><path d="M7 15.5h5M16 15.5h1"/><path d="M8.5 7.5a5 5 0 0 1 7 0M10.5 9.5a2 2 0 0 1 3 0"/>',
   laptop:'<rect x="4" y="5" width="16" height="11" rx="1"/><path d="M2 19h20"/>',
   mobile:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
   scanner:'<rect x="2" y="9" width="20" height="8" rx="1"/><path d="M6 9V4h12v5M6 17v3h12v-3"/>',
@@ -56,6 +57,7 @@ export const TYPES = {
   mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
   plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
   camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
+  bmc:{label:'iLO / iDRAC', short:'iLO', color:'#4f46e5', icon:'bmc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -66,7 +68,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','notebook','camera','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
+export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
@@ -92,6 +94,10 @@ export let PLANS = [];
 export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 export const LS_ON = () => st.useLansweeper !== false;
+/* Whether Lansweeper data still comes in. Microsoft Graph being set up is SYNC.graph, from the server. */
+export const lsLive = () => LS_ON() && st.feedOn !== false;
+/* Fields only a scan fills in, that nobody types: hidden while Lansweeper is off. The values are kept. */
+export const SCAN_ONLY = ['boot'];
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
 export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
@@ -108,7 +114,7 @@ export const warrantyState = (o, today = new Date()) => {
 /* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
    all the same, and flagged so someone checks it by hand. */
 export const SCAN_OLD_DAYS = 90;
-export const scanOld = (o, today = new Date()) => !!(o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
+export const scanOld = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
   && (today - new Date(o.feed.scanned + 'T00:00:00')) / 86400000 > SCAN_OLD_DAYS);
 export const scanChip = o => scanOld(o) ? `<span class="chip warn" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
@@ -164,7 +170,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0};
+export const SYNC = {run: '', time: 0, graph: false};
 export const stampTime = s => { const m = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(s || ''); return m ? new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0; };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -196,7 +202,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
+export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', portsDevice:null, portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -216,7 +222,7 @@ export function syncOf(o){
 }
 /* The Microsoft Graph status of a device: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
-  if (!o.graph || (!o.graph.join && !o.graph.compliance)) return '';
+  if (!SYNC.graph || !o.graph || (!o.graph.join && !o.graph.compliance)) return '';
   const text = [o.graph.join, o.graph.compliance].filter(Boolean).join(' · ');
   return `<span class="chip ${o.graph.compliance === 'noncompliant' ? 'bad' : 'ok'}" title="Microsoft Graph">${esc(text)}</span>`;
 };
@@ -282,9 +288,8 @@ export const isAttached = k => k === 'attached';
 
 export function filtered(){
   const q = st.q.trim().toLowerCase();
-  /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
-  const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o))))
+  /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
+  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o))))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

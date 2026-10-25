@@ -100,6 +100,66 @@ try {
   await page.waitForSelector('.lsbox');
   assert.match(await page.textContent('.lsbox'), /Last scanned.*Check by hand.*has not scanned it for over three months/s);
 
+  // disks as one bar per drive: how full it is and the space left; red from 90 % used
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').disk = "C: 20/237 GB; D: 1'812/1'863 GB"; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.disks .disk');
+  assert.equal(await page.locator('.disks .disk').count(), 2);
+  assert.match(await page.textContent('.disks'), /C:\s*20 GB free of 237 GB.*D:\s*1.812 GB free of 1.863 GB/s);
+  assert.match(await page.getAttribute('.disks .disk >> nth=0', 'class'), /bad/, 'C: is 92 % used');
+  assert.doesNotMatch(await page.getAttribute('.disks .disk >> nth=1', 'class'), /bad|warn/, 'D: has room');
+  if (shots) await page.locator('.disks').screenshot({ path: path.join(shots, 'disks.png') });
+  // with the sync paused the free space is out of date: only the size of each drive is shown
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = false; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.disks.sizes');
+  assert.match(await page.textContent('.disks.sizes'), /C:\s*237 GB\s*D:\s*1.863 GB/);
+  assert.equal(await page.locator('.disk-bar').count(), 0, 'no bars without a running sync');
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
+
+  // antivirus: one chip per product; one is added from the list, one removed
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').av = 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.avpick .avitem');
+  assert.equal(await page.locator('.avpick .avitem').count(), 2, 'both products from Lansweeper');
+  const avAdd = '[data-combo="av"]';
+  await page.fill(avAdd, 'Senti');
+  await page.click('.avpick .combo-list li >> text=SentinelOne');
+  await page.waitForFunction(async () => /SentinelOne$/.test((await import('/js/01-core.js')).byId('o1').av));
+  assert.equal(await page.locator('.avpick .avitem').count(), 3);
+  await page.click('.avpick [data-avx="1"]');
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').av === 'Windows Defender, scanning on, up to date; SentinelOne');
+  await page.fill(avAdd, 'Windows Defender'); await page.press(avAdd, 'Escape'); await page.press(avAdd, 'Enter');
+  assert.match(await page.textContent('#toast'), /Windows Defender is already listed/);
+  if (shots) await page.locator('.avpick').screenshot({ path: path.join(shots, 'antivirus.png') });
+  // with the sync paused, only the product names show: the scan state is out of date
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = false; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.avpick .avitem');
+  assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
+
+  // with no sync at all, what only a sync fills in is hidden: the last power event, the scan flag, the Lansweeper
+  // column, and the Graph chip while Graph is not set up. The values are kept.
+  const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);
+  await offView(true);
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('label[for=f_o1_boot]').count(), 1, 'shown with Lansweeper on');
+  await offView(false);
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('label[for=f_o1_boot]').count(), 0, 'hidden with Lansweeper off');
+  assert.equal(await page.evaluate(async () => (await import('/js/01-core.js')).byId('o1').boot), 'Shutdown 01.10.2026', 'the value is kept');
+  assert.equal(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('o1'); o.feed = { sys: 'Lansweeper', scanned: '2020-01-01' }; return c.scanOld(o); }), false, 'no scan flag');
+  assert.equal(await page.evaluate(async () => (await import('/js/02-views.js')).tableCols().some(c => c.k === 'ls')), false, 'no Lansweeper column');
+  assert.deepEqual(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const a = c.graphChip(c.byId('o1')); c.SYNC.graph = true; const b = c.graphChip(c.byId('o1')); c.SYNC.graph = false; return [a, !!b]; }), ['', true], 'Graph chip only with Graph set up');
+  // Lansweeper on but its sync paused: a linked device does not bring the power event back as an extra row
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.st.feedOn = false; c.byId('o1').feed = { sys: 'Lansweeper', ref: '1' }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('[data-k=boot]').count(), 0, 'no power event while the sync is paused');
+  // a user picked by hand on a linked device is kept from the feed
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').ovr = { user: true }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('#f_o1_user');
+  const other = await page.$eval('#f_o1_user', s => [...s.options].map(o => o.value).find(v => v && v !== '__hotdesk' && v !== s.value));
+  await page.selectOption('#f_o1_user', other);
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').ovr.user === false);
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
+
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');
 } finally { await browser.close(); server.close(); }

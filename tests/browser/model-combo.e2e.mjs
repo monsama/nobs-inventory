@@ -25,11 +25,11 @@ try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card[data-open=o1]'); await page.click('.card[data-open=o1]');
-  const field = '[data-k=model]', list = '.combo-list';
+  const field = '[data-k=model]', list = '.combo:has([data-k=model]) .combo-list', arrow = '.combo:has([data-k=model]) .combo-arrow';
   await page.waitForSelector(field);
   assert.equal(await page.locator('datalist').count(), 0, 'the browser\'s own list is not used');
   // the arrow opens every model; typing filters
-  await page.click('.combo-arrow');
+  await page.click(arrow);
   assert.equal(await page.locator(list + ' li').count(), 4);
   if (process.env.NI_SHOTS) await page.locator('.obj .col .panelbox').first().screenshot({ path: path.join(process.env.NI_SHOTS, 'model-combo.png') });
   await page.fill(field, 'dell');
@@ -55,11 +55,14 @@ try {
   assert.equal(await page.inputValue(field), 'Dell Latitude 5440');
   assert.equal(await page.isHidden(note), true, 'the note goes once the model is one in the list');
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').model === 'Dell Latitude 5440');
-  // a model the feed owns is locked, list included
+  // a model from the feed can be typed over: its From feed box is unticked, and the typed model is kept on save
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o4'));
-  await page.waitForSelector('[data-k=model][disabled]');
-  await page.locator('.combo-arrow').click({ force: true });
-  assert.equal(await page.isHidden(list), true, 'a locked model opens no list');
+  await page.waitForSelector('[data-ovr=model]:checked');
+  assert.equal(await page.isDisabled('[data-k=model]'), false, 'a feed field is editable');
+  await page.fill('[data-k=model]', 'HP EliteDesk 800 G9');
+  assert.equal(await page.isChecked('[data-ovr=model]'), false, 'typing unticks From feed');
+  await page.press('[data-k=model]', 'Tab');
+  await page.waitForFunction(async () => { const o = (await import('/js/01-core.js')).byId('o4'); return o.model === 'HP EliteDesk 800 G9' && o.ovr.model === false; });
   assert.deepEqual(errors, [], 'no page errors');
   console.log('model pick list: all checks passed');
 } finally { await browser.close(); server.close(); }

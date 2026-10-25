@@ -49,6 +49,16 @@ try {
   await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('[data-dname="0"]');
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
+  // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
+  await core(async () => { const c = await import('/js/01-core.js'); c.byId('s1').domain = 'corp.local'; c.byId('s2').domain = 'corp.local'; c.byId('p1').domain = 'lab.local';
+    (await import('/js/04-settings.js')).renderSetDomains(); });
+  assert.match(await p.textContent('#setDomains .sn-suggest'), /acme\.intern\s*2 devices.*lab\.local\s*1 device/s);
+  await p.click('[data-dmuse="0"]');
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.local'));
+  assert.equal(await p.locator('#dmUseAll').count(), 0, 'Add all only with two or more left');
+  await p.click('[data-dmuse="0"]');
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'lab.local'));
+  assert.equal(await p.locator('#setDomains .sn-suggest').count(), 0, 'nothing left to offer');
   await p.click('#setClose');
 
   // a linked LAG renamed: the link follows; its size cannot change while linked
@@ -76,11 +86,80 @@ try {
   const area = await core(async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0]);
   assert.deepEqual([area.name, area.room], ['Büro Nord', 'Zürich HQ / Büro'], 'renamed, in the same room');
 
-  // no racks: New rack opens New object with the type Rack
+  // Use all adds every subnet Lansweeper suggests: a gateway outside its subnet is left out, an overlap is skipped
+  await core(async () => {
+    const c = await import('/js/01-core.js');
+    c.SUBNETS.push({ name: 'Old', cidr: '10.10.30.0/24', vid: null, gateway: '', dns: [], ranges: [], types: [] });
+    c.st.lsNets = [
+      { cidr: '172.21.110.0/24', devices: 25, gateway: '172.21.110.1', dns: ['172.21.1.5'], name: 'Lager', types: [{ type: 'pc', count: 20 }], seen: [{ use: 'DHCP', from: '172.21.110.50', to: '172.21.110.90', count: 20 }] },
+      { cidr: '10.100.100.0/24', devices: 3, gateway: '192.168.1.1', dns: [], name: '' },
+      { cidr: '10.10.30.0/25', devices: 2, gateway: '10.10.30.1', dns: [] },
+    ];
+    c.st.setTab = 'vlans'; (await import('/js/04-settings.js')).openSettings();
+  });
+  await p.waitForSelector('#snUseAll');
+  assert.match(await p.textContent('#snUseAll'), /Use all 3/);
+  await p.click('#snUseAll');
+  await until(p, async () => (await import('/js/01-core.js')).SUBNETS.length === 3);
+  const nets = await core(async () => (await import('/js/01-core.js')).SUBNETS.map(n => [n.cidr, n.name, n.gateway, n.types.join(','), n.ranges.length]));
+  assert.deepEqual(nets.slice(1), [['172.21.110.0/24', 'Lager', '172.21.110.1', 'pc', 1], ['10.100.100.0/24', '10.100.100.0/24', '', '', 0]]);
+  assert.match(await p.textContent('#toast'), /Added 2 subnets; 10\.100\.100\.0\/24 without its gateway 192\.168\.1\.1; skipped 10\.10\.30\.0\/25/);
+  await p.click('#setClose');
+
+  // a device whose address is in a subnet takes that subnet, its gateway and its DNS servers without storing them
+  await core(async () => {
+    const c = await import('/js/01-core.js');
+    c.SUBNETS.push({ name: 'Office', cidr: '10.20.0.0/24', vid: null, gateway: '10.20.0.1', dns: ['10.20.0.5', '10.20.0.6'], ranges: [{ from: '10.20.0.100', to: '10.20.0.120', use: 'Static' }], types: [] });
+    c.byId('p1').ip = '10.20.0.42';
+    (await import('/js/02-views.js')).openObj('p1');
+  });
+  await p.waitForSelector('#f_p1_subnet');
+  assert.match(await p.textContent('#f_p1_subnet option[value=""]'), /Auto: Office · 10\.20\.0\.0\/24 \(from the address\)/);
+  assert.equal(await p.getAttribute('#f_p1_gateway', 'placeholder'), '10.20.0.1 · from Office');
+  assert.equal(await p.getAttribute('#f_p1_dns', 'placeholder'), '10.20.0.5, 10.20.0.6 · from Office');
+  assert.equal(await p.inputValue('#f_p1_gateway'), '', 'the gateway is not written into the device');
+  assert.equal(await p.isDisabled('[data-pick="p1"]'), false, 'Pick from range works with the subnet from the address');
+  if (process.env.NI_SHOTS){ await p.locator('#f_p1_subnet').scrollIntoViewIfNeeded(); const b = await p.locator('#f_p1_ip').boundingBox(); await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'subnet-inherit.png'), clip: { x: b.x - 140, y: b.y - 10, width: 560, height: 230 } }); }
+  await p.fill('#f_p1_gateway', '10.20.0.254'); await p.locator('#f_p1_gateway').press('Tab');
+  await until(p, async () => (await import('/js/01-core.js')).byId('p1').gateway === '10.20.0.254');
+
+  // the sidebar: a search stays on while switching types and looks within the type; a type clicked again shows all
+  assert.equal(await p.locator('#searchAll').count(), 0, 'no separate All devices option');
+  await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render(); });
+  await p.fill('#search', 'SW-'); await p.waitForTimeout(200);
+  const cards = () => p.$$eval('#view .card', cs => cs.map(c => c.dataset.open).sort());
+  assert.deepEqual(await cards(), ['s1', 's2'], 'both switches match');
+  await p.click('#typeList [data-type=pc]');
+  assert.deepEqual(await cards(), [], 'the search looks within PCs');
+  await p.click('#typeList [data-type=switch]');
+  assert.deepEqual(await cards(), ['s1', 's2']);
+  await p.click('#typeList [data-type=switch]');
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null, 'a type clicked again goes back to all');
+  await p.fill('#search', ''); await p.waitForTimeout(150);
+
+  // leaving Settings, also with Escape, draws the view behind it again: a renamed type shows on the cards at once
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.setTab = 'types'; (await import('/js/04-settings.js')).openSettings(); });
+  await core(async () => { (await import('/js/01-core.js')).TYPES.pc.label = 'Workstation'; });
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#setPane', { state: 'detached' });
+  assert.match(await p.textContent('#typeList'), /Workstation/, 'the sidebar shows the new name after Settings is left');
+
+  // no racks: New rack opens the rack dialog: name, room, height, model and serial, nothing a rack does not have
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
-  await p.waitForSelector('#nType');
-  assert.equal(await p.inputValue('#nType'), 'rack');
+  await p.waitForSelector('#rnName');
+  assert.deepEqual(await p.$$eval('#mdl .form label', ls => ls.map(l => l.textContent)), ['Name', 'Room', 'Height', 'Model', 'Serial number']);
+  await p.fill('#rnName', 'RACK-A'); await p.fill('#rnUnits', '24'); await p.click('#rnOk');
+  await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.type === 'rack' && o.name === 'RACK-A' && o.units === 24));
+  // with a rack there, the Racks bar has New rack and Open rack, as Floor plans has New plan
+  await p.waitForSelector('#rkNew');
+  await p.click('#rkNew'); await p.waitForSelector('#rnName');
+  await p.fill('#rnName', 'rack-a'); await p.click('#rnOk');
+  assert.match(await p.textContent('#rnErr'), /already a rack named rack-a/);
+  await p.click('#rnCancel');
+  await p.click('#rkOpen');
+  await p.waitForSelector('[data-k=units]');
+  assert.equal(await p.locator('[data-k=user], [data-k=ip]').count(), 0, 'a rack page has no user and no network fields');
   assert.deepEqual(errors, [], 'page errors');
   console.log('editing after adding: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

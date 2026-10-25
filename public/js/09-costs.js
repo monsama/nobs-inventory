@@ -153,6 +153,12 @@ export function licenceChip(l){
   return u.over ? `<span class="chip bad" title="${u.used} devices have it, the licence has ${l.seats} seats">${u.used - l.seats} over</span>`
     : `<span class="chip ${u.free <= Math.max(1, Math.ceil(l.seats * 0.1)) ? 'warn' : 'ok'}">${u.free} free</span>`;
 }
+/* On a package row: which licence counts it, as a quiet marker; red-edged when that licence is over-used. The numbers
+   are in the Licences box above and in the marker's tooltip, not repeated on every package of the licence. */
+export function licenceMark(l){
+  const u = licenceUse(l, objs);
+  return `<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${esc(l.name)}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`;
+}
 export const licencesOver = () => COSTS.licences.filter(l => licenceUse(l, objs).over);
 /* The licences that count a package, for its row in the Software view. */
 export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().includes(String(l.name).trim().toLowerCase()));
@@ -161,13 +167,13 @@ export function licencesPanel(){
   const rows = COSTS.licences.map(l => {
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return `<tr><td><button class="link" data-lic="${esc(l.id)}"><b>${esc(l.name)}</b></button></td>
-      <td class="num">${u.used} of ${l.seats}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
+      <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
       <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td></tr>`;
   }).join('');
   const over = licencesOver().length;
   return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
-    ${rows ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:640px"><thead><tr><th>Software</th><th class="num">Devices</th><th>Seats</th><th class="num">Cost</th><th>Ends</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:24%"><col style="width:16%"><col style="width:14%"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     <div class="addrel"><button id="licNew">Add a licence</button></div></div>`;
 }
 export function bindLicences(){
