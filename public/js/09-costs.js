@@ -75,7 +75,7 @@ export function contractModal(c, preset = []){
       <label for="ctEnd">Ends</label><input id="ctEnd" type="date" value="${esc(cur.end || '')}">
       <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => `<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`).join('')}</select></div>
       <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
-      <label for="ctCost">Cost</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><span class="unit">${esc(COSTS.currency || 'CHF')}</span><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
+      <label for="ctCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
       <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
       <label for="ctDevQ">Devices</label><div><input id="ctDevQ" type="search" placeholder="Find a device to add…" aria-label="Find a device" style="width:100%"><div class="ct-devs" id="ctDevs"></div></div>
     </div><p class="note" id="ctErr" role="status"></p></div>
@@ -169,8 +169,8 @@ export function licenceModal(l, name = ''){
   modal(`<div class="mh">${isNew ? 'New licence' : esc(cur.name)}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="licName">Software</label><input id="licName" maxlength="120" value="${esc(cur.name)}" placeholder="The name, or the part of it every version has">
-      <label for="licSeats">Seats</label><input id="licSeats" type="number" min="0" value="${cur.seats}" style="max-width:120px">
-      <label for="licCost">Cost</label><div class="ctlrow"><input id="licCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><span class="unit">${esc(COSTS.currency || 'CHF')}</span><select id="licPer" aria-label="Cost period" style="flex:none;width:140px">${opt}</select></div>
+      <label for="licSeats">Seats</label><input id="licSeats" type="number" min="0" value="${cur.seats}" style="width:140px">
+      <label for="licCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="licCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="licPer" aria-label="Cost period" style="flex:none;width:140px">${opt}</select></div>
       <label for="licEnd">Ends</label><input id="licEnd" type="date" value="${esc(cur.end || '')}">
       <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
     </div><p class="note" id="licErr" role="status"></p></div>
