@@ -136,6 +136,14 @@ try {
   await p.click('#arAdd');
   await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.lag === 'Peer' && r.fromLag === 'Core' && r.port === null));
   assert.match(await p.textContent('#view'), /LAG Peer/, 'the LAG link is listed on the card');
+  // On the Ports view, every member of a linked LAG is in use and shows the device on the other end, not "free".
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.portsDevice = 'lagB'; core.st.portNo = 25; core.st.tab = 'net'; (await import('/js/07-render-plans.js')).render(); });
+  await p.waitForSelector('.port[data-port="26"]');
+  assert.match(await p.getAttribute('.port[data-port="26"]', 'class'), /upl|used/, 'a LAG member port shows as in use');
+  assert.match(await p.textContent('#net'), /2 of 28 ports in use/);
+  assert.match(await p.textContent('#net'), /Part of the LAG Peer, linked to\s*LAG-A/);
+  assert.equal(await p.locator('#assignBtn').count(), 0, 'a LAG member port offers no single plug-in');
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.portNo = null; core.st.tab = 'cards'; });
   // A port held by a retired device is taken over by a new connection; the retired device's connection is removed.
   await p.evaluate(async () => {
     const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
