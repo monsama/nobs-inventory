@@ -87,14 +87,17 @@ test('a user\'s department is filled in from the directory Lansweeper reads; a d
 
 test('subnets the adapters report and the inventory lacks are suggested, with their usual gateway and the IP location name', () => {
   const recs = [
-    { ip: '172.21.108.14', mask: '255.255.255.0', gateway: '172.21.108.1', dns: '172.21.1.5, 172.21.1.6' },
-    { ip: '172.21.108.15', mask: '255.255.255.0', gateway: '172.21.108.1', dns: '172.21.1.5, 172.21.1.6' },
-    { ip: '172.21.108.16', mask: '255.255.255.0', gateway: '172.21.108.254', dns: '' },
+    { ip: '172.21.108.14', mask: '255.255.255.0', gateway: '172.21.108.1', dns: '172.21.1.5, 172.21.1.6', type: 'pc', dhcp: 'dhcp' },
+    { ip: '172.21.108.150', mask: '255.255.255.0', gateway: '172.21.108.1', dns: '172.21.1.5, 172.21.1.6', type: 'pc', dhcp: 'dhcp' },
+    { ip: '172.21.108.16', mask: '255.255.255.0', gateway: '172.21.108.254', dns: '', type: 'printer', dhcp: 'static' },
     { ip: '10.10.20.5', mask: '255.255.255.0', gateway: '10.10.20.1' },
   ];
   const nets = suggestNets(recs, [{ cidr: '10.10.20.0/24' }], IP_LOCATIONS);
   assert.equal(nets.length, 1, 'a subnet the inventory has is not suggested');
-  assert.deepEqual(nets[0], { cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5', '172.21.1.6'], name: 'Willisau Lager' });
+  assert.deepEqual(nets[0], { cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5', '172.21.1.6'], name: 'Willisau Lager',
+    types: [{ type: 'pc', count: 2 }, { type: 'printer', count: 1 }],
+    seen: [{ use: 'DHCP', from: '172.21.108.14', to: '172.21.108.150', count: 2 }, { use: 'Static', from: '172.21.108.16', to: '172.21.108.16', count: 1 }] },
+    'the device types seen there, and the lowest and highest address per kind');
   const s = base({ subnets: [] });
   const counts = mergeRecords(s, recordsFromJson(recs.map((r, i) => ({ ...r, name: 'D' + i, ref: String(i) }))), now, IP_LOCATIONS);
   assert.equal(s.lsNets.length, 2);

@@ -34,6 +34,10 @@ test('picking an address takes the first free one in the ranges, and says so whe
   assert.equal(freeAddress(sub, new Set([ipInt('10.10.20.1'), ipInt('10.10.20.2')])), '10.10.20.3');
   assert.equal(freeAddress(sub, new Set([ipInt('10.10.20.1'), ipInt('10.10.20.2'), ipInt('10.10.20.3')])), '10.10.20.10');
   assert.equal(freeAddress({ ranges: [{ from: '10.0.0.1', to: '10.0.0.1' }] }, new Set([ipInt('10.0.0.1')])), null);
+  // DHCP and reserved ranges are left to the DHCP server and to what they are kept for
+  const mixed = { ranges: [{ from: '10.0.0.10', to: '10.0.0.99', use: 'DHCP' }, { from: '10.0.0.100', to: '10.0.0.109', use: 'reserved' }, { from: '10.0.0.200', to: '10.0.0.210', use: 'Static' }] };
+  assert.equal(freeAddress(mixed, new Set()), '10.0.0.200');
+  assert.equal(freeAddress({ ranges: [mixed.ranges[0]] }, new Set()), null);
 });
 
 test('two subnets that share an address are refused, and neighbouring ones are not', async () => {
