@@ -1,11 +1,13 @@
 name: release
 
-# Runs on a version tag such as v0.2.0. Tests must pass first. Then it publishes:
+# Runs on a version tag such as v0.2.0, or by hand (Actions -> release -> Run workflow) on main, which tags the
+# version in the VERSION file first. Tests must pass first. Then it publishes:
 #  - a downloadable archive with a checksum, attached to the GitHub release
 #  - the Docker image ghcr.io/<owner>/nobs-inventory:<version>
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,6 +16,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # By hand, only main is released: a release from another branch would publish code that is not on main.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,9 +36,18 @@ jobs:
       - name: Version from the tag must match the VERSION file
         id: v
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          [ "$v" = "$(cat VERSION)" ] || { echo "Tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)"; exit 1; }
+          v="$(cat VERSION)"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            [ "${GITHUB_REF_NAME#v}" = "$v" ] || { echo "Tag $GITHUB_REF_NAME does not match VERSION $v"; exit 1; }
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      # Run by hand: tag this commit. A version that is already tagged is refused, so a release is never published twice.
+      - name: Tag the version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          t="v${{ steps.v.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$t" > /dev/null; then echo "$t is already released. Raise VERSION first."; exit 1; fi
+          git tag "$t" "$GITHUB_SHA" && git push origin "$t"
       - name: Archive (only what an install needs)
         run: |
           mkdir -p dist
@@ -45,6 +58,7 @@ jobs:
           (cd dist && sha256sum "nobs-inventory-$V.tar.gz" > "nobs-inventory-$V.tar.gz.sha256")
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.version }}
           files: dist/*
           generate_release_notes: true
       - uses: docker/setup-buildx-action@v3
