@@ -11,6 +11,7 @@ import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
 import { graphConfigOf } from './graph.js';
 import { autoBackup } from './backup.js';
 import { migrateState } from './migrate.js';
+import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
@@ -47,8 +48,8 @@ export function runFeedFile(db, file, now = new Date()) {
 }
 
 /* Nightly at 06:00: the Lansweeper API when a token is set, otherwise the report file; then the directory users. */
-export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null } = {}, log = console.log) {
-  if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig) return null;
+export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null } = {}, log = console.log) {
+  if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey) return null;
   let lastRun = '';
   return setInterval(async () => {
     const now = new Date();
@@ -57,6 +58,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     lastRun = key;
     /* Anything that throws here (a secret file that can no longer be read, say) is logged; it must not stop the server. */
     try {
+      if (sheetKey) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
       const cur = loadState(db);
       const lsOn = cur.useLansweeper !== false;
       const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
@@ -87,10 +89,11 @@ export function start(env = process.env) {
   /* Secure cookies by default in production (the Docker image); off only when NI_SECURE_COOKIE=0 for plain-HTTP testing. */
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
   const graphConfig = () => graphConfigOf(resolved);
-  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure });
+  const sheetKey = sheetKeyOf(env, dataDir);
+  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig });
+  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig, sheetKey });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }
