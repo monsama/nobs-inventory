@@ -609,6 +609,36 @@ function Get-IpLocations($conn) {
     return , $list.ToArray()
 }
 
+# What the push leaves out, and why: assets not active in Lansweeper, assets not seen within MaxAgeDays, and assets
+# without a name. Counted in Lansweeper itself, so the log says why the inventory has fewer devices than Lansweeper.
+function Get-LeftOut($conn, [int]$Read) {
+    $hasState = Test-Col 'tblAssetCustom' 'State'
+    $useAge = $Config.MaxAgeDays -gt 0 -and (Test-Col 'tblAssets' 'Lastseen')
+    $active = if ($hasState) { 'c.[State] = 1' } else { '1=1' }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT COUNT(*) AS [total], " +
+        $(if ($hasState) { "SUM(CASE WHEN c.[State] = 1 THEN 0 ELSE 1 END)" } else { '0' }) + " AS [inactive], " +
+        $(if ($useAge) { "SUM(CASE WHEN $active AND (a.[Lastseen] IS NULL OR a.[Lastseen] < @since) THEN 1 ELSE 0 END)" } else { '0' }) + " AS [old] " +
+        "FROM [tblAssets] a " + $(if ($hasState) { 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID]' } else { '' })
+    if ($useAge) { [void]$cmd.Parameters.AddWithValue('@since', (Get-Date).AddDays(-$Config.MaxAgeDays)) }
+    $reader = $cmd.ExecuteReader()
+    try {
+        if (-not $reader.Read()) { return $null }
+        $num = { param($v) if ($v -is [DBNull] -or $null -eq $v -or "$v" -eq '') { 0 } else { [int]$v } }
+        $total = & $num $reader['total']; $inactive = & $num $reader['inactive']; $old = & $num $reader['old']
+        return [ordered]@{ total = $total; inactive = $inactive; old = $old; noName = [Math]::Max(0, $total - $inactive - $old - $Read) }
+    } finally { $reader.Close() }
+}
+function Format-LeftOut($l) {
+    if (-not $l) { return '' }
+    $parts = @()
+    if ($l.inactive) { $parts += "$($l.inactive) not active in Lansweeper (state other than Active)" }
+    if ($l.old) { $parts += "$($l.old) not seen in the last $($Config.MaxAgeDays) days (MaxAgeDays; 0 sends all)" }
+    if ($l.noName) { $parts += "$($l.noName) without a name" }
+    if (-not $parts.Count) { return "Lansweeper has $($l.total) asset(s); all are sent" }
+    return "Lansweeper has $($l.total) asset(s); left out: " + ($parts -join ', ')
+}
+
 function Get-LsRecords {
     $conn = Open-LsConnection
     try {
@@ -699,6 +729,7 @@ function Get-LsRecords {
                 })
             }
         } finally { $reader.Close() }
+        try { $script:LeftOut = Get-LeftOut $conn $list.Count } catch { Write-PushLog "Could not count the assets left out: $($_.Exception.Message)" 'WARN' }
         $links = Get-SwitchLinks $conn
         foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
         $hostLinks = Get-HostLinks $conn
@@ -844,6 +875,8 @@ try {
     Write-PushLog 'Reading Lansweeper ...'
     $records = Get-LsRecords
     Write-PushLog "$($records.Count) active asset(s) with a name"
+    $leftOut = Format-LeftOut $script:LeftOut
+    if ($leftOut) { Write-PushLog $leftOut }
 
     if ($DryRun) {
         $records | Select-Object -First 3 | ForEach-Object { Write-PushLog ("  " + (($_.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')) }
