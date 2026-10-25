@@ -565,12 +565,27 @@ export function mapExportSvg(){
   return s.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#888');
 }
 
+/* The toolbar controls that redraw the map; bound also when the map is empty, so it can be switched back. */
+function bindMapToolbar(){
+  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
+  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
+  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
+  $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; const svg = $('#mapSvg'); if (svg) svg.classList.toggle('labels', st.mapLabels); };
+}
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
   const focus = st.mapFocus && byId(st.mapFocus) ? byId(st.mapFocus) : null;
   if (st.mapFocus && !focus) st.mapFocus = null;
   const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
-  const nodes = around ? objs.filter(o => around.has(o.id)) : filtered();
+  /* With a filter on (a type, a place, a search), the map shows the objects it finds and the objects linked to them, so
+     a notebook's monitor or switch is drawn with it; a relation needs both ends on the map. */
+  const found = around ? null : filtered(), narrowed = !!found && found.length < objs.length;
+  let nodes = around ? objs.filter(o => around.has(o.id)) : found;
+  if (narrowed){
+    const ids = new Set(found.map(o => o.id));
+    rels.filter(r => (ids.has(r.from) || ids.has(r.to)) && (st.mapAttached || !isAttached(r.kind))).forEach(r => { ids.add(r.from); ids.add(r.to); });
+    nodes = objs.filter(o => ids.has(o.id));
+  }
   const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <label class="muted" for="mapFocus">Relations of</label>
@@ -586,7 +601,11 @@ export function renderMap(){
   MAP.L = mapLayout(nodes);
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
-    $('#view').innerHTML = '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+    $('#view').innerHTML = narrowed
+      ? `<div class="empty">None of the ${found.length} objects in the current filter has relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
+      : '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+    const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
+    bindMapToolbar();
     return;
   }
   $('#mapCount').textContent = MAP.L.list.length + ' objects · ' + MAP.L.edges.length + ' relations';
@@ -624,10 +643,7 @@ export function renderMap(){
     const z0 = MAP.zoom, z1 = Math.min(2.5, Math.max(0.3, z0 * (e.deltaY < 0 ? 1.1 : 0.91)));
     MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
   }, {passive: false});
-  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
-  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
-  $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; svg.classList.toggle('labels', st.mapLabels); };
-  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
+  bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
   $('#mapFind').addEventListener('input', e => {
     st.mapFind = e.target.value;
