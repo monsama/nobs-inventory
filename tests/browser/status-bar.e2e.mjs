@@ -60,6 +60,12 @@ try {
   await until(p, async () => document.querySelector('#stSave').textContent.trim() === 'All changes saved');
   assert.equal(loadState(db).objs.find(o => o.id === 'b').name, 'PC-2b');
 
+  // a sign-in that has ended does not leave "Saving…" behind
+  await p.route('**/api/changes', r => r.fulfill({ status: 401, body: '{}' }));
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2c'; await (await import('/js/07-render-plans.js')).flushSave(); });
+  assert.equal(await text('#stSave'), 'Not saved');
+  await p.unroute('**/api/changes');
+
   assert.deepEqual(errors, []);
   console.log('status bar: ok');
 } finally { await browser.close(); server.close(); }

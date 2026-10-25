@@ -638,7 +638,7 @@ async function sendNow(){
     for (const {puts, dels} of batches(pending.puts, pending.dels)) {
       const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
       const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
-      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
+      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); setSave('failed'); return; }
       const j = await r.json().catch(() => ({}));
       if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); setSave('failed'); return; }
       for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }

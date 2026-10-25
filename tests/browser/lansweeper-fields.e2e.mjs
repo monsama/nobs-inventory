@@ -148,6 +148,16 @@ try {
   assert.equal(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('o1'); o.feed = { sys: 'Lansweeper', scanned: '2020-01-01' }; return c.scanOld(o); }), false, 'no scan flag');
   assert.equal(await page.evaluate(async () => (await import('/js/02-views.js')).tableCols().some(c => c.k === 'ls')), false, 'no Lansweeper column');
   assert.deepEqual(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const a = c.graphChip(c.byId('o1')); c.SYNC.graph = true; const b = c.graphChip(c.byId('o1')); c.SYNC.graph = false; return [a, !!b]; }), ['', true], 'Graph chip only with Graph set up');
+  // Lansweeper on but its sync paused: a linked device does not bring the power event back as an extra row
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.st.feedOn = false; c.byId('o1').feed = { sys: 'Lansweeper', ref: '1' }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('#f_o1_os');
+  assert.equal(await page.locator('[data-k=boot]').count(), 0, 'no power event while the sync is paused');
+  // a user picked by hand on a linked device is kept from the feed
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').ovr = { user: true }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('#f_o1_user');
+  const other = await page.$eval('#f_o1_user', s => [...s.options].map(o => o.value).find(v => v && v !== '__hotdesk' && v !== s.value));
+  await page.selectOption('#f_o1_user', other);
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').ovr.user === false);
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
 
   assert.deepEqual(errors, [], 'no page errors');
