@@ -137,11 +137,29 @@ try {
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null, 'a type clicked again goes back to all');
   await p.fill('#search', ''); await p.waitForTimeout(150);
 
-  // no racks: New rack opens New object with the type Rack
+  // leaving Settings, also with Escape, draws the view behind it again: a renamed type shows on the cards at once
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.setTab = 'types'; (await import('/js/04-settings.js')).openSettings(); });
+  await core(async () => { (await import('/js/01-core.js')).TYPES.pc.label = 'Workstation'; });
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#setPane', { state: 'detached' });
+  assert.match(await p.textContent('#typeList'), /Workstation/, 'the sidebar shows the new name after Settings is left');
+
+  // no racks: New rack opens the rack dialog: name, room, height, model and serial, nothing a rack does not have
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
-  await p.waitForSelector('#nType');
-  assert.equal(await p.inputValue('#nType'), 'rack');
+  await p.waitForSelector('#rnName');
+  assert.deepEqual(await p.$$eval('#mdl .form label', ls => ls.map(l => l.textContent)), ['Name', 'Room', 'Height', 'Model', 'Serial number']);
+  await p.fill('#rnName', 'RACK-A'); await p.fill('#rnUnits', '24'); await p.click('#rnOk');
+  await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.type === 'rack' && o.name === 'RACK-A' && o.units === 24));
+  // with a rack there, the Racks bar has New rack and Open rack, as Floor plans has New plan
+  await p.waitForSelector('#rkNew');
+  await p.click('#rkNew'); await p.waitForSelector('#rnName');
+  await p.fill('#rnName', 'rack-a'); await p.click('#rnOk');
+  assert.match(await p.textContent('#rnErr'), /already a rack named rack-a/);
+  await p.click('#rnCancel');
+  await p.click('#rkOpen');
+  await p.waitForSelector('[data-k=units]');
+  assert.equal(await p.locator('[data-k=user], [data-k=ip]').count(), 0, 'a rack page has no user and no network fields');
   assert.deepEqual(errors, [], 'page errors');
   console.log('editing after adding: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

@@ -1,27 +1,56 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
+import { openObj } from './02-views.js';
 /* ---------- racks ---------- */
+/* A new rack: what a rack has (its name, room, height in U and optionally its model and serial number), nothing more.
+   It is shown in Racks right away. */
+export function rackNewModal(){
+  const n = racksList().length + 1;
+  modal(`<div class="mh">New rack</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
+      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
+      <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
+      <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
+      <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">
+    </div><p class="note" id="rnErr">Devices are mounted in it from Racks with Mount device…, or by dropping them on the rack on a floor plan.</p></div>
+    <div class="mf"><button id="rnCancel">Cancel</button><button id="rnOk" class="primary">Add rack</button></div>`, 'sm');
+  $('#rnCancel').onclick = closeModal;
+  $('#rnOk').onclick = () => {
+    const name = $('#rnName').value.trim(), units = +$('#rnUnits').value;
+    if (!name){ $('#rnErr').textContent = 'Give the rack a name.'; $('#rnName').focus(); return; }
+    if (objs.some(o => o.type === 'rack' && o.name.toLowerCase() === name.toLowerCase())){ $('#rnErr').textContent = `There is already a rack named ${name}.`; return; }
+    if (!Number.isInteger(units) || units < 1 || units > 60){ $('#rnErr').textContent = 'The height is a number of U from 1 to 60.'; return; }
+    const o = O('rack', name, {model: $('#rnModel').value.trim() || '—', serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
+    objs.push(o); hist(o, now(), 'Created manually by ' + who());
+    st.rackId = o.id; st.tab = 'rack'; queueServerSave(); closeModal(); toast(name + ' added'); render();
+  };
+  $('#rnName').focus();
+}
 export function renderRack(){
   const racks = racksList();
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
     $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${canEdit() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
-    const b = $('#rackNew'); if (b) b.onclick = () => newObjModal({type: 'rack'});
+    const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+    ${canEdit() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
+  const rn = $('#rkNew'); if (rn) rn.onclick = rackNewModal;
+  $('#rkOpen').onclick = () => openObj(R_.id);
   $('#rkMount').onclick = mountModal;
   const cells = [];
   for (let n = rackUnits(R_); n >= 1; n--){
@@ -65,7 +94,9 @@ export const FIELDS = {
 /* Types without a network address of their own: a monitor hangs off a PC, a rack and a patch panel are passive. */
 export const NO_NET_TYPES = ['monitor', 'rack', 'patch'];
 /* The built-in fields of a type: everyone's, the network ones unless the type has no address, and the type's own. */
-export const typeFieldsOf = type => [...FIELDS.base, ...(NO_NET_TYPES.includes(type) ? [] : FIELDS.net), ...(FIELDS[type] || [])];
+export const typeFieldsOf = type => [...FIELDS.base.filter(f => !(f[0] === 'user' && NO_USER_TYPES.includes(type))), ...(NO_NET_TYPES.includes(type) ? [] : FIELDS.net), ...(FIELDS[type] || [])];
+/* Types nobody uses as a person's device: a rack and a patch panel have no user. */
+export const NO_USER_TYPES = ['rack', 'patch'];
 /* Network ports can be added to a device of a type that has an address but no ports of its own (a PC, a printer). */
 export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type] || []).some(f => f[0] === 'ports');
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
@@ -774,7 +805,12 @@ export function modal(html, cls=''){
 }
 /* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
 export let modalOpener = null;
-export const closeModal = () => { $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus(); };
+/* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
+export const closeModal = () => {
+  const wasSettings = !!$('#modalHost #setPane');
+  $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
+  if (wasSettings) render();
+};
 document.addEventListener('keydown', e => {
   if (!$('#mdl')) return;
   if (e.key === 'Escape' && $('#mdl .locked')) return;

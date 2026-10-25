@@ -19,7 +19,7 @@ export function openSettings(){
     <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   collapsibleSections($('#setPane'), 'set:');
-  $('#setClose').onclick = () => { closeModal(); render(); };
+  $('#setClose').onclick = closeModal;
   const sr = $('#setReset');
   if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
