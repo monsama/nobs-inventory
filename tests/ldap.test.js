@@ -196,3 +196,20 @@ test('a directory user with the same login as a local account cannot sign in as 
     await srv.close(); await new Promise(r => dir.close(r));
   }
 });
+
+test('an empty sign-in name is the login at the domain of the search base; one set by hand is kept', async () => {
+  const { defaultBindTemplate, ldapConfigOf } = await import('../server/ldap-config.js');
+  assert.equal(defaultBindTemplate('OU=Users,DC=example,DC=ch'), '{login}@example.ch');
+  assert.equal(defaultBindTemplate('ou=people, dc=corp , dc=example,dc=com'), '{login}@corp.example.com');
+  assert.equal(defaultBindTemplate('OU=Users'), '{login}', 'without a domain the login is used as it is');
+  const srv = await startServer();
+  try {
+    saveState(srv.db, { ...loadState(srv.db), ldap: { url: 'ldaps://dc01.example.ch:636', searchBase: 'OU=Users,DC=example,DC=ch' } });
+    let c = ldapConfigOf(srv.db, {});
+    assert.equal(c.bindTemplate, '{login}@example.ch');
+    assert.equal(c.loginAttr, 'sAMAccountName');
+    saveState(srv.db, { ...loadState(srv.db), ldap: { url: 'ldaps://dc01.example.ch:636', searchBase: 'OU=Users,DC=example,DC=ch', bindTemplate: 'EXAMPLE\\{login}' } });
+    c = ldapConfigOf(srv.db, {});
+    assert.equal(c.bindTemplate, 'EXAMPLE\\{login}');
+  } finally { await srv.close(); }
+});

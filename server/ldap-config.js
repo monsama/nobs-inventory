@@ -6,6 +6,12 @@ import { readSecret } from './secrets.js';
    from the environment (NI_LDAP_URL and the rest) still work and are used when nothing is saved in the inventory. */
 const FIELDS = ['url', 'bindTemplate', 'searchBase', 'loginAttr', 'userFilter', 'group', 'adminGroup', 'serviceDn'];
 const clean = v => (typeof v === 'string' ? v.trim().slice(0, 500) : '');
+/* The sign-in name Active Directory takes when none is set: the login at the domain the search base names
+   (DC=example,DC=ch -> {login}@example.ch). Without DC parts, the login as it is. */
+export const defaultBindTemplate = searchBase => {
+  const dcs = [...String(searchBase || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()).filter(Boolean);
+  return dcs.length ? `{login}@${dcs.join('.')}` : '{login}';
+};
 
 export function configFromEnv(env) {
   return {
@@ -28,8 +34,9 @@ export function ldapConfigOf(db, env) {
   const row = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldap'").get();
   const saved = row ? (JSON.parse(row.data) || {}) : {};
   if (!clean(saved.url)) return env.NI_LDAP_URL ? configFromEnv(env) : null;
-  const cfg = { bindTemplate: '{login}', loginAttr: 'sAMAccountName', ...Object.fromEntries(FIELDS.map(k => [k, clean(saved[k])])) };
-  for (const k of ['bindTemplate', 'loginAttr']) if (!cfg[k]) cfg[k] = k === 'bindTemplate' ? '{login}' : 'sAMAccountName';
+  const cfg = Object.fromEntries(FIELDS.map(k => [k, clean(saved[k])]));
+  if (!cfg.bindTemplate) cfg.bindTemplate = defaultBindTemplate(cfg.searchBase);
+  if (!cfg.loginAttr) cfg.loginAttr = 'sAMAccountName';
   return { ...cfg, searchBase: cfg.searchBase, caFile: env.NI_LDAP_CA || '', allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1',
     servicePassword: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD') };
 }
