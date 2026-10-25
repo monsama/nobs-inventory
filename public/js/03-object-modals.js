@@ -101,7 +101,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`;
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
-    if (k === 'model') ctl = comboHtml(ctl, id);
+    if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
   }
   return ctl;
 }
@@ -124,8 +124,45 @@ function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
 }
-function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); input.focus(); }
-document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')) comboOpen(c, false); });
+function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); }
+/* Under a model typed in: a model not in the list yet is new and is added when saved; one very like a model in the list
+   is likely a typo, and the one in the list can be taken with one click. */
+const squash = t => t.toLowerCase().replace(/[\s\-_.,/]+/g, '');
+function editDistance(a, b){
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for (let i = 1; i <= a.length; i++){
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+export function closeModel(v, names){
+  const q = squash(v); if (q.length < 4) return null;
+  const same = names.find(m => squash(m) === q); if (same) return same;
+  let best = null, bd = 3;
+  for (const m of names){ const d = editDistance(q, squash(m)); if (d < bd){ bd = d; best = m; } }
+  return bd <= (q.length >= 8 ? 2 : 1) ? best : null;
+}
+function comboNote(input){
+  const note = document.getElementById(input.id + '_note'); if (!note) return;
+  const v = input.value.trim(), names = (COMBO_SOURCES[input.dataset.k] || (() => []))();
+  const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };   /* the note and its empty first column */
+  if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
+  const near = closeModel(v, names);
+  note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
+  note.innerHTML = near ? `Did you mean ${esc(near)}? <button type="button" class="link combo-use" data-v="${esc(near)}">Use it</button>` : 'New model – added to the list when saved.';
+  show(true);
+}
+document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });
+/* "Use it": the model from the list replaces the one typed, and is saved like a pick. */
+document.addEventListener('click', e => {
+  const b = e.target.closest('.combo-use'); if (!b) return;
+  const note = b.closest('.fieldnote'), input = document.getElementById(note.id.replace(/_note$/, ''));
+  if (!input || input.disabled) return;
+  input.value = b.dataset.v; comboNote(input); input.dispatchEvent(new Event('change', {bubbles: true})); input.focus();
+});
 document.addEventListener('mousedown', e => {
   const c = comboOf(e.target);
   document.querySelectorAll('.combo .combo-list:not([hidden])').forEach(l => { if (l.closest('.combo') !== c) comboClose(l.closest('.combo')); });
@@ -160,7 +197,8 @@ export function propRow(o, f){
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
+  const comboNoteSlot = k === 'model' && !taken ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}</div>${comboNoteSlot}${fieldNote(o, k)}`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
 export function fieldNote(o, k){
