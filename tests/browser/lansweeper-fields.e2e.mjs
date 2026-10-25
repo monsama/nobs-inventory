@@ -129,6 +129,11 @@ try {
   await page.fill(avAdd, 'Windows Defender'); await page.press(avAdd, 'Escape'); await page.press(avAdd, 'Enter');
   assert.match(await page.textContent('#toast'), /Windows Defender is already listed/);
   if (shots) await page.locator('.avpick').screenshot({ path: path.join(shots, 'antivirus.png') });
+  // with the sync paused, only the product names show: the scan state is out of date
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = false; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.avpick .avitem');
+  assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');

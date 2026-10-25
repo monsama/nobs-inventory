@@ -1,4 +1,4 @@
-import { setAppVersion, setPlans } from './01-core.js';
+import { setAppVersion, setPlans, LS_ON, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
@@ -537,12 +537,39 @@ export function render(){
   bindFullTextOnHover();
   $('#stObjs').textContent = objs.length + ' objects';
   $('#stRels').textContent = rels.length + ' relations';
+  renderStatus();
   applyRole();
   saveData();
 }
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
-export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false};
+export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};
+/* The newest time Lansweeper sent any device: the last sync that reached the inventory. */
+export function lastSync(){
+  let best = '', at = -1;
+  for (const o of objs){ const s = o.feed && o.feed.seen; if (!s) continue; const d = daysSince(s); if (at < 0 || d < at){ at = d; best = s; } }
+  return best ? {at: best, days: at} : null;
+}
+/* Lansweeper is late when nothing came for two days: the push normally runs every night. */
+export const SYNC_LATE_DAYS = 2;
+/* The status bar: whether changes reached the server, and when Lansweeper last sent data. */
+export function renderStatus(){
+  const save = $('#stSave'), sync = $('#stSync'); if (!save || !sync) return;
+  const S = {
+    saved: ['', 'All changes saved', 'Every change is stored on the server.'],
+    saving: ['', 'Saving…', 'Changes are being sent to the server.'],
+    failed: ['bad', 'Not saved', 'The last change was refused. It is kept here and sent again with the next change.'],
+    offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
+  }[SERVER.save] || ['', '', ''];
+  save.innerHTML = `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
+  if (!LS_ON() || st.feedOn === false){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
+  const last = lastSync();
+  if (!last){ sync.innerHTML = '<span class="dot off"></span>Lansweeper: no sync yet'; sync.title = 'No data has come from Lansweeper yet.'; return; }
+  const late = last.days >= SYNC_LATE_DAYS;
+  sync.innerHTML = `<span class="dot ${late ? 'warn' : ''}"></span>Lansweeper ${esc(last.at)}`;
+  sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
+}
+const setSave = v => { SERVER.save = v; renderStatus(); };
 export function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
@@ -610,14 +637,15 @@ async function sendNow(){
   if (!canEdit()) return;
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
-  SERVER.busy = true;
+  SERVER.busy = true; setSave('saving');
+  let ok = false;
   try {
     for (const {puts, dels} of batches(pending.puts, pending.dels)) {
       const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
       const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
       if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); return; }
       const j = await r.json().catch(() => ({}));
-      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); return; }
+      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); setSave('failed'); return; }
       for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
       if (Object.keys(j.codes || {}).length) render();
       const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
@@ -642,10 +670,13 @@ async function sendNow(){
         if (items.length) refusedModal(items);
       }
     }
+    ok = true;
   } catch {
-    toast('Not saved: the server cannot be reached.');
+    if (SERVER.save !== 'offline') toast('Not saved: the server cannot be reached.');
+    setSave('offline');
   } finally {
     SERVER.busy = false;
+    if (ok) setSave('saved');
     if (SERVER.again){ SERVER.again = false; queueServerSave(); }
   }
 }
@@ -694,9 +725,12 @@ export async function checkForChanges(){
   if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const {puts, dels} = pendingChanges();
-  if (puts.length || dels.length) return;
-  const r = await fetch('api/state', {credentials: 'same-origin'});
+  /* Changes that could not be sent while the server was away are sent again here. */
+  if (puts.length || dels.length){ if (SERVER.save === 'offline') sendChanges(); return; }
+  let r;
+  try { r = await fetch('api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
   if (!r.ok) return;
+  if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
   const revs = d.revs || {};
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
