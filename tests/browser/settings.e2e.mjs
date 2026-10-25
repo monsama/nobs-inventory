@@ -39,6 +39,11 @@ try {
   const formW = await page.locator('.subnet-new > .subnet').evaluate(e => e.getBoundingClientRect().width);
   const boxW = await page.locator('#setSubnets').evaluate(e => e.getBoundingClientRect().width);
   assert.ok(formW > boxW * 0.9, `the add-subnet form is ${Math.round(formW)}px wide in a ${Math.round(boxW)}px box`);
+  // device types are checkboxes; the ones ticked are saved with the subnet
+  await page.fill('.subnet-new [data-sn]', 'Office'); await page.fill('.subnet-new [data-sc]', '10.10.20.0/24'); await page.fill('.subnet-new [data-sg]', '10.10.20.1');
+  await page.check('.subnet-new [data-sty][value=pc]'); await page.check('.subnet-new [data-sty][value=printer]');
+  await page.click('#snAdd'); await page.waitForSelector('[data-sub="0"]');
+  assert.deepEqual(await page.locator('[data-sub="0"] [data-sty]:checked').evaluateAll(cs => cs.map(c => c.value)), ['pc', 'printer'], 'the ticked device types are kept');
   // push token: created in the app, shown once, a download is offered
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');

@@ -597,7 +597,7 @@ const subnetFromRow = row => {
     name: q('[data-sn]').value.trim(), vid: q('[data-sv]').value === '' ? null : +q('[data-sv]').value,
     cidr: q('[data-sc]').value.trim(), gateway: q('[data-sg]').value.trim(),
     dns: q('[data-sd]').value.split(',').map(x => x.trim()).filter(Boolean), ranges,
-    types: [...q('[data-st]').selectedOptions].map(o => o.value)
+    types: [...row.querySelectorAll('[data-sty]:checked')].map(c => c.value)
   };
 };
 const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
@@ -606,8 +606,8 @@ const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
     <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}" ${ro}></label>
     <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}" ${ro}></label>
     <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
-    <label>Device types<select data-st multiple size="4" ${ro}>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${(n.types || []).includes(k) ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
-    <label class="wide">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
+    <label class="span3">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
+    <fieldset class="sn-types"><legend>Device types that take an address here</legend>${Object.entries(TYPES).map(([k, t]) => `<label class="pchk"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''} ${ro}>${esc(t.label)}</label>`).join('')}</fieldset>
     <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
