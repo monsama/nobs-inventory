@@ -1049,15 +1049,14 @@ export function renderSetFeed(){
       <ol style="margin:0;padding-left:20px;line-height:1.6">
         <li>Create a token below and copy it. It is shown once, and it is the password the script uses for this inventory.</li>
         <li>Get the script from <a class="link" style="text-decoration:underline" href="https://github.com/monsama/nobs-inventory/blob/main/scripts/Lansweeper-Push.ps1" target="_blank" rel="noopener">GitHub (scripts/Lansweeper-Push.ps1)</a>, or use <b>Download script</b> below, which already has this address in it.</li>
-        <li>In PowerShell on the Lansweeper server, run <code>.\Lansweeper-Push.ps1 -SetCredential</code> and paste the token.</li>
-        <li>Run <code>.\Lansweeper-Push.ps1 -DryRun</code> to see the data, then <code>.\Lansweeper-Push.ps1</code> to send it.</li>
+        <li>In PowerShell on the Lansweeper server, run <code>.\Lansweeper-Push.ps1</code>. The first time it asks for this inventory's address and the token, checks both, keeps them, and sends the data. <code>-Setup</code> asks again; <code>-DryRun</code> only shows what it would send.</li>
       </ol>
       <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p>
     </div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span></div>
     ${pushStatus()}
     ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
-    <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it with <code>-SetCredential</code>.</p>` : ''}
+    <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it on its first run.</p>` : ''}
     <div class="addrel" style="padding:10px 12px">
       <button id="pushNew" class="primary" ${pushInfo === undefined ? 'disabled' : ''}>${pushInfo ? 'Replace token' : 'Create token'}</button>
       ${pushNew ? '<button id="pushCopy">Copy token</button>' : ''}
