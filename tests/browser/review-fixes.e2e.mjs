@@ -37,7 +37,6 @@ async function login(u, pw){
   return p;
 }
 const ev = (p, f, a) => p.evaluate(f, a);
-const mods = `const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'), v = await import('/js/02-views.js');`;
 try {
   const v = await login('viewer', 'viewerpass123');
   await v.click('[data-tab=sw]'); await v.waitForTimeout(200);

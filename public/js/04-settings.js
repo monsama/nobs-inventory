@@ -613,10 +613,13 @@ export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
   const edit = canEdit(), ro = edit ? '' : 'disabled';
+  /* Subnets the devices' adapters are in that the list does not have yet. Use fills in the form; nothing is added by itself. */
+  const suggested = (st.lsNets || []).filter(n => !SUBNETS.some(x => x.cidr === n.cidr));
   root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
     <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
-    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}`;
+    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd" class="primary">Add subnet</button></div>` : ''}
+    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
   root.querySelectorAll('[data-sub]').forEach(row => {
     const i = row.dataset.sub;
@@ -636,6 +639,12 @@ export function renderSetSubnets(){
     const gone = SUBNETS[+b.dataset.sx];
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
+  });
+  root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
+    const n = suggested[+b.dataset.snuse], row = root.querySelector('[data-sub="new"]');
+    row.querySelector('[data-sn]').value = n.name || n.cidr; row.querySelector('[data-sc]').value = n.cidr;
+    row.querySelector('[data-sg]').value = n.gateway || ''; row.querySelector('[data-sd]').value = (n.dns || []).join(', ');
+    row.querySelector('[data-sn]').focus();
   });
   const add = $('#snAdd');
   if (add) add.onclick = () => {

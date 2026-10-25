@@ -395,6 +395,15 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
+/* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
+.fieldnote{margin:-2px 0 2px;font-size:12px}
+.fieldnote.warn{color:var(--warn)} .fieldnote.bad{color:var(--danger)}
+.wty.soon{color:var(--warn);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
+/* Subnets Lansweeper's adapters report that are not listed yet. */
+.sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
+.sn-suggest .snrow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
+.sn-suggest .snrow .mono{font-family:var(--mono)}
+.sn-suggest .snrow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .form input,.form select,.form textarea{width:100%}
 .form input[type=checkbox],.form input[type=radio]{width:auto}
 .form .ro{font-family:var(--mono);font-size:12px}
@@ -569,6 +578,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="locList"></div>
     <div class="hdr">Status</div>
     <div class="sidegroup" id="statList"></div>
+    <div class="hdr">Warranty</div>
+    <div class="sidegroup" id="wtyList"></div>
   </aside>
 
   <section id="content">
