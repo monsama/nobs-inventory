@@ -6,6 +6,7 @@ import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
+import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
@@ -85,7 +86,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
       const lc = cfgLdap();
-      if (!ok && ldapEnabled(lc)) {
+      /* The directory signs in its own users and new logins only. A local account with the same login is never taken
+         over by it: that would let a directory user sign in as, and demote, the local admin. */
+      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap')) {
         let d;
         try { d = await ldapLogin(lc, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
@@ -93,7 +96,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           const isAdmin = !!d.admin;
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
-          if (user.active !== false) saveUserDoc(user);
+          if (user.active !== false) { saveUserDoc(user); bumpUser(user.id); }   /* a new revision, so a page holding the old record cannot save it back */
           ok = true;
         } else if (d) { audit(db, null, 'sign in refused, not in group: ' + login); }
       }
@@ -291,7 +294,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
       const s = loadState(db);
-      const counts = mergeRecords(s, recordsFromJson(records));
+      const counts = mergeRecords(s, recordsFromJson(records), new Date(), cleanIpLocations(req.body.ipLocations));
       if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push'); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });

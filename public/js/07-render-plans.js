@@ -172,7 +172,7 @@ export function areaShape(rects, cls = '', attrs = ''){
 /* The name of an area and its ×, placed at the top left of the area. */
 export function areaTag(a, removable){
   const r = areaRects(a)[0];
-  return `<div class="pl-area-tag" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
+  return `<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
 }
 export function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
@@ -211,7 +211,9 @@ document.addEventListener('pointermove', e => {
     const r = c.getBoundingClientRect(), d = planAreaDrag;
     const sh = shiftRects(d.rects, pctOf(e.clientX, r.left, r.width) - d.x0, pctOf(e.clientY, r.top, r.height) - d.y0);
     d.dx = sh.dx; d.dy = sh.dy; d.moved = d.moved || Math.abs(sh.dx) + Math.abs(sh.dy) > 0.2;
-    c.querySelectorAll(`[data-area-drag="${d.area.id}"]`).forEach((el, i) => { el.style.left = sh.rects[i].x + '%'; el.style.top = sh.rects[i].y + '%'; });
+    /* The shape and its name tag follow the pointer by the drag's offset; the drop writes the new place. */
+    const tx = d.dx * r.width / 100, ty = d.dy * r.height / 100;
+    c.querySelectorAll(`[data-area-drag="${d.area.id}"],[data-area-tag="${d.area.id}"]`).forEach(el => { el.style.transform = `translate(${tx}px, ${ty}px)`; });
     d.pins.forEach(p => { const pin = c.querySelector(`[data-pin="${p.id}"]`); if (pin){ pin.style.left = p.x + d.dx + '%'; pin.style.top = p.y + d.dy + '%'; } });
   }
   if (planDrag){
@@ -563,6 +565,7 @@ export function applyState(d){
   Object.assign(TYPE_FIELDS, d.typeFields || {});
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
+  st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
   st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */

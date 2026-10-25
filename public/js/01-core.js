@@ -24,6 +24,7 @@ export const ICON = {
   projector:'<rect x="2" y="7" width="16" height="10" rx="2"/><path d="M18 10l4-2v8l-4-2M6 10h.01"/>',
   storage:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   modem:'<rect x="3" y="12" width="18" height="7" rx="1"/><path d="M7 12V5M12 19v2M16 15h.01M19 15h.01"/>',
+  plc:'<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M5 8h14M8.5 12h2M8.5 15.5h2M13.5 12h2M13.5 15.5h2M2 18h3M19 18h3"/>',
   other:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/>'
 };
 export const svg = (t, cls='i') => {
@@ -52,6 +53,7 @@ export const TYPES = {
   android:{label:'Android Device', short:'Android', color:'#84cc16', icon:'mobile'},
   ios:{label:'IOS Device', short:'iOS', color:'#65a30d', icon:'mobile'},
   mobile:{label:'Other Mobile Device', short:'Mobile', color:'#0d9488', icon:'mobile'},
+  plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -62,7 +64,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx'];
+export const BUILTIN = ['pc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
@@ -89,7 +91,15 @@ export const setPlans = v => { PLANS = v; };
 export const LS_ON = () => st.useLansweeper !== false;
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
-export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', user:'User', loc:'Location', status:'Status'};
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location', status:'Status'};
+/* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
+export const WARRANTY_SOON_DAYS = 90;
+export const warrantyState = (o, today = new Date()) => {
+  if (!o.warranty || !/^\d{4}-\d{2}-\d{2}$/.test(o.warranty)) return null;
+  const days = Math.floor((new Date(o.warranty + 'T23:59:59') - today) / 86400000);
+  return days < 0 ? 'ended' : days <= WARRANTY_SOON_DAYS ? 'soon' : 'ok';
+};
+export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
    attached (a monitor or accessory on a PC or docking station) and hosted (a virtual machine on its host, shown as "runs on"). */
@@ -233,7 +243,7 @@ export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
   const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status)))
+  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty)))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

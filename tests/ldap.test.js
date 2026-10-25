@@ -180,3 +180,19 @@ test('an unreachable directory: the directory sign-in is refused with an answer,
     assert.ok(!/stack|at /.test(sync.text || ''), 'the sync answer shows internal details');
   } finally { await srv.close(); }
 });
+
+test('a directory user with the same login as a local account cannot sign in as it, nor change it', async () => {
+  /* The directory has an "admin" in the sign-in group but not the admin group; the local admin is the only admin. */
+  const people = { 'cn=admin,ou=people,dc=test': person('admin', 'Directory Admin', 'IT', ['Inventory-Users'], 'directory-pw') };
+  const dir = await startDirectory(people);
+  const srv = await startServer({ ldap: cfg(`ldap://127.0.0.1:${dir.address().port}`) });
+  try {
+    assert.equal((await signIn(srv, 'admin', 'directory-pw')).status, 401, 'the directory password opened the local account');
+    const local = loadState(srv.db).users.find(u => u.login === 'admin');
+    assert.equal(local.source, 'manual', 'the local account was turned into a directory account');
+    assert.equal(local.role, 'admin', 'the local admin was demoted');
+    assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 200, 'the local password still works');
+  } finally {
+    await srv.close(); await new Promise(r => dir.close(r));
+  }
+});

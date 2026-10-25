@@ -89,7 +89,9 @@ table.locs td.site{color:var(--muted)}
 .pl-area-edge{fill:none;stroke:var(--accent);stroke-width:2px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;padding:2px 4px 2px 8px;border-radius:4px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;pointer-events:none;white-space:nowrap}
 .pl-area-tag .pl-x{pointer-events:auto;position:static;width:18px;height:18px;border-radius:50%}
-.pl-area.movable{pointer-events:auto;cursor:move}
+/* An area's svg covers the whole canvas; only the shape itself takes a click, so the rest of the plan stays free. */
+.pl-area.movable{pointer-events:none}
+.pl-area.movable .pl-area-fill,.pl-area.movable .pl-area-edge{pointer-events:visiblePainted;cursor:move}
 .pl-area.editing .pl-area-edge{stroke-width:3px}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
 .pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:12px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
@@ -217,6 +219,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* cards */
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal}
+/* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
+.card{align-self:stretch}
+.card .kv{flex:1;align-content:start}
 .card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .card .ch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
@@ -264,6 +269,43 @@ table.grid th .rz{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-
 table.grid th .rz:hover{background:var(--accent);opacity:.45}
 /* Sorting: click a header. Filtering: a box under each header (the big tables only). */
 table.grid th[data-sort="asc"]::after{content:' \25B2';font-size:9px;color:var(--muted)}
+/* Software: a package opens in place to list its devices. */
+table.grid.sw{width:100%;min-width:0;table-layout:fixed}
+table.grid.sw tr:nth-child(even) td{background:none}
+table.grid.sw .sw-row{cursor:pointer}
+table.grid.sw .sw-row:hover td{background:var(--hover)}
+table.grid.sw .sw-row.open td{background:var(--panel);border-bottom-color:transparent}
+table.grid.sw td{padding:5px 8px;max-width:none}
+table.grid.sw th[data-swsort]{cursor:pointer}
+table.grid.sw th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
+.sw-tgcol{width:34px;padding:0 0 0 6px!important}
+table.grid.sw th.sw-name{width:34%}
+table.grid.sw th.sw-cnt{width:170px}
+@media (max-width:760px){
+  table.grid.sw .sw-ver,table.sw-sub .sw-opt{display:none}
+  table.grid.sw th.sw-name{width:auto}
+  table.grid.sw th.sw-cnt{width:110px}
+  .sw-bar{width:36px}
+  .sw-devs{margin-left:12px}
+}
+.sw-tg{width:24px;height:24px;padding:0;color:var(--muted)}
+.sw-tg svg{transition:transform .15s ease}
+.sw-row.open .sw-tg svg{transform:rotate(90deg)}
+.sw-row.open .sw-tg{color:var(--accent)}
+.vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
+.vchip i{font-style:normal;color:var(--muted);font-family:inherit}
+.vchip.odd{border-color:var(--warn);color:var(--warn)}
+.sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
+.sw-bar>span{display:block;height:100%;background:var(--accent)}
+table.grid.sw .sw-detail>td{padding:0 0 10px 0;background:var(--panel);white-space:normal}
+.sw-devs{margin:0 12px 0 36px;border:1px solid var(--bd2);border-left:3px solid var(--accent);border-radius:var(--r-s);background:var(--bg);overflow:auto}
+table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
+table.sw-sub th{position:static;text-align:left;font-weight:600;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
+table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
+table.sw-sub tr:last-child td{border-bottom:0}
+table.sw-sub tr:hover td{background:var(--hover)}
+.sw-dev{display:inline-flex;align-items:center;gap:8px}
 table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
 table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
 table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;padding:1px 4px}
@@ -284,11 +326,23 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .port.poe::after{content:"";position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--poe);box-shadow:0 0 0 1px var(--bg)}
 .port.sel{outline:2px solid var(--fg);outline-offset:1px}
 .subnets{display:flex;flex-direction:column}
-.subnet,.subnet-new{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;padding:10px 12px;border-top:1px solid var(--bd2)}
+.subnet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;padding:10px 12px;border-top:1px solid var(--bd2)}
 .subnet label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
-.subnet label.wide{grid-column:span 2}
+.subnet label.span3{grid-column:span 3}
+/* Device types: every type as a checkbox, wrapping across the full width. */
+.sn-types{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:8px 10px;border:1px solid var(--bd2);border-radius:var(--r-m)}
+.sn-types legend{padding:0 4px;font-size:12px;color:var(--muted)}
+.subnet .sn-types label.pchk{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--fg);cursor:pointer}
+.sn-types .pchk input{margin:0}
+@media (max-width:760px){
+  .subnet{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .subnet label.span3{grid-column:1 / -1}
+}
 .subnet-foot{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.subnet-new{padding-bottom:12px}
+/* The add form is one subnet row with a title above and the Add button below, across the full width. */
+.subnet-new{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--bd2)}
+.subnet-new>.subnet{padding:0;border-top:0}
+.subnet-new>#snAdd{align-self:flex-end}
 .snmsg{font-size:12px}
 .relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
@@ -341,6 +395,15 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
+/* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
+.fieldnote{margin:-2px 0 2px;font-size:12px}
+.fieldnote.warn{color:var(--warn)} .fieldnote.bad{color:var(--danger)}
+.wty.soon{color:var(--warn);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
+/* Subnets Lansweeper's adapters report that are not listed yet. */
+.sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
+.sn-suggest .snrow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
+.sn-suggest .snrow .mono{font-family:var(--mono)}
+.sn-suggest .snrow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .form input,.form select,.form textarea{width:100%}
 .form input[type=checkbox],.form input[type=radio]{width:auto}
 .form .ro{font-family:var(--mono);font-size:12px}
@@ -384,13 +447,14 @@ a.link:hover{text-decoration:underline}
 .ps.me .ps-name{font-weight:600}
 .ps-type{font-size:11px;color:var(--muted)}
 .ps-me{font-size:11px;color:var(--accent)}
-.entries{display:block}
+/* Notes and attachments use the same two columns as every field: the list, then the sync column kept free. */
+.entries{align-items:flex-start}
+.form label:has(+ .entries){align-self:start;padding-top:8px}
 .entries-box{display:flex;flex-direction:column;gap:8px}
 .entry{border:1px solid var(--bd2);border-radius:var(--r-s);padding:8px 10px;background:var(--panel)}
 .entry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .entry-head b{flex:1;min-width:0}
 .entry-text{margin-top:4px;font-size:12px;color:var(--muted);white-space:pre-wrap}
-.entry-add{margin-right:34px}
 .entry-add>input:first-child{flex:1 1 100%}
 .entry-add>input{flex:1 1 120px}
 .entry-add button{flex:none}
@@ -514,6 +578,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="locList"></div>
     <div class="hdr">Status</div>
     <div class="sidegroup" id="statList"></div>
+    <div class="hdr">Warranty</div>
+    <div class="sidegroup" id="wtyList"></div>
   </aside>
 
   <section id="content">

@@ -149,3 +149,38 @@ test('addresses are checked: a bad IP is refused, IPv6 is kept, a MAC is stored 
   mergeRecords(s, [{ name: 'PC-F', serial: 'SF', ip: '10.1.1.999' }]);
   assert.equal(s.objs[0].ip, '10.1.1.5', 'the feed stored a bad IP');
 });
+
+test('a device user with no sign-in, such as the last user from Lansweeper, is saved as a viewer', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    /* The page adds such a person without a role; earlier pages did too, so the server must accept it. */
+    const person = { id: 'u-jdoe', login: '', name: 'Jane Doe', dept: '', groups: [], source: 'manual', active: true };
+    const r = await put(srv, a.cookie, { puts: [{ kind: 'user', id: 'u-jdoe', value: person, base: 0 }, { kind: 'object', id: 'o1', value: { ...pc('o1', 'PC-1', 'x'), uid: 'u-jdoe' }, base: 0 }], dels: [] });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const now = await load(srv, a.cookie);
+    const saved = now.users.find(u => u.id === 'u-jdoe');
+    assert.ok(saved, 'the person was not saved');
+    assert.equal(saved.role, 'viewer');
+    assert.equal(now.objs.find(o => o.id === 'o1').uid, 'u-jdoe');
+  } finally { await srv.close(); }
+});
+
+test('a stale change that the rest of the save needs makes the whole save a conflict, not a refusal sent again and again', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const rel = { id: 'r1', from: 'a', to: 'b', kind: 'connected', port: 1, vlan: null };
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'a', value: pc('a', 'PC-A', 'x'), base: 0 }, { kind: 'object', id: 'b', value: pc('b', 'PC-B', 'x'), base: 0 }, { kind: 'rel', id: 'r1', value: rel, base: 0 }], dels: [] });
+    const old = (await load(srv, a.cookie)).revs;
+    // B changes the connection's port.
+    await put(srv, a.cookie, { puts: [{ kind: 'rel', id: 'r1', value: { ...rel, port: 2 }, base: old['rel|r1'] }], dels: [] });
+    // A, holding the old revision, deletes PC-A and its connection.
+    const r = await put(srv, a.cookie, { puts: [], dels: [{ kind: 'object', id: 'a', base: old['object|a'] }, { kind: 'rel', id: 'r1', base: old['rel|r1'] }] });
+    assert.equal(r.status, 200, 'refused: ' + JSON.stringify(r.json));
+    assert.deepEqual(r.json.conflicts.sort(), ['object|a', 'rel|r1']);
+    const now = await load(srv, a.cookie);
+    assert.ok(now.objs.some(o => o.id === 'a'), 'nothing is saved: PC-A is still there');
+    assert.equal(now.rels.find(x => x.id === 'r1').port, 2, 'B\'s change stands');
+  } finally { await srv.close(); }
+});

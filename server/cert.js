@@ -39,7 +39,9 @@ const pem = (label, der) => `-----BEGIN ${label}-----\n${der.toString('base64').
 export function generateGraphCert({ commonName = 'NOBS Inventory', days = CERT_DAYS, now = new Date() } = {}) {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const keyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
-  const serial = crypto.randomBytes(16); serial[0] &= 0x7f;
+  /* A positive serial whose first byte is never 0: DER allows no leading zero byte, and OpenSSL refuses such a
+     certificate (illegal padding), which happened to about one certificate in 128. */
+  const serial = crypto.randomBytes(16); serial[0] = (serial[0] & 0x7f) | 0x40;
   const name = seq(set(seq(oid('2.5.4.3'), utf8(commonName))));
   const notBefore = new Date(now.getTime() - 60 * 60 * 1000), notAfter = new Date(now.getTime() + days * 86400000);
   const basicConstraints = seq(oid('2.5.29.19'), Buffer.from([0x01, 0x01, 0xff]), tlv(0x04, seq()));

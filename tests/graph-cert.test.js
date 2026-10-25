@@ -20,3 +20,13 @@ test('each certificate is made new, with its own key', () => {
   assert.notEqual(a.keyPem, b.keyPem);
   assert.notEqual(a.thumbprint, b.thumbprint);
 });
+
+test('a certificate is valid DER even when the random serial starts with a zero byte', () => {
+  /* About one serial in 128 starts with 0x00 and 0x00-0x7f; written as is, OpenSSL refused the certificate (illegal padding). */
+  const real = crypto.randomBytes;
+  crypto.randomBytes = n => { const b = real(n); b[0] = 0x00; b[1] = 0x10; return b; };
+  try {
+    const { certPem } = generateGraphCert({ commonName: 'T' });
+    assert.ok(!new crypto.X509Certificate(certPem).serialNumber.startsWith('00'), 'the serial has no leading zero byte');
+  } finally { crypto.randomBytes = real; }
+});
