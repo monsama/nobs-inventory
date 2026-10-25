@@ -44,3 +44,33 @@ test('a backup carries those settings, and a restore into an empty database brin
   assert.deepEqual(back.vlans, [{ vid: 10, name: 'Users' }]);
   db.close(); fresh.close();
 });
+
+test('a backup and a restore keep what came with 0.9.7 and after: new fields, card lines, certificates, network data', () => {
+  const db = freshDb();
+  const s = loadState(db);
+  const obj = {
+    id: 'o9', code: 'INV-0009', type: 'plc', name: 'PLC-1', status: 'active', loc: '', ovr: { warranty: false }, feed: { sys: 'Lansweeper', ref: 'x', seen: '01.10.2026 06:00' },
+    ip: '172.21.103.38', mask: '255.255.255.0', gateway: '172.21.103.1', dns: '172.21.1.5, 172.21.1.6', dhcp: 'static', purchased: '2023-04-01', warranty: '2027-03-31', uid: 'u-ls1',
+  };
+  const printer = { id: 'o10', code: 'INV-0010', type: 'printer', name: 'PRN-1', status: 'active', loc: '', ovr: {}, feed: null, ports: 2, pfx: 'eth' };
+  Object.assign(s, {
+    objs: [obj, printer],
+    users: [...s.users, { id: 'u-ls1', login: '', name: 'Anna Muster', dept: 'Logistik', role: 'viewer', groups: [], source: 'lansweeper', active: true }],
+    fieldLayout: { pc: { card: ['ip', 'user', 'loc', 'warranty'] }, plc: { order: ['name', 'ip'], card: ['ip', 'custom.line', '', 'serial'] } },
+    graphCerts: [{ thumbprint: 'ABCDEF0123456789ABCDEF0123456789ABCDEF01', created: '2026-10-25T13:00:00.000Z', expires: '2028-10-24T13:00:00.000Z', by: 'Administrator' }],
+    lsIpLocations: [{ name: 'Willisau Lager', from: '172.21.108.1', to: '172.21.108.254' }],
+    lsNets: [{ cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5'], name: 'Willisau Lager' }],
+  });
+  saveState(db, s);
+  const id = takeBackup(db, 'test');
+  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(id).data);
+  const fresh = freshDb();
+  restoreBackup(fresh, data);
+  const back = loadState(fresh);
+  assert.deepEqual(back.objs.find(o => o.id === 'o9'), obj, 'the device and its new fields');
+  assert.deepEqual(back.objs.find(o => o.id === 'o10'), printer, 'ports on a printer');
+  assert.deepEqual(back.users.find(u => u.id === 'u-ls1'), s.users.find(u => u.id === 'u-ls1'), 'a person from Lansweeper, with department');
+  for (const k of ['fieldLayout', 'graphCerts', 'lsIpLocations', 'lsNets']) assert.deepEqual(back[k], s[k], k);
+  for (const k of ['mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty']) assert.ok(back.policy[k] !== undefined, 'the overwrite policy knows ' + k);
+  db.close(); fresh.close();
+});
