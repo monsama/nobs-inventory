@@ -85,7 +85,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
       const lc = cfgLdap();
-      if (!ok && ldapEnabled(lc)) {
+      /* The directory signs in its own users and new logins only. A local account with the same login is never taken
+         over by it: that would let a directory user sign in as, and demote, the local admin. */
+      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap')) {
         let d;
         try { d = await ldapLogin(lc, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
@@ -93,7 +95,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           const isAdmin = !!d.admin;
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
-          if (user.active !== false) saveUserDoc(user);
+          if (user.active !== false) { saveUserDoc(user); bumpUser(user.id); }   /* a new revision, so a page holding the old record cannot save it back */
           ok = true;
         } else if (d) { audit(db, null, 'sign in refused, not in group: ' + login); }
       }
