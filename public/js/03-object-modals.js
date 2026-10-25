@@ -474,7 +474,9 @@ export function renderObj(o){
   const fitTargets = () => {
     const k = $('#arKind').value;
     $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
-    $('#arPort').placeholder = k === 'connected' ? 'Port no., or P04 on a patch panel' : k === 'uplink' ? 'Port no.' : 'Port (opt.)';
+    /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
+    $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
+    $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
   $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd}</option>`).join('');
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */

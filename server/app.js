@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { KNOWN_TYPES, loadState, saveState, applyChanges, factoryReset } from './state.js';
+import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
 import { cleanIpLocations } from './lsnet.js';
@@ -210,8 +210,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
         if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
       };
+      /* The names of objects and users being removed are read before they are gone. */
+      const removes = Array.isArray(req.body?.dels) && req.body.dels.some(c => c && (c.kind === 'object' || c.kind === 'user'));
+      const before = removes ? loadState(db) : null;
       const result = applyChanges(db, req.body, guard);
-      audit(db, req.user.id, 'save changes');
+      const skipped = result && Array.isArray(result.conflicts) && result.conflicts.length ? ` (${result.conflicts.length} not saved: changed by someone else first)` : '';
+      audit(db, req.user.id, describeChanges(req.body, before) + skipped);
       res.json(result);
     } catch (e) { next(e); }
   });
