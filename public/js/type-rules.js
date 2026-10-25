@@ -14,6 +14,7 @@ export const DEFAULT_TYPE_RULES = [
   r('any', 'simatic, s7-300, s7-400, s7-1200, s7-1500, logo!, modicon, controllogix, compactlogix, guardlogix, micrologix, melsec, plc, programmable controller, saia, pcd, hms industrial, anybus, ewon, wago', 'plc'),
   r('any', 'sinamics, sinumerik, simotion, motion control, powerflex, kinetix, altivar, lexium, movidrive, frequency converter, frequency inverter, servo drive', 'plc'),
   r('any', 'hikvision, ds-2cd, ds-2de, ds-2df, ds-2cv, ds-76, ds-77, ds-86, ds-96, ip camera, network camera, network video recorder, nvr, dvr, axis communications, dahua, cctv', 'camera'),
+  r('any', 'homeserver, facilityserver, feller, knx, gira, loxone, novar, hmi, operator panel, touch panel', 'plc'),
   r('any', 'omnipcx, oxo connect, oxo0, smartnode, patton electronics, mx-one', 'pbx'),
   r('any', 'gs105, gs108, gs110, gs116, gs305, gs308, gs316, gs324, gs724, gs728, gs752, procurve, catalyst, scalance x, unifi switch, usw-, aruba cx, 8320-, 8325-, 8360-, 6100-, 6200f, 6300f, 6300m, 6400-, 2530-, 2540-, 2930f, 2930m, 5406r, 5412r', 'switch'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),

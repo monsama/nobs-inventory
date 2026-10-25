@@ -52,6 +52,15 @@ $locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @
 Check 'ip locations read' $locs.Count 1
 Check 'ip location name' $locs[0].name 'Bern Lager'
 
+# What the push leaves out is counted in Lansweeper and said in the log.
+$Config = @{ MaxAgeDays = 0 }
+$script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }
+$left = Get-LeftOut (New-Conn (New-Table @('total','inactive','old') @(,@('120', '15', '0')))) 100
+Check 'left out: inactive' $left.inactive 15
+Check 'left out: no name' $left.noName 5
+Check 'left out: log line' (Format-LeftOut $left) 'Lansweeper has 120 asset(s); left out: 15 not active in Lansweeper (state other than Active), 5 without a name'
+Check 'left out: none' (Format-LeftOut ([ordered]@{ total = 3; inactive = 0; old = 0; noName = 0 })) 'Lansweeper has 3 asset(s); all are sent'
+
 # The upload: IP locations go with the first batch only.
 $Config = @{ NobsUrl = 'https://nobs.example.ch'; BatchSize = 2 }
 $script:IpLocations = $locs
