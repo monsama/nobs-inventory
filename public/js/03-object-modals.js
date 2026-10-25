@@ -360,8 +360,10 @@ export function renderObj(o){
   const net = rs.filter(x => !isAttached(x.r.kind)), att = rs.filter(x => isAttached(x.r.kind)), byGroup = [...net, ...att];
   const groupHead = i => (net.length && att.length && i === 0 ? '<div class="relgroup">Network</div>' : '') + (net.length && att.length && i === net.length ? '<div class="relgroup">Attached</div>' : '');
   let fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
-  /* Any device can have ports: the port count and naming are offered when its type does not already have them. */
-  if (!fields.some(f => f[0] === 'ports')) fields.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
+  /* A type that usually has no ports (a PC, a printer) shows the port fields only for a device that has ports, or after
+     More -> Add network ports. Setting the ports back to 0 hides them again. */
+  const typePorts = fields.some(f => f[0] === 'ports'), extraPorts = !typePorts && (o.ports > 0 || st.addPorts === o.id);
+  if (extraPorts) fields.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   /* The fields of the type, filled in by hand; their values are kept on the object under custom. */
   fields.push(...(TYPE_FIELDS[o.type] || []).map(f => ['custom.' + f.key, f.label, f.kind]));
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
@@ -378,7 +380,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button><button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${!typePorts && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
@@ -579,6 +581,7 @@ export function renderObj(o){
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
       if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
       if (['ports','sfp'].includes(k)) v = +v || 0;
+      if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
         hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
@@ -615,6 +618,8 @@ export function renderObj(o){
   };
   $('#saveBtn').onclick = () => saveObj();
   $('#dupBtn').onclick = () => newObjModal({copy: o});
+  const ap = $('#addPortsBtn');
+  if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
   $('#delBtn').onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
