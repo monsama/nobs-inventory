@@ -1,4 +1,4 @@
-import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
+import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
@@ -332,7 +332,7 @@ export function renderSoftware(){
       const shown = r.versions.slice(0, 4);
       return `<tr class="sw-row${open ? ' open' : ''}" data-sw="${esc(r.name)}">
         <td class="sw-tgcol"><button class="sw-tg icon ghost" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the devices with ${esc(r.name)}">${swChevron}</button></td>
-        <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceChip(l)).join('')}</td>
+        <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceMark(l)).join('')}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
     }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;

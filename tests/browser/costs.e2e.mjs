@@ -90,8 +90,10 @@ try {
   assert.match(await page.textContent('#licErr'), /3 devices/);
   await page.fill('#licSeats', '2'); await page.click('#licOk');
   await page.waitForSelector('.lic .chip.bad');
-  assert.match(await page.textContent('.lic'), /3 of 2.*1 over/s);
-  assert.match(await page.textContent('#swBody'), /Microsoft 365 Apps.*1 over/s, 'the package row shows its licence');
+  assert.match(await page.textContent('.lic'), /3 used \/ 2 seats.*1 over/s);
+  assert.match(await page.textContent('#swBody'), /Microsoft 365 Apps.*Licence/s, 'the package row shows its licence');
+  assert.match(await page.getAttribute('#swBody .lic-mark', 'title'), /Microsoft 365 Apps: 3 of 2 seats used, 1 over/);
+  assert.match(await page.getAttribute('#swBody .lic-mark', 'class'), /over/, 'marked as over-used');
   if (shots) await page.screenshot({ path: path.join(shots, 'licences.png') });
 
   // the overview: figures and what needs attention, each leading to the list
