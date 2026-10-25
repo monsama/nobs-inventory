@@ -132,10 +132,9 @@ export function renderSetGraph(){
   if (!root) return;
   const edit = canEdit(), ready = SERVER.graph && edit;
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
-    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below, then set the server settings it names.'}</p>
+    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below (its private key is shown once, so download it at once), then set the server settings it names.'}</p>
     <p class="note" id="graphExpiry" style="padding:0 12px 10px"></p>
-    <div class="addrel"><span class="note" id="graphMsg" style="flex:1"></span><button id="graphSync" ${ready ? '' : 'disabled'}>Sync from Microsoft Graph</button></div>
-    <div class="addrel"><span class="note" style="flex:1">${edit ? 'A new certificate is made here. Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}</span><button id="graphCert" ${edit ? '' : 'disabled'}>Create a certificate</button></div>
+    <div class="addrel" style="padding:10px 12px"><button id="graphCert" ${edit ? '' : 'disabled'} title="${edit ? 'Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}">Create a certificate</button><button id="graphSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg"></span></div>
     <div id="graphNew"></div></div>`;
   if (SERVER.graph) fetch('api/graph/status', {credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(j => {
     const el = $('#graphExpiry');
