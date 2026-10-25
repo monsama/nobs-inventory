@@ -30,9 +30,12 @@ export const subnetProblem = n => {
 };
 /* An address as text, from its number. */
 export const intToIp = n => [24, 16, 8, 0].map(s => Math.floor(n / 2 ** s) % 256).join('.');
-/* The first address in a subnet's ranges that is not in use, or null when the ranges are full. */
+/* A range the DHCP server hands out, or one kept back: no address is picked from it for a device. */
+export const rangeKeptOut = r => /^(dhcp|reserved)$/i.test(String(r && r.use || '').trim());
+/* The first address in a subnet's ranges that is not in use, or null when the ranges are full. DHCP and reserved ranges
+   are skipped. */
 export const freeAddress = (subnet, used) => {
-  for (const r of subnet.ranges || []) {
+  for (const r of (subnet.ranges || []).filter(x => !rangeKeptOut(x))) {
     const a = ipInt(r.from), b = ipInt(r.to);
     if (a === null || b === null) continue;
     for (let x = a; x <= b; x++) if (!used.has(x)) return intToIp(x);

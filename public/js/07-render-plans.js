@@ -87,9 +87,9 @@ export function renderPlans(){
       <button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
-        ${editArea && planMode === 'view' ? `<button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
+        ${editArea && planMode === 'view' ? `<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${esc(editArea.name)}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
         ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
-        <button id="plReplace">Replace image</button>
+        <button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
         <button id="plDel" class="danger-text">Delete plan</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
@@ -115,6 +115,8 @@ export function renderPlans(){
   on('#plAreaDone', () => planEditArea ? addPartsToArea(plan) : areaModal(plan, planParts));
   on('#plAreaDiscard', () => { planParts = []; renderPlans(); });
   on('#plReplace', () => planModal(plan));
+  on('#plEdit', () => planEditModal(plan));
+  on('#plAreaEdit', () => { const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) areaEditModal(plan, a); });
   const zoom = v => { planZoom = Math.max(0.5, Math.min(3, Math.round(v * 100) / 100)); renderPlans(); };
   on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
   on('#plDel', () => deletePlanModal(plan));
@@ -410,6 +412,44 @@ export function planModal(existing){
     planMode = 'view'; queueServerSave(); closeModal(); toast('Plan saved'); renderPlans();
   };
   if (!existing) $('#plName').focus();
+}
+/* A plan's name can be changed at any time; its site only while it has no areas, since each area is a room of the site. */
+export function planEditModal(plan){
+  const locked = (plan.areas || []).length > 0;
+  modal(`<div class="mh">Edit ${esc(plan.name)}</div><div class="mb"><div class="form" style="padding:0">
+      <label for="peName">Name</label><input id="peName" maxlength="60" value="${esc(plan.name)}">
+      <label for="peSite">Site</label><select id="peSite" ${locked ? 'disabled' : ''}>${[...new Set([...SITES, plan.site].filter(Boolean))].map(x => `<option ${x === plan.site ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+    ${locked ? `<p class="note">The site stays while the plan has areas: each area is a room of ${esc(plan.site)}.</p>` : ''}</div>
+    <div class="mf"><button id="peCancel">Cancel</button><button id="peOk" class="primary">Save</button></div>`, 'sm');
+  $('#peCancel').onclick = closeModal;
+  $('#peOk').onclick = () => {
+    const name = $('#peName').value.trim();
+    if (!name){ toast('Give the plan a name.'); return; }
+    plan.name = name; if (!locked) plan.site = $('#peSite').value;
+    queueServerSave(); closeModal(); toast('Plan saved'); renderPlans();
+  };
+  $('#peName').focus();
+}
+/* An area can be renamed and given another room of the plan's site. Devices already in its room stay there: an area
+   without a room of its own keeps the one named after it, so renaming it moves nobody. */
+export function areaEditModal(plan, area){
+  const own = `${plan.site} / ${area.name}`;
+  const cur = area.room || (LOCS.includes(own) ? own : '');
+  const rooms = [...new Set([...LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / ')), cur].filter(Boolean))];
+  modal(`<div class="mh">Edit ${esc(area.name)}</div><div class="mb"><div class="form" style="padding:0">
+      <label for="aeName">Name</label><input id="aeName" maxlength="60" value="${esc(area.name)}">
+      <label for="aeRoom">Room</label><select id="aeRoom">${cur ? '' : '<option value="">A new room, named like the area</option>'}${rooms.map(l => `<option value="${esc(l)}" ${l === cur ? 'selected' : ''}>${esc(l.split(' / ').slice(1).join(' / '))}</option>`).join('')}</select></div>
+    <p class="note">Devices placed inside the area get its room as their location.</p></div>
+    <div class="mf"><button id="aeCancel">Cancel</button><button id="aeOk" class="primary">Save</button></div>`, 'sm');
+  $('#aeCancel').onclick = closeModal;
+  $('#aeOk').onclick = () => {
+    const name = $('#aeName').value.trim(), room = $('#aeRoom').value;
+    if (!name){ toast('Give the area a name.'); return; }
+    area.name = name;
+    if (room) area.room = room; else delete area.room;
+    queueServerSave(); closeModal(); toast('Area saved'); renderPlans();
+  };
+  $('#aeName').focus();
 }
 export function deletePlanModal(plan){
   modal(`<div class="mh">Delete ${esc(plan.name)}?</div><div class="mb"><p class="note">The plan and its areas are removed. Devices placed on it stay in the inventory, but are no longer shown on a plan.</p></div>

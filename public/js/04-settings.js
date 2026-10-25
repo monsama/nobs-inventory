@@ -1,10 +1,10 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { COMPANY, dayText, daysSince } from './01-core.js';
-import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { collapsedPanels, rememberPanel, FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
-import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 import { CARD_FIELDS, cardLines } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -12,11 +12,13 @@ import { sheetModal } from './08-sheets.js';
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
+  snEdit = null; snDraft = null;   /* Settings opens with no subnet half edited */
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
+  collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = () => { closeModal(); render(); };
   const sr = $('#setReset');
   if (sr) sr.onclick = () => clearConfirm();
@@ -69,7 +71,7 @@ export function renderSetModels(){
   const names = modelNames();
   root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
     <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
-    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : ''}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
+    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : '<span></span>'}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
   if (!edit) return;
   root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
   root.querySelectorAll('[data-mdx]').forEach(b => b.onclick = () => removeModel(names[+b.dataset.mdx]));
@@ -105,7 +107,7 @@ export function renderTypeMap(){
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
-    <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${ro}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
+</div>`;
   const put = (list, name) => {
     st.typeMap = Object.fromEntries(list.filter(([n]) => n));
     const changed = applyTypeMap(name?.toLowerCase()); if (changed) toast(`${changed} synced ${changed === 1 ? 'device' : 'devices'} changed type`);
@@ -121,7 +123,7 @@ export function renderTypeMap(){
     if (entries.some(([n]) => n.toLowerCase() === name.toLowerCase())){ toast(name + ' is already in the table.'); return; }
     put([...entries, [name, $('#tmType').value]], name);
   };
-  $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
+
 }
 /* The type rules: shipped with the app and editable here. The first rule that matches a device decides its type. A copy
    of the shipped list is kept once it is changed; Back to the defaults goes back to the shipped one. */
@@ -280,15 +282,31 @@ async function refreshGraph(){
   if (j) SERVER.graph = !!j.graph;
   await renderSetGraph();
 }
+/* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
+   The sections draw themselves again often, so the state is put back on each new title as it appears. */
+export function collapsibleSections(root, prefix){
+  const keyOf = h => prefix + (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
+  const apply = () => root.querySelectorAll('.panelbox > .hdr:not(.sechdr)').forEach(h => {
+    if (h.parentNode.parentElement.closest('.panelbox')) return;   /* a box inside a section opens with it */
+    h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
+    const closed = !!collapsedPanels()[keyOf(h)];
+    h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
+  });
+  const toggle = h => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(keyOf(h), c); };
+  root.addEventListener('click', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h); });
+  root.addEventListener('keydown', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggle(h); } });
+  new MutationObserver(apply).observe(root, {childList: true, subtree: true});
+  apply();
+}
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
+  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p><div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div><div id="setTypeRules"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
     directory: '<div id="setLdap"></div><div id="setGraph"></div>',
-    locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
+    locations: '<div id="setLocs"></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div><div class="panelbox" id="setSubnets"></div><div class="panelbox" id="setDomains"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>',
@@ -297,6 +315,7 @@ export function renderSetPane(){
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
+  const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
   fullTextTooltips(pane);
   ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
@@ -437,8 +456,9 @@ export function renderSetUsers(){
   for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
   const devicesOfUser = name => devCount.get(name) || 0;
   const rows = USERS.map((u, i) => `<tr>
-      <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept">Manual</span>'}</td>
+      ${u.source === 'ldap' ? `<td title="From LDAP: changed in the directory">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
+      ${u.source === 'ldap' ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
+      <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
@@ -458,6 +478,22 @@ export function renderSetUsers(){
     const u = USERS[+c.dataset.act];
     if (!c.checked && u.role === 'admin' && activeAdmins() <= 1){ toast('At least one active admin is needed.'); c.checked = true; return; }
     u.active = c.checked; queueServerSave(); renderSetUsers();
+  });
+  /* A user entered here or named by Lansweeper can be renamed; their devices move to the new name with them. Users from
+     LDAP are named in the directory. */
+  root.querySelectorAll('[data-uname]').forEach(i => i.onchange = () => {
+    const u = USERS[+i.dataset.uname], was = u.name, name = i.value.trim().replace(/\s+/g, ' ');
+    if (!name){ i.value = was; toast('A user needs a name.'); return; }
+    if (name === was) return;
+    if (USERS.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already a user.'); return; }
+    u.name = name; delete u.first; delete u.last;
+    for (const o of objs) if (o.user === was){ o.user = name; hist(o, now(), `User ${was} renamed to ${name} by ${who()}`); }
+    queueServerSave(); toast(`${was} is now ${name}`); renderSetUsers(); render();
+  });
+  root.querySelectorAll('[data-udept]').forEach(i => i.onchange = () => {
+    const u = USERS[+i.dataset.udept], dept = i.value.trim();
+    if (dept) u.dept = dept; else delete u.dept;
+    queueServerSave(); toast('Department saved'); renderSetUsers();
   });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
@@ -743,75 +779,112 @@ export function passwordModal(u){
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 /* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
-const subnetFromRow = row => {
-  const q = s => row.querySelector(s);
-  const ranges = q('[data-sr]').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-    const m = /^(\S+?)\s*-\s*(\S+)(?:\s+(.+))?$/.exec(l);
-    return m ? {from: m[1], to: m[2], ...(m[3] ? {use: m[3].trim()} : {})} : {from: '', to: ''};
-  });
+/* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
+const RANGE_USES = ['DHCP', 'Static', 'Reserved'];
+const rangeRowHtml = (r = {}) => {
+  const use = r.use || '', opts = [...new Set(['', ...RANGE_USES, use])];
+  return `<div class="sn-range"><input data-rf class="mono" placeholder="10.10.20.50" value="${esc(r.from || '')}" aria-label="First address">
+    <span class="muted">to</span><input data-rt class="mono" placeholder="10.10.20.99" value="${esc(r.to || '')}" aria-label="Last address">
+    <select data-ru aria-label="Use of the range">${opts.map(u => `<option value="${esc(u)}" ${u === use ? 'selected' : ''}>${u ? esc(u) : 'No use set'}</option>`).join('')}</select>
+    <button type="button" class="sn-rx" data-rx aria-label="Remove this range" title="Remove this range">×</button></div>`;
+};
+/* A subnet as typed in the editor. A range left empty is dropped; a half-filled one is kept, so the check says what is wrong. */
+const subnetFromEditor = ed => {
+  const q = s => ed.querySelector(s);
+  const ranges = [...ed.querySelectorAll('.sn-range')].map(r => ({from: r.querySelector('[data-rf]').value.trim(), to: r.querySelector('[data-rt]').value.trim(), use: r.querySelector('[data-ru]').value}))
+    .filter(r => r.from || r.to).map(r => ({from: r.from, to: r.to, ...(r.use ? {use: r.use} : {})}));
   return {
     name: q('[data-sn]').value.trim(), vid: q('[data-sv]').value === '' ? null : +q('[data-sv]').value,
     cidr: q('[data-sc]').value.trim(), gateway: q('[data-sg]').value.trim(),
     dns: q('[data-sd]').value.split(',').map(x => x.trim()).filter(Boolean), ranges,
-    types: [...row.querySelectorAll('[data-sty]:checked')].map(c => c.value)
+    types: [...ed.querySelectorAll('[data-sty]:checked')].map(c => c.value)
   };
 };
-const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
-    <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" ${ro}></label>
-    <label>VLAN<select data-sv ${ro}><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
-    <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}" ${ro}></label>
-    <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}" ${ro}></label>
-    <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
-    <label class="span3">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
-    <fieldset class="sn-types"><legend>Device types that take an address here</legend>${Object.entries(TYPES).map(([k, t]) => `<label class="pchk"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''} ${ro}>${esc(t.label)}</label>`).join('')}</fieldset>
-    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}">Delete</button>`}</div></div>`;
+/* The editor of one subnet, for a new one or one in the list. A note says what was filled in from Lansweeper. */
+const subnetEditorHtml = (n, key, hint = '') => `<div class="sn-edit" data-sub="${key}">
+    <div class="sn-grid">
+      <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" placeholder="e.g. Office Bern"></label>
+      <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}"></label>
+      <label>VLAN<select data-sv><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
+      <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}"></label>
+      <label class="span2">DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}"></label>
+    </div>
+    <div class="sn-sect"><div class="sn-sh">Ranges<button type="button" data-radd>Add range</button></div>
+      <div class="sn-ranges">${(n.ranges || []).map(rangeRowHtml).join('')}</div>
+      <p class="note">"Pick from range" on a device takes the first free address of a Static range, or of one without a use; DHCP and Reserved ranges are left out.</p></div>
+    <div class="sn-sect"><div class="sn-sh">Device types that take an address here<span class="sn-tq"><button type="button" class="link" data-tall>All</button><button type="button" class="link" data-tnone>None</button></span></div>
+      <div class="sn-typegrid">${Object.entries(TYPES).map(([k, t]) => `<label class="sn-type"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''}>${tico(k, 'tico sm')}<span>${esc(t.label)}</span></label>`).join('')}</div></div>
+    ${hint ? `<p class="note sn-hint">${hint}</p>` : ''}
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span><span class="grow"></span><button type="button" data-scancel>Cancel</button><button type="button" class="primary" data-ssave>${key === 'new' ? 'Add subnet' : 'Save'}</button></div></div>`;
+/* A subnet in the list: its name, address and VLAN, with the gateway, ranges and device types underneath. */
+const subnetItemHtml = (n, i, edit) => {
+  const ranges = (n.ranges || []).map(r => `${r.use ? esc(r.use) + ' ' : ''}<span class="mono">${esc(r.from)}${r.to !== r.from ? '–' + esc(r.to.split('.').pop()) : ''}</span>`).join(', ');
+  const types = (n.types || []).filter(t => TYPES[t]).map(t => TYPES[t].label);
+  const meta = [n.gateway ? `Gateway <span class="mono">${esc(n.gateway)}</span>` : '', (n.dns || []).length ? `DNS <span class="mono">${esc(n.dns.join(', '))}</span>` : '',
+    ranges ? `Ranges ${ranges}` : 'No ranges', types.length ? `For ${esc(types.slice(0, 4).join(', '))}${types.length > 4 ? ` and ${types.length - 4} more` : ''}` : 'No device types'].filter(Boolean);
+  return `<div class="sn-item"><div class="sn-head"><b>${esc(n.name)}</b><span class="mono">${esc(n.cidr)}</span>${n.vid != null ? `<span class="chip">VLAN ${n.vid}</span>` : ''}<span class="grow"></span>
+    ${edit ? `<button data-sedit="${i}">Edit</button><button data-sx="${i}">Delete</button>` : ''}</div><div class="sn-meta">${meta.join(' · ')}</div></div>`;
+};
+/* Which subnet is open in the editor: 'new', a position in the list, or none; and what a new one starts with. */
+let snEdit = null, snDraft = null;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
-  const edit = canEdit(), ro = edit ? '' : 'disabled';
-  /* Subnets the devices' adapters are in that the list does not have yet. Use fills in the form; nothing is added by itself. */
+  const edit = canEdit();
+  if (!edit) snEdit = null;
+  /* Subnets the devices' adapters are in that the list does not have yet. Use opens the editor filled in; nothing is added by itself. */
   const suggested = (st.lsNets || []).filter(n => !SUBNETS.some(x => x.cidr === n.cidr));
   root.innerHTML = `<div class="hdr">Subnets <span class="cnt">${SUBNETS.length}</span></div>
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
-    <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => subnetRowHtml(n, i, ro)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
-    ${edit ? `<div class="subnet-new"><p class="note" style="padding:0 0 6px">Add a subnet</p>${subnetRowHtml({}, 'new', '')}<button id="snAdd">Add subnet</button></div>` : ''}
-    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
+    <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => snEdit === i ? subnetEditorHtml(n, i) : subnetItemHtml(n, i, edit && snEdit === null)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
+    ${snEdit === 'new' ? subnetEditorHtml(snDraft ? snDraft.n : {}, 'new', snDraft ? snDraft.hint : '') : edit ? `<div class="sn-addbar"><button id="snNew">Add subnet</button></div>` : ''}
+    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
-  root.querySelectorAll('[data-sub]').forEach(row => {
-    const i = row.dataset.sub;
-    if (i === 'new') return;
-    row.querySelectorAll('input,select,textarea').forEach(el => el.onchange = () => {
-      const v = subnetFromRow(row), problem = subnetProblem(v);
-      if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
-      const others = SUBNETS.filter((_, k) => k !== +i), clash = overlapProblem([...others, v]);
-      if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
-      /* A subnet written with a new address keeps its devices: they point at it by its address. */
-      const was = SUBNETS[+i].cidr;
-      if (was !== v.cidr) for (const o of objs) if (o.subnet === was){ o.subnet = v.cidr; hist(o, now(), `Subnet ${v.name} is now ${v.cidr} (was ${was}), changed by ${who()}`); }
-      SUBNETS[+i] = v; queueServerSave(); toast('Subnet saved'); renderSetSubnets();
-    });
-  });
+  const open = (key, draft = null) => { snEdit = key; snDraft = draft; renderSetSubnets(); const f = root.querySelector('.sn-edit [data-sn]'); if (f) f.focus(); };
+  root.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => open(+b.dataset.sedit));
+  const nb = $('#snNew'); if (nb) nb.onclick = () => open('new');
   root.querySelectorAll('[data-sx]').forEach(b => b.onclick = () => {
     const gone = SUBNETS[+b.dataset.sx];
+    if (!confirm(`Delete the subnet ${gone.name} (${gone.cidr})? Devices on it keep their addresses.`)) return;
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
   });
+  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
+     of address (DHCP, static) from the lowest to the highest address seen. */
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
-    const n = suggested[+b.dataset.snuse], row = root.querySelector('[data-sub="new"]');
-    row.querySelector('[data-sn]').value = n.name || n.cidr; row.querySelector('[data-sc]').value = n.cidr;
-    row.querySelector('[data-sg]').value = n.gateway || ''; row.querySelector('[data-sd]').value = (n.dns || []).join(', ');
-    row.querySelector('[data-sn]').focus();
+    const n = suggested[+b.dataset.snuse];
+    const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
+    const seen = n.seen || [];
+    const hint = `Filled in from what Lansweeper saw in ${esc(n.cidr)}: ${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${types.length ? ` of ${types.length} ${types.length === 1 ? 'type' : 'types'}` : ''}.`
+      + (seen.length ? ` Each range runs from the lowest to the highest address seen of its kind (${seen.map(x => `${x.use}: ${x.count}`).join(', ')}): check them against your DHCP server before saving.` : '');
+    open('new', {n: {name: n.name || n.cidr, cidr: n.cidr, gateway: n.gateway || '', dns: n.dns || [], types, ranges: seen.map(x => ({from: x.from, to: x.to, use: x.use}))}, hint});
   });
-  const add = $('#snAdd');
-  if (add) add.onclick = () => {
-    const row = root.querySelector('[data-sub="new"]'), v = subnetFromRow(row), problem = subnetProblem(v);
-    if (problem){ row.querySelector('.snmsg').innerHTML = warn(problem); return; }
-    const clash = overlapProblem([...SUBNETS, v]);
-    if (clash){ row.querySelector('.snmsg').innerHTML = warn(clash); return; }
-    SUBNETS.push(v); queueServerSave(); toast('Subnet added'); renderSetSubnets();
+  const ed = root.querySelector('.sn-edit');
+  if (!ed) return;
+  const key = ed.dataset.sub;
+  const bindRanges = () => ed.querySelectorAll('[data-rx]').forEach(x => x.onclick = () => x.closest('.sn-range').remove());
+  bindRanges();
+  ed.querySelector('[data-radd]').onclick = () => { ed.querySelector('.sn-ranges').insertAdjacentHTML('beforeend', rangeRowHtml({use: 'Static'})); bindRanges(); ed.querySelector('.sn-range:last-child [data-rf]').focus(); };
+  ed.querySelector('[data-tall]').onclick = () => ed.querySelectorAll('[data-sty]').forEach(c => { c.checked = true; });
+  ed.querySelector('[data-tnone]').onclick = () => ed.querySelectorAll('[data-sty]').forEach(c => { c.checked = false; });
+  ed.querySelector('[data-scancel]').onclick = () => { snEdit = null; snDraft = null; renderSetSubnets(); };
+  ed.querySelector('[data-ssave]').onclick = () => {
+    const v = subnetFromEditor(ed), problem = subnetProblem(v), msg = ed.querySelector('.snmsg');
+    if (problem){ msg.innerHTML = warn(problem); return; }
+    const others = key === 'new' ? SUBNETS : SUBNETS.filter((_, k) => k !== +key), clash = overlapProblem([...others, v]);
+    if (clash){ msg.innerHTML = warn(clash); return; }
+    if (key === 'new'){ SUBNETS.push(v); toast('Subnet added'); }
+    else {
+      /* A subnet written with a new address keeps its devices: they point at it by its address. */
+      const was = SUBNETS[+key].cidr;
+      if (was !== v.cidr) for (const o of objs) if (o.subnet === was){ o.subnet = v.cidr; hist(o, now(), `Subnet ${v.name} is now ${v.cidr} (was ${was}), changed by ${who()}`); }
+      SUBNETS[+key] = v; toast('Subnet saved');
+    }
+    snEdit = null; snDraft = null; queueServerSave(); renderSetSubnets();
   };
 }
 export function renderSetVlans(){
+  const cnt = $('#vlCnt'); if (cnt) cnt.textContent = VLANS.length;
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
   const subnetsOn = vid => SUBNETS.filter(n => n.vid === vid).length;
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
@@ -845,11 +918,21 @@ export function renderSetVlans(){
 export function renderSetDomains(){
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
   $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
-    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><span class="mono">${esc(d.name)}</span><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
+    <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><input data-dname="${i}" class="mono" maxlength="60" value="${esc(d.name)}" aria-label="Domain ${esc(d.name)}"><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
     <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>`;
   const root = $('#setDomains');
   root.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOMAINS.splice(+b.dataset.dd, 1); queueServerSave(); toast('Domain deleted'); renderSetDomains(); render(); });
   root.querySelectorAll('[data-ddesc]').forEach(i => i.onchange = () => { DOMAINS[+i.dataset.ddesc].desc = i.value.trim(); queueServerSave(); renderSetDomains(); });
+  /* A domain can be renamed; the objects in it move with it. */
+  root.querySelectorAll('[data-dname]').forEach(i => i.onchange = () => {
+    const d = DOMAINS[+i.dataset.dname], was = d.name, name = i.value.trim();
+    if (!name || name === was) { i.value = was; return; }
+    if (/\s/.test(name)){ i.value = was; toast('A domain name has no spaces.'); return; }
+    if (DOMAINS.some(x => x !== d && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already listed.'); return; }
+    d.name = name;
+    for (const o of objs) if (o.domain === was){ o.domain = name; hist(o, now(), `Domain ${was} renamed to ${name} by ${who()}`); }
+    queueServerSave(); toast(`${was} is now ${name}`); renderSetDomains(); render();
+  });
   const add = () => {
     const name = $('#dmName').value.trim(), desc = $('#dmDesc').value.trim();
     if (!name){ toast('Write the domain name.'); return; }
@@ -986,11 +1069,16 @@ export function renderSetTypeFields(){
   const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
-  box.innerHTML = `<div class="panelbox"><div class="hdr">Fields per type</div>
-    <p class="note">Each type can have its own fields, filled in by hand on every object of that type. Removing a field hides its values on the objects, and they come back if it is added again.</p>
-    <div class="addrel"><label for="tfType" class="muted">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
+  const tl = esc(TYPES[type].label), nOf = objs.filter(o => o.type === type).length;
+  box.innerHTML = `<div class="panelbox tf-box"><div class="hdr">Per type</div>
+    <div class="tf-pick"><label for="tfType">Settings for</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'} of this type</span></div>
+    <p class="note">The fields of this type on its object page, its own fields and the four lines of its card.</p>
+    <div id="tfBuiltin"></div>
+    <div class="tf-sub"><div class="tf-sh">Own fields of ${tl}</div>
+    <p class="note tf-note">Filled in by hand on every ${tl}. Removing a field hides its values; they come back if it is added again.</p>
     <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>`;
+    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>
+    <div id="tfCard"></div></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
   /* A field's name can be changed; its key stays, so the values already entered are kept. */
   box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
@@ -1012,15 +1100,15 @@ export function renderSetTypeFields(){
   };
   $('#tfAdd').onclick = add;
   $('#tfLabel').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
-  renderBuiltinFields(box, type);
-  renderCardLines(box, type);
+  renderBuiltinFields($('#tfBuiltin'), type);
+  renderCardLines($('#tfCard'), type);
 }
 /* The four lines a card shows for this type. Every card of the type shows the same four, so cards line up. */
 export function renderCardLines(box, type){
   const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
-  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">On the card</div>
-    <p class="note" style="padding:0 12px 8px">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
+  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">On the ${esc(TYPES[type].label)} card</div>
+    <p class="note tf-note">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
     <div class="cardlines">${cur.map((k, i) => `<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => `<option value="${esc(v)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}
       <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`);
   const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
@@ -1037,11 +1125,14 @@ export function renderBuiltinFields(box, type){
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
   const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch}; save(next); };
-  box.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Built-in fields</div>
-    <p class="note" style="padding:0 12px 8px">Rename a field, hide it for this type (its values are kept), or move it up or down. The stored name of a field does not change.</p>
+  /* How many objects of the type have a value in the field: where the field is used. */
+  const ofType = objs.filter(o => o.type === type);
+  const filled = k => ofType.filter(o => { const v = o[k]; return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
+  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">Fields on the ${esc(TYPES[type].label)} page<span class="muted">Filled in</span></div>
+    <p class="note tf-note">Rename a field, hide it for ${esc(TYPES[type].label)} (its values are kept), or move it up or down. Filled in counts the ${esc(TYPES[type].label)} objects that have a value.</p>
     <div class="lrows">${ordered.map((f, i) => {
-      const hidden = (lay.hidden || []).includes(f[0]);
-      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}"><span class="mono muted">${esc(f[0])}</span>
+      const hidden = (lay.hidden || []).includes(f[0]), n = filled(f[0]);
+      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}" title="Stored as ${esc(f[0])}"><span class="fl-use ${n ? '' : 'muted'}">${ofType.length ? `${n} of ${ofType.length}` : '—'}</span>
         <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
         <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
     }).join('')}</div></div>`);
@@ -1125,7 +1216,7 @@ export async function loadPushInfo(){
 }
 /* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
 /* A date for people: "22 Oct 2026, 18:03". */
-export const pushDate = v => (v ? new Date(v).toLocaleString(undefined, {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '');
+export const pushDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){
   const c = pushLast ? pushLast.counts : null;
@@ -1170,7 +1261,7 @@ export function renderSetFeed(){
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
-  <div class="panelbox"><div class="hdr">Export file <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
+  <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
     <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;

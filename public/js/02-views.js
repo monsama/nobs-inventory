@@ -3,7 +3,7 @@ import { scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_S
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
-import { USERS, bindUser, checkAddress, devicesOf, rackOf, showDevicesOf } from './04-settings.js';
+import { USERS, bindUser, canEdit, checkAddress, devicesOf, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, modal } from './03-object-modals.js';
 /* ---------- sidebar ---------- */
 export function renderSide(){
@@ -691,7 +691,12 @@ export function portSetupError(sw, ports, sfp){
 }
 export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
-  if (!devs.length){ $('#toolbar').innerHTML = ''; $('#view').innerHTML = '<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.</div>'; return; }
+  if (!devs.length){
+    $('#toolbar').innerHTML = '';
+    $('#view').innerHTML = `<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${canEdit() ? ' <button class="primary" id="portsNew">New switch</button>' : ''}</div>`;
+    const b = $('#portsNew'); if (b) b.onclick = () => newObjModal({type: 'switch'});
+    return;
+  }
   const sw = byId(st.portsDevice) || devs[0];
   $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
@@ -719,6 +724,9 @@ export function renderPorts(){
     return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${grp}" data-port="${p}" ${single?'disabled':''} title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
+  /* A group being edited fills the form at the bottom; Save group writes it back in its place. */
+  if (st.pgEdit && (st.pgEdit.sw !== sw.id || !groups0[st.pgEdit.i])) st.pgEdit = null;
+  const pgEditing = st.pgEdit ? groups0[st.pgEdit.i] : null;
   const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }
   const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
   const usedN = used(sw);
@@ -758,8 +766,8 @@ export function renderPorts(){
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="What is on this port, e.g. Printer, 3rd floor" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
     ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn">Plug a device in…</button>`}</div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
-      <div class="addrel"><input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag"> LAG</label><button id="pgAdd">Add group</button></div></div>
+      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
+      <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
       ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
@@ -771,16 +779,27 @@ export function renderPorts(){
     if (rels.some(r => (r.to === sw.id && r.lag === g.name) || (r.from === sw.id && r.fromLag === g.name))){ toast(`${g.name} is linked. Remove its link first.`); return; }
     sw.portGroups.splice(+b.dataset.delgroup, 1); queueServerSave(); toast('Port group removed'); render();
   });
+  $('#view').querySelectorAll('[data-editgroup]').forEach(b => b.onclick = () => { st.pgEdit = {sw: sw.id, i: +b.dataset.editgroup}; render(); $('#pgName').focus(); });
+  const pgCancel = $('#pgCancel'); if (pgCancel) pgCancel.onclick = () => { st.pgEdit = null; render(); };
   const pgAdd = $('#pgAdd'); if (pgAdd) pgAdd.onclick = () => {
     const name = $('#pgName').value.trim(), from = +$('#pgFrom').value, to = +($('#pgTo').value || $('#pgFrom').value), kind = $('#pgKind').value.trim();
+    const editing = pgEditing, others = groups0.filter(g => g !== editing);
     if (!name){ toast('Give the group a name.'); return; }
     if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
-    if (groups0.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
-    if (groups0.some(g => g.name.toLowerCase() === name.toLowerCase())){ toast(`There is already a group named ${name}. Give it another name.`); return; }
-    if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to)){ toast('A device is on one of these ports. Move it first.'); return; }
+    if (others.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
+    if (others.some(g => g.name.toLowerCase() === name.toLowerCase())){ toast(`There is already a group named ${name}. Give it another name.`); return; }
+    /* A device on a port the group did not have yet must move first; one already in the group stays. */
+    const wasIn = p => editing && p >= editing.from && p <= editing.to;
+    if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to && !wasIn(r.port))){ toast('A device is on one of these ports. Move it first.'); return; }
     const lag = $('#pgLag').checked;
-    sw.portGroups = [...groups0, {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})}];
-    queueServerSave(); toast('Port group added'); render();
+    const next = {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})};
+    if (!editing){ sw.portGroups = [...groups0, next]; queueServerSave(); toast('Port group added'); render(); return; }
+    /* A linked LAG stays a LAG of the same size, so it still matches the LAG on the other end; a new name moves with its link. */
+    const link = editing.lag ? lagLinkOf(sw, editing) : null;
+    if (link && (!lag || to - from !== editing.to - editing.from)){ toast(`${editing.name} is linked to a LAG of ${editing.to - editing.from + 1} ports. Keep it a LAG of that size, or remove the link first.`); return; }
+    if (link && name !== editing.name) for (const r of rels){ if (r.to === sw.id && r.lag === editing.name) r.lag = name; if (r.from === sw.id && r.fromLag === editing.name) r.fromLag = name; }
+    sw.portGroups = groups0.map(g => g === editing ? next : g);
+    st.pgEdit = null; queueServerSave(); toast('Port group saved'); render();
   };
   const ps = $('#psSave'); if (ps) ps.onclick = () => {
     const ports = $('#psPorts').value === '' ? NaN : +$('#psPorts').value, sfp = $('#psSfp').value === '' ? NaN : +$('#psSfp').value, pfx = $('#psPfx').value.trim();
