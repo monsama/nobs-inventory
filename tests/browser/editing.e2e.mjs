@@ -123,6 +123,20 @@ try {
   await p.fill('#f_p1_gateway', '10.20.0.254'); await p.locator('#f_p1_gateway').press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').gateway === '10.20.0.254');
 
+  // the sidebar: a search stays on while switching types and looks within the type; a type clicked again shows all
+  assert.equal(await p.locator('#searchAll').count(), 0, 'no separate All devices option');
+  await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render(); });
+  await p.fill('#search', 'SW-'); await p.waitForTimeout(200);
+  const cards = () => p.$$eval('#view .card', cs => cs.map(c => c.dataset.open).sort());
+  assert.deepEqual(await cards(), ['s1', 's2'], 'both switches match');
+  await p.click('#typeList [data-type=pc]');
+  assert.deepEqual(await cards(), [], 'the search looks within PCs');
+  await p.click('#typeList [data-type=switch]');
+  assert.deepEqual(await cards(), ['s1', 's2']);
+  await p.click('#typeList [data-type=switch]');
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null, 'a type clicked again goes back to all');
+  await p.fill('#search', ''); await p.waitForTimeout(150);
+
   // no racks: New rack opens New object with the type Rack
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
