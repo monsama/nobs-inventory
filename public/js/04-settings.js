@@ -372,7 +372,7 @@ export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapA
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
-  $('#newBtn').disabled = ro;
+  $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
