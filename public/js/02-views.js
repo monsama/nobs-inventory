@@ -182,7 +182,7 @@ export function cardHtml(o, idx){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${scanChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 export function renderCardsBody(){
@@ -254,7 +254,7 @@ export const TABLE_COLS = [
   {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
-  {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}${scanChip(o)}</td>`}
+  {k:'ls', label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice'];
