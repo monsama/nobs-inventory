@@ -1,4 +1,4 @@
-import { FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -134,7 +134,7 @@ export const CARD_FIELDS = {
   serial: ['Serial', o => mono(o.serial)],
   os: ['OS', o => esc(o.os || '')],
   fw: ['Firmware', o => esc(o.fw || '')],
-  ports: ['Ports', o => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o)} used` : ''],
+  ports: ['Ports', (o, idx) => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o, idx)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o, idx)} used` : ''],
   ext: ['Extension', o => mono(o.ext)],
   kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : 'Physical') : ''],
   cap: ['Capacity', o => esc([o.cap, o.proto].filter(Boolean).join(' · '))],
@@ -159,17 +159,18 @@ export const cardLines = type => {
   return (Array.isArray(set) && set.length ? [...set, '', '', '', ''] : CARD_DEFAULTS[type] || CARD_DEFAULTS.other).slice(0, 4);
 };
 /* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
-export function cardLine(o, key){
+export function cardLine(o, key, idx){
   if (key.startsWith('custom.')){
     const f = (TYPE_FIELDS[o.type] || []).find(x => x.key === key.slice(7)), v = (o.custom || {})[key.slice(7)];
     return [f ? f.label : key.slice(7), v != null && v !== '' ? esc(String(v)) : ''];
   }
   const c = CARD_FIELDS[key];
-  return c ? [c[0], c[1](o)] : ['', ''];
+  return c ? [c[0], c[1](o, idx)] : ['', ''];
 }
-export function cardHtml(o){
-  const rs = relsOf(o);
-  const lines = cardLines(o.type).map(k => cardLine(o, k));
+/* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
+export function cardHtml(o, idx){
+  const rs = relsOf(o, idx);
+  const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
@@ -194,13 +195,14 @@ export function renderCardsBody(){
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     return;
   }
-  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(cardHtml).join('')}</div>`; return; }
+  const idx = relIndex(), card = o => cardHtml(o, idx);
+  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
   st.groupsClosed ??= {};
   $('#view').innerHTML = groups.map(g => {
     const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
-    return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(cardHtml).join('')}</div></section>`;
+    return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(card).join('')}</div></section>`;
   }).join('');
   $('#view').querySelectorAll('.grphdr').forEach(h => {
     const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
@@ -240,7 +242,7 @@ export const TABLE_COLS = [
   {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
   {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
   {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
-  {k:'conn', label:'Connected to', cell: o => { const up = rels.find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
+  {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', label:'Lansweeper', cell: o => `<td>${syncChip(o) || '—'}</td>`}
@@ -282,11 +284,12 @@ export function renderTable(){
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => { if (!bk.value) return; st.bulk.forEach(id => { const o = byId(id); o.loc = bk.value; hist(o, now(), 'Moved to ' + bk.value + ' (bulk)'); }); toast(n + ' moved to ' + bk.value); renderTable(); render(); };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
+  const idx = relIndex();   /* one index of the relations for all rows */
   const shown = TABLE_COLS.filter(c => c.fixed || !hiddenCols().includes(c.k));
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
     <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o)).join('')}</tr>`).join('')}
+    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });

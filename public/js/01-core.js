@@ -160,7 +160,16 @@ export const markHtml = o => {
   const byHand = !!o.handAt && Date.parse(o.handAt) > SYNC.time;
   return (isNew ? '<span class="mk mk-new">New</span>' : '') + (byHand ? '<span class="mk mk-hand">Edited by hand</span>' : '');
 };
-export const byId = id => objs.find(o => o.id === id);
+/* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
+   was refilled, sorted or spliced is never answered from a stale index: a miss rebuilds it once. */
+let ID_AT = new Map();
+const idAt = id => { const i = ID_AT.get(id); return i !== undefined && objs[i] && objs[i].id === id ? objs[i] : undefined; };
+export const byId = id => {
+  const hit = idAt(id);
+  if (hit) return hit;
+  ID_AT = new Map(objs.map((o, i) => [o.id, i]));
+  return idAt(id);
+};
 /* The browser tests look objects up by name; the page itself finds them by id. */
 export const byName = n => objs.find(o => o.name === n);
 
@@ -216,7 +225,14 @@ export const portLabel = (target, p) => {
   if (typeof p === 'number' && hasPorts(target)) return pfxOf(target) + p;
   return String(p);
 };
-export const relsOf = o => rels.filter(r => r.from === o.id || r.to === o.id).map(r => {
+/* The relations of every object, built once for a view that draws many objects; relsOf and used take it instead of
+   going through all relations for each object. Built fresh for each draw, so it always matches rels. */
+export function relIndex(){
+  const m = new Map(), add = (id, r) => { const l = m.get(id); if (l) l.push(r); else m.set(id, [r]); };
+  for (const r of rels){ add(r.from, r); if (r.to !== r.from) add(r.to, r); }
+  return m;
+}
+export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => r.from === o.id || r.to === o.id)).map(r => {
   const out = r.from === o.id;
   const other = byId(out ? r.to : r.from);
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
@@ -235,7 +251,7 @@ export const releaseRetiredPort = (to, port) => {
 };
 /* A patch panel port is written P01, P02 ... whatever the person typed. */
 export const patchPort = v => { const t = String(v ?? '').trim(); const m = /^p?(\d+)$/i.exec(t); return m ? 'P' + m[1].padStart(2, '0') : t.toUpperCase(); };
-export const used = o => rels.filter(r => r.to === o.id && r.port != null).length;
+export const used = (o, idx) => (idx ? idx.get(o.id) || [] : rels).filter(r => r.to === o.id && r.port != null).length;
 export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';
