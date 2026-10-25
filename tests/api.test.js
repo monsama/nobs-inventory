@@ -609,3 +609,15 @@ test('a relation to itself, an unknown kind, two devices on one port or in one U
     assert.equal((await put([srv1, { ...srv2, u: 5 }])).status, 400, 'a device in a rack that does not exist was saved');
   } finally { await srv.close(); }
 });
+
+test('the day Lansweeper last scanned a device is kept with it, and is not counted as an update', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0 };
+  mergeRecords(s, recordsFromJson([{ name: 'SVT-1', ref: 's1', serial: 'S1', scanned: '2025-10-06' }]));
+  assert.equal(s.objs[0].feed.scanned, '2025-10-06');
+  const c = mergeRecords(s, recordsFromJson([{ name: 'SVT-1', ref: 's1', serial: 'S1', scanned: '2026-10-25 12:04:45' }]));
+  assert.equal(s.objs[0].feed.scanned, '2026-10-25');
+  assert.equal(c.updated, 0, 'a newer scan day alone is not a change of the device');
+  mergeRecords(s, recordsFromJson([{ name: 'SVT-1', ref: 's1', serial: 'S1', scanned: 'not a date' }]));
+  assert.equal(s.objs[0].feed.scanned, '2026-10-25', 'a day that is not one is ignored');
+});
