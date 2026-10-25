@@ -108,6 +108,27 @@ try {
   assert.match(await page.getAttribute('.disks .disk >> nth=0', 'class'), /bad/, 'C: is 92 % used');
   assert.doesNotMatch(await page.getAttribute('.disks .disk >> nth=1', 'class'), /bad|warn/, 'D: has room');
   if (shots) await page.locator('.disks').screenshot({ path: path.join(shots, 'disks.png') });
+  // with the sync paused the free space is out of date: only the size of each drive is shown
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = false; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.disks.sizes');
+  assert.match(await page.textContent('.disks.sizes'), /C:\s*237 GB\s*D:\s*1.863 GB/);
+  assert.equal(await page.locator('.disk-bar').count(), 0, 'no bars without a running sync');
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
+
+  // antivirus: one chip per product; one is added from the list, one removed
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').av = 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.avpick .avitem');
+  assert.equal(await page.locator('.avpick .avitem').count(), 2, 'both products from Lansweeper');
+  const avAdd = '[data-combo="av"]';
+  await page.fill(avAdd, 'Senti');
+  await page.click('.avpick .combo-list li >> text=SentinelOne');
+  await page.waitForFunction(async () => /SentinelOne$/.test((await import('/js/01-core.js')).byId('o1').av));
+  assert.equal(await page.locator('.avpick .avitem').count(), 3);
+  await page.click('.avpick [data-avx="1"]');
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').av === 'Windows Defender, scanning on, up to date; SentinelOne');
+  await page.fill(avAdd, 'Windows Defender'); await page.press(avAdd, 'Escape'); await page.press(avAdd, 'Enter');
+  assert.match(await page.textContent('#toast'), /Windows Defender is already listed/);
+  if (shots) await page.locator('.avpick').screenshot({ path: path.join(shots, 'antivirus.png') });
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');
