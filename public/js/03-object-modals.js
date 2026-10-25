@@ -109,6 +109,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
   else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
+  else if (k === 'av') ctl = avCtl(o, id, true);
   else {
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
     /* A device without its own gateway or DNS servers uses those of its subnet: shown in grey, not stored on the device. */
@@ -121,17 +122,30 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   }
   return ctl;
 }
+/* Antivirus: one entry per product, as chips. A product can be added from the list of those seen on the devices and
+   common ones, or typed; each chip can be removed. Kept on the device as one text, entries separated by "; ". */
+export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).filter(Boolean);
+export function avCtl(o, id, edit){
+  const items = avEntries(o);
+  return `<div class="avpick">${items.map((x, i) => `<span class="avitem">${esc(x)}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
+    ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}`
+      : (items.length ? '' : '<span class="muted">None</span>')}</div>`;
+}
+const AV_COMMON = ['Microsoft Defender Antivirus', 'Microsoft Defender for Endpoint', 'Cortex XDR', 'CrowdStrike Falcon', 'SentinelOne', 'Sophos Intercept X',
+  'ESET Endpoint Security', 'Trend Micro Apex One', 'Bitdefender GravityZone', 'Kaspersky Endpoint Security', 'Symantec Endpoint Protection', 'Trellix Endpoint Security', 'WithSecure Elements'];
+/* Product names seen on the devices (without the scan state Lansweeper adds) and the common ones, sorted. */
+const avNames = () => [...new Set([...objs.flatMap(x => avEntries(x).map(e => e.split(',')[0].trim())), ...AV_COMMON].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* A text field with a list to pick from: the field, an arrow that opens the list, and the list. */
 export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
-const COMBO_SOURCES = { model: () => modelNames() };
+const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames() };
 const comboOf = el => el && el.closest && el.closest('.combo');
 function comboOpen(c, all){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   if (input.disabled) return;
   const q = all ? '' : input.value.trim().toLowerCase();
-  const items = (COMBO_SOURCES[input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
+  const items = (COMBO_SOURCES[input.dataset.combo || input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
   if (!items.length){ comboClose(c); return; }
   list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" data-v="${esc(m)}" aria-selected="${m === input.value ? 'true' : 'false'}">${esc(m)}</li>`).join('');
   list.hidden = false; input.setAttribute('aria-expanded', 'true');
@@ -140,7 +154,7 @@ function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
 }
-function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); }
+function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); input.dispatchEvent(new Event('combopick', {bubbles: true})); }
 /* Under a model typed in: a model not in the list yet is new and is added when saved; one very like a model in the list
    is likely a typo, and the one in the list can be taken with one click. */
 const squash = t => t.toLowerCase().replace(/[\s\-_.,/]+/g, '');
@@ -211,7 +225,8 @@ export function propRow(o, f){
   let ctl = fieldCtl(o, f);
   if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
   /* Disks filled in by Lansweeper show as bars; typed by hand they stay a text field, with the bars underneath. */
-  const bars = k === 'disk' ? diskBars(o.disk) : '';
+  if (k === 'av' && taken) ctl = avCtl(o, `f_${o.id}_${k}`, false);
+  const bars = k === 'disk' ? diskBars(o.disk, LS_ON() && st.feedOn !== false && feedLinked(o)) : '';
   if (bars && taken) ctl = bars;
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
@@ -222,10 +237,12 @@ export function propRow(o, f){
 }
 /* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
    the space left. Returns '' when the text is not in that form. */
-export function diskBars(text){
+export function diskBars(text, live = true){
   const num = v => +String(v).replace(/[^\d]/g, '');
   const parts = String(text || '').split(';').map(x => /^\s*([A-Za-z]):?\s*([\d'’.,\s]+)\/([\d'’.,\s]+)\s*GB\s*$/.exec(x)).filter(Boolean);
   if (!parts.length) return '';
+  /* Without a running sync the free space is out of date: only each drive's size is shown. */
+  if (!live) return `<div class="disks sizes">${parts.map(([, l, , c]) => `<span class="disk-size"><b>${l.toUpperCase()}:</b> ${num(c).toLocaleString()} GB</span>`).join('')}</div>`;
   return `<div class="disks">${parts.map(([, l, f, c]) => {
     const free = num(f), size = num(c), used = size ? Math.min(100, Math.max(0, Math.round((size - free) / size * 100))) : 0;
     const cls = used >= 90 ? ' bad' : used >= 80 ? ' warn' : '';
@@ -701,6 +718,21 @@ export function renderObj(o){
     if (rerender) render(); else $('#saveBtn').disabled = true;
   };
   $('#saveBtn').onclick = () => saveObj();
+  /* Antivirus: a picked or typed product is added, × removes one; each change is saved at once. */
+  const avAdd = $('#view').querySelector('[data-combo="av"]'), avHid = $('#view').querySelector('input[type=hidden][data-k="av"]');
+  if (avAdd && avHid){
+    const cur = () => avHid.value.split(';').map(x => x.trim()).filter(Boolean);
+    const set = list => { avHid.value = list.join('; '); saveObj(false); render(); };
+    const add = () => {
+      const v = avAdd.value.trim().replace(/;/g, ',');
+      if (!v) return;
+      if (cur().some(x => x.split(',')[0].trim().toLowerCase() === v.toLowerCase())){ toast(v + ' is already listed.'); avAdd.value = ''; return; }
+      set([...cur(), v]);
+    };
+    avAdd.addEventListener('combopick', add);
+    avAdd.addEventListener('keydown', e => { if (e.key === 'Enter' && avAdd.closest('.combo').querySelector('.combo-list').hidden){ e.preventDefault(); add(); } });
+    $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
+  }
   $('#dupBtn').onclick = () => newObjModal({copy: o});
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
