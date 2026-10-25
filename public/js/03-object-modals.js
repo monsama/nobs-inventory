@@ -92,10 +92,12 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
     const cur = o[k] || '';
     const opts = SUBNETS.filter(n => (n.types || []).includes(o.type) || n.cidr === cur);
-    const sn = SUBNETS.find(n => n.cidr === cur);
+    /* Without a subnet picked, the one the address is in applies by itself, shown as the first choice. */
+    const auto = cur ? null : subnetFor(o);
+    const sn = SUBNETS.find(n => n.cidr === cur) || auto;
     /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
     const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
-    ctl = `<select id="${id}" data-k="${k}"><option value="">None</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${cur ? '' : 'disabled'}>Pick from range</button>`;
+    ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(auto.name)} · ${esc(auto.cidr)} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${sn ? '' : 'disabled'}>Pick from range</button>`;
   }
   else if (kind === 'domain'){
     /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
@@ -109,7 +111,10 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else {
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
-    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`;
+    /* A device without its own gateway or DNS servers uses those of its subnet: shown in grey, not stored on the device. */
+    const from = (k === 'gateway' || k === 'dns') && !val ? subnetFor(o) : null;
+    const inherited = from ? (k === 'gateway' ? from.gateway : (from.dns || []).join(', ')) : '';
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}${inherited ? ' inherit' : ''}" value="${esc(val ?? '')}"${inherited ? ` placeholder="${esc(inherited)} · from ${esc(from.name)}" title="From the subnet ${esc(from.name)}. Type a value to set one for this device."` : ''}>`;
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
     if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
@@ -560,10 +565,10 @@ export function renderObj(o){
   });
   /* Choosing a subnet enables the pick button, so the address can be picked before the object is saved. */
   const subSel = $('#f_' + o.id + '_subnet');
-  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value; };
+  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value && !subnetFor({...o, subnet: ''}); };
   /* Pick from range: the first address of the chosen subnet's ranges that no other device uses, not its gateway or DNS. */
   $('#view').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
-    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value);
+    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value) || subnetFor({...o, subnet: ''});
     if (!sub){ toast('Choose a subnet first.'); return; }
     const used = new Set(objs.filter(x => x !== o && x.ip).map(x => ipInt(x.ip)));
     [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
