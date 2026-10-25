@@ -160,7 +160,7 @@ export const updateSync = () => {
 export const markHtml = o => {
   const isNew = !!(o.feed && SYNC.run && o.feed.created === SYNC.run);
   const byHand = !!o.handAt && Date.parse(o.handAt) > SYNC.time;
-  return (isNew ? '<span class="mk mk-new">New</span>' : '') + (byHand ? '<span class="mk mk-hand">Edited by hand</span>' : '');
+  return (isNew ? '<span class="mk mk-new">New</span>' : '') + (byHand ? '<span class="mk-hand" role="img" aria-label="Edited by hand" title="Edited by hand after the last sync"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="2"/></svg></span>' : '');
 };
 /* An object by its id, from an index of where each id sits in objs. A hit is checked against objs itself, so a list that
    was refilled, sorted or spliced is never answered from a stale index: a miss rebuilds it once. */

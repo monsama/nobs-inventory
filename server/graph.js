@@ -51,9 +51,32 @@ export async function graphToken(cfg, now = new Date(), fetchImpl = fetch) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) {
     const why = String(j.error_description || j.error || r.status).split('\r')[0].slice(0, 200);
-    throw new HttpError(502, 'Microsoft did not give a token: ' + why);
+    throw new HttpError(502, (signInHint(why) || 'Microsoft did not give a token.') + ' (' + why + ')');
   }
   return j.access_token;
+}
+
+/* What the usual sign-in errors mean, in the words of the setup steps. */
+const SIGN_IN_HINTS = [
+  [/AADSTS700027|AADSTS700023|certificate|Client assertion contains an invalid signature/i, 'Entra does not know this certificate. Upload the .cer to the app registration, under Certificates & secrets, and check the thumbprint.'],
+  [/AADSTS700016|application with identifier .* was not found/i, 'There is no app with this application (client) ID in this tenant. Copy it from the app registration\'s Overview page.'],
+  [/AADSTS90002|AADSTS900023|tenant .* not found|invalid tenant/i, 'There is no tenant with this directory (tenant) ID. Copy it from the app registration\'s Overview page.'],
+  [/AADSTS7000112|disabled/i, 'The app registration is disabled in Entra.'],
+];
+const signInHint = why => (SIGN_IN_HINTS.find(([re]) => re.test(why)) || [])[1];
+
+/* Signs in and reads one device from each list the sync reads. A list that answers 403 lacks its permission or the admin
+   consent for it. */
+export async function testGraph(cfg, fetchImpl = fetch) {
+  const token = await graphToken(cfg, new Date(), fetchImpl);
+  const lists = [['devices', 'Device.Read.All', `${GRAPH}/devices?$top=1&$select=id`], ['managedDevices', 'DeviceManagementManagedDevices.Read.All', `${GRAPH}/deviceManagement/managedDevices?$top=1&$select=id`]];
+  const out = { signedIn: true, missing: [] };
+  for (const [name, permission, url] of lists) {
+    const r = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
+    out[name] = r.ok;
+    if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? permission : `${permission} (Microsoft Graph answered ${r.status})`);
+  }
+  return out;
 }
 
 /* Every page of a list. A next link is only followed while it stays on Microsoft Graph. */
