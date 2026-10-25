@@ -39,6 +39,16 @@ try {
   await p.waitForFunction(() => /^5 objects · 3 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.uncheck('#mapAttached');
   assert.match(await count(), /^3 objects · 2 relations/, 'the map should hide attached devices again: ' + await count());
+  // With objects without relations shown, a device only attached to another (the monitor o4 on o5) stays hidden while
+  // Attached devices is off, and shows when it is on.
+  await p.uncheck('#mapOnly');
+  await p.waitForFunction(() => !document.querySelector('#mapOnly').checked && document.querySelector('#mapSvg'), null, { timeout: 5000 });
+  const drawn = () => p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id));
+  assert.ok(!(await drawn()).includes('o4') && (await drawn()).includes('o5'), 'the attached monitor is hidden, its PC is not: ' + (await drawn()).join(','));
+  await p.check('#mapAttached');
+  await p.waitForFunction(() => [...document.querySelectorAll('#mapSvg .mnode')].some(n => n.dataset.id === 'o4'), null, { timeout: 5000 });
+  await p.uncheck('#mapAttached'); await p.check('#mapOnly');
+  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.selectOption('#mapFocus', 'o1');
   await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.equal(await p.locator('#mapSvg .mnode').count(), 3, 'more than the switch and its direct links are drawn');
