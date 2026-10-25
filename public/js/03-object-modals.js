@@ -96,13 +96,56 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else {
     const val = k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
-    /* A model can be typed or picked from the models already on the devices. A new one typed here is offered to the others once saved. */
-    const list = k === 'model' ? ` list="${id}_list"` : '';
-    const suggest = k === 'model' ? `<datalist id="${id}_list">${modelNames().map(m => `<option value="${esc(m)}">`).join('')}</datalist>` : '';
-    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}"${list}>${suggest}`;
+    ctl = `<input id="${id}" data-k="${k}" ${kind==='number' ? 'type="number"' : ''} class="${kind==='mono'?'mono':''}" value="${esc(val ?? '')}">`;
+    /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
+       list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
+    if (k === 'model') ctl = comboHtml(ctl, id);
   }
   return ctl;
 }
+/* A text field with a list to pick from: the field, an arrow that opens the list, and the list. */
+export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
+/* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
+   Picking fills the field; it is saved like a typed value, when the field is left. */
+const COMBO_SOURCES = { model: () => modelNames() };
+const comboOf = el => el && el.closest && el.closest('.combo');
+function comboOpen(c, all){
+  const input = c.querySelector('input'), list = c.querySelector('.combo-list');
+  if (input.disabled) return;
+  const q = all ? '' : input.value.trim().toLowerCase();
+  const items = (COMBO_SOURCES[input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
+  if (!items.length){ comboClose(c); return; }
+  list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" data-v="${esc(m)}" aria-selected="${m === input.value ? 'true' : 'false'}">${esc(m)}</li>`).join('');
+  list.hidden = false; input.setAttribute('aria-expanded', 'true');
+}
+function comboClose(c){
+  const input = c.querySelector('input'), list = c.querySelector('.combo-list');
+  list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
+}
+function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); input.focus(); }
+document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')) comboOpen(c, false); });
+document.addEventListener('mousedown', e => {
+  const c = comboOf(e.target);
+  document.querySelectorAll('.combo .combo-list:not([hidden])').forEach(l => { if (l.closest('.combo') !== c) comboClose(l.closest('.combo')); });
+  if (!c) return;
+  const li = e.target.closest('.combo-list li');
+  if (li){ e.preventDefault(); comboPick(c, li); return; }
+  if (e.target.closest('.combo-arrow')){ e.preventDefault(); const list = c.querySelector('.combo-list'); if (list.hidden){ comboOpen(c, true); c.querySelector('input').focus(); } else comboClose(c); }
+});
+document.addEventListener('keydown', e => {
+  const c = comboOf(e.target); if (!c || !e.target.matches('input')) return;
+  const list = c.querySelector('.combo-list'), items = [...list.querySelectorAll('li')];
+  const at = items.findIndex(li => li.classList.contains('active'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    if (list.hidden){ comboOpen(c, true); return; }
+    const next = items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+    items.forEach(li => li.classList.toggle('active', li === next));
+    if (next){ next.scrollIntoView({block: 'nearest'}); e.target.setAttribute('aria-activedescendant', next.id); }
+  } else if (e.key === 'Enter' && !list.hidden && at >= 0){ e.preventDefault(); comboPick(c, items[at]); }
+  else if (e.key === 'Escape' && !list.hidden){ e.preventDefault(); e.stopPropagation(); comboClose(c); }
+});
+document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
@@ -111,7 +154,7 @@ export function propRow(o, f){
   const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
   const taken = linked && feedOwns(o, k);
   let ctl = fieldCtl(o, f);
-  if (taken) ctl = ctl.replace(/^<(input|select)/, '<$1 disabled');
+  if (taken) ctl = ctl.replace(/<(input|select)/, '<$1 disabled');   /* the field itself, also inside a combo */
   const box = linked ? `<label class="pchk pchk-only" title="From feed: the Lansweeper value is used. Untick to edit it here."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   return `<label for="f_${o.id}_${k}">${esc(f[1])}</label><div class="ctlrow">${ctl}${box}</div>${fieldNote(o, k)}`;
 }
