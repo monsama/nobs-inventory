@@ -15,7 +15,6 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
-$('#searchAll').addEventListener('change', e => { st.searchAll = e.target.checked; render(); });
 $('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; render(); });
 document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]')) openObj(t.dataset.open); });
 

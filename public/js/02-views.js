@@ -26,7 +26,8 @@ export function renderSide(){
 }
 $('#side').addEventListener('click', e => {
   const b = e.target.closest('.item'); if (!b) return;
-  if ('type' in b.dataset) st.type = b.dataset.type || null;
+  /* A type clicked again goes back to all types. */
+  if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
   if ('loc' in b.dataset) st.loc = st.loc === b.dataset.loc ? null : b.dataset.loc;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;

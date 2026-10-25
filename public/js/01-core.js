@@ -198,7 +198,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
 /* ---------- state ----------
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', searchAll:false, portsDevice:null, portNo:3,
+export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', portsDevice:null, portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -284,9 +284,8 @@ export const isAttached = k => k === 'attached';
 
 export function filtered(){
   const q = st.q.trim().toLowerCase();
-  /* With "All devices" on, a search looks through every object; the type, place and status filters apply otherwise. */
-  const scoped = !(st.searchAll && q);
-  return objs.filter(o => (!scoped || ((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o))))
+  /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
+  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o))))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
