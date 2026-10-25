@@ -158,7 +158,10 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
 export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).filter(Boolean);
 export function avCtl(o, id, edit){
   const items = avEntries(o);
-  return `<div class="avpick">${items.map((x, i) => `<span class="avitem">${esc(x)}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
+  /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
+  const live = LS_ON() && st.feedOn !== false && feedLinked(o);
+  const label = x => live ? x : x.split(',')[0].trim();
+  return `<div class="avpick">${items.map((x, i) => `<span class="avitem"${live || label(x) === x ? '' : ` title="${esc(x)}"`}>${esc(label(x))}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
     ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}`
       : (items.length ? '' : '<span class="muted">None</span>')}</div>`;
 }
