@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { loadState, saveState, applyChanges, factoryReset } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
-import { ldapEnabled, ldapLogin, ldapListUsers } from './ldap.js';
+import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -235,9 +235,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const lc = cfgLdap();
       if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
       const people = await ldapListUsers(lc);
-      res.json({ people: people.length });
+      res.json({ people: people.length, admins: people.filter(p => p.admin).length });
     } catch (e) {
-      next(e instanceof HttpError ? e : new HttpError(502, 'The directory cannot be read: ' + e.message));
+      const hint = ldapHint(e.message);
+      next(e instanceof HttpError ? e : new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')'));
     }
   });
 

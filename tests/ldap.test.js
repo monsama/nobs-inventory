@@ -213,3 +213,13 @@ test('an empty sign-in name is the login at the domain of the search base; one s
     assert.equal(c.bindTemplate, 'EXAMPLE\\{login}');
   } finally { await srv.close(); }
 });
+
+test('a failed directory test says what to fix, in the words of the settings', async () => {
+  const { ldapHint } = await import('../server/ldap.js');
+  assert.match(ldapHint('connect ECONNREFUSED 10.0.0.5:636'), /cannot be reached/);
+  assert.match(ldapHint('self-signed certificate in certificate chain'), /certificate is not trusted/);
+  assert.match(ldapHint('80090308: LdapErr: DSID-0C09044E, comment: AcceptSecurityContext error, data 52e, v4563'), /sign-in name or password is wrong/);
+  assert.match(ldapHint('AcceptSecurityContext error, data 775, v4563'), /locked out/);
+  assert.match(ldapHint('0000208D: NameErr: DSID-03100241, problem 2001 (NO_OBJECT)  No Such Object'), /search base does not exist/);
+  assert.equal(ldapHint('something else'), null);
+});

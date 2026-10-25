@@ -98,6 +98,21 @@ export async function ldapLogin(config, login, password) {
 
 /* Every user the sync covers, read with the service account: the members of the sign-in group, each with admin set
    when they are in the admin group. */
+/* What the usual directory errors mean, in the words of the settings. Active Directory puts the reason of a failed bind
+   in the message (data 52e, 775, …). */
+const LDAP_HINTS = [
+  [/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ETIMEDOUT|timed? ?out|connect/i, 'The directory server cannot be reached. Check the server address and port (ldaps:// uses 636, ldap:// 389) and that the firewall lets this server through.'],
+  [/certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames/i, 'The directory server\'s TLS certificate is not trusted, or does not match the address. Use the name the certificate is made for, or give the server the CA certificate.'],
+  [/data 775/i, 'The service account is locked out.'],
+  [/data 533/i, 'The service account is disabled.'],
+  [/data (532|773)/i, 'The service account\'s password has expired or must be changed.'],
+  [/data 701/i, 'The service account has expired.'],
+  [/\b49\b|Invalid ?Credentials|data 52e/i, 'The service account\'s sign-in name or password is wrong.'],
+  [/\b32\b|No ?Such ?Object/i, 'The search base does not exist. Copy it from the directory, e.g. OU=Users,DC=example,DC=ch.'],
+  [/NI_LDAP_SERVICE_DN/, 'Give the service account in Settings (and its password on the server) so the directory can be read.'],
+];
+export const ldapHint = message => (LDAP_HINTS.find(([re]) => re.test(String(message || ''))) || [])[1] || null;
+
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   const client = connect(config);
