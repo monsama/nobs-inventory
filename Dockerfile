@@ -1,4 +1,6 @@
 FROM node:22.22-alpine3.24
+# Security fixes Alpine has published since the base image was built (OpenSSL, ...).
+RUN apk upgrade --no-cache
 WORKDIR /app
 ENV NODE_ENV=production NI_DATA=/data NI_PORT=8080
 COPY package.json package-lock.json ./
