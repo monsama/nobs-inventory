@@ -166,6 +166,10 @@ a.btnlike{text-decoration:none;gap:6px}
 table.types{table-layout:fixed;width:100%}
 table.types th,table.types td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
 table.types td input{width:100%;min-width:0;box-sizing:border-box}
+/* Users: name and department are edit boxes that fill their column, also after it is resized; a cell with a box shows
+   no ellipsis of its own. */
+#setUsers td input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box}
+#setUsers td:has(> input),#setUsers td:has(> select){text-overflow:clip}
 table.types .icondd{display:flex;min-width:0;width:100%}
 table.types td.n,table.types th.n{text-align:right}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}

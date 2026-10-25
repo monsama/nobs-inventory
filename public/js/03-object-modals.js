@@ -59,7 +59,7 @@ export const FIELDS = {
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   patch:[['ports','Ports','mono']], storage:[['cap','Capacity','mono'],['proto','Protocol','mono']],
-  accesspoint:[['ssid','Wi-Fi networks']],
+  accesspoint:[['ssid','Wi-Fi networks']], bmc:[['fw','Firmware']],
   monitor:[], printer:[], other:[]
 };
 /* Types without a network address of their own: a monitor hangs off a PC, a rack and a patch panel are passive. */

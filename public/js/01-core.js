@@ -18,6 +18,7 @@ export const ICON = {
   ups:'<rect x="3" y="5" width="16" height="14" rx="2"/><path d="M19 9h2v6h-2M11 8l-2 5h4l-2 4"/>',
   accesspoint:'<path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="14" r="1.2"/><path d="M12 15.5V21"/>',
   camera:'<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>',
+  bmc:'<rect x="3" y="11" width="18" height="9" rx="1.5"/><path d="M7 15.5h5M16 15.5h1"/><path d="M8.5 7.5a5 5 0 0 1 7 0M10.5 9.5a2 2 0 0 1 3 0"/>',
   laptop:'<rect x="4" y="5" width="16" height="11" rx="1"/><path d="M2 19h20"/>',
   mobile:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
   scanner:'<rect x="2" y="9" width="20" height="8" rx="1"/><path d="M6 9V4h12v5M6 17v3h12v-3"/>',
@@ -56,6 +57,7 @@ export const TYPES = {
   mobile:{label:'Other mobile device', short:'Mobile', color:'#0d9488', icon:'mobile'},
   plc:{label:'PLC / Controller', short:'PLC', color:'#be185d', icon:'plc'},
   camera:{label:'Camera / Recorder', short:'Camera', color:'#9333ea', icon:'camera'},
+  bmc:{label:'iLO / iDRAC', short:'iLO', color:'#4f46e5', icon:'bmc'},
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
@@ -66,7 +68,7 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
-export const BUILTIN = ['pc','notebook','camera','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
+export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
