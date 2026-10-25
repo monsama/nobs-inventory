@@ -11,7 +11,8 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { entraThumbprintOf, syncGraph } from './graph.js';
+import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
+import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
@@ -24,12 +25,12 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SHEET_KEY = sheetKey || crypto.randomBytes(32);
   initSheets(db);
+  initGraphKeys(db);
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
-  const cfgGraph = () => (graphConfig ? graphConfig() : null);
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
   const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
   const app = express();
@@ -250,47 +251,97 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
 
-  /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate. */
-  /* The certificate on the server: when it expires, and whether it is set at all. */
-  /* The certificate the server signs in with, and the ones made here: their public details only, never a key. Each says
-     whether it is the one in use, matched by its thumbprint, which is also what Entra lists for an uploaded certificate. */
+  /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate.
+     Set up in Settings: the tenant and app (client) id, and a certificate made here, whose key the server keeps sealed.
+     NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT and NI_GRAPH_KEY on the server, when all set, take precedence. */
+  const graphSettings = () => loadState(db).graph || {};
+  const graphFromApp = () => {
+    const g = graphSettings();
+    const pair = g.tenant && g.clientId ? graphKeyPair(db, SHEET_KEY, g.thumbprint) : null;
+    return pair ? { tenant: g.tenant, clientId: g.clientId, ...pair } : null;
+  };
+  const cfgGraph = () => (graphConfig && graphConfig()) || graphFromApp();
+  const graphSource = () => (graphConfig && graphConfig() ? 'server' : graphFromApp() ? 'app' : null);
+  const editGraph = fn => { const s = loadState(db); s.graph = fn({ ...(s.graph || {}) }); const p = graphSettingsProblem(s.graph); if (p) throw new HttpError(400, p); saveState(db, s); };
+
+  /* The certificates made here and the one the server signs in with: public details only, never a key. Each is listed by
+     its SHA-1 thumbprint, which is what Entra shows for an uploaded certificate. */
   app.get('/api/graph/status', requireUser, requireAdmin, (req, res) => {
-    const g = cfgGraph();
+    const g = cfgGraph(), set = graphSettings();
     let used = null;
     if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
-    const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint }));
-    res.json({ configured: !!g, ...(used || {}), certs });
+    const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint, chosen: c.thumbprint === set.thumbprint, onServer: hasGraphKey(db, c.thumbprint) }));
+    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', ...(used || {}), certs });
   });
-  /* A new certificate and key. The key is only in this answer: it is not kept on the server. Its public details are kept,
-     so the list shows which certificates were made and which one the server uses. */
+  /* The tenant and the app (client) id, from the app registration's Overview page in Entra. */
+  app.post('/api/graph/settings', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const b = req.body || {};
+      editGraph(g => ({ ...g, tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() }));
+      audit(db, req.user.id, 'Microsoft Graph settings saved');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* A new certificate. The server keeps it with its key, sealed; the answer holds the certificate only. The first one made
+     is the one used, until another is chosen. */
   app.post('/api/graph/cert', requireUser, requireAdmin, (req, res, next) => {
     try {
       const made = generateGraphCert();
       const thumbprint = entraThumbprintOf(made.certPem);
+      storeGraphKey(db, SHEET_KEY, thumbprint, made.certPem, made.keyPem);
       const s = loadState(db);
       s.graphCerts = [{ thumbprint, created: new Date().toISOString(), expires: made.expires, by: req.user.name || req.user.login || '' }, ...(s.graphCerts || [])].slice(0, 20);
+      if (!(s.graph && s.graph.thumbprint && hasGraphKey(db, s.graph.thumbprint))) s.graph = { ...(s.graph || {}), thumbprint };
       saveState(db, s);
       audit(db, req.user.id, `Microsoft Graph certificate ${thumbprint} created, expires ${made.expires}`);
-      res.json({ ...made, thumbprint });
+      res.json({ thumbprint, certPem: made.certPem, expires: made.expires });
     } catch (e) { next(e); }
   });
-  /* Takes a certificate off the list. It does not touch Entra: delete it there too, under Certificates & secrets. */
+  /* The certificate to upload to Entra, any time. It is public; the key stays on the server. */
+  app.get('/api/graph/cert/:thumbprint/cer', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const t = String(req.params.thumbprint).toUpperCase();
+      const pem = graphCertPem(db, t);
+      res.set('Content-Type', 'application/x-pem-file').set('Content-Disposition', `attachment; filename="nobs-graph-${t.slice(0, 8)}.cer"`).send(pem);
+    } catch (e) { next(e); }
+  });
+  /* Sign in with this certificate from now on. Upload it to Entra first, or the sign-in fails. */
+  app.post('/api/graph/cert/:thumbprint/use', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const t = String(req.params.thumbprint).toUpperCase();
+      if (!hasGraphKey(db, t)) throw new HttpError(404, 'This certificate is not on the server.');
+      editGraph(g => ({ ...g, thumbprint: t }));
+      audit(db, req.user.id, `Microsoft Graph certificate ${t} in use`);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* Takes a certificate off the list and deletes its key here. It does not touch Entra: delete it there too. */
   app.delete('/api/graph/cert/:thumbprint', requireUser, requireAdmin, (req, res, next) => {
     try {
       const s = loadState(db), t = String(req.params.thumbprint).toUpperCase();
       const g = cfgGraph();
-      if (g && entraThumbprintOf(g.certPem) === t) throw new HttpError(400, 'This is the certificate the server signs in with. Replace it on the server first.');
+      if ((g && entraThumbprintOf(g.certPem) === t) || (s.graph && s.graph.thumbprint === t)) throw new HttpError(400, 'This is the certificate the server signs in with. Use another one first.');
       s.graphCerts = (s.graphCerts || []).filter(c => c.thumbprint !== t);
       saveState(db, s);
-      audit(db, req.user.id, `Microsoft Graph certificate ${t} removed from the list`);
+      dropGraphKey(db, t);
+      audit(db, req.user.id, `Microsoft Graph certificate ${t} removed`);
       res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  const graphMissing = () => new HttpError(400, 'Microsoft Graph is not set up yet: give the directory (tenant) ID and the application (client) ID, and create a certificate.');
+  /* Signs in and reads one device of each list, so a missing upload or permission is named before a sync. */
+  app.post('/api/graph/test', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      const g = cfgGraph();
+      if (!g) throw graphMissing();
+      res.json(await testGraph(g, graphFetch));
     } catch (e) { next(e); }
   });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const g = cfgGraph();
-      if (!g) throw new HttpError(400, 'Microsoft Graph is not set up on the server. Set NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT and NI_GRAPH_KEY.');
-      const counts = await syncGraph(db, g);
+      if (!g) throw graphMissing();
+      const counts = await syncGraph(db, g, new Date(), graphFetch);
       audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }

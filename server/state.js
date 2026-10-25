@@ -2,9 +2,10 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
+import { graphSettingsProblem } from './graph-keys.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
@@ -98,6 +99,7 @@ export function checkState(s) {
     const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
   /* Contracts and licences, and the currency their costs are in. */
+  if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
   if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
   if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }
   if (s.currency !== undefined && (typeof s.currency !== 'string' || !/^[A-Za-z€$£¥]{1,5}$/.test(s.currency))) bad('The currency is a short code such as CHF or EUR.');
