@@ -221,15 +221,17 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
 #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
-.tab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;color:var(--fg)}
-.tab.active{background:var(--bg);box-shadow:inset 0 -2px 0 var(--accent)}
+.tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;color:var(--fg)}
+/* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
+.tab.active{background:var(--bg)}
+.tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:3px;height:2px;border-radius:1px;background:var(--accent);opacity:.5;pointer-events:none}
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
 .tab .x:hover{color:var(--fg);background:var(--hover)}
 .tabs-sep{width:1px;align-self:stretch;margin:6px 6px;background:var(--bd);flex:none}
 .tabs-cap{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;align-self:center;padding:0 4px;flex:none}
 .tab.objtab{background:var(--panel);border-color:var(--bd);padding-left:8px;border-radius:4px}
 .tab.objtab .tsw{width:8px;height:8px;border-radius:50%;flex:none}
-.tab.objtab.active{background:var(--bg);border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+.tab.objtab.active{background:var(--bg)}
 .port.single{opacity:.5;cursor:not-allowed}
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
@@ -285,6 +287,12 @@ table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
 table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 #setUsers td>button{width:100%;padding:3px 6px}
+/* Microsoft Graph setup steps */
+.graph-steps{margin:0;padding:4px 12px 10px 34px;display:flex;flex-direction:column;gap:12px}
+.graph-steps>li{padding-top:8px}
+.graph-steps>li+li{border-top:1px solid var(--bd2)}
+.gs-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.gs-head .chip{min-width:22px;justify-content:center}
 /* overview */
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
@@ -432,7 +440,10 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
 .mk-new{background:var(--accent);color:#fff}
-.mk-hand{border:1px solid var(--accent);color:var(--accent);background:var(--bg)}
+/* Edited by hand: a small pencil in the muted text colour, on the name's line; its title says what it means. */
+.mk-hand{display:inline-flex;align-items:center;margin-left:6px;color:var(--muted);vertical-align:middle;flex:none}
+.card .nmrow{display:flex;align-items:center;min-width:0}
+.card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
 .pgrouplegend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 12px 10px;font-size:12px}

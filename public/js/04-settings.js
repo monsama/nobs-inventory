@@ -122,80 +122,97 @@ export function renderTypeMap(){
   };
   $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
 }
-/* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate set on the server. */
-const downloadText = (name, text) => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], {type: 'application/x-pem-file'}));
-  a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-};
-export function renderSetGraph(){
+/* Microsoft Graph: the join status, Intune enrolment and compliance of the devices, matched by serial number. Set up in
+   four steps; the server makes the certificate and keeps its key, so no file is copied to the server. */
+const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
+export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
-  const edit = canEdit(), ready = SERVER.graph && edit;
-  root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph</div>
-    <p class="note" style="padding:10px 12px">${SERVER.graph ? 'The certificate is set on the server. Devices get their join status, Intune enrolment and compliance, matched by serial number. Values the inventory does not have yet are filled in; the rest is left as it is.' : 'Not set up on the server yet. Create a certificate below (its private key is shown once, so download it at once), then set the server settings it names.'}</p>
-    <div id="graphCerts"></div>
-    <div class="addrel" style="padding:10px 12px"><button id="graphCert" ${edit ? '' : 'disabled'} title="${edit ? 'Its private key is shown once, so download it at once.' : 'Only an administrator can make a certificate.'}">Create a certificate</button><button id="graphSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg"></span></div>
-    <div id="graphNew"></div></div>`;
-  if (edit) renderGraphCerts();
-  const btn = $('#graphSync');
-  if (btn) btn.onclick = async () => {
-    const msg = $('#graphMsg');
-    btn.disabled = true; msg.textContent = 'Syncing…';
-    const r = await fetch('api/graph/sync', {method: 'POST', credentials: 'same-origin'});
-    const j = await r.json().catch(() => ({}));
-    btn.disabled = false;
-    if (!r.ok){ msg.innerHTML = `<span style="color:var(--danger)">${esc(j.error || 'The sync failed.')}</span>`; return; }
-    const c = j.counts;
-    msg.textContent = `${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`;
-    await reloadFromServer();
-  };
-  const make = $('#graphCert');
-  if (make) make.onclick = async () => {
-    if (!confirm('Create a new certificate? Any certificate already set on the server keeps working until you replace it.')) return;
-    make.disabled = true;
-    const r = await fetch('api/graph/cert', {method: 'POST', credentials: 'same-origin'});
-    const j = await r.json().catch(() => ({}));
-    make.disabled = false;
-    if (!r.ok){ $('#graphNew').innerHTML = `<p class="note" style="padding:10px 12px;color:var(--danger)">${esc(j.error || 'The certificate could not be made.')}</p>`; return; }
-    $('#graphNew').innerHTML = `<div style="padding:10px 12px;border-top:1px solid var(--bd2)">
-      <p class="note">The key is shown here once and is not kept on the server. Download both files now.</p>
-      <div class="addrel" style="padding:8px 0;border:0;background:none"><button id="graphGetCer">Download the certificate (.cer)</button><button id="graphGetKey" class="danger-text">Download the private key (.key)</button></div>
-      <ol class="note" style="padding-left:18px">
-        <li>In Entra, open the app registration, go to Certificates and secrets, and upload the .cer file. Entra lists it with the thumbprint <span class="mono">${esc(j.thumbprint)}</span>.</li>
-        <li>On the server, save the .key file where the server can read it, and set NI_GRAPH_KEY_FILE to its path. Set NI_GRAPH_CERT_FILE to a file holding the .cer.</li>
-        <li>Restart the server, then run the sync above.</li>
-      </ol></div>`;
-    renderGraphCerts();
-    $('#graphGetCer').onclick = () => downloadText('nobs-graph.cer', j.certPem);
-    $('#graphGetKey').onclick = () => downloadText('nobs-graph.key', j.keyPem);
-  };
-}
-/* The certificates made here and the one the server uses: public details only. Entra lists an uploaded certificate by the
-   same SHA-1 thumbprint, so the two lists can be compared. Removing one here does not touch Entra. */
-export async function renderGraphCerts(){
-  const r = await fetch('api/graph/status', {credentials: 'same-origin'}).catch(() => null);
+  const edit = canEdit();
+  const r = edit ? await fetch('api/graph/status', {credentials: 'same-origin'}).catch(() => null) : null;
   const j = r && r.ok ? await r.json().catch(() => null) : null;
-  const el = $('#graphCerts');
-  if (!el || !j) return;
+  if (!$('#setGraph')) return;
+  const g = j || {configured: SERVER.graph, source: null, tenant: '', clientId: '', certs: []};
+  const fromServer = g.source === 'server';
+  const ids = !!(g.tenant && g.clientId);
+  const chosen = g.certs.find(c => c.chosen && c.onServer);
+  const done = ok => ok ? '<span class="chip ok" title="Done" aria-label="done">✓</span>' : '';
   const day = t => esc(dayText(String(t || '').slice(0, 10)));
   const left = t => Math.floor((new Date(t) - Date.now()) / 86400000);
-  const inList = j.configured && j.certs.some(c => c.inUse);
-  const rows = [...j.certs.map(c => ({...c, made: true})), ...(j.configured && !inList ? [{thumbprint: j.thumbprint, expires: j.expires, inUse: true, made: false}] : [])];
-  el.innerHTML = rows.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>On the server</th><th></th></tr></thead><tbody>
-    ${rows.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${c.made ? day(c.created) : '<span class="muted">not made here</span>'}</td>
+  const certRows = g.certs.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${day(c.created)}</td>
       <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
-      <td>${c.inUse ? '<span class="chip ok">In use</span>' : '<span class="muted">Not in use</span>'}</td>
-      <td>${c.made && !c.inUse ? `<button data-gcdel="${esc(c.thumbprint)}">Remove from list</button>` : ''}</td></tr>`).join('')}</tbody></table>
-    <p class="note" style="padding:8px 12px">A certificate you no longer need: remove it here, delete it in Entra (Certificates &amp; secrets) and delete its .key file. The private key is never kept here.</p>`
-    : '<p class="note" style="padding:8px 12px">No certificate made here yet, and none set on the server.</p>';
-  el.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this certificate from the list? Delete it in Entra as well, under Certificates & secrets.')) return;
+      <td>${c.inUse ? '<span class="chip ok">In use</span>' : c.onServer ? `<button data-gcuse="${esc(c.thumbprint)}" ${fromServer ? 'disabled title="The server settings decide the certificate"' : ''}>Use this one</button>` : '<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>'}</td>
+      <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${!c.inUse && !c.chosen ? ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" aria-label="Remove this certificate" title="Remove">×</button>` : ''}</td></tr>`).join('');
+  root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph ${g.configured ? '<span class="chip ok">Connected</span>' : '<span class="cnt">not set up</span>'}</div>
+    <p class="note">Reads the Entra join status, Intune enrolment and compliance of the devices, matched by serial number. Values the inventory does not have yet are filled in; the rest stays. It only reads, it changes nothing in Entra or Intune.</p>
+    ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
+    <ol class="graph-steps">
+      <li><div class="gs-head">${done(ids)}<b>Register an app in Entra</b></div>
+        <p class="note">In the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a>: Applications → App registrations → New registration. Name it e.g. “NOBS Inventory”, accounts in this organizational directory only, no redirect URI. Its Overview page shows the two IDs below.</p>
+        <div class="form" style="padding:8px 0 0">
+          <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="1b2c3d4e-5f60-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
+          <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="9a8b7c6d-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
+        </div>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
+      <li><div class="gs-head"><b>Give it read permissions</b></div>
+        <p class="note">In the app: API permissions → Add a permission → Microsoft Graph → <b>Application permissions</b>: <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span>. Then <b>Grant admin consent</b>. Test connection below checks both.</p></li>
+      <li><div class="gs-head">${done(!!chosen || fromServer)}<b>Create a certificate and upload it to the app</b></div>
+        <p class="note">Create one here. The server keeps it with its private key, encrypted; the key never leaves the server. Download the .cer (any time, from the list) and upload it in the app: Certificates &amp; secrets → Certificates → Upload certificate. Entra then shows the same thumbprint as the list.</p>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer in use</a>` : ''}</div></li>
+      <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
+        <p class="note">Test connection signs in and reads one device from each list. Sync now reads them all; it also runs every night at 06:00.</p>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div></li>
+    </ol>
+    ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
+    <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}</div>`;
+  const msg = $('#graphMsg');
+  const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
+  const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
+  $('#gSave').onclick = async () => {
+    const x = await post('api/graph/settings', {tenant: $('#gTenant').value, clientId: $('#gClient').value});
+    if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }
+    toast('Microsoft Graph IDs saved'); await refreshGraph();
+  };
+  $('#graphCert').onclick = async () => {
+    const x = await post('api/graph/cert');
+    if (!x.ok){ toast(x.j.error || 'The certificate could not be made.'); return; }
+    toast('Certificate created. Download the .cer and upload it to the app in Entra.'); await refreshGraph();
+  };
+  $('#graphTest').onclick = async () => {
+    say('Testing…');
+    const x = await post('api/graph/test');
+    if (!x.ok) return say(x.j.error || 'The test failed.', true);
+    if (x.j.missing.length) return say('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
+    say('Signed in and read both lists. Ready to sync.');
+  };
+  $('#graphSync').onclick = async () => {
+    const btn = $('#graphSync'); btn.disabled = true; say('Syncing…');
+    const x = await post('api/graph/sync');
+    btn.disabled = false;
+    if (!x.ok) return say(x.j.error || 'The sync failed.', true);
+    const c = x.j.counts;
+    say(`${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`);
+    await reloadFromServer();
+  };
+  root.querySelectorAll('[data-gcuse]').forEach(b => b.onclick = async () => {
+    const x = await post(`api/graph/cert/${encodeURIComponent(b.dataset.gcuse)}/use`);
+    if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
+    toast('The server signs in with this certificate now'); await refreshGraph();
+  });
+  root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this certificate and delete its key here? Delete it in Entra as well, under Certificates & secrets.')) return;
     const d = await fetch('api/graph/cert/' + encodeURIComponent(b.dataset.gcdel), {method: 'DELETE', credentials: 'same-origin'});
     if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not removed.'); return; }
-    renderGraphCerts();
+    await refreshGraph();
   });
+  applyRole();
+}
+/* After a change: the server's view of Graph (is it connected now?) and the pane. */
+async function refreshGraph(){
+  const r = await fetch('api/me', {credentials: 'same-origin'}).catch(() => null);
+  const j = r && r.ok ? await r.json().catch(() => null) : null;
+  if (j) SERVER.graph = !!j.graph;
+  await renderSetGraph();
 }
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
@@ -579,7 +596,10 @@ export function renderSetLdap(){
     await flushSave();
     const r = await fetch('api/ldap/test', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
-    msg.innerHTML = r.ok ? `<span style="color:var(--ok)">Connected. ${j.people} users are in scope.</span>` : bad(j.error || 'The directory cannot be reached.');
+    /* Connected, but nobody in the sign-in group: most often the group's name or DN is not the one in the directory. */
+    msg.innerHTML = !r.ok ? bad(j.error || 'The directory cannot be reached.')
+      : j.people ? `<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`
+      : bad('Connected, but no user is in the sign-in group. Check the group\'s name or DN, and the search base.');
   };
   $('#ldapSync').onclick = async () => {
     const msg = $('#ldapMsg'), btn = $('#ldapSync');
