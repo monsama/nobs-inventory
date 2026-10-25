@@ -59,4 +59,36 @@ Check 'batches sent' $script:Sent.Count 2
 Check 'first batch has ip locations' (($script:Sent[0] | ConvertFrom-Json).ipLocations.Count) 1
 Check 'second batch has none' ($null -eq ($script:Sent[1] | ConvertFrom-Json).ipLocations) 'True'
 Check 'totals' $tot.created 2
+# Setup: the address as typed becomes the one NOBS needs; the settings file keeps its other lines.
+Check 'url host only' (Get-NobsUrlText 'inventory.example.ch') 'https://inventory.example.ch'
+Check 'url trailing slash and api' (Get-NobsUrlText 'https://inventory.example.ch/api/') 'https://inventory.example.ch'
+Check 'url http kept' (Get-NobsUrlText ' http://10.0.0.5:8080 ') 'http://10.0.0.5:8080'
+$bad = try { Get-NobsUrlText 'not an address' ; 'accepted' } catch { 'refused' }
+Check 'url with a space refused' $bad 'refused'
+$cfgFile = Join-Path ([IO.Path]::GetTempPath()) ("nobs-cfg-" + [guid]::NewGuid() + '.ps1')
+Set-Content -LiteralPath $cfgFile -Value @('$Config.MaxAgeDays = 30', "`$Config.NobsUrl = 'https://old.example.ch'")
+Save-LocalConfig $cfgFile @{ NobsUrl = 'https://inventory.example.ch'; NobsCertThumbprint = 'AB12'; SqlFromLansweeper = $true }
+$lines = Get-Content -LiteralPath $cfgFile
+Check 'config keeps other lines' ($lines -contains '$Config.MaxAgeDays = 30') 'True'
+Check 'config has the new address once' (@($lines | Where-Object { $_ -match 'NobsUrl' }).Count) 1
+Check 'config address' ($lines -contains "`$Config.NobsUrl = 'https://inventory.example.ch'") 'True'
+Check 'config thumbprint' ($lines -contains "`$Config.NobsCertThumbprint = 'AB12'") 'True'
+Check 'config switch' ($lines -contains '$Config.SqlFromLansweeper = $true') 'True'
+Save-LocalConfig $cfgFile @{ NobsUrl = 'https://other.example.ch'; NobsCertThumbprint = '' }
+$lines = Get-Content -LiteralPath $cfgFile
+Check 'config replaced, empty left out' ((@($lines | Where-Object { $_ -match 'NobsUrl|NobsCertThumbprint' }) -join '|')) "`$Config.NobsUrl = 'https://other.example.ch'"
+Check 'config keeps the switch' ($lines -contains '$Config.SqlFromLansweeper = $true') 'True'
+Remove-Item -LiteralPath $cfgFile
+
+# The token is checked with an empty push: accepted, wrong (401), or the push turned off (403).
+function Set-NobsCertificatePin { }
+$script:Answer = 0
+function Get-HttpStatus($err) { return $script:Answer }
+function Invoke-RestMethod { param($Uri, $Method, $Body, $ContentType, $Headers, $TimeoutSec) $script:Asked = $Uri; if ($script:Answer) { throw "HTTP $script:Answer" }; return @{ counts = @{} } }
+$Config.NobsUrl = 'https://inventory.example.ch'
+Check 'token accepted' (Test-NobsToken 'good') ''
+Check 'token check uses the push' $script:Asked 'https://inventory.example.ch/api/feed/push'
+$script:Answer = 401; Check 'token wrong' ((Test-NobsToken 'bad') -match 'token is wrong') 'True'
+$script:Answer = 403; Check 'push turned off' ((Test-NobsToken 'x') -match 'script push') 'True'
+
 if ($fails) { Write-Host "$fails failed"; exit 1 } else { Write-Host 'all passed' }
