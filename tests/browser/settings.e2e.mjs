@@ -23,12 +23,22 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForFunction(() => /Admin/.test(document.querySelector('#whoBtn').textContent));
   await page.click('#setBtn');
-  for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
+  for (const tab of ['feed', 'graph', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
     await page.click(`#setTabs [data-st=${tab}]`); await page.waitForTimeout(120);
     const len = (await page.locator('#setPane').innerHTML()).length;
     assert.ok(len > 100, `Settings tab "${tab}" is empty`);
   }
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
+  // Microsoft Graph has a tab of its own, not a box inside Feed
+  await page.click('#setTabs [data-st=graph]'); await page.waitForSelector('#setGraph .panelbox');
+  await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
+  assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
+  // the add-subnet form spans the box and has nothing to delete
+  await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('.subnet-new');
+  assert.equal(await page.locator('.subnet-new [data-sx]').count(), 0, 'the add form offers no Delete subnet');
+  const formW = await page.locator('.subnet-new > .subnet').evaluate(e => e.getBoundingClientRect().width);
+  const boxW = await page.locator('#setSubnets').evaluate(e => e.getBoundingClientRect().width);
+  assert.ok(formW > boxW * 0.9, `the add-subnet form is ${Math.round(formW)}px wide in a ${Math.round(boxW)}px box`);
   // push token: created in the app, shown once, a download is offered
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');

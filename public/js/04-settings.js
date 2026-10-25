@@ -7,7 +7,7 @@ import { $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_O
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['graph','Microsoft Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -180,7 +180,8 @@ export function renderSetPane(){
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setGraph"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div>' + (LS_ON() ? policyPane : ''),
+    graph: '<div id="setGraph"></div>',
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">Network</div><div id="setVlans"></div><div id="setDomains"></div></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div class="panelbox" id="setModels"></div>',
@@ -192,7 +193,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, graph: renderSetGraph, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetLdap(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -258,7 +259,7 @@ export function applyRole(){
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 export function ensureUser(name){
   let u = USERS.find(x => x.name === name);
-  if (!u){ u = {id:userId(), login:'', name, dept:'', groups:[], source:'manual', active:true}; USERS.push(u); }
+  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source:'manual', active:true}; USERS.push(u); }
   return u;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
@@ -607,7 +608,7 @@ const subnetRowHtml = (n, i, ro) => `<div class="subnet" data-sub="${i}">
     <label>DNS servers<input data-sd class="mono" placeholder="10.10.1.5, 10.10.1.6" value="${esc((n.dns || []).join(', '))}" ${ro}></label>
     <label>Device types<select data-st multiple size="4" ${ro}>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${(n.types || []).includes(k) ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
     <label class="wide">Ranges, one per line: first address, last address, use<textarea data-sr rows="2" class="mono" placeholder="10.10.20.50-10.10.20.99 DHCP" ${ro}>${esc((n.ranges || []).map(r => `${r.from}-${r.to}${r.use ? ' ' + r.use : ''}`).join('\n'))}</textarea></label>
-    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
+    <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span>${ro || i === 'new' ? '' : `<button data-sx="${i}" class="danger-text">Delete subnet</button>`}</div></div>`;
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
@@ -1020,7 +1021,6 @@ export function renderSetFeed(){
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
-  renderSetGraph();
   $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
     btn.disabled = true; msg.textContent = 'Syncing…';
