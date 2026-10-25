@@ -94,6 +94,10 @@ export let PLANS = [];
 export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 export const LS_ON = () => st.useLansweeper !== false;
+/* Whether Lansweeper data still comes in. Microsoft Graph being set up is SYNC.graph, from the server. */
+export const lsLive = () => LS_ON() && st.feedOn !== false;
+/* Fields only a scan fills in, that nobody types: hidden while Lansweeper is off. The values are kept. */
+export const SCAN_ONLY = ['boot'];
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
 export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
@@ -110,7 +114,7 @@ export const warrantyState = (o, today = new Date()) => {
 /* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
    all the same, and flagged so someone checks it by hand. */
 export const SCAN_OLD_DAYS = 90;
-export const scanOld = (o, today = new Date()) => !!(o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
+export const scanOld = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
   && (today - new Date(o.feed.scanned + 'T00:00:00')) / 86400000 > SCAN_OLD_DAYS);
 export const scanChip = o => scanOld(o) ? `<span class="chip warn" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
@@ -166,7 +170,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0};
+export const SYNC = {run: '', time: 0, graph: false};
 export const stampTime = s => { const m = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(s || ''); return m ? new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0; };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -218,7 +222,7 @@ export function syncOf(o){
 }
 /* The Microsoft Graph status of a device: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
-  if (!o.graph || (!o.graph.join && !o.graph.compliance)) return '';
+  if (!SYNC.graph || !o.graph || (!o.graph.join && !o.graph.compliance)) return '';
   const text = [o.graph.join, o.graph.compliance].filter(Boolean).join(' · ');
   return `<span class="chip ${o.graph.compliance === 'noncompliant' ? 'bad' : 'ok'}" title="Microsoft Graph">${esc(text)}</span>`;
 };

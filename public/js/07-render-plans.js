@@ -1,4 +1,4 @@
-import { setAppVersion, setPlans, LS_ON, daysSince } from './01-core.js';
+import { setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
@@ -544,12 +544,6 @@ export function render(){
 /* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
 /* The inventory as one object. The server stores it. */
 export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};
-/* The newest time Lansweeper sent any device: the last sync that reached the inventory. */
-export function lastSync(){
-  let best = '', at = -1;
-  for (const o of objs){ const s = o.feed && o.feed.seen; if (!s) continue; const d = daysSince(s); if (at < 0 || d < at){ at = d; best = s; } }
-  return best ? {at: best, days: at} : null;
-}
 /* Lansweeper is late when nothing came for two days: the push normally runs every night. */
 export const SYNC_LATE_DAYS = 2;
 /* The status bar: whether changes reached the server, and when Lansweeper last sent data. */
@@ -562,8 +556,9 @@ export function renderStatus(){
     offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
   }[SERVER.save] || ['', '', ''];
   save.innerHTML = `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
-  if (!LS_ON() || st.feedOn === false){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
-  const last = lastSync();
+  if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
+  updateSync();
+  const last = SYNC.run ? {at: SYNC.run, days: daysSince(SYNC.run)} : null;
   if (!last){ sync.innerHTML = '<span class="dot off"></span>Lansweeper: no sync yet'; sync.title = 'No data has come from Lansweeper yet.'; return; }
   const late = last.days >= SYNC_LATE_DAYS;
   sync.innerHTML = `<span class="dot ${late ? 'warn' : ''}"></span>Lansweeper ${esc(last.at)}`;
@@ -837,7 +832,7 @@ export async function boot(){
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph;
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph;
   if (!info.user){ clearInventory(); render(); loginModal(); return; }
   await loadFromServer(info.user);
 }
