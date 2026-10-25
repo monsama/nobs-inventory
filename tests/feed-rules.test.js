@@ -108,3 +108,12 @@ test('a PLC is recognised by its model, even when Lansweeper files it as a switc
   mergeRecords(mapped, recordsFromJson([{ name: 'S7', ref: 'x', assetType: 'Switch', model: 'SIMATIC S7-1500', links: [] }]), now);
   assert.equal(mapped.objs[0].type, 'other', 'a mapping set in Settings decides over the model');
 });
+
+test('every antivirus product and drive is kept, past 200 characters', () => {
+  const av = ['Windows Defender', 'Cortex XDR', 'Sophos Intercept X', 'SentinelOne'].map(n => n + ', scanning on, up to date').join('; ');
+  const disk = Array.from({ length: 12 }, (_, i) => String.fromCharCode(67 + i) + ': 117/237 GB').join('; ');
+  const [r] = recordsFromJson([{ name: 'PC-1', av, disk, model: 'x'.repeat(300) }]);
+  assert.equal(r.av, av);
+  assert.equal(r.disk, disk);
+  assert.equal(r.model.length, 200, 'other fields stay short');
+});

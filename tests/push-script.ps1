@@ -52,6 +52,16 @@ $locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @
 Check 'ip locations read' $locs.Count 1
 Check 'ip location name' $locs[0].name 'Willisau Lager'
 
+# Every antivirus product of a device is kept (Windows Defender next to another one), each once.
+$saveCols = $script:Cols
+$script:Cols = @{ tblAntivirus = @{ displayname = 'DisplayName' } }
+$av = New-Table @('AssetID','DisplayName','onAccessScanningEnabled','productUpToDate') @(
+  @('7', 'Windows Defender', 'True', 'True'), @('7', 'Cortex XDR', '1', '1'), @('7', 'Cortex XDR', '1', '1'), @('8', 'Sophos', 'False', 'True'))
+$h = Get-HealthByAsset (New-Conn $av)
+Check 'antivirus: both products' $h['7']['av'] 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'
+Check 'antivirus: one product' $h['8']['av'] 'Sophos, scanning OFF, up to date'
+$script:Cols = $saveCols
+
 # What the push leaves out is counted in Lansweeper and said in the log.
 $Config = @{ MaxAgeDays = 0 }
 $script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }

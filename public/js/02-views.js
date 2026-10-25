@@ -26,7 +26,8 @@ export function renderSide(){
 }
 $('#side').addEventListener('click', e => {
   const b = e.target.closest('.item'); if (!b) return;
-  if ('type' in b.dataset) st.type = b.dataset.type || null;
+  /* A type clicked again goes back to all types. */
+  if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
   if ('loc' in b.dataset) st.loc = st.loc === b.dataset.loc ? null : b.dataset.loc;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
@@ -158,7 +159,7 @@ export const CARD_FIELDS = {
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
 export const CARD_DEFAULTS = {
-  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
+  pc: ['ip', 'user', 'loc', 'warranty'], notebook: ['ip', 'user', 'loc', 'warranty'], camera: ['ip', 'model', 'loc', 'serial'], bmc: ['ip', 'fw', 'loc', 'serial'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
   accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
   monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
   patch: ['ports', 'loc', 'purpose', 'serial'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
@@ -242,26 +243,28 @@ export function addSearchHits(){
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
-  {k:'code', label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
-  {k:'name', label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
-  {k:'type', label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
-  {k:'model', label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
-  {k:'ip', label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
-  {k:'mac', label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
-  {k:'serial', label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
-  {k:'loc', label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
-  {k:'rack', label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
-  {k:'user', label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
-  {k:'warranty', label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
-  {k:'price', label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
-  {k:'supplier', label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
-  {k:'invoice', label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
-  {k:'purpose', label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
-  {k:'conn', label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
+  {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
+  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
+  {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
+  {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
+  {k:'mac', w:150, label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
+  {k:'serial', w:160, label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
+  {k:'loc', w:190, label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
+  {k:'rack', w:130, label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
+  {k:'user', w:160, label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'warranty', w:130, label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
+  {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
+  {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
+  {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
+  {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
+  {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
-  {k:'status', label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
-  {k:'ls', label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
+  {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
+  {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
+/* The Lansweeper column is left out while Lansweeper is off. */
+export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
@@ -283,7 +286,7 @@ export function setHiddenCols(list){
 }
 export function columnsMenu(){
   const hidden = hiddenCols();
-  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${TABLE_COLS.map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
+  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
 }
 
 export function renderTable(){
@@ -307,10 +310,10 @@ export function renderTable(){
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
-  const shown = TABLE_COLS.filter(c => c.fixed || !hiddenCols().includes(c.k));
+  const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
-    <th style="width:30px"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    ${shown.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
+    <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
+    ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
     ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
     </tbody></table></div>`;
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
@@ -421,7 +424,10 @@ export function mapLayout(nodes){
   const focused = !!MAP.focused;
   const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (focused || st.mapAttached || !isAttached(r.kind)));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
-  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes;
+  /* With attached devices off, a device that is only attached to another one (a monitor on a PC) is left out too, not
+     drawn as a loose box; a monitor attached to nothing still shows when objects without relations are shown. */
+  const attachedOnly = o => !connected.has(o.id) && rels.some(r => r.from === o.id && isAttached(r.kind) && ids.has(r.to));
+  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes.filter(o => focused || st.mapAttached || !attachedOnly(o));
   const inList = new Set(list.map(o => o.id));
   const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
@@ -619,7 +625,8 @@ export function renderMap(){
     bindMapToolbar();
     return;
   }
-  $('#mapCount').textContent = MAP.L.list.length + ' objects · ' + MAP.L.edges.length + ' relations';
+  const nL = MAP.L.list.length, nE = MAP.L.edges.length;
+  $('#mapCount').textContent = `${nL} ${nL === 1 ? 'object' : 'objects'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
   $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relationship map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
     <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
@@ -750,8 +757,8 @@ export function renderPorts(){
   $('#view').innerHTML = `<div id="net">
     <div class="panelbox"><div class="hdr">Port setup</div>
       <div class="form" style="padding:10px 12px">
-        <label for="psPorts">Copper ports</label><input id="psPorts" type="number" min="0" max="1000" value="${sw.ports || 0}" style="width:110px">
-        <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:110px">
+        <label for="psPorts">Copper ports</label><input id="psPorts" type="number" min="0" max="1000" value="${sw.ports || 0}" style="width:180px">
+        <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:180px">
         <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${esc(sw.pfx || '')}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
       </div>
       <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span><button id="psSave" class="primary">Save ports</button></div>
