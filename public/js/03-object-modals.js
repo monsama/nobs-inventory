@@ -62,6 +62,12 @@ export const FIELDS = {
   accesspoint:[['ssid','Wi-Fi networks']],
   monitor:[], printer:[], other:[]
 };
+/* Types without a network address of their own: a monitor hangs off a PC, a rack and a patch panel are passive. */
+export const NO_NET_TYPES = ['monitor', 'rack', 'patch'];
+/* The built-in fields of a type: everyone's, the network ones unless the type has no address, and the type's own. */
+export const typeFieldsOf = type => [...FIELDS.base, ...(NO_NET_TYPES.includes(type) ? [] : FIELDS.net), ...(FIELDS[type] || [])];
+/* Network ports can be added to a device of a type that has an address but no ports of its own (a PC, a printer). */
+export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type] || []).some(f => f[0] === 'ports');
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
 export function accessoriesHtml(o){
   const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
@@ -409,7 +415,7 @@ export function renderObj(o){
   /* Network links first, then the attached devices, each under its own heading when both are there. */
   const net = rs.filter(x => !isAttached(x.r.kind)), att = rs.filter(x => isAttached(x.r.kind)), byGroup = [...net, ...att];
   const groupHead = i => (net.length && att.length && i === 0 ? '<div class="relgroup">Network</div>' : '') + (net.length && att.length && i === net.length ? '<div class="relgroup">Attached</div>' : '');
-  let fields = [...FIELDS.base, ...(o.type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[o.type] || [])];
+  let fields = typeFieldsOf(o.type);
   /* A type that usually has no ports (a PC, a printer) shows the port fields only for a device that has ports, or after
      More -> Add network ports. Setting the ports back to 0 hides them again. */
   const typePorts = fields.some(f => f[0] === 'ports'), extraPorts = !typePorts && (o.ports > 0 || st.addPorts === o.id);
@@ -430,7 +436,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${!typePorts && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}

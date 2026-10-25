@@ -76,6 +76,26 @@ try {
   const area = await core(async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0]);
   assert.deepEqual([area.name, area.room], ['Büro Nord', 'Zürich HQ / Büro'], 'renamed, in the same room');
 
+  // Use all adds every subnet Lansweeper suggests: a gateway outside its subnet is left out, an overlap is skipped
+  await core(async () => {
+    const c = await import('/js/01-core.js');
+    c.SUBNETS.push({ name: 'Old', cidr: '10.10.30.0/24', vid: null, gateway: '', dns: [], ranges: [], types: [] });
+    c.st.lsNets = [
+      { cidr: '172.21.110.0/24', devices: 25, gateway: '172.21.110.1', dns: ['172.21.1.5'], name: 'Lager', types: [{ type: 'pc', count: 20 }], seen: [{ use: 'DHCP', from: '172.21.110.50', to: '172.21.110.90', count: 20 }] },
+      { cidr: '10.100.100.0/24', devices: 3, gateway: '192.168.1.1', dns: [], name: '' },
+      { cidr: '10.10.30.0/25', devices: 2, gateway: '10.10.30.1', dns: [] },
+    ];
+    c.st.setTab = 'vlans'; (await import('/js/04-settings.js')).openSettings();
+  });
+  await p.waitForSelector('#snUseAll');
+  assert.match(await p.textContent('#snUseAll'), /Use all 3/);
+  await p.click('#snUseAll');
+  await until(p, async () => (await import('/js/01-core.js')).SUBNETS.length === 3);
+  const nets = await core(async () => (await import('/js/01-core.js')).SUBNETS.map(n => [n.cidr, n.name, n.gateway, n.types.join(','), n.ranges.length]));
+  assert.deepEqual(nets.slice(1), [['172.21.110.0/24', 'Lager', '172.21.110.1', 'pc', 1], ['10.100.100.0/24', '10.100.100.0/24', '', '', 0]]);
+  assert.match(await p.textContent('#toast'), /Added 2 subnets; 10\.100\.100\.0\/24 without its gateway 192\.168\.1\.1; skipped 10\.10\.30\.0\/25/);
+  await p.click('#setClose');
+
   // no racks: New rack opens New object with the type Rack
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
