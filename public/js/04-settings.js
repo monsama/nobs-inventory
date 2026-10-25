@@ -1,4 +1,4 @@
-import { dayText, daysSince } from './01-core.js';
+import { COMPANY, dayText, daysSince } from './01-core.js';
 import { FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -224,7 +224,7 @@ export function renderSetPane(){
     locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
-    users: '<div id="setUsers"></div>',
+    users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
@@ -232,7 +232,7 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
@@ -423,6 +423,39 @@ export function renderSetUsers(){
       if (!r.ok){ toast('Added ' + name + ', but the password was not set. Use Password in the list.'); st.setTab = 'users'; openSettings(); return; }
     }
     toast('Added ' + name); st.setTab = 'users'; openSettings();
+  };
+}
+/* The company the inventory belongs to: its name and logo, printed on entry sheets instead of NOBS Inventory. A logo is
+   scaled to fit 600 × 200 and kept as a PNG, so an SVG, WebP or GIF works as well. */
+export function renderSetCompany(){
+  const el = $('#setCompany'); if (!el) return;
+  const edit = canEdit();
+  el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
+    <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
+    <div class="form" style="padding:10px 12px">
+      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Argolite AG" ${edit ? '' : 'disabled'}>
+      <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
+        <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
+        <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>
+    </div><p class="note" id="coMsg" role="status" style="padding:0 12px 10px"></p></div>`;
+  $('#coName').onchange = e => { COMPANY.name = e.target.value.trim(); queueServerSave(); toast('Company name saved'); };
+  $('#coPick').onclick = () => $('#coFile').click();
+  const del = $('#coDel'); if (del) del.onclick = () => { COMPANY.logo = ''; queueServerSave(); renderSetCompany(); toast('Logo removed'); };
+  $('#coFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const msg = $('#coMsg');
+    if (f.size > 5 * 1024 * 1024){ msg.textContent = 'The file is larger than 5 MB.'; return; }
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('This file is not an image the browser can read.')); i.src = url; });
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth || 600, h = img.naturalHeight || 200, k = Math.min(1, 600 / w, 200 / h);
+      const c = Object.assign(document.createElement('canvas'), {width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k))});
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const png = c.toDataURL('image/png');
+      if (png.length > 560000){ msg.textContent = 'The logo is too detailed to keep. Try a simpler or smaller picture.'; return; }
+      COMPANY.logo = png; queueServerSave(); renderSetCompany(); toast('Logo saved');
+    } catch (err) { msg.textContent = err.message; }
   };
 }
 /* A manual user without a login: the login and the first password are set together, so the user can sign in at once. */

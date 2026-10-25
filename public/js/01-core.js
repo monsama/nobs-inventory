@@ -148,6 +148,8 @@ export const objs = [];
 export const MODELS = [];
 /* Contracts and licences (Settings keys contracts, licences) and the currency of every amount. Replaced as a whole when changed. */
 export const COSTS = {contracts: [], licences: [], currency: 'CHF'};
+/* The company the inventory belongs to (setting company): its name and logo (a PNG data URL) on entry sheets. */
+export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */

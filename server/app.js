@@ -13,6 +13,7 @@ import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
+import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
@@ -362,6 +363,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   app.get('/api/sheets/:id', requireUser, requireAdmin, (req, res, next) => {
     try { purgePasswords(db, SHEET_KEY); const s = getSheet(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${s.id} opened`); res.json(s); } catch (e) { next(e); }
+  });
+  /* The sheet as a PDF, with the company's name and logo. It holds the password while the kept sheet does. */
+  app.get('/api/sheets/:id/pdf', requireUser, requireAdmin, async (req, res, next) => {
+    try {
+      purgePasswords(db, SHEET_KEY);
+      const s = getSheet(db, SHEET_KEY, req.params.id);
+      const pdf = await sheetPdf(s.sheet, loadState(db).company || {});
+      audit(db, req.user.id, `entry sheet ${s.id} downloaded as PDF`);
+      const file = `entry-sheet-${s.sheet.person.name.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${String(s.sheet.issued).slice(0, 10)}.pdf`;
+      res.type('application/pdf').attachment(file).set('Cache-Control', 'no-store').send(pdf);
+    } catch (e) { next(e); }
   });
   app.post('/api/sheets/:id/changed', requireUser, requireAdmin, (req, res, next) => {
     try { markChanged(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${req.params.id}: password marked as changed, removed from the sheet`); res.json({ ok: true }); } catch (e) { next(e); }
