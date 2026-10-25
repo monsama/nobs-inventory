@@ -92,7 +92,10 @@ export const setPlans = v => { PLANS = v; };
 export const LS_ON = () => st.useLansweeper !== false;
 /* The shortest a new password may be. The server enforces the same rule, and also refuses common passwords. */
 export const PW_MIN = 12;
-export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks',  av:'Antivirus', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location', status:'Status'};
+export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC address', gateway:'Gateway', dns:'DNS servers', dhcp:'Address from', os:'Operating system', model:'Model', cpu:'CPU', ram:'Memory', fw:'Firmware', domain:'Domain', boot:'Last power event', disk:'Disks', av:'Antivirus', patch:'Last Windows update', mask:'Subnet mask', purchased:'Purchased', warranty:'Warranty ends', user:'User', loc:'Location'};
+/* What else the feed brings, not a field of its own: each has a box in "Feed may overwrite" too. */
+export const FEED_EXTRA = {ipRoom:'Room from IP location', software:'Installed software', links:'Monitors attached to PCs', dept:'Departments of people'};
+export const FEED_EXTRA_HINT = {ipRoom:'A device without a location gets the room its IP address is in, from Lansweeper\'s IP locations', software:'The software Lansweeper finds replaces what it found before; software added by hand stays', links:'Monitors are attached to the PC Lansweeper scanned them on', dept:'A person named by Lansweeper gets the department from the directory Lansweeper reads, when they have none'};
 /* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
 export const WARRANTY_SOON_DAYS = 90;
 export const warrantyState = (o, today = new Date()) => {

@@ -13,7 +13,8 @@ export const PAGE_SETTINGS = ['company', 'contracts', 'licences', 'currency', 'a
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
-const DEFAULT_POLICY = { ip: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: false, av: false, domain: true, user: false, loc: false, status: false,
+const DEFAULT_POLICY = { ip: true, ip6: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: true, av: false, domain: true, user: false, loc: false,
+  software: true, links: true, dept: true, ipRoom: true,
   mask: true, gateway: true, dns: true, dhcp: true, purchased: true, warranty: true };
 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */

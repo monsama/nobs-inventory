@@ -1,5 +1,5 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceChip, licencesFor, licencesPanel } from './09-costs.js';
-import { COSTS, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, subnetSpan } from './net.js';
 import { isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
@@ -681,7 +681,9 @@ document.addEventListener('keydown', e => {
 });
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
-export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>`;
+/* Two groups: the fields of a device, and what else the feed brings (each with what it does as a tooltip). */
+export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>
+  <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => `<label class="pchk" title="${esc(FEED_EXTRA_HINT[k])}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`).join('')}</div>`;
 export function bindPolicy(root){
   root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => { st.policy[c.dataset.pol] = c.checked; render(); });
 }

@@ -7,7 +7,7 @@ import { HttpError } from './errors.js';
 import { checkAddress } from './validate.js';
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
 
-const FEED_FIELDS = ['ip', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
+const FEED_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 /* Lansweeper's type names -> the app's types. The first rule that matches wins; unmatched names become "other". */
@@ -60,7 +60,7 @@ export function recordsFromCsv(text) {
   }));
 }
 
-const FEED_TEXT = ['name', 'serial', 'ip', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
+const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
   'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'userDept'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
 export function recordsFromJson(list) {
@@ -96,7 +96,7 @@ export const dayOf = v => {
    and nobody has that name yet, as the page would; a department already set, or a directory user's, is kept. */
 function applyDepartments(s, records) {
   let n = 0;
-  if (s.feedOn === false) return n;
+  if (s.feedOn === false || (s.policy && s.policy.dept === false)) return n;
   for (const r of records) {
     if (!r.user || !r.userDept) continue;
     const named = s.objs.some(o => o.user === r.user);
@@ -118,7 +118,8 @@ function applySoftware(s, pairs) {
   let n = 0;
   if (s.feedOn === false) return n;
   for (const { r, obj } of pairs) {
-    if (!Array.isArray(r.software) || (obj.ovr && obj.ovr.software === false)) continue;
+    const owned = obj.ovr && 'software' in obj.ovr ? obj.ovr.software : !(s.policy && s.policy.software === false);
+    if (!Array.isArray(r.software) || !owned) continue;
     const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
     const next = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
     /* Counted only when the software really changed, so an unchanged push saves nothing. */
@@ -131,8 +132,10 @@ function applySoftware(s, pairs) {
    are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
 function applyLinks(s, pairs, counts) {
   let n = 0;
+  if (s.feedOn === false) return n;
   for (const { r, obj } of pairs) {
-    if (!Array.isArray(r.links) || (obj.ovr && obj.ovr.links === false)) continue;
+    const owned = obj.ovr && 'links' in obj.ovr ? obj.ovr.links : !(s.policy && s.policy.links === false);
+    if (!Array.isArray(r.links) || !owned) continue;
     const wanted = new Set();
     for (const l of r.links) {
       const to = (l.ref && findByRef(s, l.ref)) || (l.name && findByName(s, l.name));
@@ -170,7 +173,9 @@ export function modelFor(s, name) {
 /* Models that say what a device is better than Lansweeper's type does: Lansweeper files an industrial controller it reaches
    over SNMP as a switch or a network device. */
 const MODEL_WORDS = [
-  [/simatic|\bs7-\d{3,4}\b|\blogo!|modicon|controllogix|compactlogix|guardlogix|micrologix|\bmelsec\b|\bplc\b|programmable (logic )?controller/i, 'plc']
+  [/simatic|\bs7-\d{3,4}\b|\blogo!|modicon|controllogix|compactlogix|guardlogix|micrologix|\bmelsec\b|\bplc\b|programmable (logic )?controller/i, 'plc'],
+  /* Drives and motion control: frequency converters and servo drives are controllers too, not network devices. */
+  [/sinamics|sinumerik|simotion|motion control|powerflex|kinetix|altivar|lexium|\bacs ?[0-9]{3,4}\b|movidrive|frequency (converter|inverter)|servo ?drive/i, 'plc']
 ];
 /* A type mapping set in Settings wins; then a model that names what the device is; then the words of Lansweeper's type. */
 export function typeFor(s, name, model, role) {
@@ -203,7 +208,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
   /* A field that is not a valid address is left out of the record, so it is never stored. */
   const clean = raw => {
     const r = { ...raw };
-    for (const k of ['ip', 'mac']) { const c = checkAddress(k, r[k]); r[k] = c.ok ? c.value : ''; }
+    for (const k of ['ip', 'ip6', 'mac']) { const c = checkAddress(k, r[k]); r[k] = c.ok ? c.value : ''; }
     const ip = v => { const c = checkAddress('ip', v); return c.ok ? c.value : ''; };
     r.gateway = ip(r.gateway);
     r.mask = prefixOf(r.mask) === null ? '' : r.mask;
@@ -266,8 +271,14 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; changed = true; }
-    /* A device with no location gets the room its address is in; one chosen by hand, or held by the device, stays. */
-    if (!found.loc && s.feedOn !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; changed = true; } }
+    /* Location: Lansweeper's location, when the policy lets the feed set it and the room is in the inventory's list. */
+    const locOwned = s.feedOn !== false && (found.ovr && 'loc' in found.ovr ? found.ovr.loc : !!policy.loc);
+    if (locOwned && r.location && locs.includes(r.location) && found.loc !== r.location) {
+      if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${r.location}` });
+      found.loc = r.location; changed = true;
+    }
+    /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
+    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

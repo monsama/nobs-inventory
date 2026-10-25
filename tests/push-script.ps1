@@ -18,6 +18,8 @@ Check 'role 5' (Get-RoleText 5) 'dc'
 Check 'role null' (Get-RoleText ([DBNull]::Value)) ''
 Check 'first v4' (Get-FirstV4 'fe80::1, 10.1.1.5') '10.1.1.5'
 Check 'first v4 none' (Get-FirstV4 '0.0.0.0') ''
+Check 'first v6 global' (Get-FirstV6 '10.1.1.5, fe80::5%12, 2001:DB8::42') '2001:db8::42'
+Check 'first v6 link-local only' (Get-FirstV6 'fe80::1, ::1') ''
 
 # A fake connection: each command answers with the rows of a DataTable.
 function New-Table($cols, $rows) { $dt = New-Object System.Data.DataTable; foreach ($c in $cols) { [void]$dt.Columns.Add($c) }; foreach ($r in $rows) { $row = $dt.NewRow(); $row.ItemArray = [object[]]$r; $dt.Rows.Add($row) }; return , $dt }

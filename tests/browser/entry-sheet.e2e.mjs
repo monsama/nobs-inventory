@@ -56,6 +56,8 @@ try {
   await page.waitForSelector('#sheetPw');
   const pw = (await page.textContent('#sheetPw')).trim();
   assert.match(pw, /^[A-Za-z2-9]{4}(-[A-Za-z2-9]{4}){3}$/);
+  /* Printing starts after the sheet is shown (the logo is loaded first): wait for it. */
+  await page.waitForFunction(() => !!window.__printed);
   const printed = await page.evaluate(() => window.__printed);
   for (const t of [pw, 'Anna Muster', 'Logistik', 'amuster', 'SN-LAT-1', 'MON-001', 'Desk 4, first floor', 'signature', 'Example AG', 'data:image/png;base64,']) assert.ok(printed.includes(t), 'printed sheet lacks ' + t);
   assert.ok(!printed.includes('NOBS Inventory'), 'the company replaces NOBS Inventory on the sheet');
