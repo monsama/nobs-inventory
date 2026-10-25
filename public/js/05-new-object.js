@@ -22,7 +22,7 @@ const EXAMPLES = {
 /* How a new object of a type is connected: a monitor is attached to a computer, a virtual machine runs on a server, a rack
    or patch panel is not plugged into anything; everything else is plugged into a switch, patch panel, phone or computer. */
 export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'Attached to', port: false, ok: o => ['pc', 'notebook', 'server'].includes(o.type)}
-  : type === 'vm' ? {kind: 'hosted', label: 'Runs on', port: false, ok: o => o.type === 'server'}
+  : type === 'vm' ? {kind: 'hosted', label: 'Runs on', port: false, ok: o => o.type === 'server' && o.kind !== 'vm'}
   : ['rack', 'patch'].includes(type) ? null
   : {kind: 'connected', label: 'Plug into', port: true, ok: o => hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type)};
 export function newObjModal(pre={}){
@@ -107,10 +107,12 @@ export function newObjModal(pre={}){
 
 
 
+/* How an existing object is linked: a server that is a virtual machine runs on a server too. */
+const linkOf = o => LINK_OF(o.type === 'server' && o.kind === 'vm' ? 'vm' : o.type);
 /* Link object: connect an object that already exists. How it is linked follows its type: a monitor is attached to a
    computer, a virtual machine runs on a server, anything else is plugged into a port. Its details are not changed. */
 export function linkObjModal(pre = {}){
-  const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => LINK_OF(o.type));
+  const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o));
   if (!list.length){ toast('There is nothing to link yet. Create an object first.'); return; }
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
   modal(`<div class="mh">Link object</div>
@@ -122,7 +124,7 @@ export function linkObjModal(pre = {}){
     <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">Link</button></div>`, 'sm');
   if (pre.obj && list.some(o => o.id === pre.obj)) $('#lkObj').value = pre.obj;
   const fit = () => {
-    const o = byId($('#lkObj').value), link = LINK_OF(o.type), keep = $('#lkTo').value;
+    const o = byId($('#lkObj').value), link = linkOf(o), keep = $('#lkTo').value;
     document.querySelector('label[for="lkTo"]').textContent = link.label;
     $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${t.id}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
@@ -133,10 +135,11 @@ export function linkObjModal(pre = {}){
   $('#lkObj').focus();
   $('#lkCancel').onclick = closeModal;
   $('#lkOk').onclick = () => {
-    const e = byId($('#lkObj').value), link = LINK_OF(e.type), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
+    const e = byId($('#lkObj').value), link = linkOf(e), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
     if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
     const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
+    if (typeof val === 'number' && t.ports > 0 && (val < 1 || val > (t.ports || 0) + (t.sfp || 0))){ toast(`${t.name} has ports 1 to ${(t.ports || 0) + (t.sfp || 0)}.`); return; }
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
     if (val != null && lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }

@@ -515,10 +515,11 @@ export function renderObj(o){
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
   const lay = FIELD_LAYOUT[o.type] || {};
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
-  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]))
+  fields = fields
     .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
     .sort((a, b) => at(a) - at(b));
   fields.push(...extraFields(o, fields));
+  fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
   /* A field hidden on this device, or on every device of the type (from the ⋯ menu or Settings). Its value is kept,
      and "Show hidden fields" brings the hidden ones back for a moment, each with its own way to show it again. */
   const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : (lay.hidden || []).includes(f[0]) ? 'type' : '';
@@ -743,7 +744,13 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = el.value;
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
-      if (k === 'user'){ if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; } return; }
+      if (k === 'user'){
+        const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
+        if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; }
+        /* A user picked by hand on a linked device is kept: the next sync does not put the Lansweeper user back. */
+        if (feedLinked(o) && was !== (v || '')){ o.ovr.user = false; kept.push(FIELD_LABEL.user || 'User'); }
+        return;
+      }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       if (k === 'price'){ const t = v.trim().replace(/['’\s]/g, '').replace(',', '.'); if (t === '' || !isFinite(+t) || +t < 0){ if (t !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = Math.round(+t * 100) / 100; }
@@ -808,7 +815,7 @@ export function renderObj(o){
     if (act === 'hidetype' || act === 'showtype'){
       const lay = FIELD_LAYOUT[o.type] || {}, h = (lay.hidden || []).filter(x => x !== k); if (act === 'hidetype') h.push(k);
       FIELD_LAYOUT[o.type] = {...lay, hidden: h};
-      toast(act === 'hidetype' ? `${name} is hidden on every ${t}. The values are kept; Settings › Per type shows it again.` : `${name} is shown again on every ${t}`); render(); return;
+      toast(act === 'hidetype' ? `${name} is hidden on every ${t}. The values are kept; Show hidden fields brings it back.` : `${name} is shown again on every ${t}`); render(); return;
     }
     if (act === 'clear'){
       const el = objView.querySelector(`[data-k="${CSS.escape(k)}"]`); if (!el) return;
@@ -819,8 +826,7 @@ export function renderObj(o){
       $('#fmCancel').onclick = closeModal;
       $('#fmOk').onclick = () => {
         closeModal();
-        if (k === 'user'){ delete o.hotdesk; o.uid = null; el.value = ''; }
-        else el.value = '';
+        el.value = '';
         if (fromFeed){ const box = el.closest('.ctlrow') && el.closest('.ctlrow').querySelector('[data-ovr]'); if (box) box.checked = false; }
         saveObj(true);
       };
@@ -835,6 +841,9 @@ export function renderObj(o){
       $('#fmOk').onclick = () => {
         const list = (TYPE_FIELDS[o.type] || []).filter(x => x.key !== key);
         if (list.length) TYPE_FIELDS[o.type] = list; else delete TYPE_FIELDS[o.type];
+        /* Nothing stays hidden under its name, so a field added again later is shown. */
+        const lay = FIELD_LAYOUT[o.type]; if (lay && lay.hidden) lay.hidden = lay.hidden.filter(x => x !== k);
+        objs.forEach(x => { if (x.type === o.type && x.hide){ x.hide = x.hide.filter(h => h !== k); if (!x.hide.length) delete x.hide; } });
         closeModal(); toast(`${name} deleted from ${t}`); render();
       };
     }

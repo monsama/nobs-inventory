@@ -129,6 +129,15 @@ try {
   assert.equal(await p.textContent('label[for="lkTo"]'), 'Plug into');
   assert.equal(await p.isVisible('#lkPort'), true);
   await p.click('#lkCancel');
+  // a server that is a virtual machine runs on a server
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
+    core.objs.push({ id: 'vmx', code: 'INV-9203', type: 'server', kind: 'vm', name: 'VM-X', status: 'active', loc, ovr: {}, feed: null });
+    core.objs.push({ id: 'hostx', code: 'INV-9204', type: 'server', name: 'HOST-X', status: 'active', loc, ovr: {}, feed: null }); });
+  await p.click('#linkBtn'); await p.waitForSelector('#lkObj');
+  await p.selectOption('#lkObj', 'vmx');
+  assert.equal(await p.textContent('label[for="lkTo"]'), 'Runs on');
+  await p.selectOption('#lkTo', 'hostx'); await p.click('#lkOk');
+  assert.ok(await p.evaluate(async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'vmx' && r.to === 'hostx' && r.kind === 'hosted')));
   // LAG: a LAG on one switch links the LAG of the same size on the other; a single port inside a LAG is not offered.
   await p.evaluate(async () => {
     const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
