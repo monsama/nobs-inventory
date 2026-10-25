@@ -1,7 +1,7 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { COMPANY, dayText, daysSince } from './01-core.js';
-import { collapsedPanels, rememberPanel, FIELDS, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
-import { overlapProblem } from './net.js';
+import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
@@ -838,7 +838,7 @@ export function renderSetSubnets(){
     <p class="note" style="padding:10px 12px 0">Each subnet is on one VLAN. Its gateway, DNS servers and ranges are inside it, and the device types are the ones that take an address from it.</p>
     <div class="subnets">${SUBNETS.length ? SUBNETS.map((n, i) => snEdit === i ? subnetEditorHtml(n, i) : subnetItemHtml(n, i, edit && snEdit === null)).join('') : '<p class="note lempty">No subnets yet.</p>'}</div>
     ${snEdit === 'new' ? subnetEditorHtml(snDraft ? snDraft.n : {}, 'new', snDraft ? snDraft.hint : '') : edit ? `<div class="sn-addbar"><button id="snNew">Add subnet</button></div>` : ''}
-    ${suggested.length ? `<div class="sn-suggest"><p class="note" style="padding:0 0 4px">Seen by Lansweeper, not listed yet</p>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
+    ${suggested.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen by Lansweeper, not listed yet</p>${edit && snEdit === null && suggested.length > 1 ? `<button id="snUseAll">Use all ${suggested.length}</button>` : ''}</div>${suggested.map((n, i) => `<div class="snrow"><span class="mono">${esc(n.cidr)}</span><span class="grow">${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${n.gateway ? ' · gateway ' + esc(n.gateway) : ''}${n.name ? ' · ' + esc(n.name) : ''}</span>${edit && snEdit === null ? `<button data-snuse="${i}">Use</button>` : ''}</div>`).join('')}</div>` : ''}`;
   if (!edit) return;
   const open = (key, draft = null) => { snEdit = key; snDraft = draft; renderSetSubnets(); const f = root.querySelector('.sn-edit [data-sn]'); if (f) f.focus(); };
   root.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => open(+b.dataset.sedit));
@@ -851,13 +851,34 @@ export function renderSetSubnets(){
   });
   /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
      of address (DHCP, static) from the lowest to the highest address seen. */
+  /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
+  const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],
+    types: (n.types || []).map(t => t.type).filter(t => TYPES[t]), ranges: (n.seen || []).map(x => ({from: x.from, to: x.to, use: x.use}))});
+  /* Use all: every suggestion is added. A gateway, DNS server or range that does not fit is left out of that subnet, and one
+     that overlaps a subnet already listed is skipped; the message says what was done. */
+  const all = $('#snUseAll');
+  if (all) all.onclick = () => {
+    const added = [], trimmed = [], skipped = [];
+    for (const n of suggested) {
+      const v = fromSuggestion(n), cut = [], span = subnetSpan(v), inside = a => { const x = ipInt(a); return x !== null && span && x >= span.first && x <= span.last; };
+      if (v.gateway && !inside(v.gateway)){ cut.push(`gateway ${v.gateway}`); v.gateway = ''; }
+      if (v.dns.some(d => ipInt(d) === null)){ v.dns = v.dns.filter(d => ipInt(d) !== null); cut.push('DNS'); }
+      const ok = v.ranges.filter(r => inside(r.from) && inside(r.to) && ipInt(r.from) <= ipInt(r.to));
+      if (ok.length < v.ranges.length){ v.ranges = ok; cut.push('a range'); }
+      if (subnetProblem(v) || overlapProblem([...SUBNETS, v])){ skipped.push(n.cidr); continue; }
+      SUBNETS.push(v); added.push(n.cidr); if (cut.length) trimmed.push(`${n.cidr} without its ${cut.join(' and ')}`);
+    }
+    if (added.length) queueServerSave();
+    toast(`Added ${added.length} ${added.length === 1 ? 'subnet' : 'subnets'}${trimmed.length ? `; ${trimmed.join(', ')}` : ''}${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Check their ranges against your DHCP server.`);
+    renderSetSubnets();
+  };
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
     const n = suggested[+b.dataset.snuse];
     const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
     const seen = n.seen || [];
     const hint = `Filled in from what Lansweeper saw in ${esc(n.cidr)}: ${n.devices} ${n.devices === 1 ? 'device' : 'devices'}${types.length ? ` of ${types.length} ${types.length === 1 ? 'type' : 'types'}` : ''}.`
       + (seen.length ? ` Each range runs from the lowest to the highest address seen of its kind (${seen.map(x => `${x.use}: ${x.count}`).join(', ')}): check them against your DHCP server before saving.` : '');
-    open('new', {n: {name: n.name || n.cidr, cidr: n.cidr, gateway: n.gateway || '', dns: n.dns || [], types, ranges: seen.map(x => ({from: x.from, to: x.to, use: x.use}))}, hint});
+    open('new', {n: fromSuggestion(n), hint});
   });
   const ed = root.querySelector('.sn-edit');
   if (!ed) return;
@@ -1118,8 +1139,9 @@ export function renderCardLines(box, type){
 /* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
 export function renderBuiltinFields(box, type){
   const lay = FIELD_LAYOUT[type] || {};
-  const base = [...FIELDS.base, ...(type === 'monitor' ? [] : FIELDS.net), ...(FIELDS[type] || [])];
-  if (!base.some(f => f[0] === 'ports')) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
+  /* The same fields the type's object page has; Ports and Port naming for a type that can be given ports. */
+  const base = typeFieldsOf(type);
+  if (canAddPorts(type)) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   const seen = new Set(), builtins = base.filter(f => !seen.has(f[0]) && seen.add(f[0]));
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
   const ordered = [...builtins].sort((a, b) => at(a) - at(b));
