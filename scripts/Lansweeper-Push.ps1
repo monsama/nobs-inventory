@@ -145,6 +145,18 @@ function Test-NobsToken([string]$Token) {
     }
 }
 
+# Shows the certificate NOBS presents and asks whether to trust it. Yes pins its thumbprint (and keeps it in the settings
+# file, unless the setup saves it later). Windows PowerShell 5.1 only: PowerShell 7 ignores a pinned thumbprint.
+function Confirm-TrustCertificate([switch]$NoSave) {
+    $cert = Get-NobsCertificate
+    Write-Host "Windows does not trust the certificate of $(([Uri]$Config.NobsUrl).Host): $($cert.Subject), thumbprint $($cert.Thumbprint), valid until $($cert.NotAfter.ToString('yyyy-MM-dd'))" -ForegroundColor Yellow
+    if ((Read-Host 'Trust this certificate for the push? (y/n)') -notmatch '^[yj]') { return $false }
+    $Config.NobsCertThumbprint = $cert.Thumbprint
+    Set-NobsCertificatePin
+    if (-not $NoSave) { Save-LocalConfig $script:LocalConfig $Config.NobsUrl $Config.NobsCertThumbprint; Write-PushLog "Certificate $($cert.Thumbprint) trusted, kept in $($script:LocalConfig)" }
+    return $true
+}
+
 # Asks for the address and the token, checks both against the server, and keeps them.
 function Invoke-Setup {
     Write-Host ''
@@ -159,11 +171,9 @@ function Invoke-Setup {
         try { Invoke-RestMethod -Uri ($Config.NobsUrl + '/api/health') -TimeoutSec 20 | Out-Null; break }
         catch {
             $msg = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message }
-            if ($msg -match 'trust|certificate|SSL|TLS') {
+            if ($msg -match 'trust|certificate|SSL|TLS|Zertifikat') {
                 if ($Config.NobsCertThumbprint) { throw "The trusted certificate is still refused: $msg. Run the script with Windows PowerShell 5.1 (powershell.exe); PowerShell 7 does not use a trusted thumbprint." }
-                $cert = Get-NobsCertificate
-                Write-Host "Windows does not trust the certificate of $(([Uri]$Config.NobsUrl).Host): $($cert.Subject), thumbprint $($cert.Thumbprint)" -ForegroundColor Yellow
-                if ((Read-Host 'Trust this certificate for the push? (y/n)') -match '^[yj]') { $Config.NobsCertThumbprint = $cert.Thumbprint; Set-NobsCertificatePin; continue }
+                if (Confirm-TrustCertificate -NoSave) { continue }
             } else { Write-Host "No answer from $($Config.NobsUrl): $msg" -ForegroundColor Yellow }
         }
     }
@@ -752,7 +762,14 @@ try {
     }
 
     $token = Get-StoredToken
-    $totals = Send-Records $records $token
+    try { $totals = Send-Records $records $token }
+    catch {
+        # A certificate Windows does not trust (a self-signed one, say): when someone is there, offer to trust it and send again.
+        $msg = "$($_.Exception.Message) $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message })"
+        if (-not ($script:Interactive -and -not $Config.NobsCertThumbprint -and $msg -match 'trust|certificate|SSL|TLS|Zertifikat')) { throw }
+        if (-not (Confirm-TrustCertificate)) { throw }
+        $totals = Send-Records $records $token
+    }
     Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded" -f `
         $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded)
     exit 0
