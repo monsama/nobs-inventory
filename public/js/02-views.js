@@ -126,7 +126,8 @@ export function cardHtml(o){
   if (o.purpose) lines.push(['Purpose', esc(o.purpose)]);
   /* The fields the type has, when this object has a value for them. */
   for (const f of TYPE_FIELDS[o.type] || []) { const v = (o.custom || {})[f.key]; if (v != null && v !== '') lines.push([f.label, esc(String(v))]); }
-  if (o.ip) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
+  /* A device named by its address does not list it twice. */
+  if (o.ip && o.ip !== o.name) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
   if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
   else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
   if (o.type === 'server') lines.push(['Kind', o.kind === 'vm' ? 'Virtual machine' : 'Physical']);

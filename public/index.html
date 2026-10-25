@@ -217,6 +217,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* cards */
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal}
+/* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
+.card{align-self:stretch}
+.card .kv{flex:1;align-content:start}
 .card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .card .ch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
@@ -396,13 +399,14 @@ a.link:hover{text-decoration:underline}
 .ps.me .ps-name{font-weight:600}
 .ps-type{font-size:11px;color:var(--muted)}
 .ps-me{font-size:11px;color:var(--accent)}
-.entries{display:block}
+/* Notes and attachments use the same two columns as every field: the list, then the sync column kept free. */
+.entries{align-items:flex-start}
+.form label:has(+ .entries){align-self:start;padding-top:8px}
 .entries-box{display:flex;flex-direction:column;gap:8px}
 .entry{border:1px solid var(--bd2);border-radius:var(--r-s);padding:8px 10px;background:var(--panel)}
 .entry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .entry-head b{flex:1;min-width:0}
 .entry-text{margin-top:4px;font-size:12px;color:var(--muted);white-space:pre-wrap}
-.entry-add{margin-right:34px}
 .entry-add>input:first-child{flex:1 1 100%}
 .entry-add>input{flex:1 1 120px}
 .entry-add button{flex:none}

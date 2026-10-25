@@ -266,7 +266,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(f => propRow(o, f)).join('')}${extraRows(o, fields)}
         ${rackFields(o)}
-        ${o.type === 'pc' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}</div>` : ''}
+        ${o.type === 'pc' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}</div></div></div>
       ${feedPanel(o)}
     </div>
