@@ -28,6 +28,8 @@ export function graphConfigOf(env) {
 }
 
 /* The thumbprint Microsoft matches the certificate by: the SHA-256 of the certificate, base64url. */
+/* The thumbprint Entra shows for an uploaded certificate: SHA-1, upper-case hex. */
+export const entraThumbprintOf = certPem => crypto.createHash('sha1').update(new crypto.X509Certificate(certPem).raw).digest('hex').toUpperCase();
 export const thumbprintOf = certPem => crypto.createHash('sha256').update(new crypto.X509Certificate(certPem).raw).digest('base64url');
 
 /* A signed assertion that proves the app holds the private key. It is valid for five minutes. */

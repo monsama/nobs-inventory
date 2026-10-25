@@ -11,7 +11,7 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson } from './feed.js
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { syncGraph, thumbprintOf } from './graph.js';
+import { entraThumbprintOf, syncGraph } from './graph.js';
 import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -248,17 +248,39 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* Microsoft Graph: the join status, enrolment and compliance of the devices, read with a certificate. */
   /* The certificate on the server: when it expires, and whether it is set at all. */
+  /* The certificate the server signs in with, and the ones made here: their public details only, never a key. Each says
+     whether it is the one in use, matched by its thumbprint, which is also what Entra lists for an uploaded certificate. */
   app.get('/api/graph/status', requireUser, requireAdmin, (req, res) => {
     const g = cfgGraph();
-    if (!g) return res.json({ configured: false });
-    const x = new crypto.X509Certificate(g.certPem);
-    res.json({ configured: true, expires: new Date(x.validTo).toISOString(), thumbprint: thumbprintOf(g.certPem) });
+    let used = null;
+    if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
+    const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint }));
+    res.json({ configured: !!g, ...(used || {}), certs });
   });
-  /* A new certificate and key. The key is only in this answer: it is not kept on the server. */
-  app.post('/api/graph/cert', requireUser, requireAdmin, (req, res) => {
-    const made = generateGraphCert();
-    audit(db, null, 'Microsoft Graph certificate created, expires ' + made.expires);
-    res.json(made);
+  /* A new certificate and key. The key is only in this answer: it is not kept on the server. Its public details are kept,
+     so the list shows which certificates were made and which one the server uses. */
+  app.post('/api/graph/cert', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const made = generateGraphCert();
+      const thumbprint = entraThumbprintOf(made.certPem);
+      const s = loadState(db);
+      s.graphCerts = [{ thumbprint, created: new Date().toISOString(), expires: made.expires, by: req.user.name || req.user.login || '' }, ...(s.graphCerts || [])].slice(0, 20);
+      saveState(db, s);
+      audit(db, req.user.id, `Microsoft Graph certificate ${thumbprint} created, expires ${made.expires}`);
+      res.json({ ...made, thumbprint });
+    } catch (e) { next(e); }
+  });
+  /* Takes a certificate off the list. It does not touch Entra: delete it there too, under Certificates & secrets. */
+  app.delete('/api/graph/cert/:thumbprint', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const s = loadState(db), t = String(req.params.thumbprint).toUpperCase();
+      const g = cfgGraph();
+      if (g && entraThumbprintOf(g.certPem) === t) throw new HttpError(400, 'This is the certificate the server signs in with. Replace it on the server first.');
+      s.graphCerts = (s.graphCerts || []).filter(c => c.thumbprint !== t);
+      saveState(db, s);
+      audit(db, req.user.id, `Microsoft Graph certificate ${t} removed from the list`);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
   });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
