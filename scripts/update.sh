@@ -51,6 +51,17 @@ fetch_release() {
   (cd "$2" && sha256sum -c --quiet "nobs-inventory-$1.tar.gz.sha256")
 }
 
+# Second half: the new code is installed and this is the new version's own script, started by the old one (below), so
+# whatever the new version needs before it starts (a new secret file, say) is done by a script that knows about it.
+if [ -n "${NI_UPDATE_PREV_IMAGE:-}" ]; then
+  PREV_IMAGE="$NI_UPDATE_PREV_IMAGE"
+  if [ -n "${NI_UPDATE_PREV_REV:-}" ]; then
+    restore_code() { git checkout --quiet "$NI_UPDATE_PREV_REV"; }
+  else
+    WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT; mkdir "$WORK/prev"
+    restore_code() { tar -xzf "$NI_UPDATE_SNAPSHOT" -C "$WORK/prev" && install_code "$WORK/prev"; }
+  fi
+else
 PREV_IMAGE="$(get_env NI_IMAGE)"; PREV_IMAGE="${PREV_IMAGE:-$REGISTRY_IMAGE:$(cat VERSION)}"
 
 echo "[INFO]  Backup before the update ..."
@@ -84,6 +95,12 @@ else
   tar -xzf "$WORK/nobs-inventory-$TARGET.tar.gz" -C "$WORK/new" --strip-components=1
   install_code "$WORK/new"
   restore_code() { tar -xzf "$SNAPSHOT" -C "$WORK/prev" && install_code "$WORK/prev"; }
+fi
+# Hand over to the update script that came with the new code. It finishes the update, or switches back on a failure.
+if [ -x scripts/update.sh ] && grep -q NI_UPDATE_PREV_IMAGE scripts/update.sh; then
+  rm -rf "${WORK:-}"; trap - EXIT
+  NI_UPDATE_PREV_IMAGE="$PREV_IMAGE" NI_UPDATE_PREV_REV="${PREV_REV:-}" NI_UPDATE_SNAPSHOT="${SNAPSHOT:-}" exec ./scripts/update.sh
+fi
 fi
 
 NEW_IMAGE="$REGISTRY_IMAGE:$(cat VERSION)"
