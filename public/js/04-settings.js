@@ -4,7 +4,7 @@ import { collapsedPanels, rememberPanel, FIELDS, bindPolicy, closeModal, modal, 
 import { overlapProblem } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
-import { tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 import { CARD_FIELDS, cardLines } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -107,7 +107,7 @@ export function renderTypeMap(){
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
-    <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${ro}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
+</div>`;
   const put = (list, name) => {
     st.typeMap = Object.fromEntries(list.filter(([n]) => n));
     const changed = applyTypeMap(name?.toLowerCase()); if (changed) toast(`${changed} synced ${changed === 1 ? 'device' : 'devices'} changed type`);
@@ -123,7 +123,7 @@ export function renderTypeMap(){
     if (entries.some(([n]) => n.toLowerCase() === name.toLowerCase())){ toast(name + ' is already in the table.'); return; }
     put([...entries, [name, $('#tmType').value]], name);
   };
-  $('#skipIp').onchange = () => { st.skipIpOnly = $('#skipIp').checked; queueServerSave(); };
+
 }
 /* The type rules: shipped with the app and editable here. The first rule that matches a device decides its type. A copy
    of the shipped list is kept once it is changed; Back to the defaults goes back to the shipped one. */
@@ -287,6 +287,7 @@ async function refreshGraph(){
 export function collapsibleSections(root, prefix){
   const keyOf = h => prefix + (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
   const apply = () => root.querySelectorAll('.panelbox > .hdr:not(.sechdr)').forEach(h => {
+    if (h.parentNode.parentElement.closest('.panelbox')) return;   /* a box inside a section opens with it */
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
     const closed = !!collapsedPanels()[keyOf(h)];
     h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
@@ -300,12 +301,12 @@ export function collapsibleSections(root, prefix){
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p></div>`;
+  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p><div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div><div id="setTypeMap"></div><div id="setTypeRules"></div>' + (LS_ON() ? policyPane : ''),
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
     directory: '<div id="setLdap"></div><div id="setGraph"></div>',
-    locations: '<div class="panelbox"><div class="hdr">Locations</div><div id="setLocs"></div></div>',
-    vlans: '<div class="panelbox"><div class="hdr">VLANs</div><div id="setVlans"></div></div><div class="panelbox" id="setDomains"></div><div class="panelbox" id="setSubnets"></div>',
+    locations: '<div id="setLocs"></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div><div class="panelbox" id="setSubnets"></div><div class="panelbox" id="setDomains"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>',
@@ -314,6 +315,7 @@ export function renderSetPane(){
   }[st.setTab];
   pane.innerHTML = html;
   bindPolicy(pane);
+  const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
   fullTextTooltips(pane);
   ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
@@ -882,6 +884,7 @@ export function renderSetSubnets(){
   };
 }
 export function renderSetVlans(){
+  const cnt = $('#vlCnt'); if (cnt) cnt.textContent = VLANS.length;
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
   const subnetsOn = vid => SUBNETS.filter(n => n.vid === vid).length;
   $('#setVlans').innerHTML = `<div class="lrows"><div class="lrow head vl"><span>VLAN</span><span>Name</span><span>Description</span><span class="n">Used by</span><span></span></div>
@@ -1213,7 +1216,7 @@ export async function loadPushInfo(){
 }
 /* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
 /* A date for people: "22 Oct 2026, 18:03". */
-export const pushDate = v => (v ? new Date(v).toLocaleString(undefined, {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '');
+export const pushDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){
   const c = pushLast ? pushLast.counts : null;
@@ -1258,7 +1261,7 @@ export function renderSetFeed(){
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
-  <div class="panelbox"><div class="hdr">Export file <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
+  <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
     <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
