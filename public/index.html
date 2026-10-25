@@ -236,6 +236,10 @@ svg.cu{fill:currentColor;stroke:none}
 .card .hd{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:8px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv dd.none{color:var(--muted);opacity:.6}
+.cardlines{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px 12px;align-items:end;padding:10px 12px 12px}
+.cardlines label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+@media (max-width:760px){.cardlines{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rels{border-top:1px solid var(--bd2);padding:6px 10px;display:flex;flex-direction:column;gap:3px;font-size:12px;flex:1}
 .rels .r{display:flex;gap:6px;align-items:baseline;min-width:0}
 .rels .r .k{color:var(--muted);flex:none}
@@ -315,6 +319,15 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .panelbox{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--bg);min-width:0}
 .panelbox>.hdr{border-radius:var(--r-m) var(--r-m) 0 0}
 .panelbox .panelbox>.hdr{background:var(--panel)}
+/* Settings: every section is a box of its own, with space between. The title bar is the darkest band, the line that says
+   what the section is for sits on a lighter one, and the content on the page colour. */
+#setPane{display:flex;flex-direction:column;gap:16px}
+#setPane>div:not(.panelbox),#setPane>div:not(.panelbox)>div:not(.panelbox){display:flex;flex-direction:column;gap:16px}
+#setPane div:empty:not(.panelbox *){display:none}
+#setPane .panelbox{overflow:hidden;flex:none}
+#setPane>*,#setPane>*>*{flex-shrink:0}
+#setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
+#setPane .panelbox>.hdr+p.note,#setPane .panelbox>.hdr+div>p.note:first-child{margin:0;padding:9px 12px!important;background:var(--panel);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}

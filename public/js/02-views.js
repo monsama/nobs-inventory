@@ -1,4 +1,4 @@
-import { WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -123,31 +123,58 @@ export function relSummary(rs){
   const net = rs.filter(x => !isAttached(x.r.kind)).length, att = rs.length - net;
   return [net ? net + (net === 1 ? ' relation' : ' relations') : '', att ? att + ' attached' : ''].filter(Boolean).join(' · ');
 }
+/* What a card line can show: its label, and the value for a device ('' when the device has none). */
+const mono = v => v ? `<span class="mono">${esc(String(v))}</span>` : '';
+export const CARD_FIELDS = {
+  ip: ['IP', o => mono(o.ip)],
+  mac: ['MAC', o => mono(o.mac)],
+  user: ['User', o => esc(o.user || '')],
+  loc: ['Location', o => esc((o.loc || '').replace(' / ', ' · '))],
+  warranty: ['Warranty', o => { const w = warrantyState(o); return w ? `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>` : ''; }],
+  serial: ['Serial', o => mono(o.serial)],
+  os: ['OS', o => esc(o.os || '')],
+  fw: ['Firmware', o => esc(o.fw || '')],
+  ports: ['Ports', o => o.type === 'switch' ? `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o)} used` : (o.type === 'patch' || hasPorts(o)) && o.ports ? `${o.ports} · ${used(o)} used` : ''],
+  ext: ['Extension', o => mono(o.ext)],
+  kind: ['Kind', o => o.type === 'server' ? (o.kind === 'vm' ? 'Virtual machine' : 'Physical') : ''],
+  cap: ['Capacity', o => esc([o.cap, o.proto].filter(Boolean).join(' · '))],
+  ssid: ['Wi-Fi', o => esc(o.ssid || '')],
+  domain: ['Domain', o => esc(o.domain || '')],
+  units: ['Height', o => o.units ? o.units + ' U' : ''],
+  purpose: ['Purpose', o => esc(o.purpose || '')],
+};
+/* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
+   in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
+export const CARD_DEFAULTS = {
+  pc: ['ip', 'user', 'loc', 'warranty'], server: ['ip', 'os', 'ports', 'loc'], vm: ['ip', 'os', 'loc', 'purpose'],
+  accesspoint: ['ip', 'ssid', 'loc', 'serial'], sip: ['ext', 'ip', 'user', 'loc'], pbx: ['ip', 'fw', 'loc', 'serial'],
+  monitor: ['serial', 'user', 'loc', 'warranty'], switch: ['ip', 'ports', 'loc', 'fw'], printer: ['ip', 'serial', 'loc', 'warranty'],
+  patch: ['ports', 'loc', 'purpose', 'serial'], router: ['ip', 'ports', 'loc', 'fw'], firewall: ['ip', 'ports', 'loc', 'fw'],
+  modem: ['ip', 'loc', 'serial', 'purpose'], storage: ['ip', 'cap', 'loc', 'warranty'], android: ['user', 'os', 'serial', 'loc'],
+  ios: ['user', 'os', 'serial', 'loc'], mobile: ['user', 'os', 'serial', 'loc'], plc: ['ip', 'fw', 'loc', 'serial'],
+  rack: ['loc', 'units', 'purpose', 'serial'], other: ['ip', 'user', 'loc', 'serial'],
+};
+export const cardLines = type => {
+  const set = (FIELD_LAYOUT[type] || {}).card;
+  return (Array.isArray(set) && set.length ? [...set, '', '', '', ''] : CARD_DEFAULTS[type] || CARD_DEFAULTS.other).slice(0, 4);
+};
+/* A line's label and value: a built-in line, or a field the type has (custom.<key>). An empty slot is a blank line. */
+export function cardLine(o, key){
+  if (key.startsWith('custom.')){
+    const f = (TYPE_FIELDS[o.type] || []).find(x => x.key === key.slice(7)), v = (o.custom || {})[key.slice(7)];
+    return [f ? f.label : key.slice(7), v != null && v !== '' ? esc(String(v)) : ''];
+  }
+  const c = CARD_FIELDS[key];
+  return c ? [c[0], c[1](o)] : ['', ''];
+}
 export function cardHtml(o){
   const rs = relsOf(o);
-  const lines = [];
-  if (o.purpose) lines.push(['Purpose', esc(o.purpose)]);
-  /* The fields the type has, when this object has a value for them. */
-  for (const f of TYPE_FIELDS[o.type] || []) { const v = (o.custom || {})[f.key]; if (v != null && v !== '') lines.push([f.label, esc(String(v))]); }
-  /* A device named by its address does not list it twice. */
-  if (o.ip && o.ip !== o.name) lines.push(['IP', `<span class="mono">${esc(o.ip)}</span>`]);
-  if (o.type === 'sip') lines.push(['Extension', `<span class="mono">${esc(o.ext)}</span>`]);
-  else if (o.mac) lines.push(['MAC', `<span class="mono">${esc(o.mac)}</span>`]);
-  if (o.type === 'server') lines.push(['Kind', o.kind === 'vm' ? 'Virtual machine' : 'Physical']);
-  if (o.type === 'storage' && (o.cap || o.proto)) lines.push(['Capacity', esc([o.cap, o.proto].filter(Boolean).join(' · '))]);
-  if (o.type === 'switch') lines.push(['Ports', `${o.ports || 0} + ${o.sfp || 0} SFP · ${used(o)} used`]);
-  else if (o.type === 'patch') lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
-  else if (hasPorts(o) && o.ports) lines.push(['Ports', `${o.ports} · ${used(o)} used`]);
-  else if (o.type === 'monitor') lines.push(['Serial', `<span class="mono">${esc(o.serial)}</span>`]);
-  if (o.loc) lines.push(['Location', esc(o.loc.replace(' / ', ' · '))]);
-  if (o.user) lines.push(['User', esc(o.user)]);
-  const w = warrantyState(o);
-  if (w) lines.push(['Warranty', `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>`]);
+  const lines = cardLines(o.type).map(k => cardLine(o, k));
   const s = STATUS[o.status];
   return `<button class="card" data-open="${o.id}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nm">${esc(o.name)}</span>${markHtml(o)}<span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
-    <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+    <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     <div class="cf"><span class="code">${esc(o.code)}</span>${(syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
@@ -364,10 +391,12 @@ export const mapH = () => 91;
 
 export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
-  /* Attached devices are left out of the map unless asked for, so the map shows the network. */
-  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (st.mapAttached || !isAttached(r.kind)));
+  /* Attached devices are left out of the map unless asked for, so the map shows the network. Showing one object's
+     relations shows all of them, its monitors and accessories included, and the object itself even without any. */
+  const focused = !!MAP.focused;
+  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (focused || st.mapAttached || !isAttached(r.kind)));
   const connected = new Set(E.flatMap(r => [r.from, r.to]));
-  const list = st.mapOnly ? nodes.filter(o => connected.has(o.id)) : nodes;
+  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes;
   const inList = new Set(list.map(o => o.id));
   const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
   /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
@@ -539,6 +568,7 @@ export function renderMap(){
     <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
     <button id="mapExport">Export SVG</button>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
+  MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
