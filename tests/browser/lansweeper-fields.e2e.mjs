@@ -100,6 +100,15 @@ try {
   await page.waitForSelector('.lsbox');
   assert.match(await page.textContent('.lsbox'), /Last scanned.*Check by hand.*has not scanned it for over three months/s);
 
+  // disks as one bar per drive: how full it is and the space left; red from 90 % used
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').disk = "C: 20/237 GB; D: 1'812/1'863 GB"; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('.disks .disk');
+  assert.equal(await page.locator('.disks .disk').count(), 2);
+  assert.match(await page.textContent('.disks'), /C:\s*20 GB free of 237 GB.*D:\s*1.812 GB free of 1.863 GB/s);
+  assert.match(await page.getAttribute('.disks .disk >> nth=0', 'class'), /bad/, 'C: is 92 % used');
+  assert.doesNotMatch(await page.getAttribute('.disks .disk >> nth=1', 'class'), /bad|warn/, 'D: has room');
+  if (shots) await page.locator('.disks').screenshot({ path: path.join(shots, 'disks.png') });
+
   assert.deepEqual(errors, [], 'no page errors');
   console.log('lansweeper fields: all checks passed');
 } finally { await browser.close(); server.close(); }
