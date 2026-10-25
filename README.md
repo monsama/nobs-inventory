@@ -105,6 +105,16 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
 
 The update script needs `curl`, `sha256sum` and `tar` on the host. An install from 0.2.4 cannot update with the script yet, because that version only works with git. Extract the 0.2.12 archive once over the install folder (`tar -xzf nobs-inventory-0.2.12.tar.gz -C /opt/nobs-inventory --strip-components=1`), then run `sudo ./scripts/update.sh 0.2.12`. From 0.2.5 on, the script alone is enough.
 
+After installing the new code, the script hands over to the new version's own update script, which finishes the update (new secret files, starting the image) or switches back on a failure. Updates from an install of 0.9.11 or newer work this way.
+
+**From 0.9.8 or older to 0.9.9 or newer:** the old script does not create `secrets/sheet_key`, so Compose does not start and the update switches back. Create the key once, then run the update:
+
+    sudo sh -c 'umask 077; head -c 32 /dev/urandom | base64 > secrets/sheet_key'
+    sudo chown 1000:1000 secrets/sheet_key && sudo chmod 400 secrets/sheet_key
+    sudo ./scripts/update.sh
+
+Keep a copy of `secrets/sheet_key` apart from the server: it encrypts the entry sheets and the Microsoft Graph keys.
+
 ## Backup
 
 Copy the database while the app runs with the file in the volume:
