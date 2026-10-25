@@ -19,13 +19,13 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
  --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
+ --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
  --gridh:#282828;--sub:#232a33;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#3fb950;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
+ --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
 
@@ -38,6 +38,9 @@ input[type=file]{max-width:100%;min-width:0;font-size:12px}
 input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px}
 /* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
 select{padding-left:2px}
+/* Fields inside a label would take the label's small text; they keep the size of every other field. */
+label>input,label>select,label>textarea{font-size:13px}
+code{font-family:var(--mono)}
 /* A text field with the app's own pick list, drawn like the other dropdowns. */
 .combo{position:relative;min-width:0}
 .combo>input{width:100%;padding-right:26px}
@@ -55,11 +58,12 @@ button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start;padding:14px}
-.locpanel .hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
+/* A count in a title bar, the same everywhere: muted, normal case. */
+.hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
 .locpanel{min-width:0}
 table.locs{width:100%;table-layout:fixed}
 table.locs th,table.locs td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-table.locs td input{width:100%;height:30px;min-width:0;box-sizing:border-box}
+table.locs td input{width:100%;height:28px;min-width:0;box-sizing:border-box}
 table.locs td.n,table.locs th.n{text-align:right;color:var(--muted)}
 table.locs td.act{width:1%}
 table.locs td.site{color:var(--muted)}
@@ -82,7 +86,7 @@ table.locs td.site{color:var(--muted)}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
-.pl-q input{width:100%;height:30px;box-sizing:border-box}
+.pl-q input{width:100%;height:28px;box-sizing:border-box}
 .pl-list{overflow:auto;flex:1;min-height:0}
 .pl-item{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 12px;border:0;border-radius:0;background:transparent;box-shadow:none;justify-content:flex-start}
 .pl-item:hover{background:var(--hover)}
@@ -129,15 +133,15 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow.vl{grid-template-columns:64px minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.dm{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) 64px 92px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) auto 80px}
-.lrow input{width:100%;min-width:0;height:30px;box-sizing:border-box}
-.lrow .n{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.lrow input{width:100%;min-width:0;height:28px;box-sizing:border-box}
+.lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow button{width:100%;white-space:nowrap}
 .lrow.head .n{text-align:right}
 .lempty{padding:14px 12px;margin:0;color:var(--muted)}
 .lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
-.lpanel-add input{flex:1;min-width:0;height:30px;box-sizing:border-box}
-.lpanel-add select{flex:0 0 160px;height:30px;min-width:0}
+.lpanel-add input{flex:1;min-width:0;height:28px;box-sizing:border-box}
+.lpanel-add select{flex:0 0 160px;height:28px;min-width:0}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
 .pchk-slot{display:inline-block;width:24px;flex:none}
@@ -176,6 +180,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* top bar */
 #bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
 #brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
+#toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
 #brand .logo{width:24px;height:24px;flex:none;display:block}
 #brand b{font-weight:800;letter-spacing:.2px}
 #brand .word{font-weight:400;color:var(--muted)}
@@ -200,10 +205,10 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* main frame */
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
-.hdr{background:var(--panel2);padding:4px 8px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
+.hdr{background:var(--panel2);padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
 .hdr button{height:22px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 #side>.hdr:first-child{height:38px}
-.item{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
+.item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
 .item.sel{background:var(--accentbtn);color:var(--accentfg)}
 .item.sel .cnt{color:inherit;opacity:.85}
@@ -324,7 +329,7 @@ table.grid.sw th.sw-cnt{width:170px}
 table.grid.sw .sw-detail>td{padding:0 0 10px 0;background:var(--panel);white-space:normal}
 .sw-devs{margin:0 12px 0 36px;border:1px solid var(--bd2);border-left:3px solid var(--accent);border-radius:var(--r-s);background:var(--bg);overflow:auto}
 table.sw-sub{width:100%;border-collapse:collapse;font-size:12px}
-table.sw-sub th{position:static;text-align:left;font-weight:600;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
+table.sw-sub th{position:static;text-align:left;font-weight:600;font-size:13px;color:var(--fg);background:var(--gridh)!important;padding:5px 10px;border-bottom:1px solid var(--bd2);background:none;box-shadow:none;white-space:nowrap}
 table.sw-sub td{padding:4px 10px;border-bottom:1px solid var(--bd2);border-right:0;white-space:nowrap;max-width:none}
 table.sw-sub tr:last-child td{border-bottom:0}
 table.sw-sub tr:hover td{background:var(--hover)}
@@ -379,7 +384,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .subnet-new>.subnet{padding:0;border-top:0}
 .subnet-new>#snAdd{align-self:flex-end}
 .snmsg{font-size:12px}
-.relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px}
+.relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
 .mk-new{background:var(--accent);color:#fff}
 .mk-hand{border:1px solid var(--accent);color:var(--accent);background:var(--bg)}
@@ -554,7 +559,7 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .sechdr{cursor:pointer;user-select:none}
 /* Object page panels: title left-aligned after the fold arrow, count on the right. */
 .obj .panelbox>.hdr{justify-content:flex-start;position:relative;text-align:left}
-.obj .panelbox>.hdr>span.muted{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+.obj .panelbox>.hdr>span.muted,.obj .panelbox>.hdr>span.cnt{position:absolute;right:12px;top:50%;transform:translateY(-50%);margin:0}
 .sechdr::before{content:'\25BE';margin-right:6px;display:inline-block;transition:transform .15s}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
