@@ -12,19 +12,19 @@
 :root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:3px;--r-m:5px;--r-l:6px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
  --bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
- --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#a3520a;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
+ --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#a3520a;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
  --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
@@ -241,6 +241,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .statusbar span{display:inline-flex;align-items:center;gap:5px}
 
 /* cards */
+/* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
+.card{content-visibility:auto;contain-intrinsic-size:auto 150px}
+table.grid tbody tr{content-visibility:auto;contain-intrinsic-size:auto 27px}
 #cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal}
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
@@ -464,7 +467,9 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .relrow button{height:22px;width:22px}
-a.link{color:var(--accent);cursor:pointer;text-decoration:none}
+/* Links have their own shade, readable on the page and on the tinted section bands in either theme. */
+a,a.link{color:var(--linktext)}
+a.link{cursor:pointer;text-decoration:none}
 a.link:hover{text-decoration:underline}
 .addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
 .addrel select,.addrel input{min-width:0}

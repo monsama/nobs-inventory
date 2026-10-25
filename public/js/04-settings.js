@@ -348,14 +348,18 @@ export function mountModal(){
 }
 
 export function renderSetUsers(){
+  /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
+  const devCount = new Map();
+  for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
+  const devicesOfUser = name => devCount.get(name) || 0;
   const rows = USERS.map((u, i) => `<tr>
       <td>${esc(u.name)}</td><td class="mono">${esc(u.login || '—')}</td><td>${esc(u.dept || '')}</td><td>${esc((u.groups || []).join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept">Manual</span>'}</td>
-      <td class="n"><a class="link" data-devs="${i}">${devicesOf(u.name)}</a></td>
+      <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
-      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOf(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
+      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:920px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:9%"><col style="width:8%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:5%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
