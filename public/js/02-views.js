@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -10,6 +10,7 @@ import { closeModal, modal } from './03-object-modals.js';
 const GRAPH_TIPS = {
   missing: 'Devices that Entra and Intune do not have, or no longer have since a sync',
   duplicates: 'Devices Entra has more than one record of (reinstalled, or hybrid joined and also registered): the old records can be deleted in Entra',
+  notjoined: 'Computers and phones that are neither in Entra nor have a computer account in AD',
   ambiguous: 'Graph has a device whose serial number or name fits more than one device here, so it was put on none: give them distinct names or serial numbers',
 };
 export function renderSide(){
@@ -32,11 +33,15 @@ export function renderSide(){
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
   /* The problems first; then how the devices are joined, each with what it means, and only the kinds that occur. */
-  $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f, onlyWhenSome]]) => {
+  $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f, onlyWhenSome, fromOverview]]) => {
     const n = cnt(f), join = c === 'join';
+    if (fromOverview && st.intune !== k) return '';
     if ((join || onlyWhenSome) && !n && st.intune !== k) return '';
-    return `${k === 'entra' ? '<div class="side-sub">Joined</div>' : ''}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] : GRAPH_TIPS[k] || l)}">${join ? '' : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
+    return `${k === 'entra' ? '<div class="side-sub">Joined</div>' : ''}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l)}">${join ? '' : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
   }).join('') : '';
+  /* An operating system picked on the Overview: shown here while it filters, with a way out. */
+  $('#osHdr').hidden = $('#osList').hidden = !st.osFam;
+  $('#osList').innerHTML = st.osFam ? `<button class="item sel" data-osfam="" title="Show all devices again"><span class="lbl">${esc(st.osFam)}</span><span class="cnt">${cnt(o => osFamily(o) === st.osFam)}</span><span aria-hidden="true">×</span></button>` : '';
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
@@ -51,12 +56,13 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('adgroup' in b.dataset) st.adGroup = null;
+  if ('osfam' in b.dataset) st.osFam = null;
   if ('intune' in b.dataset) st.intune = st.intune === b.dataset.intune ? null : b.dataset.intune;
   if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards';
   document.body.classList.remove('side-open');
   render();
 });
-$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = null; st.scanOld = false; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
+$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = null; st.scanOld = false; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
