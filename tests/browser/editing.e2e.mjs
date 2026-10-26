@@ -118,7 +118,29 @@ try {
   assert.equal(await p.getAttribute('#f_p1_gateway', 'placeholder'), '10.20.0.1 · from Office');
   assert.equal(await p.getAttribute('#f_p1_dns', 'placeholder'), '10.20.0.5, 10.20.0.6 · from Office');
   assert.equal(await p.inputValue('#f_p1_gateway'), '', 'the gateway is not written into the device');
-  assert.equal(await p.isDisabled('[data-pick="p1"]'), false, 'Pick from range works with the subnet from the address');
+  // the address lists the free ones of its subnet: the first free first, one in use left out; a taken one typed is named
+  await core(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'p9', code: 'INV-0099', type: 'pc', name: 'PC-NINE', status: 'active', loc: c.byId('p1').loc, ovr: {}, feed: null, ip: '10.20.0.100' }); });
+  await p.click('.combo:has(#f_p1_ip) .combo-arrow');
+  await p.waitForSelector('#f_p1_ip_list li');
+  assert.deepEqual((await p.$$eval('#f_p1_ip_list li', ls => ls.slice(0, 2).map(l => l.textContent.trim()))), ['10.20.0.101 · first free (Static)', '10.20.0.102 · free (Static)']);
+  await p.click('#f_p1_ip_list li >> nth=0');
+  assert.equal(await p.inputValue('#f_p1_ip'), '10.20.0.101');
+  // set to DHCP, the list says so above the static addresses, and that line cannot be picked
+  await p.selectOption('#f_p1_dhcp', 'dhcp');
+  await p.click('.combo:has(#f_p1_ip) .combo-arrow'); await p.waitForSelector('#f_p1_ip_list li.off');
+  assert.equal((await p.textContent('#f_p1_ip_list li >> nth=0')).trim(), 'This device gets its address from DHCP. Free static addresses:');
+  await p.click('#f_p1_ip_list li >> nth=0', { force: true });
+  assert.equal(await p.inputValue('#f_p1_ip'), '10.20.0.101', 'the hint is not picked');
+  await p.keyboard.press('Escape'); await p.selectOption('#f_p1_dhcp', '');
+  await p.fill('#f_p1_ip', '10.20.0.11');
+  assert.deepEqual(await p.$$eval('#f_p1_ip_list li', ls => ls.map(l => l.textContent.trim().split(' ')[0])), ['10.20.0.110', '10.20.0.111', '10.20.0.112', '10.20.0.113', '10.20.0.114', '10.20.0.115', '10.20.0.116', '10.20.0.117', '10.20.0.118', '10.20.0.119'], 'typing narrows the list');
+  await p.fill('#f_p1_ip', '10.20.0.100');
+  assert.equal(await p.textContent('#f_p1_ip_note'), 'In use by PC-NINE.');
+  await p.fill('#f_p1_ip', '10.20.0.1');
+  assert.equal(await p.textContent('#f_p1_ip_note'), 'This address is the gateway of Office.');
+  await p.fill('#f_p1_ip', '10.20.0.42'); await p.press('#f_p1_ip', 'Escape');
+  assert.equal(await p.isHidden('#f_p1_ip_note'), true);
+  await core(async () => { const c = await import('/js/01-core.js'); c.objs.splice(c.objs.findIndex(o => o.id === 'p9'), 1); });
   if (process.env.NI_SHOTS){ await p.locator('#f_p1_subnet').scrollIntoViewIfNeeded(); const b = await p.locator('#f_p1_ip').boundingBox(); await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'subnet-inherit.png'), clip: { x: b.x - 140, y: b.y - 10, width: 560, height: 230 } }); }
   await p.fill('#f_p1_gateway', '10.20.0.254'); await p.locator('#f_p1_gateway').press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').gateway === '10.20.0.254');

@@ -1,6 +1,6 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
-import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
+import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -128,7 +128,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const sn = SUBNETS.find(n => n.cidr === cur) || auto;
     /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
     const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
-    ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(auto.name)} · ${esc(auto.cidr)} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(n.name)} · ${esc(n.cidr)}</option>`).join('')}</select>${vlanChip}<button type="button" data-pick="${o.id}" ${sn ? '' : 'disabled'}>Pick from range</button>`;
+    ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(subnetLabel(auto))} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(subnetLabel(n))}</option>`).join('')}</select>${vlanChip}`;
   }
   else if (kind === 'domain'){
     /* A domain is picked from the list in Settings. One that is on the object but not in the list still shows, so nothing is lost. */
@@ -150,6 +150,8 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     /* A model can be typed or picked from the models already on the devices, in the app's own list (a browser's suggestion
        list cannot be styled like the other dropdowns). A new one typed here is offered to the others once saved. */
     if (k === 'model') ctl = comboHtml(ctl.replace('<input ', `<input placeholder="Type or pick a model" aria-describedby="${id}_note" `), id);
+    /* The address can be typed or picked from the free ones of the device's subnet. */
+    if (k === 'ip') ctl = comboHtml(ctl.replace('<input ', `<input data-combo="ip" placeholder="Type or pick a free address" aria-describedby="${id}_note" `), id);
   }
   return ctl;
 }
@@ -178,22 +180,62 @@ const avNames = () => [...new Set([...objs.flatMap(x => avEntries(x).map(e => e.
 export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
-const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames() };
+const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all) };
+/* Sources that read what was typed themselves; the others are filtered by it here. */
+const SELF_FILTERED = ['ip'];
 const comboOf = el => el && el.closest && el.closest('.combo');
+/* The device an address field belongs to, and the subnet its addresses come from: the one picked, or the one the address
+   is in. */
+const ipOwner = input => byId(input.id.replace(/^f_/, '').replace(/_ip$/, ''));
+function ipSubnet(o){
+  const sel = $('#f_' + o.id + '_subnet');
+  return (sel && SUBNETS.find(n => n.cidr === sel.value)) || subnetFor({...o, subnet: ''});
+}
+/* Who uses an address, besides this device: a device's own address or one of its other adapters. */
+const ipUser = (ip, o) => objs.find(x => x !== o && x.status !== 'retired' && (x.ip === ip || (x.nics || []).some(n => n.ip === ip)));
+function ipChoices(input, all){
+  const o = ipOwner(input); if (!o) return [];
+  const sub = ipSubnet(o);
+  if (!sub) return [{off: true, label: 'Choose a subnet to see its free addresses'}];
+  const used = new Set(objs.filter(x => x !== o && x.status !== 'retired').flatMap(x => [x.ip, ...(x.nics || []).map(n => n.ip)]).filter(Boolean).map(ipInt));
+  [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
+  const typed = all ? '' : input.value.trim();
+  const free = freeAddresses(sub, used, 20, /^[\d.]+$/.test(typed) ? typed : '');
+  if (!free.length) return [{off: true, label: (sub.ranges || []).length && sub.ranges.every(rangeKeptOut) ? `The ranges of ${subnetName(sub)} are all DHCP or reserved` : typed && !all ? 'No free address starts like that' : `No free address in the ranges of ${subnetName(sub)}`}];
+  /* The device's own address is in the list too, as its current one; the first other one is the first free. */
+  const first = free.find(f => f.ip !== o.ip);
+  /* A device set to DHCP gets its address from the DHCP server: the list says so above the static addresses. */
+  const dhcpSel = $('#f_' + o.id + '_dhcp'), dhcp = (dhcpSel ? dhcpSel.value : o.dhcp) === 'dhcp';
+  const hint = dhcp ? [{off: true, label: 'This device gets its address from DHCP. Free static addresses:'}] : [];
+  return [...hint, ...free.map(f => ({v: f.ip, label: f.ip, html: `<span class="mono">${esc(f.ip)}</span> <span class="muted">· ${f.ip === o.ip ? 'current' : f === first ? 'first free' : 'free'}${f.range.use ? ' (' + esc(f.range.use) + ')' : ''}</span>`}))];
+}
+/* Under the address: taken by another device, or the gateway of its subnet. */
+function ipNote(input, note){
+  const o = ipOwner(input), v = input.value.trim();
+  const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };
+  const other = o && v ? ipUser(v, o) : null, sub = o && v ? subnetFor({...o, ip: v, subnet: ''}) : null;
+  const t = other ? `In use by ${other.name}.` : sub && sub.gateway === v ? `This address is the gateway of ${subnetName(sub)}.` : '';
+  note.className = 'fieldnote warn'; note.textContent = t; show(!!t);
+}
+/* A subnet by its name, or by its network when it has none of its own. */
+export const subnetName = n => n.name && n.name !== n.cidr ? n.name : n.cidr;
+const subnetLabel = n => n.name && n.name !== n.cidr ? `${n.name} · ${n.cidr}` : n.cidr;
 function comboOpen(c, all){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   if (input.disabled) return;
-  const q = all ? '' : input.value.trim().toLowerCase();
-  const items = (COMBO_SOURCES[input.dataset.combo || input.dataset.k] || (() => []))().filter(m => !q || m.toLowerCase().includes(q)).slice(0, 100);
+  const q = all ? '' : input.value.trim().toLowerCase(), name = input.dataset.combo || input.dataset.k;
+  const raw = (COMBO_SOURCES[name] || (() => []))(input, all).map(m => typeof m === 'string' ? {v: m, label: m} : m);
+  const items = (SELF_FILTERED.includes(name) ? raw : raw.filter(m => !q || m.v.toLowerCase().includes(q))).slice(0, 100);
   if (!items.length){ comboClose(c); return; }
-  list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" data-v="${esc(m)}" aria-selected="${m === input.value ? 'true' : 'false'}">${esc(m)}</li>`).join('');
+  /* An entry with off is a remark (no subnet, nothing free), shown but not picked. */
+  list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" ${m.off ? 'class="off" aria-disabled="true"' : `data-v="${esc(m.v)}"`} aria-selected="${!m.off && m.v === input.value ? 'true' : 'false'}">${m.html || esc(m.label)}</li>`).join('');
   list.hidden = false; input.setAttribute('aria-expanded', 'true');
 }
 function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
 }
-function comboPick(c, li){ const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); input.dispatchEvent(new Event('combopick', {bubbles: true})); }
+function comboPick(c, li){ if (li.classList.contains('off')) return; const input = c.querySelector('input'); input.value = li.dataset.v; comboClose(c); comboNote(input); input.focus(); input.dispatchEvent(new Event('combopick', {bubbles: true})); }
 /* Under a model typed in: a model not in the list yet is new and is added when saved; one very like a model in the list
    is likely a typo, and the one in the list can be taken with one click. */
 const squash = t => t.toLowerCase().replace(/[\s\-_.,/]+/g, '');
@@ -216,6 +258,7 @@ export function closeModel(v, names){
 }
 function comboNote(input){
   const note = document.getElementById(input.id + '_note'); if (!note) return;
+  if (input.dataset.combo === 'ip') return ipNote(input, note);
   const v = input.value.trim(), names = (COMBO_SOURCES[input.dataset.k] || (() => []))();
   const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };   /* the note and its empty first column */
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
@@ -289,7 +332,7 @@ export function propRow(o, f, menu = ''){
   const box = linked ? `<label class="pchk pchk-only" title="Ticked: Lansweeper fills this in. Type a value to keep your own; tick again to follow Lansweeper."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
-  const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
+  const comboNoteSlot = k === 'model' || k === 'ip' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
   /* The bars sit under the field and end where it ends: the From feed box and the menu keep their columns free. */
   const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
   const nics = k === 'mac' ? nicsHtml(o) : '';
@@ -689,20 +732,8 @@ export function renderObj(o){
     hist(byId(r.from), now(), `Port on ${to.name} set to ${p} by ${who()}`);
     toast('Port set'); render();
   });
-  /* Choosing a subnet enables the pick button, so the address can be picked before the object is saved. */
-  const subSel = $('#f_' + o.id + '_subnet');
-  if (subSel) subSel.onchange = () => { $('[data-pick="' + o.id + '"]').disabled = !subSel.value && !subnetFor({...o, subnet: ''}); };
-  /* Pick from range: the first address of the chosen subnet's ranges that no other device uses, not its gateway or DNS. */
-  $('#view').querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
-    const sub = SUBNETS.find(n => n.cidr === $('#f_' + o.id + '_subnet').value) || subnetFor({...o, subnet: ''});
-    if (!sub){ toast('Choose a subnet first.'); return; }
-    const used = new Set(objs.filter(x => x !== o && x.ip).map(x => ipInt(x.ip)));
-    [sub.gateway, ...(sub.dns || [])].forEach(a => used.add(ipInt(a)));
-    const addr = freeAddress(sub, used);
-    if (!addr){ toast((sub.ranges || []).length && sub.ranges.every(rangeKeptOut) ? `The ranges of ${sub.name} are all DHCP or reserved. Add a static range to pick from.` : 'No free address in the ranges of ' + sub.name + '.'); return; }
-    const ip = $('#f_' + o.id + '_ip'); ip.value = addr; ip.dispatchEvent(new Event('input', {bubbles: true}));
-    toast('Picked ' + addr + ' from ' + sub.name);
-  });
+  /* The address says at once when it is taken or is its subnet's gateway. */
+  const ipIn = $('#f_' + o.id + '_ip'); if (ipIn) comboNote(ipIn);
   $('#view').querySelectorAll('[data-ovr]').forEach(c => c.onchange = () => {
     const k = c.dataset.ovr, name = FIELD_LABEL[k] || { software: 'Software', links: 'Links' }[k] || k;
     o.ovr[k] = c.checked;
