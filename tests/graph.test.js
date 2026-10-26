@@ -195,3 +195,20 @@ test('a Graph record that fits two inventory devices is put on neither and liste
   assert.equal(s.objs[2].graph.gone, undefined);
   assert.deepEqual(s.graphAmbiguous, []);
 });
+
+test('Graph does not refill a field cleared by hand, and does not take a device by name when its serial number is another', async () => {
+  const { applyGraph, graphAll } = await import('../server/graph.js');
+  const rec = { graphId: 'g1', aadId: 'a1', name: 'PC1', serial: 'AAA', join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastSync: '2026-10-25T08:00:00Z', model: 'Dell X', os: 'Windows 11' };
+  const s = { objs: [{ id: 'o1', name: 'PC1', status: 'active', ovr: { model: false }, model: '' }], history: {} };
+  applyGraph(s, [rec], NOW);
+  assert.equal(s.objs[0].model, '', 'cleared by hand, stays empty');
+  assert.equal(s.objs[0].os, 'Windows 11', 'other empty fields are filled');
+  /* PC1 has serial AAA; a new machine also named PC1 with serial BBB is another device. */
+  const t = { objs: [{ id: 'o1', name: 'PC1', serial: 'AAA', status: 'active', ovr: {} }], history: {} };
+  const c = applyGraph(t, [{ ...rec, graphId: 'g2', serial: 'BBB', model: 'New' }], NOW);
+  assert.equal(t.objs[0].graph, undefined); assert.equal(t.objs[0].model, undefined);
+  assert.equal(c.unmatched, 1);
+  /* A listing longer than the limit stops the sync instead of being cut short. */
+  const endless = async () => ({ ok: true, json: async () => ({ value: [{}], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/devices?page' }) });
+  await assert.rejects(graphAll('t', 'https://graph.microsoft.com/v1.0/devices', endless), /more than 1000 pages/);
+});

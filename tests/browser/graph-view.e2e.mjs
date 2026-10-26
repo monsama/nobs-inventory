@@ -28,6 +28,8 @@ saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
     pc('d', 'PC-DUP', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastCheckIn: recent, seen: '26.10.2026 06:00', others: [{ id: 'x1', join: 'Entra registered', managed: '', serial: '', last: old }] }),
     pc('e', 'PC-GONE', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastCheckIn: recent, seen: '25.10.2026 06:00', gone: '26.10.2026 06:00' }),
     { ...pc('k1', 'KIOSK'), type: 'switch' }, { ...pc('k2', 'kiosk'), type: 'switch' },
+    /* Retired: counted nowhere on the Overview, so the lists it opens leave it out too. */
+    { ...pc('r1', 'PC-OLD'), status: 'retired', os: 'Windows 10 Pro' },
   ], rels: [], history: {},
   graphAmbiguous: [{ name: 'Kiosk', serial: '', by: 'name', devices: ['k1', 'k2'], records: 1 }] });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -92,7 +94,11 @@ try {
   assert.equal(await p.locator('#grList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
   await overview(); await p.click('.ov-bar[data-ovintune="managed"]'); assert.deepEqual(await ids(), ['a', 'b', 'd']);
   assert.equal(await p.locator('#grList [data-intune="managed"]').count(), 1, 'an Overview-only filter shows while it filters');
-  await overview(); await p.click('.ov-row[data-ovos="Windows 10"]'); assert.deepEqual(await ids(), ['b']);
+  // a column filter typed in the table before does not hide what the Overview opens
+  await p.evaluate(async () => { const t = await import('/js/06-topbar.js'); Object.values(t.TBL).forEach(x => { x.filters = { name: 'zzz' }; }); });
+  await overview(); await p.click('.ov-row[data-ovos="Windows 10"]'); assert.deepEqual(await ids(), ['b'], 'the retired Windows 10 device is not in the list, as it is not in the count');
+  assert.ok(await p.evaluate(async () => Object.values((await import('/js/06-topbar.js')).TBL).every(x => !Object.keys(x.filters || {}).length)), 'column filters are cleared');
+  assert.equal(await p.locator('#statList [data-live].sel').count(), 1, 'Not retired shows in the sidebar while it filters');
   assert.match(await p.textContent('#osList'), /Windows 10/);
   await p.click('#osList [data-osfam]'); assert.equal((await ids()).length, 7, 'the way out of the system filter');
   assert.deepEqual(await p.evaluate(async () => { const { osFamily } = await import('/js/01-core.js');

@@ -108,6 +108,25 @@ test('directory sync refuses a change that would leave no active admin, and chan
   }
 });
 
+test('directory sign-in keeps the last active admin an admin, when the admin group no longer has them', async () => {
+  const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['Inventory-Users'], 'annas-secret') };
+  const dir = await startDirectory(people);
+  const srv = await startServer({ ldap: cfg(`ldap://127.0.0.1:${dir.address().port}`) });
+  try {
+    const s = loadState(srv.db);
+    saveState(srv.db, { ...s, users: [...s.users.map(u => ({ ...u, active: false })), { id: 'ldap-anna', login: 'anna', name: 'Anna', role: 'admin', active: true, source: 'ldap' }] });
+    const anna = await signIn(srv, 'anna', 'annas-secret');
+    assert.equal(anna.status, 200);
+    assert.equal(anna.user.role, 'admin', 'not demoted: nobody else is an active admin');
+    /* With another active admin, the directory decides. */
+    const t = loadState(srv.db);
+    saveState(srv.db, { ...t, users: t.users.map(u => u.login === 'admin' ? { ...u, active: true } : u) });
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).user.role, 'viewer');
+  } finally {
+    await srv.close(); await new Promise(r => dir.close(r));
+  }
+});
+
 test('a plain ldap:// address is refused unless it is allowed, so passwords are not sent unencrypted', async () => {
   await assert.rejects(ldapListUsers({ ...cfg('ldap://127.0.0.1:1'), allowPlain: false }), /unencrypted/);
 });

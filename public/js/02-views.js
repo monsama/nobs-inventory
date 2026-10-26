@@ -19,7 +19,7 @@ export function renderSide(){
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
   $('#typeList').innerHTML =
     `<button class="item ${!st.type?'sel':''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
-    Object.entries(TYPES).map(([k,v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.type===k)}</span></button>`).join('');
+    Object.entries(TYPES).map(([k,v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.type===k)}</span></button>`).join('');
   const sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])];
   $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>` +
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`).join('')).join('');
@@ -45,13 +45,15 @@ export function renderSide(){
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
-  $('#statList').innerHTML = Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
+  /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
+  $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
 $('#side').addEventListener('click', e => {
   const b = e.target.closest('.item'); if (!b) return;
   /* A type clicked again goes back to all types. */
   if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
   if ('loc' in b.dataset) st.loc = st.loc === b.dataset.loc ? null : b.dataset.loc;
+  if ('live' in b.dataset) st.live = false;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
@@ -62,7 +64,13 @@ $('#side').addEventListener('click', e => {
   document.body.classList.remove('side-open');
   render();
 });
-$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = null; st.scanOld = false; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
+/* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
+export function resetFilters(){
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = null; st.scanOld = st.live = false; st.q = '';
+  const s = $('#search'); if (s) s.value = '';
+  Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
+}
+$('#clearF').onclick = () => { resetFilters(); render(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
@@ -271,7 +279,7 @@ export function addSearchHits(){
 export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
   {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
-  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].short}</span></td>`},
+  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].short)}</span></td>`},
   {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
   {k:'mac', w:150, label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},

@@ -82,3 +82,36 @@ test('Settings: the security choice reaches the connection, and the CA is added 
     assert.equal(loadState(srv.db).ldapCa, undefined);
   } finally { await srv.close(); }
 });
+
+test('the server\'s secrets go only where they were meant to: Lansweeper\'s API, and the directory server the password was saved for', async () => {
+  const { lansweeperConfigOf, graphql } = await import('../server/lansweeper.js');
+  /* A Lansweeper API address changed in Settings to another host does not get the server's token. */
+  const srv0 = await startServer();
+  try {
+    saveState(srv0.db, { ...loadState(srv0.db), lansweeper: { endpoint: 'https://attacker.example/graphql' } });
+    const ls = lansweeperConfigOf(srv0.db, { NI_LS_TOKEN: 'SERVER-TOKEN' });
+    assert.match(ls.endpointProblem, /not Lansweeper's/);
+    let sent = false;
+    await assert.rejects(graphql(ls, '{x}', {}, async () => { sent = true; return { ok: true, json: async () => ({}) }; }), /not Lansweeper's/);
+    assert.equal(sent, false, 'nothing is sent');
+    saveState(srv0.db, { ...loadState(srv0.db), lansweeper: { endpoint: 'https://eu.api.lansweeper.com/api/v2/graphql' } });
+    assert.equal(lansweeperConfigOf(srv0.db, { NI_LS_TOKEN: 'SERVER-TOKEN' }).endpointProblem, undefined, 'Lansweeper\'s own hosts are fine');
+    /* The server's LDAP password is for the server NI_LDAP_URL names. */
+    saveState(srv0.db, { ...loadState(srv0.db), ldap: { url: 'ldaps://evil.example', serviceDn: 'cn=svc' } });
+    const lc = ldapConfigOf(srv0.db, { NI_LDAP_URL: 'ldaps://dc01.example.test', NI_LDAP_SERVICE_PASSWORD: 'SERVER-PW' });
+    assert.equal(lc.servicePassword, '');
+    await assert.rejects(ldapListUsers(lc), /is for dc01\.example\.test, not evil\.example/);
+  } finally { await srv0.close(); }
+
+  /* The password saved in Settings is tied to the directory server it was saved for. */
+  let url = 'ldaps://dc01.example.test';
+  const srv = await startServer({ ldapConfig: () => ({ url, serviceDn: 'cn=svc', searchBase: 'dc=test', group: 'G', loginAttr: 'sAMAccountName', bindTemplate: '{login}' }) });
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal((await srv.call('POST', '/api/ldap/password', { cookie: a.cookie, body: { password: 'svc-secret' } })).status, 200);
+    url = 'ldaps://evil.example';
+    const r = await srv.call('POST', '/api/ldap/sync', { cookie: a.cookie });
+    assert.notEqual(r.status, 200);
+    assert.match(JSON.stringify(r.json), /saved for dc01\.example\.test.*Save the password again/);
+  } finally { await srv.close(); }
+});
