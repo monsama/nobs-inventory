@@ -1,5 +1,6 @@
 import ldap from 'ldapjs';
 import fs from 'node:fs';
+import { rootCertificates as tlsRootCertificates } from 'node:tls';
 
 /* Directory access: sign-in checks a user's own password against the directory and never stores it. Sync reads
    the users with a service account. Both use the same connection settings. */
@@ -16,14 +17,27 @@ const isDn = g => /=/.test(String(g || ''));
 /* Active Directory's "in chain" rule: true when the user is in the group directly or through groups nested in it. */
 const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
 
-function connect(config) {
-  /* A plain ldap:// connection sends the password unencrypted. It needs an explicit opt-in (NI_LDAP_ALLOW_PLAIN=1). */
-  if (/^ldap:\/\//i.test(config.url) && !config.allowPlain) throw new Error('The directory address starts with ldap://, which sends passwords unencrypted. Use ldaps:// or set NI_LDAP_ALLOW_PLAIN=1.');
+/* Opens the connection. An ldaps:// address is encrypted from the start. An ldap:// address is upgraded with StartTLS
+   when that is chosen, before anything else is sent; unencrypted it needs an explicit choice (in Settings, or
+   NI_LDAP_ALLOW_PLAIN=1), since it sends the passwords readable. The certificate is checked against the server's name. */
+export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
+async function connect(config) {
+  const plain = /^ldap:\/\//i.test(config.url);
+  const startTls = plain && config.security === 'starttls';
+  if (plain && !startTls && !config.allowPlain) throw new Error(PLAIN_LDAP_ERROR);
+  /* The CA added in Settings and the one named by NI_LDAP_CA, on top of the public ones Node trusts. */
+  const ca = [config.caFile ? fs.readFileSync(config.caFile) : null, config.caPem || null].filter(Boolean);
+  const tls = ca.length ? { ca: [...tlsRootCertificates, ...ca] } : {};
   const opts = { url: config.url, timeout: 8000, connectTimeout: 8000 };
-  if (config.caFile) opts.tlsOptions = { ca: [fs.readFileSync(config.caFile)] };
+  if (!plain && ca.length) opts.tlsOptions = tls;
   const client = (config.createClient || ldap.createClient)(opts);
   // Connection errors also reach the pending bind or search callback; without this listener they would crash the server.
   client.on('error', () => {});
+  if (startTls) {
+    const host = new URL(config.url).hostname;
+    try { await new Promise((resolve, reject) => client.starttls({ ...tls, host, servername: host }, [], e => (e ? reject(e) : resolve()))); }
+    catch (e) { close(client); throw e; }
+  }
   return client;
 }
 function close(client) { try { client.unbind(() => {}); } catch { /* already closed */ } }
@@ -81,7 +95,7 @@ async function isMember(client, config, login, profile, group) {
    when the password is wrong. Throws when the directory cannot be reached, so the caller can tell the two apart. */
 export async function ldapLogin(config, login, password) {
   if (!password || !LOGIN_OK.test(login)) return null;
-  const client = connect(config);
+  const client = await connect(config);
   try {
     await bind(client, config.bindTemplate.replace('{login}', login), password);
     const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`);
@@ -102,7 +116,7 @@ export async function ldapLogin(config, login, password) {
    in the message (data 52e, 775, …). */
 const LDAP_HINTS = [
   [/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ETIMEDOUT|timed? ?out|connect/i, 'The directory server cannot be reached. Check the server address and port (ldaps:// uses 636, ldap:// 389) and that the firewall lets this server through.'],
-  [/certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames/i, 'The directory server\'s TLS certificate is not trusted, or does not match the address. Use the name the certificate is made for, or give the server the CA certificate.'],
+  [/certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames/i, 'The directory server\'s certificate is not trusted, or does not match the address. Add the certificate of the CA that issued it under CA certificate in Settings (on Windows: the root CA certificate from AD Certificate Services, exported as .cer), and use the name the certificate is made for (dc01.example.ch, not an IP address).'],
   [/data 775/i, 'The service account is locked out.'],
   [/data 533/i, 'The service account is disabled.'],
   [/data (532|773)/i, 'The service account\'s password has expired or must be changed.'],
@@ -123,7 +137,7 @@ export const computerBaseOf = config => {
 /* The computer accounts with the groups each is a direct member of, by group name. */
 export async function ldapListComputers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
-  const client = connect(config);
+  const client = await connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
     const list = await ldapSearch(client, computerBaseOf(config), '(objectClass=computer)');
@@ -134,7 +148,7 @@ export async function ldapListComputers(config) {
 
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
-  const client = connect(config);
+  const client = await connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
     const userFilter = config.userFilter || '(objectClass=person)';

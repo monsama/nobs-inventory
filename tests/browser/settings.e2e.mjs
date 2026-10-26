@@ -32,6 +32,24 @@ try {
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   // LDAP and Microsoft Graph share a tab of their own; Feed and Users no longer show them
   await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setGraph .panelbox'); await page.waitForSelector('#setLdap #lk_url');
+  // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
+  await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
+  await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');
+  await page.selectOption('#lk_security', 'starttls');
+  await page.waitForFunction(() => document.querySelector('#lk_url').value === 'ldap://dc01.example.test:389');
+  assert.match(await page.textContent('#setLdap'), /Encrypted like ldaps:\/\/, on the usual port 389/);
+  await page.selectOption('#lk_security', '');
+  await page.waitForFunction(() => document.querySelector('#lk_url').value === 'ldaps://dc01.example.test:636');
+  if (process.env.NI_SHOTS) await page.locator('#setLdap').screenshot({ path: process.env.NI_SHOTS + '/ldap-security.png' });
+  await page.setInputFiles('#caFile', new URL('../fixtures/ldap/dc.crt', import.meta.url).pathname);
+  await page.waitForSelector('text=is a server\'s own certificate, not a CA\'s');
+  await page.setInputFiles('#caFile', new URL('../fixtures/ldap/ca.cer', import.meta.url).pathname);
+  await page.waitForSelector('#ldapCa .chip:text("Test-Root-CA")');
+  assert.equal(await page.inputValue('#lk_url'), 'ldaps://dc01.example.test:636', 'the address typed before is kept');
+  if (process.env.NI_SHOTS) await page.locator('#setLdap').screenshot({ path: process.env.NI_SHOTS + '/ldap-ca.png' });
+  page.once('dialog', d => d.accept());
+  await page.click('#caRemove');
+  await page.waitForSelector('#ldapCa:has-text("None: only certificates from public CAs")');
   // the service account password: saved, never shown again, removable
   await page.waitForSelector('#lk_pw');
   await page.fill('#lk_pw', 'svc-secret'); await page.click('#lpSave');
