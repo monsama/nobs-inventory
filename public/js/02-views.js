@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -22,6 +22,10 @@ export function renderSide(){
   const nOld = LS_ON() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_ON();
   $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
+     Shown once Graph is set up. */
+  $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
+  $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f]]) => `<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`).join('') : '';
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
@@ -36,11 +40,12 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('adgroup' in b.dataset) st.adGroup = null;
+  if ('intune' in b.dataset) st.intune = st.intune === b.dataset.intune ? null : b.dataset.intune;
   if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards';
   document.body.classList.remove('side-open');
   render();
 });
-$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = st.adGroup = null; st.scanOld = false; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
+$('#clearF').onclick = () => { st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = null; st.scanOld = false; st.q = ''; $('#search').value = ''; Object.values(TBL).forEach(s => { s.filters = {}; }); saveTBL(); render(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */

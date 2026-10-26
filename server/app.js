@@ -11,7 +11,7 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from '
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
+import { entraThumbprintOf, syncGraph, testGraph, addGraphDevices } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
 import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
@@ -395,6 +395,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
   });
+  /* Adds devices Graph has that the inventory does not: the ones picked, or all of them. */
+  app.post('/api/graph/add', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const ids = req.body && req.body.ids === 'all' ? 'all' : Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String).slice(0, 2000) : null;
+      if (!ids) throw new HttpError(400, 'Say which devices to add.');
+      const added = addGraphDevices(db, ids, req.user.name || req.user.login || 'an admin');
+      audit(db, req.user.id, `added ${added.length} devices from Microsoft Graph`);
+      res.json({ added: added.length });
+    } catch (e) { next(e); }
+  });
+  /* The nightly run uses the same connection as the buttons. */
+  app.locals.graphConfig = cfgGraph;
   /* Entry sheets: admins only. The password is in the answer that makes the sheet and in a re-download until it is
      marked as changed or PASSWORD_DAYS have passed; it is never written to the log. */
   app.get('/api/sheets', requireUser, requireAdmin, (req, res, next) => {

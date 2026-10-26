@@ -742,6 +742,7 @@ export function applyState(d){
   MODELS.splice(0, MODELS.length, ...(d.models || []));
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
+  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
   COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';
   SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];

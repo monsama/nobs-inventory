@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { LS_ON, scanOld, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
+import { SYNC, GRAPH_FILTERS, LS_ON, scanOld, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, contractStatus, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { render } from './07-render-plans.js';
@@ -29,6 +29,7 @@ export function renderOverview(){
     [due.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${due.slice(0, 3).map(c => c.name).join(', ')}${due.length > 3 ? '…' : ''}`, 'data-ovtab="contracts"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
+    ...(SYNC.graph ? ['noncompliant', 'unencrypted'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
     [repair, 'warn', 'In repair', repair === 1 ? 'device' : 'devices', 'data-ovs="repair"'],
   ].filter(a => a[0] > 0);
   const tile = (label, value, sub, attr = '') => `<${attr ? `button ${attr}` : 'div'} class="ov-tile"><span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span></${attr ? 'button' : 'div'}>`;
@@ -54,10 +55,11 @@ export function renderOverview(){
       <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
     </div></div>`;
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
-  const go = (tab, set = {}) => { Object.assign(st, { type: null, loc: null, status: null, warranty: null, scanOld: false, adGroup: null, q: '' }, set); const s = $('#search'); if (s) s.value = ''; st.tab = tab; render(); };
+  const go = (tab, set = {}) => { Object.assign(st, { type: null, loc: null, status: null, warranty: null, scanOld: false, adGroup: null, intune: null, q: '' }, set); const s = $('#search'); if (s) s.value = ''; st.tab = tab; render(); };
   const v = $('#view');
   v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt }));
   v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl }));
+  v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune }));
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));

@@ -85,3 +85,38 @@ test('a MAC from Intune, written without separators, is stored as the inventory 
   assert.equal(s.objs[0].mac, '00:15:5d:01:23:45');
   checkState(s);   /* before, the sync stopped here: "00155D012345" is not a MAC address */
 });
+
+test('a sync fills the primary user and a missing serial, keeps the devices it did not match as a list, and adds them on request', async () => {
+  const { checkState } = await import('../server/state.js');
+  const { addFromGraph, graphType } = await import('../server/graph.js');
+  const s = { objs: [
+    { id: 'o1', code: 'INV-0001', type: 'pc', name: 'ZH-PC-0142', serial: '', status: 'active', ovr: {}, feed: null },
+    { id: 'o2', code: 'INV-0002', type: 'pc', name: 'ZH-PC-0143', serial: 'SN43', status: 'active', ovr: {}, feed: null, uid: 'u1' },
+  ], rels: [], users: [], locs: [], types: {}, history: {}, codeN: 2, seq: 102 };
+  const base = { graphId: 'm1', aadId: 'a1', join: 'Entra joined', managed: 'mdm', enrolled: '', lastSync: '2026-10-25T08:00:00Z', lastCheckIn: '2026-10-25T08:00:00Z', lastSignIn: '', compliance: 'compliant', encrypted: 'yes', owner: 'ana@contoso.ch', ownerName: 'Ana Muster', os: 'Windows 10.0.22631', platform: 'Windows', model: '', mac: '', ram: '', disk: '' };
+  const counts = applyGraph(s, [
+    { ...base, name: 'ZH-PC-0142', serial: 'SN42' },
+    { ...base, graphId: 'm2', name: 'ZH-PC-0143', serial: 'SN43' },
+    { ...base, graphId: 'm3', name: 'iPhone Ana', serial: 'F2LX', platform: 'iOS', os: 'iOS 18.1', model: 'Apple iPhone 15' },
+    { ...base, graphId: 'm4', name: 'LAPTOP-77', serial: 'L77', model: 'Lenovo ThinkPad T14 Gen 5' },
+  ], NOW);
+  assert.deepEqual([counts.matched, counts.unmatched], [2, 2]);
+  assert.equal(s.objs[0].serial, 'SN42', 'a serial missing on a device matched by name is taken over');
+  assert.equal(s.objs[0].user, 'Ana Muster', 'the primary user fills a device without one');
+  assert.equal(s.objs[1].user, undefined, 'a device with a person keeps them');
+  assert.equal(s.objs[0].graph.lastCheckIn, '2026-10-25T08:00:00Z');
+  assert.deepEqual(s.graphUnmatched.map(d => d.name), ['iPhone Ana', 'LAPTOP-77'], 'the devices not in the inventory are kept, by name');
+  assert.equal(graphType(s, s.graphUnmatched[0]), 'ios');
+  assert.equal(graphType(s, s.graphUnmatched[1]), 'notebook', 'a Windows notebook model is a notebook');
+  // add one, then all: each gets a code and its type, and leaves the list
+  addFromGraph(s, ['m3'], 'Admin', NOW);
+  const phone = s.objs.find(o => o.name === 'iPhone Ana');
+  assert.equal(phone.code, 'INV-0003'); assert.equal(phone.type, 'ios'); assert.equal(phone.user, 'Ana Muster'); assert.equal(phone.graph.added, true);
+  assert.deepEqual(s.graphUnmatched.map(d => d.name), ['LAPTOP-77']);
+  addFromGraph(s, 'all', 'Admin', NOW);
+  assert.equal(s.graphUnmatched.length, 0);
+  // a device added from Graph is kept up to date by Graph; others only get empty fields filled
+  applyGraph(s, [{ ...base, graphId: 'm3', name: 'iPhone Ana', serial: 'F2LX', platform: 'iOS', os: 'iOS 18.2', model: 'Apple iPhone 15' }], NOW);
+  assert.equal(phone.os, 'iOS 18.2');
+  checkState(s);
+});
