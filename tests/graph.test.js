@@ -120,3 +120,32 @@ test('a sync fills the primary user and a missing serial, keeps the devices it d
   assert.equal(phone.os, 'iOS 18.2');
   checkState(s);
 });
+
+test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, leaves excluded devices, and adds nothing twice', async () => {
+  const { addFromGraph } = await import('../server/graph.js');
+  const rec = { graphId: 'm1', aadId: 'a1', name: 'iPhone Ana', serial: 'F2LX', join: 'Registered', managed: 'mdm', enrolled: '', lastSync: '', lastCheckIn: '', lastSignIn: '', compliance: 'compliant', encrypted: 'yes', owner: '', ownerName: '', os: 'iOS 18.1', platform: 'iOS', model: 'Apple iPhone 15', mac: '', ram: '', disk: '' };
+  const s = { objs: [{ id: 'r1', code: 'INV-0001', type: 'pc', name: 'OLD-PC', serial: 'OLD1', status: 'retired', ovr: {}, feed: null }], rels: [], users: [], locs: [], types: {}, history: {}, codeN: 1, seq: 101 };
+  // a device that only matches a retired one is known, not offered again
+  const c1 = applyGraph(s, [rec, { ...rec, graphId: 'm2', name: 'OLD-PC', serial: 'OLD1' }, { ...rec, graphId: 'm3' }], NOW);
+  assert.equal(c1.retired, 1);
+  assert.deepEqual(s.graphUnmatched.map(d => d.id), ['m1', 'm3'], 'listed twice in Graph (enrolled again)');
+  addFromGraph(s, 'all', 'Admin', NOW);
+  assert.equal(s.objs.filter(o => o.name === 'iPhone Ana').length, 1, 'a device listed twice is added once');
+  const phone = s.objs.find(o => o.name === 'iPhone Ana');
+  // a model corrected by hand is kept
+  phone.model = 'iPhone 15 (blue)'; phone.ovr.model = false;
+  applyGraph(s, [{ ...rec, os: 'iOS 18.2' }], NOW);
+  assert.equal(phone.model, 'iPhone 15 (blue)'); assert.equal(phone.os, 'iOS 18.2');
+  // once Lansweeper has it, Graph only fills gaps
+  phone.feed = { sys: 'Lansweeper', ref: 'x' };
+  applyGraph(s, [{ ...rec, os: 'iOS 19' }], NOW);
+  assert.equal(phone.os, 'iOS 18.2'); assert.equal(phone.graph.added, undefined);
+  // excluded: what Graph reports is updated, the fields are not
+  const pc = { id: 'p1', code: 'INV-0009', type: 'pc', name: 'PC-X', serial: 'X1', status: 'active', ovr: {}, feed: null, excluded: true };
+  s.objs.push(pc);
+  applyGraph(s, [{ ...rec, graphId: 'm9', name: 'PC-X', serial: 'X1', os: 'Windows 11', ownerName: 'Ana Muster' }], NOW);
+  assert.equal(pc.os, undefined); assert.equal(pc.user, undefined); assert.equal(pc.graph.compliance, 'compliant');
+  // a device that got into the inventory since the last sync is not added again
+  s.graphUnmatched = [{ id: 'm9', name: 'PC-X', serial: 'X1' }];
+  assert.deepEqual(addFromGraph(s, 'all', 'Admin', NOW), []);
+});

@@ -153,6 +153,8 @@ export function applyGraph(s, records, now = new Date()) {
   for (const r of records) {
     const o = (r.serial && live.find(x => clean(x.serial).toLowerCase() === r.serial.toLowerCase()))
       || (r.name && live.find(x => clean(x.name).toLowerCase() === r.name.toLowerCase()));
+    /* A device the inventory has as retired is known: it is not offered to be added again. */
+    if (!o && s.objs.some(x => x.status === 'retired' && ((r.serial && clean(x.serial).toLowerCase() === r.serial.toLowerCase()) || (r.name && clean(x.name).toLowerCase() === r.name.toLowerCase())))) { counts.retired = (counts.retired || 0) + 1; continue; }
     if (!o) {
       counts.unmatched++;
       unmatched.push({ id: r.graphId, name: r.name, serial: r.serial, model: r.model, os: r.os, platform: r.platform || '', owner: r.ownerName || r.owner,
@@ -164,8 +166,11 @@ export function applyGraph(s, records, now = new Date()) {
     if (before.compliance && r.compliance && before.compliance !== r.compliance) {
       (s.history[o.id] ??= []).unshift({ t: at, msg: `Compliance changed from ${before.compliance} to ${r.compliance} (Microsoft Graph)` });
     }
-    const owns = !!before.added;
+    /* Graph keeps a device it added up to date, until Lansweeper takes it over; then Graph only fills gaps, like everywhere. */
+    const owns = !!before.added && !o.feed;
     o.graph = graphOf(r, at, owns);
+    /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
+    if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
     for (const k of FILL) {
       if (!r[k] || o[k] === r[k]) continue;
@@ -197,8 +202,13 @@ export function addFromGraph(s, ids, who, now = new Date()) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids);
   const list = (s.graphUnmatched || []).filter(d => !want || want.has(d.id));
   const added = [];
+  /* The list is from the last sync: a device the inventory got since (from Lansweeper, say), or one listed twice in Graph
+     (enrolled again), is not added a second time. Retired devices count, so they are not brought back as new ones. */
+  const low = v => clean(v).toLowerCase();
+  const names = new Set(s.objs.map(o => low(o.name)).filter(Boolean)), serials = new Set(s.objs.map(o => low(o.serial)).filter(Boolean));
   for (const d of list) {
-    if (!d.name) continue;
+    if (!d.name || names.has(low(d.name)) || (d.serial && serials.has(low(d.serial)))) continue;
+    names.add(low(d.name)); if (d.serial) serials.add(low(d.serial));
     s.codeN = (s.codeN || 0) + 1; s.seq = (s.seq || 100) + 1;
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: graphType(s, d), name: d.name, serial: d.serial || '', status: 'active',
       loc: '', ovr: {}, feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
