@@ -22,9 +22,14 @@ saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
   graphUnmatched: [{ id: 'm9', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', platform: 'iOS', owner: 'Ana Muster', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent }],
   objs: [
     pc('a', 'PC-OK', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' }),
-    pc('b', 'PC-BAD', { join: 'Entra joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' }),
-    pc('c', 'PC-NONE'),
-  ], rels: [], history: {} });
+    pc('b', 'PC-BAD', { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' }),
+    { ...pc('c', 'PC-NONE'), inAd: true },
+    /* Listed twice in Entra (an old record from before a reinstall); gone from Entra since the last sync; a name used twice here. */
+    pc('d', 'PC-DUP', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastCheckIn: recent, seen: '26.10.2026 06:00', others: [{ id: 'x1', join: 'Entra registered', managed: '', serial: '', last: old }] }),
+    pc('e', 'PC-GONE', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastCheckIn: recent, seen: '25.10.2026 06:00', gone: '26.10.2026 06:00' }),
+    { ...pc('k1', 'KIOSK'), type: 'switch' }, { ...pc('k2', 'kiosk'), type: 'switch' },
+  ], rels: [], history: {},
+  graphAmbiguous: [{ name: 'Kiosk', serial: '', by: 'name', devices: ['k1', 'k2'], records: 1 }] });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -42,21 +47,35 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
-  for (const t of ['Entra joined', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
+  for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
   if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=over 30 days ago');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Not compliant.*Not encrypted/s);
+  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
   await p.waitForSelector('text=Not found in Microsoft Entra or Intune');
+  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
-  assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '1']);
+  assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
+  assert.deepEqual([await count('duplicates'), await count('ambiguous')], ['1', '2']);
   if (process.env.NI_SHOTS) await p.locator('#grHdr').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-side-h.png') });
   await p.click('#grList [data-intune="missing"]');
-  assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c']);
+  assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c', 'e']);
   await p.click('#grList [data-intune="missing"]');
+  // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
+  assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['2', '1', '1'], 'a device gone from Entra is not Entra joined');
+  // duplicates in Entra, a device gone from it, and a record that fits two devices here, on the device
+  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'); };
+  assert.match(await graphText('d'), /2 records in Entra.*Entra registered.*last heard of.*Delete old records/s);
+  assert.match(await graphText('e'), /Gone.*Not in Entra or Intune any more since the sync of 26\.10\.2026/s);
+  assert.match(await graphText('k1'), /Not matched.*named Kiosk.*INV-k2 kiosk.*distinct names/s);
+  assert.equal(await p.locator('#grList [data-intune="registered"]').count(), 0, 'a kind that does not occur is not listed');
+  assert.match(await p.getAttribute('#grList [data-intune="hybrid"]', 'title'), /on-premises Active Directory and registered in Microsoft Entra/);
+  await p.click('#grList [data-intune="adonly"]');
+  assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c']);
+  await p.click('#grList [data-intune="adonly"]');
 
   // the Overview tiles open the list
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
@@ -67,6 +86,7 @@ try {
   await p.click('#clearF');
   await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
   await p.waitForSelector('#guList');
+  assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
   if (process.env.NI_SHOTS){ await p.click('.wc-max'); await p.locator('.gu-box').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-unmatched.png') }); }
   assert.match(await p.textContent('#guList'), /iPhone Ana.*iOS 18\.1.*Apple iPhone 15.*F2LX.*Ana Muster/s);
   await p.check('[data-gu="m9"]'); await p.click('#guAdd');

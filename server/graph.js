@@ -95,8 +95,9 @@ export async function graphAll(token, url, fetchImpl = fetch) {
 
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime';
 const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName';
-/* How a join type reads in the inventory. */
-export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Domain joined', Workplace: 'Registered' };
+/* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
+   from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
+export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
 const clean = v => String(v ?? '').trim();
 const gb = bytes => (Number(bytes) > 0 ? `${Math.round(Number(bytes) / 2 ** 30)} GB` : '');
 
@@ -108,7 +109,7 @@ export function toRecords(devices, managed) {
     const d = byAad.get(m.azureADDeviceId) || {};
     seen.add(m.azureADDeviceId);
     return {
-      graphId: m.id, aadId: m.azureADDeviceId, name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
+      graphId: m.id, aadId: m.azureADDeviceId, intune: true, name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
       join: JOIN[d.trustType] || clean(d.trustType), managed: m.managementAgent ? clean(m.managementAgent) : (d.isManaged ? 'Intune' : ''),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
@@ -141,34 +142,67 @@ const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, join: r.join
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}) });
 /* The fields Graph can give a device. */
 const FILL = ['os', 'model', 'mac', 'ram', 'disk'];
-/* Puts the records on the devices. The join, enrolment and compliance are kept on the device as they come. Values the
-   device does not have yet are filled in, the primary user and the serial number among them; values it has are never
-   replaced here, except on a device that was added from Graph, which Graph keeps up to date. A change of compliance
-   is logged. The devices Graph has that the inventory does not are kept as a list, to be added from Settings. */
+/* When a record was last heard of: its last Intune check-in or Entra sign-in. */
+const activity = r => Math.max(Date.parse(r.lastCheckIn) || 0, Date.parse(r.lastSignIn) || 0, Date.parse(r.lastSync) || 0);
+const JOIN_RANK = { 'Entra joined': 2, 'Hybrid joined': 2, 'Entra registered': 1 };
+const RECENT_MS = 30 * 864e5;
+/* Of several records Graph has for one device (a stale record left by a reinstall, or a hybrid-joined PC that is also
+   Entra registered), the one that is the device now: one heard of in the 30 days before the newest, then the one Intune
+   manages, then the stronger join (joined before registered, as Microsoft resolves a dual state), then the newest. */
+export function pickPrimary(list) {
+  const newest = Math.max(...list.map(activity));
+  const recent = r => newest - activity(r) <= RECENT_MS;
+  return [...list].sort((a, b) => recent(b) - recent(a) || (!!b.intune) - (!!a.intune)
+    || (JOIN_RANK[b.join] || 0) - (JOIN_RANK[a.join] || 0) || activity(b) - activity(a))[0];
+}
+const lastOf = r => { const t = activity(r); return t ? new Date(t).toISOString() : ''; };
+/* The other records of a device, newest first, to be cleaned up in Entra. */
+const othersOf = (list, primary) => list.filter(r => r !== primary).sort((a, b) => activity(b) - activity(a)).slice(0, 10)
+  .map(r => ({ id: r.graphId, join: r.join, managed: r.managed, serial: r.serial, last: lastOf(r) }));
+const low = v => clean(v).toLowerCase();
+const groupBy = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (k) m.set(k, [...(m.get(k) || []), x]); } return m; };
+
+/* Puts the records on the devices. All records of one device are taken together: the one that is the device now gives
+   the join, enrolment and compliance, and the others are listed on it as duplicates. A record that fits two devices of
+   the inventory (the same serial number or name twice) is put on neither and listed, so nothing is guessed. A device
+   Graph had and no longer has is marked as gone from it. Values the device does not have yet are filled in, the primary
+   user and the serial number among them; values it has are never replaced here, except on a device that was added from
+   Graph, which Graph keeps up to date. A change of compliance is logged. The devices Graph has that the inventory does
+   not are kept as a list, to be added from Settings. */
 export function applyGraph(s, records, now = new Date()) {
   const at = stamp(now);
-  const counts = { matched: 0, unmatched: 0, filled: 0 };
+  const counts = { records: records.length, devices: 0, matched: 0, unmatched: 0, filled: 0, duplicates: 0, ambiguous: 0, gone: 0 };
   const live = s.objs.filter(o => o.status !== 'retired');
-  const unmatched = [];
+  const retired = s.objs.filter(o => o.status === 'retired');
+  const bySerial = groupBy(live, o => low(o.serial)), byName = groupBy(live, o => low(o.name));
+  const retiredKeys = new Set(retired.flatMap(o => [low(o.serial) && 's:' + low(o.serial), low(o.name) && 'n:' + low(o.name)]).filter(Boolean));
+  const onDevice = new Map(), unmatched = [], ambiguous = new Map(), held = new Set();
   for (const r of records) {
-    const o = (r.serial && live.find(x => clean(x.serial).toLowerCase() === r.serial.toLowerCase()))
-      || (r.name && live.find(x => clean(x.name).toLowerCase() === r.name.toLowerCase()));
-    /* A device the inventory has as retired is known: it is not offered to be added again. */
-    if (!o && s.objs.some(x => x.status === 'retired' && ((r.serial && clean(x.serial).toLowerCase() === r.serial.toLowerCase()) || (r.name && clean(x.name).toLowerCase() === r.name.toLowerCase())))) { counts.retired = (counts.retired || 0) + 1; continue; }
-    if (!o) {
-      counts.unmatched++;
-      unmatched.push({ id: r.graphId, name: r.name, serial: r.serial, model: r.model, os: r.os, platform: r.platform || '', owner: r.ownerName || r.owner,
-        join: r.join, managed: r.managed, compliance: r.compliance, lastSync: r.lastSync });
+    /* By serial number first; by name only when the serial number does not find the device. */
+    const found = (r.serial && bySerial.get(low(r.serial))) || (r.name && byName.get(low(r.name))) || [];
+    if (found.length > 1) {
+      const k = found.map(o => o.id).join('|');
+      const a = ambiguous.get(k) || { name: r.name, serial: r.serial, by: r.serial && bySerial.has(low(r.serial)) ? 'serial' : 'name', devices: found.map(o => o.id), records: 0 };
+      a.records++; ambiguous.set(k, a);
+      found.forEach(o => held.add(o.id));
       continue;
     }
-    counts.matched++;
+    if (found.length) { onDevice.set(found[0], [...(onDevice.get(found[0]) || []), r]); continue; }
+    /* A device the inventory has as retired is known: it is not offered to be added again. */
+    if ((r.serial && retiredKeys.has('s:' + low(r.serial))) || (r.name && retiredKeys.has('n:' + low(r.name)))) { counts.retired = (counts.retired || 0) + 1; continue; }
+    unmatched.push(r);
+  }
+  for (const [o, list] of onDevice) {
+    counts.matched++; counts.devices++; counts.duplicates += list.length - 1;
+    const r = pickPrimary(list);
     const before = o.graph || {};
-    if (before.compliance && r.compliance && before.compliance !== r.compliance) {
+    if (before.compliance && r.compliance && before.compliance !== r.compliance && !before.gone) {
       (s.history[o.id] ??= []).unshift({ t: at, msg: `Compliance changed from ${before.compliance} to ${r.compliance} (Microsoft Graph)` });
     }
     /* Graph keeps a device it added up to date, until Lansweeper takes it over; then Graph only fills gaps, like everywhere. */
     const owns = !!before.added && !o.feed;
     o.graph = graphOf(r, at, owns);
+    if (list.length > 1) o.graph.others = othersOf(list, r);
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
@@ -181,10 +215,28 @@ export function applyGraph(s, records, now = new Date()) {
     /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. */
     if (r.ownerName && !o.uid && !o.user && !o.hotdesk && ovr.user !== false) { o.user = r.ownerName; counts.filled++; }
   }
-  s.graphUnmatched = unmatched.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);
+  /* Graph had the device and has it no more (deleted in Entra, or renamed): what it said is kept, marked as gone, so the
+     device no longer counts as joined. A device that fits a record twice keeps what it had. */
+  for (const o of live) {
+    if (!o.graph || onDevice.has(o) || held.has(o.id)) continue;
+    if (!o.graph.gone) { o.graph = { ...o.graph, gone: at }; counts.gone++; }
+  }
+  /* The devices not in the inventory, one entry for each: records with the same serial number, or without one and with
+     the same name, are one device, shown by its current record. */
+  const groups = new Map();
+  for (const r of unmatched) { const k = r.serial ? 's:' + low(r.serial) : 'n:' + low(r.name); groups.set(k, [...(groups.get(k) || []), r]); }
+  const list = [];
+  for (const g of groups.values()) {
+    const r = pickPrimary(g);
+    counts.unmatched++; counts.devices++; counts.duplicates += g.length - 1;
+    list.push({ id: r.graphId, name: r.name, serial: r.serial, model: r.model, os: r.os, platform: r.platform || '', owner: r.ownerName || r.owner,
+      join: r.join, managed: r.managed, compliance: r.compliance, lastSync: r.lastSync, ...(g.length > 1 ? { others: g.length - 1 } : {}) });
+  }
+  counts.ambiguous = ambiguous.size;
+  s.graphUnmatched = list.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);
+  s.graphAmbiguous = [...ambiguous.values()].sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 500);
   return counts;
 }
-
 /* The type of a device Graph has, from its platform: a phone or tablet by its system, a Windows device by the type
    rules on its model (a notebook model is a notebook), anything else from the rules or Other. */
 export function graphType(s, d) {
@@ -228,7 +280,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const counts = applyGraph(s, records, now);
   autoBackup(db, 'before a Microsoft Graph sync');
   saveState(db, s);
-  return { devices: records.length, ...counts };
+  return counts;
 }
 export function addGraphDevices(db, ids, who) {
   const s = loadState(db);

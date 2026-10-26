@@ -42,7 +42,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
 | Logs | `docker compose logs -f` |
 
-Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; settings and secrets are restored only with `RESTORE_SECRETS=yes`.
+Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
 
 ## Accounts and directory
 
@@ -50,18 +50,21 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Groups: give `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP` as the group's distinguished name (`CN=IT-Inventory,OU=Groups,DC=example,DC=ch`) to count people in groups nested inside it too; a plain name counts only direct membership. Plain `ldap://` addresses are refused unless `NI_LDAP_ALLOW_PLAIN=1`.
 - Directory settings are edited in Settings → LDAP sync and saved in the inventory: server, sign-in name, search base, groups, service account. The service account password can be saved there too: it is kept encrypted with the server's secret key in a table of its own, never shown again, and not in the inventory, backups or logs. A password in the server environment (`NI_LDAP_SERVICE_PASSWORD` or `NI_LDAP_SERVICE_PASSWORD_FILE`) takes precedence. The `NI_LDAP_*` variables still work as a fallback when nothing is saved.
 - Active Directory sign-in: set `NI_LDAP_URL`, `NI_LDAP_BIND`, `NI_LDAP_BASE`, `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP`. People sign in with their directory password, which is never stored. Only members of `NI_LDAP_GROUP` may sign in; members of `NI_LDAP_ADMIN_GROUP` are admins, everyone else is a viewer.
-- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs nightly at 06:00, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
+- Sync schedule: each sync (Lansweeper API or report file, LDAP directory, Microsoft Graph) has its own interval and start time next to its Sync now button in Settings — off, every 1–12 hours, or daily. Defaults: Lansweeper and LDAP daily at 06:00, Microsoft Graph every 4 hours from 06:00. Syncs due at the same minute run in that order.
+- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs daily at 06:00 by default, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
 - Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
 
 ## Microsoft Graph (Entra and Intune)
 
-Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number. It only reads. Set it up in four steps, all shown in the app:
+Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number, else by name. It only reads. The join types are Entra joined, Hybrid joined (Graph's ServerAd) and Entra registered; a device with a computer account in AD (read by the LDAP sync) that Entra does not have shows as AD joined only.
+
+When Entra lists one device more than once (an old record after a reinstall, or a hybrid-joined PC that is also Entra registered), the current record is used: one heard of in the last 30 days, then the one Intune manages, then joined before registered. The others are listed on the device and under the sidebar filter *Duplicates in Entra*, to be deleted in Entra. A record whose serial number or name fits two devices of the inventory is put on neither and listed under *Name or serial used twice*. A device Entra no longer has is marked as gone and counts as not in Entra. Set it up in four steps, all shown in the app:
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
 2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.
 3. **Certificate**: click Create a certificate. The server keeps it with its private key, encrypted with `secrets/sheet_key`; the key never leaves the server and is not in backups. Download the .cer (any time, from the list) and upload it to the app registration under Certificates & secrets → Certificates. Entra shows the same thumbprint as the list.
-4. **Test connection**, then **Sync now**. The test names a certificate Entra does not know, a wrong ID, or a missing permission. The sync also runs nightly at 06:00.
+4. **Test connection**, then **Sync now**. The test names a certificate Entra does not know, a wrong ID, or a missing permission. The sync also runs by itself, every 4 hours from 06:00 by default.
 
 To renew: create a new certificate, upload it, click Use this one, test, then remove the old one in the app and in Entra. `NI_GRAPH_TENANT`, `NI_GRAPH_CLIENT_ID`, `NI_GRAPH_CERT(_FILE)` and `NI_GRAPH_KEY(_FILE)` on the server still work and take precedence when all four are set.
 
@@ -93,7 +96,7 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
 
 ## Lansweeper
 
-- Direct API: set `NI_LS_TOKEN`. The sync runs nightly at 06:00 and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
+- Direct API: set `NI_LS_TOKEN`. The sync runs daily at 06:00 by default, and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
 
       NI_LS_TOKEN=... npm run lansweeper:introspect -- AssetResources
 
@@ -126,11 +129,9 @@ Keep a copy of `secrets/sheet_key` apart from the server: it encrypts the entry 
 
 ## Backup
 
-Copy the database while the app runs with the file in the volume:
+Use `sudo ./scripts/backup.sh` (see Operations): it copies the database with `VACUUM INTO`, which is consistent while the app runs. A plain file copy of `inventory.db` is not: the database runs in WAL mode, so recent changes may still be in `inventory.db-wal`. Otherwise stop the stack and copy the `nobs-inventory-data` volume.
 
-    docker compose exec app node -e "require('node:fs').copyFileSync('/data/inventory.db','/data/backup.db')"
-
-Or stop the stack and copy the `ni-data` volume.
+The backups in Settings → Maintenance hold the inventory (devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, settings and the sealed entry sheets). They do not hold passwords, the push token, the Graph private keys, the saved LDAP password or the log: for a move to a new server, use `scripts/backup.sh` and restore with `RESTORE_SECRETS=yes`.
 
 ## Development
 

@@ -4,13 +4,14 @@ import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
+import { scheduleProblem } from '../public/js/schedule.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['typeRules', 'company', 'graph', 'graphUnmatched', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
-export const PAGE_SETTINGS = ['typeRules', 'company', 'contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
+export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_CHANGES = 5000;
@@ -27,9 +28,11 @@ export function revsOf(db) {
   return m;
 }
 
+/* What a new server starts with; a setting that is not stored has this value. */
+export const blankState = () => ({ objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 });
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = blankState();
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
@@ -54,7 +57,7 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
    certificates with their sealed private keys, the Lansweeper API settings and push token. What the server's
    environment sets (NI_LDAP_*, NI_GRAPH_*, the service passwords) is outside the app and stays. */
-export const CONNECTION_SETTINGS = ['ldap', 'graph', 'graphCerts', 'graphUnmatched', 'lansweeper'];
+export const CONNECTION_SETTINGS = ['ldap', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'lansweeper'];
 export function clearConnections(db) {
   db.exec('BEGIN');
   try {
@@ -138,6 +141,7 @@ export function checkState(s) {
   }
   if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
   /* The type rules: null for the ones shipped, or the list edited in Settings → Feed. */
+  { const p = scheduleProblem(s.syncSchedule); if (p) bad(p); }
   if (s.typeRules !== undefined && s.typeRules !== null) { const p = typeRulesProblem(s.typeRules, new Set([...KNOWN_TYPES, ...Object.keys(s.types || {})])); if (p) bad(p); }
   if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
   if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }
