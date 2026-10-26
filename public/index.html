@@ -77,6 +77,11 @@ details.fmenu{flex:none;width:26px}
 details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
 .ctlrow:hover>details.fmenu>summary,details.fmenu>summary:focus-visible,details.fmenu[open]>summary{border-color:var(--bd);background:var(--btn);color:var(--fg)}
 details.fmenu .menubox{min-width:210px;top:30px}
+/* Other network adapters under the MAC address: name, address and details on one row each. */
+.nics{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
+.nics li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
+.nics .nic-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nics .nic-meta{grid-column:1/-1}
 label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}

@@ -135,6 +135,18 @@ try {
   assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
   await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
 
+  // the other network adapters show under the MAC address, are found by the search, and count as an address in use
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o2').nics = [{ name: 'Intel Wi-Fi 6 AX201', ip: '10.50.0.7', mac: 'aa:bb:cc:00:00:02', mask: '255.255.0.0', dhcp: 'dhcp' }]; (await import('/js/02-views.js')).openObj('o2'); });
+  await page.waitForSelector('.nics li');
+  assert.match(await page.textContent('.nics li'), /Intel Wi-Fi 6 AX201\s*10\.50\.0\.7 \/ 255\.255\.0\.0\s*aa:bb:cc:00:00:02 · DHCP/);
+  if (shots) await page.locator('.obj .panelbox').first().screenshot({ path: path.join(shots, 'other-adapters.png') });
+  assert.deepEqual(await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.q = '10.50.0.7'; const r = c.filtered().map(o => o.id); c.st.q = ''; return r; }), ['o2'], 'found by its other address');
+  await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
+  await page.waitForSelector('#f_o1_ip');
+  await page.fill('#f_o1_ip', '10.50.0.7'); await page.press('#f_o1_ip', 'Tab');
+  await page.waitForFunction(() => /10\.50\.0\.7 is also used by/.test(document.querySelector('#toast').textContent));
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').ip = '10.10.20.5'; delete c.byId('o2').nics; });
+
   // with no sync at all, what only a sync fills in is hidden: the last power event, the scan flag, the Lansweeper
   // column, and the Graph chip while Graph is not set up. The values are kept.
   const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);
