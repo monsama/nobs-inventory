@@ -78,7 +78,7 @@ $script:Cols = @{ tblVolume = @{ driveletter = 'DriveLetter'; drivetype = 'Drive
 $vol = New-Table @('AssetID','DriveLetter','Capacity','FreeSpace','DriveType') @(
   @('7', 'C:', '254721126400', '56908316672', '3'), @('7', 'D:', '', '', '5'), @('7', 'E:', '', '', '2'))
 $h = Get-HealthByAsset (New-Conn $vol)
-Check 'disks: optical and no size' ($h['7']['disk'] -replace '\d[\d,.’'']*/[\d,.’'']+ GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
+Check 'disks: optical and no size' ($h['7']['disk'] -replace '[0-9][^/;]*/[^;]* GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
 $script:Cols = $saveCols
 
 # What the push leaves out is counted in Lansweeper and said in the log.
