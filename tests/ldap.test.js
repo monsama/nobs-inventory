@@ -249,3 +249,37 @@ test('computer groups: the sync reads the computer accounts and gives each devic
     assert.equal(applyComputerGroups(s, list), 0, 'nothing changes the second time');
   } finally { await new Promise(r => dir.close(r)); }
 });
+
+test('the service account password can be saved in Settings: it is used, never shown, not in state, backups or the log, and the server setting wins', async () => {
+  const { takeBackup } = await import('../server/backup.js');
+  const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory', 'Inventory-Users'], 'annas-secret') };
+  const dir = await startDirectory(people);
+  const conf = { ...cfg(`ldap://127.0.0.1:${dir.address().port}`), servicePassword: '' };
+  const srv = await startServer({ ldap: conf });
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    assert.deepEqual((await srv.call('GET', '/api/ldap/password', { cookie: a.cookie })).json, { source: null, setAt: null });
+    assert.notEqual((await srv.call('POST', '/api/ldap/test', { cookie: a.cookie })).status, 200, 'without a password the directory cannot be read');
+    assert.equal((await srv.call('POST', '/api/ldap/password', { cookie: a.cookie, body: { password: '' } })).status, 400);
+    assert.equal((await srv.call('POST', '/api/ldap/password', { cookie: a.cookie, body: { password: 'svc-secret' } })).status, 200);
+    const st = (await srv.call('GET', '/api/ldap/password', { cookie: a.cookie })).json;
+    assert.equal(st.source, 'app'); assert.ok(st.setAt);
+    const test = await srv.call('POST', '/api/ldap/test', { cookie: a.cookie });
+    assert.equal(test.status, 200, 'the saved password is used');
+    // it is nowhere to be read: not in the state, a backup, the log, nor in clear in its table
+    const state = (await srv.call('GET', '/api/state', { cookie: a.cookie })).text;
+    const backup = srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(srv.db, 'test')).data;
+    const log = JSON.stringify(srv.db.prepare('SELECT * FROM audit').all());
+    const table = JSON.stringify(srv.db.prepare('SELECT * FROM app_secrets').all());
+    for (const [where, text] of [['state', state], ['backup', backup], ['log', log], ['table', table]]) assert.ok(!text.includes('svc-secret'), 'the password in the ' + where);
+    // removed, it is no longer used
+    assert.equal((await srv.call('DELETE', '/api/ldap/password', { cookie: a.cookie })).status, 200);
+    assert.notEqual((await srv.call('POST', '/api/ldap/test', { cookie: a.cookie })).status, 200, 'removed, it is no longer used');
+  } finally { await srv.close(); await new Promise(r => dir.close(r)); }
+  // the server's own setting takes precedence
+  const srv2 = await startServer({ ldap: { ...cfg('ldap://127.0.0.1:1'), servicePassword: 'from-env' } });
+  try {
+    const a = await signIn(srv2, 'admin', 'adminpass123');
+    assert.equal((await srv2.call('GET', '/api/ldap/password', { cookie: a.cookie })).json.source, 'server');
+  } finally { await srv2.close(); }
+});

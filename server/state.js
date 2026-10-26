@@ -64,6 +64,7 @@ export function clearConnections(db) {
     }
     db.exec('DELETE FROM feed_token');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
+    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
@@ -79,6 +80,7 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
     db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images; DELETE FROM feed_token;');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
+    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
     if (backups) db.exec('DELETE FROM backups');
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
