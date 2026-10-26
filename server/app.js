@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
-import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
+import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
@@ -353,8 +353,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const people = await ldapListUsers(lc);
       res.json({ people: people.length, admins: people.filter(p => p.admin).length });
     } catch (e) {
-      const hint = ldapHint(e.message);
-      next(e instanceof HttpError ? e : new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')'));
+      if (e instanceof HttpError) return next(e);
+      /* A certificate that is not trusted: what the server presented, so nobody has to look on the server. */
+      const report = isCertError(e.message) ? await ldapCertReport(cfgLdap()).catch(() => null) : null;
+      const hint = report ? report.text : ldapHint(e.message);
+      next(new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')'));
     }
   });
 
@@ -545,7 +548,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
       let counts;
       try { counts = await syncLdapUsers(db, lc); }
-      catch (e) { if (e instanceof HttpError) throw e; console.error('directory sync:', e.message); throw new HttpError(503, 'The directory could not be read. Check the service account.'); }
+      catch (e) {
+        if (e instanceof HttpError) throw e;
+        console.error('directory sync:', e.message);
+        /* A certificate that is not trusted: what the server presented, as Test connection says it. */
+        const report = isCertError(e.message) ? await ldapCertReport(lc).catch(() => null) : null;
+        throw new HttpError(503, report ? 'The directory could not be read. ' + report.text : 'The directory could not be read. Check the service account.');
+      }
       res.json({ counts });
     } catch (e) { next(e); }
   });
