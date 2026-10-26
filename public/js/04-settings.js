@@ -1,6 +1,6 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince, SYNC } from './01-core.js';
-import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL } from './01-core.js';
+import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
@@ -1145,23 +1145,29 @@ export function renderBuiltinFields(box, type){
   const base = typeFieldsOf(type);
   if (canAddPorts(type)) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   const seen = new Set(), builtins = base.filter(f => !seen.has(f[0]) && seen.add(f[0]));
-  const all = [...builtins, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true])];
+  const ofType = objs.filter(o => o.type === type);
+  /* Fields Lansweeper fills in on devices of this type that the type does not have (firmware on a printer): listed too,
+     so they can be renamed, moved and hidden here like the rest. */
+  const extras = LS_ON() ? Object.keys(FIELD_LABEL).filter(k => !seen.has(k) && ofType.some(o => o.feed && o[k] !== undefined && o[k] !== '')).map(k => [k, FIELD_LABEL[k], fieldKind(k), false, true]) : [];
+  const all = [...builtins, ...extras, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true])];
+  /* Rows whose Shown tick is not the whole story. */
+  const NOTES = { boot: 'Only while Lansweeper is on' };
+  if (canAddPorts(type)) Object.assign(NOTES, { ports: 'Only on devices with ports', pfx: 'Only on devices with ports' });
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 + all.indexOf(f) : i; };
   const ordered = [...all].sort((a, b) => at(a) - at(b));
   const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
-  const put = patch => save({order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch});
-  const ofType = objs.filter(o => o.type === type);
+  const put = patch => save({order: ordered.map(f => f[0]), hidden: [...hiddenOf(type)], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch});
   const valueOf = (o, k) => k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
   const filled = k => ofType.filter(o => { const v = valueOf(o, k); return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
   const tl = esc(TYPES[type].label);
   box.innerHTML = `<p class="note tf-note">The fields a ${tl} page shows, top to bottom. Click a name to rename it. Hidden fields keep their values.</p>
     <div class="tf-list"><div class="tf-row tf-head" aria-hidden="true"><span></span><span>Field</span><span></span><span class="fl-use">Filled in</span><span>On the page</span><span></span></div>${ordered.map((f, i) => {
-      const k = f[0], mine = !!f[3], hidden = (lay.hidden || []).includes(k), fixed = ALWAYS_SHOWN.includes(k), n = filled(k);
+      const k = f[0], mine = !!f[3], hidden = hiddenOf(type).includes(k), fixed = ALWAYS_SHOWN.includes(k), n = filled(k);
       const name = mine ? f[1] : ((lay.labels || {})[k] || f[1]);
       return `<div class="tf-row${hidden ? ' off' : ''}">
         <span class="fl-move"><button class="icon ghost" data-fup="${i}" aria-label="Move ${esc(name)} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon ghost" data-fdown="${i}" aria-label="Move ${esc(name)} down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span>
         <input class="tf-name" data-flab="${esc(k)}" maxlength="40" value="${esc(name)}" aria-label="Name of field ${esc(f[1])}" title="${mine ? 'A field of your own' : 'Built in: ' + esc(f[1])}">
-        <span class="tf-tag">${mine ? `<span class="chip">Own · ${esc(f[2] || 'text')}</span>` : ''}</span>
+        <span class="tf-tag">${mine ? `<span class="chip">Own · ${esc(f[2] || 'text')}</span>` : f[4] ? '<span class="chip" title="This type does not have it; Lansweeper fills it in on some devices">From Lansweeper</span>' : NOTES[k] ? `<span class="muted tf-note-k">${NOTES[k]}</span>` : ''}</span>
         <span class="fl-use ${n ? '' : 'muted'}" title="${n} of ${ofType.length} ${tl} objects have a value">${ofType.length ? `${n} of ${ofType.length}` : ''}</span>
         ${fixed ? '<span class="muted tf-fixed">Always shown</span>' : `<label class="pchk tf-shown"><input type="checkbox" data-fhide="${esc(k)}" ${hidden ? '' : 'checked'}> Shown</label>`}
         ${mine ? `<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${esc(name)}" title="Remove this field (its values are kept)">×</button>` : '<span></span>'}
@@ -1178,7 +1184,7 @@ export function renderBuiltinFields(box, type){
     put({labels});
   });
   box.querySelectorAll('[data-fhide]').forEach(c => c.onchange = () => {
-    const k = c.dataset.fhide, hidden = (lay.hidden || []).filter(x => x !== k);
+    const k = c.dataset.fhide, hidden = hiddenOf(type).filter(x => x !== k);
     if (!c.checked) hidden.push(k);
     put({hidden});
   });
@@ -1186,7 +1192,7 @@ export function renderBuiltinFields(box, type){
     const f = own[+b.dataset.tfd]; if (!f) return;
     own.splice(+b.dataset.tfd, 1); if (!own.length) delete TYPE_FIELDS[type];
     const k = 'custom.' + f.key;
-    put({hidden: (lay.hidden || []).filter(x => x !== k), order: ordered.map(x => x[0]).filter(x => x !== k)});
+    put({hidden: hiddenOf(type).filter(x => x !== k), order: ordered.map(x => x[0]).filter(x => x !== k)});
     toast('Field removed');
   });
   const move = (i, to) => { if (to < 0 || to >= ordered.length) return; const o = ordered.map(f => f[0]); [o[i], o[to]] = [o[to], o[i]]; put({order: o}); };
