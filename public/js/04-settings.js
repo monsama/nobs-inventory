@@ -210,25 +210,43 @@ export async function renderSetGraph(){
   const certRows = g.certs.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${day(c.created)}</td>
       <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
       <td>${c.inUse ? '<span class="chip ok">In use</span>' : c.onServer ? `<button data-gcuse="${esc(c.thumbprint)}" ${fromServer ? 'disabled title="The server settings decide the certificate"' : ''}>Use this one</button>` : '<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>'}</td>
-      <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${!c.inUse && !c.chosen ? ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" aria-label="Remove this certificate" title="Remove">×</button>` : ''}</td></tr>`).join('');
+      <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${fromServer && c.inUse ? '' : ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" ${c.inUse || c.chosen ? 'data-gcinuse="1"' : ''} aria-label="Delete this certificate" title="Delete">×</button>`}</td></tr>`).join('');
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph ${g.configured ? '<span class="chip ok">Connected</span>' : '<span class="cnt">not set up</span>'}</div>
     <p class="note">Reads the Entra join status, Intune enrolment and compliance of the devices, matched by serial number. Values the inventory does not have yet are filled in; the rest stays. It only reads, it changes nothing in Entra or Intune.</p>
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
-      <li><div class="gs-head">${done(ids)}<b>Register an app in Entra</b></div>
-        <p class="note">In the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a>: Applications → App registrations → New registration. Name it e.g. “NOBS Inventory”, accounts in this organizational directory only, no redirect URI. Its Overview page shows the two IDs below.</p>
+      <li><div class="gs-head">${done(ids)}<b>Register the app in Entra</b></div>
+        <ol class="gs-sub">
+          <li>Open the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a> → <b>Applications</b> → <b>App registrations</b> → <b>New registration</b>.</li>
+          <li><b>Name:</b> <span class="mono">NOBS Inventory</span></li>
+          <li><b>Supported account types:</b> <i>Accounts in this organizational directory only (single tenant)</i></li>
+          <li><b>Redirect URI:</b> leave it empty. The inventory signs in as itself with a certificate, not as a person, so nothing is sent back to a web address.</li>
+          <li>Click <b>Register</b>. The app's <b>Overview</b> page opens: copy its two IDs into the fields below and save.</li>
+        </ol>
         <div class="form" style="padding:8px 0 0">
           <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="1b2c3d4e-5f60-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
           <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="9a8b7c6d-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
         </div>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
-      <li><div class="gs-head"><b>Give it read permissions</b></div>
-        <p class="note">In the app: API permissions → Add a permission → Microsoft Graph → <b>Application permissions</b>: <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span>. Then <b>Grant admin consent</b>. Test connection below checks both.</p></li>
-      <li><div class="gs-head">${done(!!chosen || fromServer)}<b>Create a certificate and upload it to the app</b></div>
-        <p class="note">Create one here. The server keeps it with its private key, encrypted; the key never leaves the server. Download the .cer (any time, from the list) and upload it in the app: Certificates &amp; secrets → Certificates → Upload certificate. Entra then shows the same thumbprint as the list.</p>
-        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer in use</a>` : ''}</div></li>
+      <li><div class="gs-head">${done(!!chosen || fromServer)}<b>Give the app a certificate</b></div>
+        <ol class="gs-sub">
+          <li>Click <b>Create a certificate</b> below. The server keeps its private key, encrypted; the key never leaves the server.</li>
+          <li>Click <b>Download the .cer</b>.</li>
+          <li>In the app in Entra: <b>Certificates &amp; secrets</b> → tab <b>Certificates</b> (not Client secrets) → <b>Upload certificate</b> → choose the .cer → <b>Add</b>.</li>
+          <li>Entra lists it with a thumbprint: the same as in the list at the bottom of this box.</li>
+        </ol>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer</a>` : ''}</div></li>
+      <li><div class="gs-head"><b>Allow it to read devices</b></div>
+        <ol class="gs-sub">
+          <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
+          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>.</li>
+          <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
+          <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
+        </ol>
+        <details class="gs-why"><summary>Why Application and not Delegated?</summary>
+          <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
       <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
-        <p class="note">Test connection signs in and reads one device from each list. Sync now reads them all; it also runs every night at 06:00.</p>
+        <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs every night at 06:00.</p>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div></li>
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
@@ -267,10 +285,15 @@ export async function renderSetGraph(){
     if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
     toast('The server signs in with this certificate now'); await refreshGraph();
   });
+  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
+     certificate is created and uploaded. */
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this certificate and delete its key here? Delete it in Entra as well, under Certificates & secrets.')) return;
-    const d = await fetch('api/graph/cert/' + encodeURIComponent(b.dataset.gcdel), {method: 'DELETE', credentials: 'same-origin'});
-    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not removed.'); return; }
+    const t = b.dataset.gcdel, inUse = !!b.dataset.gcinuse;
+    if (!confirm(`Delete certificate ${t}? Its private key is deleted from the server; this cannot be undone. Delete it in Entra as well (the app → Certificates & secrets → Certificates).`
+      + (inUse ? '\n\nThis is the certificate the inventory signs in with: Microsoft Graph stops working until you create a new one and upload it to Entra.' : ''))) return;
+    const d = await fetch('api/graph/cert/' + encodeURIComponent(t) + (inUse ? '?inUse=1' : ''), {method: 'DELETE', credentials: 'same-origin'});
+    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not deleted.'); return; }
+    toast('Certificate deleted' + (inUse ? '. Microsoft Graph is off until a new one is uploaded.' : ''));
     await refreshGraph();
   });
   applyRole();
@@ -674,15 +697,16 @@ export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   $('#setMaint').innerHTML = `${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
-    <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings. Only your own account stays, with its password, so you can sign in again.</div>
-    <div class="note" style="padding:10px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
+    <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
+    <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
 }
 export function factoryResetModal(){
   modal(`<div class="mh">Factory reset?</div>
-    <div class="mb"><p class="note">Everything is removed, except your own account. This cannot be undone: only a backup brings the data back.</p>
+    <div class="mb"><p class="note">Everything is removed, except your own account, including the LDAP and Microsoft Graph connections with Graph's certificates and keys, and the entry sheets. This cannot be undone: only a backup brings the data back.</p>
+      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="frBackups"> Also delete all backups (then nothing can be brought back)</label>
       <label class="note" for="frWord" style="display:block;margin-top:6px">Type FACTORY RESET to confirm</label><input id="frWord" autocomplete="off" aria-label="Type FACTORY RESET" style="width:100%"></div>
     <div class="mf"><button id="frCancel">Cancel</button><button id="frOk" class="danger-text" disabled>Factory reset</button></div>`, 'sm');
   $('#frWord').oninput = () => { $('#frOk').disabled = $('#frWord').value.trim() !== 'FACTORY RESET'; };
@@ -690,7 +714,7 @@ export function factoryResetModal(){
   $('#frCancel').onclick = closeModal;
   $('#frOk').onclick = async () => {
     clearTimeout(SERVER.timer);
-    const r = await fetch('api/factory-reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({confirm: 'FACTORY RESET'})});
+    const r = await fetch('api/factory-reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({confirm: 'FACTORY RESET', backups: $('#frBackups').checked})});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The reset did not run.'); return; }
     location.reload();

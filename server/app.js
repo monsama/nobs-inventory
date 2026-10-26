@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset } from './state.js';
+import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
 import { cleanIpLocations } from './lsnet.js';
@@ -197,8 +197,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/factory-reset', requireUser, requireAdmin, (req, res, next) => {
     try {
       if (!req.body || req.body.confirm !== 'FACTORY RESET') throw new HttpError(400, 'Type FACTORY RESET to confirm.');
-      audit(db, req.user.id, 'factory reset');
-      factoryReset(db, req.user.id);
+      const backups = req.body.backups === true;
+      audit(db, req.user.id, 'factory reset' + (backups ? ', backups deleted' : ''));
+      factoryReset(db, req.user.id, { backups });
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* The connections to other systems are removed: LDAP and Microsoft Graph settings, Graph's certificates and keys,
+     the Lansweeper API settings and push token. The inventory itself stays. */
+  app.post('/api/connections/clear', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      clearConnections(db);
+      audit(db, req.user.id, 'connections removed: LDAP, Microsoft Graph with its certificates, Lansweeper API and push token');
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
@@ -354,7 +364,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const s = loadState(db), t = String(req.params.thumbprint).toUpperCase();
       const g = cfgGraph();
-      if ((g && entraThumbprintOf(g.certPem) === t) || (s.graph && s.graph.thumbprint === t)) throw new HttpError(400, 'This is the certificate the server signs in with. Use another one first.');
+      /* One set in the server's environment is not the app's to remove. The one the app signs in with can go when that is
+         asked for: Graph then stops until another certificate is created or chosen. */
+      if (graphSource() === 'server' && g && entraThumbprintOf(g.certPem) === t) throw new HttpError(400, 'This certificate is set in the server settings (NI_GRAPH_CERT). Remove it there.');
+      const inUse = s.graph && s.graph.thumbprint === t;
+      if (inUse && req.query.inUse !== '1') throw new HttpError(400, 'This is the certificate the server signs in with. Use another one first, or confirm removing it.');
+      if (inUse) delete s.graph.thumbprint;
       s.graphCerts = (s.graphCerts || []).filter(c => c.thumbprint !== t);
       saveState(db, s);
       dropGraphKey(db, t);

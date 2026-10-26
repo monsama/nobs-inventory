@@ -59,6 +59,7 @@ try {
 
   // Clear inventory keeps the excluded objects and the relation between them.
   await p.click('#setBtn'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  assert.equal(await p.isChecked('#clrConn'), false, 'the connections stay unless asked');
   await p.fill('#clrWord', 'CLEAR'); await p.click('#clrOk');
   await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 2 && srv().objs.filter(o => o.type === 'rack').length === 2, 'the clear keeps excluded objects and the racks');
   assert.deepEqual(srv().objs.filter(o => o.type !== 'rack').map(o => o.name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201']);
