@@ -5,7 +5,7 @@
 #
 # Backs up first. If the new version is not healthy, it switches back to the previous
 # version automatically (code and image), so a failed update never leaves the app down.
-# Only the code is replaced. .env, secrets/, certificates/, backup/ and the data volume stay as they are.
+# Only the code is replaced. .env, secrets/, proxy/certificates/, proxy/sites/, backup/ and the data volume stay as they are.
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 REGISTRY_IMAGE=ghcr.io/monsama/nobs-inventory
@@ -15,7 +15,7 @@ RELEASES="${NI_RELEASE_URL:-https://github.com/$REPO/releases/download}"
 LATEST_API="${NI_RELEASE_API:-https://api.github.com/repos/$REPO/releases/latest}"
 TARGET="${1:-}"
 # What a release archive contains (see .github/workflows/release.yml). These are the files an archive update replaces.
-CODE="deploy-nobs.sh scripts Dockerfile docker-compose.yml Caddyfile .env.example package.json package-lock.json server public VERSION README.md"
+CODE="deploy-nobs.sh scripts Dockerfile docker-compose.yml proxy/docker-compose.yml proxy/Caddyfile proxy/sites/README.md .env.example package.json package-lock.json server public VERSION README.md"
 
 get_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 set_env() {
@@ -106,9 +106,17 @@ fi
 fi
 
 NEW_IMAGE="$REGISTRY_IMAGE:$(cat VERSION)"
+# The shared proxy (proxy/, since 0.9.26) takes the place of the app's own Caddy: the certificate is copied over, the
+# site written from NI_HOST, and the old Caddy goes when the app is started with --remove-orphans.
+# shellcheck source=proxy-lib.sh
+. scripts/proxy-lib.sh
+OLD_PROXY=false; docker inspect nobs-inventory-proxy >/dev/null 2>&1 && OLD_PROXY=true
+PROXY_STARTED=false
 rollback() {
   echo "[ERROR] $1 - switching back to the previous version." >&2
   restore_code
+  # A previous version with its own Caddy needs ports 80 and 443 back.
+  if [ "$PROXY_STARTED" = true ] && grep -q '^  caddy:' docker-compose.yml; then proxy_compose down >/dev/null 2>&1 || true; fi
   set_env NI_IMAGE "$PREV_IMAGE"
   docker compose up -d --no-build
   if wait_healthy; then
@@ -127,8 +135,18 @@ rollback() {
 echo "[INFO]  Image: $NEW_IMAGE"
 docker pull "$NEW_IMAGE" >/dev/null || rollback "The image $NEW_IMAGE cannot be pulled"
 set_env NI_IMAGE "$NEW_IMAGE"
-docker compose up -d --no-build || rollback "The containers do not start"
+proxy_network
+if proxy_wanted; then proxy_take_certificates; proxy_site; fi
+docker compose up -d --no-build --remove-orphans || rollback "The containers do not start"
 wait_healthy || rollback "The new version is not healthy"
+PROXY_STARTED=true
+proxy_up || rollback "The proxy does not start"
+# The old proxy's files, now in proxy/: kept in backup/ rather than left where they no longer count.
+if [ "$OLD_PROXY" = true ] && { [ -e Caddyfile ] || [ -d certificates ]; }; then
+  old="backup/before-shared-proxy-$(date +%Y%m%d-%H%M%S)"; mkdir -p "$old"
+  for f in Caddyfile certificates; do [ -e "$f" ] && mv "$f" "$old/"; done
+  echo "[INFO]  The proxy is now shared (proxy/). The old Caddyfile and certificates are kept in $old"
+fi
 
 docker image prune -f >/dev/null
 echo "[INFO]  Updated to $(cat VERSION). Previous version: $PREV_IMAGE (kept for rollback)."

@@ -844,7 +844,7 @@ function Show-NobsCertificate {
     if ($cert) {
         Write-PushLog "Certificate of $($uri.Host): $($cert.Subject)"
         Write-PushLog "Thumbprint: $($cert.Thumbprint)  (valid until $($cert.NotAfter.ToString('yyyy-MM-dd')))"
-        Write-PushLog 'Put the thumbprint in NobsCertThumbprint. Caddy renews its certificate, so check it again when pushes start failing.'
+        Write-PushLog 'Put the thumbprint in NobsCertThumbprint. When the server certificate is replaced, put the new thumbprint here.'
     }
 }
 

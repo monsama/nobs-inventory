@@ -59,9 +59,25 @@ jobs:
       - name: Archive (the same files the release archives)
         run: |
           git archive --format=tar.gz --prefix=nobs-inventory-check/ -o check.tar.gz HEAD \
-            deploy-nobs.sh scripts Dockerfile docker-compose.yml Caddyfile .env.example \
+            deploy-nobs.sh scripts Dockerfile docker-compose.yml proxy .env.example \
             package.json package-lock.json server public VERSION README.md
           tar -tzf check.tar.gz > /dev/null
+      # The shared proxy's configuration, as deploy-nobs.sh writes it, checked by Caddy itself: with the inventory's site
+      # and a second one (a wiki), both on one certificate, and with no site at all.
+      - name: Proxy configuration is valid
+        run: |
+          set -e
+          mkdir -p proxy/certificates
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=inventory.example.ch \
+            -addext "subjectAltName=DNS:inventory.example.ch,DNS:wiki.example.ch" \
+            -keyout proxy/certificates/nobs.key -out proxy/certificates/nobs.crt 2>/dev/null
+          check() { docker run --rm -v "$PWD/proxy/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$PWD/proxy/sites:/etc/caddy/sites:ro" \
+            -v "$PWD/proxy/certificates:/certs:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; }
+          check
+          printf 'NI_HOST=inventory.example.ch\n' > .env
+          . scripts/proxy-lib.sh && proxy_site
+          printf 'https://wiki.example.ch {\n\timport tls_and_headers\n\treverse_proxy dokuwiki:8080\n}\n' > proxy/sites/wiki.caddy
+          check
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:

@@ -18,14 +18,41 @@ On a Linux server with Docker and the Compose plugin:
     git clone https://github.com/monsama/nobs-inventory && cd nobs-inventory
     sudo NI_HOST=inventory.example.ch ./deploy-nobs.sh
 
-The script creates `.env` (settings) and `secrets/` (admin password, LDAP service password, Lansweeper token), builds the image, starts the app and Caddy, and waits until everything is healthy. It shows the first admin password once. Change it after the first sign-in (Settings → Users).
+The script creates `.env` (settings) and `secrets/` (admin password, LDAP service password, Lansweeper token), starts the app, waits until it is healthy, and starts the shared proxy. It shows the first admin password once. Change it after the first sign-in (Settings → Users).
 
 Requirements: Docker Engine with the Compose plugin, ports 80 and 443 reachable, and a DNS name (internal or public) pointing at the server.
 
-Certificates: the install creates a self-signed certificate in `certificates/`, so the site works at once with a browser warning. To replace it with your company certificate (PEM, with its key):
+### The shared proxy
 
-    sudo ./scripts/install-cert.sh inventory.pem inventory.key [chain.pem]
+HTTPS comes from one Caddy for the whole server, in `proxy/`: its own Compose project (`nobs-proxy`), so other services (a wiki, say) can run next to the inventory behind the same ports 80 and 443. Each service has a file in `proxy/sites/`; the inventory's, `inventory.caddy`, is written from `NI_HOST` by `deploy-nobs.sh` and `update.sh`. The services reach each other on the Docker network `nobs-proxy`.
+
+An install from before 0.9.26 had its own Caddy in the inventory's Compose file. `update.sh` moves it over: the certificate goes to `proxy/certificates/`, the site is written, the old Caddy is removed and the shared one started (a few seconds without HTTPS). The old `Caddyfile` and `certificates/` are kept in `backup/before-shared-proxy-*`. If the update fails, everything is switched back.
+
+With another proxy already in front, leave it out: `sudo ./deploy-nobs.sh --no-proxy` (writes `NI_PROXY=none` to `.env`). That proxy then joins the network `nobs-proxy` and forwards to `nobs-inventory:8080`.
+
+To add a service, put it on the network and give it a site file, e.g. `proxy/sites/wiki.caddy`:
+
+    https://wiki.example.ch {
+    	import tls_and_headers
+    	reverse_proxy dokuwiki:8080
+    }
+
+then `docker restart nobs-proxy`. In the service's own Compose file:
+
+    services:
+      dokuwiki:
+        container_name: dokuwiki
+        networks: [nobs-proxy]
+    networks:
+      nobs-proxy:
+        external: true
+
+Certificates: one certificate in `proxy/certificates/` serves every name, so it must carry all of them (`inventory.example.ch` and `wiki.example.ch`, say). The install creates a self-signed one, so the site works at once with a browser warning. To replace it with your company certificate (PEM, with its key):
+
+    sudo ./scripts/install-cert.sh company.pem company.key [chain.pem]
     sudo ./scripts/install-cert.sh --info
+
+It warns about every site name the new certificate does not carry.
 
 
 Secrets live in `secrets/` and are mounted into the app container as files. They are never in `.env`, and `docker inspect` does not show them. Add the LDAP service password or the Lansweeper token by writing the value into the matching file in `secrets/`, then `docker compose restart app`.
@@ -40,9 +67,9 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days) |
 | Restore | `sudo ./scripts/restore.sh backup/<file>.tar.gz` (type RESTORE to confirm) |
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
-| Logs | `docker compose logs -f` |
+| Logs | `docker compose logs -f` (the app), `docker logs nobs-proxy` (the proxy) |
 
-Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
+Backups contain the database, `.env`, the Compose file, the proxy (`proxy/`: its Caddyfile, every site file and the certificate) and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
 
 ## Accounts and directory
 

@@ -1,0 +1,38 @@
+# The shared HTTPS proxy: one Caddy for every service on this server (NOBS Inventory, a wiki, ...).
+# Each service puts a file in ./sites and joins the Docker network nobs-proxy. Started by deploy-nobs.sh and
+# update.sh of NOBS Inventory; by hand:
+#   docker network create nobs-proxy          (once)
+#   docker compose -p nobs-proxy -f proxy/docker-compose.yml --env-file .env up -d
+name: nobs-proxy
+
+services:
+  caddy:
+    container_name: nobs-proxy
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - ./certificates:/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - nobs-proxy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  nobs-proxy:
+    external: true
+
+volumes:
+  caddy-data:
+    name: nobs-proxy-data
+  caddy-config:
+    name: nobs-proxy-config
