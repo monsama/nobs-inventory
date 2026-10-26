@@ -717,7 +717,7 @@ export function dropMissingTabs(){
 /* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. */
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl:not(.minimized)')) return;
+  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
@@ -818,7 +818,7 @@ export function shortcutsModal(){
 }
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.target.closest('input, textarea, select') || $('#mdl:not(.minimized)')) return;
+  if (e.target.closest('input, textarea, select') || $('#mdl')) return;
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
