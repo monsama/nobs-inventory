@@ -1,7 +1,9 @@
 import ldap from 'ldapjs';
 import fs from 'node:fs';
 import { HttpError } from './errors.js';
-import { rootCertificates as tlsRootCertificates } from 'node:tls';
+import tls, { rootCertificates as tlsRootCertificates } from 'node:tls';
+import { X509Certificate } from 'node:crypto';
+import { isIP } from 'node:net';
 
 /* Directory access: sign-in checks a user's own password against the directory and never stores it. Sync reads
    the users with a service account. Both use the same connection settings. */
@@ -114,10 +116,59 @@ export async function ldapLogin(config, login, password) {
 
 /* Every user the sync covers, read with the service account: the members of the sign-in group, each with admin set
    when they are in the admin group. */
+/* The directory server's certificate, read without trusting it, to say why it is not trusted: who it is for, who issued
+   it, until when, and whether the CA added in Settings issued it. So nobody has to run openssl on the server. */
+const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];
+const day = t => { const d = new Date(t); return isNaN(d) ? String(t) : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
+export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
+async function peerChain(config) {
+  const u = new URL(config.url), host = u.hostname, servername = isIP(host) ? undefined : host;
+  if (/^ldaps:/i.test(config.url)) {
+    return new Promise((resolve, reject) => {
+      const s = tls.connect({ host, port: Number(u.port) || 636, servername, rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=0' }, () => { const c = s.getPeerCertificate(true); s.end(); resolve(c); });
+      s.setTimeout(8000, () => { s.destroy(); reject(new Error('timed out')); });
+      s.on('error', reject);
+    });
+  }
+  if (config.security !== 'starttls') return null;
+  const client = (config.createClient || ldap.createClient)({ url: config.url, timeout: 8000, connectTimeout: 8000 });
+  client.on('error', () => {});
+  try {
+    await new Promise((resolve, reject) => client.starttls({ host, servername, rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=0' }, [], e => (e ? reject(e) : resolve())));
+    return client._socket && client._socket.getPeerCertificate ? client._socket.getPeerCertificate(true) : null;
+  } finally { close(client); }
+}
+export async function ldapCertReport(config, now = new Date()) {
+  const peer = await peerChain(config);
+  if (!peer || !peer.raw) return null;
+  /* The chain as the server sent it: its own certificate first, then any CA certificates it sent along. */
+  const chain = [];
+  for (let c = peer, n = 0; c && c.raw && n < 6; n++) { chain.push(new X509Certificate(c.raw)); if (c.issuerCertificate === c) break; c = c.issuerCertificate; }
+  const leaf = chain[0], host = new URL(config.url).hostname;
+  const names = String(leaf.subjectAltName || '').split(/,\s*/).map(x => x.replace(/^(DNS|IP Address):/, '')).filter(Boolean);
+  const pems = [config.caPem || '', config.caFile ? fs.readFileSync(config.caFile, 'utf8') : ''].join('\n').match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
+  const cas = pems.map(p => { try { return new X509Certificate(p); } catch { return null; } }).filter(Boolean);
+  const issued = c => cas.some(ca => c.checkIssued(ca) && c.verify(ca.publicKey));
+  const byAdded = chain.some(issued);
+  const matches = !!(isIP(host) ? leaf.checkIP(host) : leaf.checkHost(host));
+  const expired = new Date(leaf.validTo) < now;
+  /* Current TLS refuses RSA keys under 2048 bits ("key too weak"): the certificate has to be renewed with a longer key. */
+  const key = leaf.publicKey.asymmetricKeyDetails || {}, type = leaf.publicKey.asymmetricKeyType;
+  const bits = key.modulusLength || 0, weak = type === 'rsa' && bits > 0 && bits < 2048;
+  const parts = [`The server presented the certificate of ${cnOf2(leaf.subject)}, issued by ${cnOf2(leaf.issuer)}, valid until ${day(leaf.validTo)}${bits ? `, with a ${bits}-bit ${String(type).toUpperCase()} key` : ''}.`];
+  if (weak) parts.push(`That key is too short: TLS today needs at least 2048 bits. Renew the domain controller's certificate with a 2048-bit key (in the certificate template, e.g. Kerberos Authentication: Cryptography → minimum key size 2048), then restart it or run certutil -pulse on it.`);
+  if (expired) parts.push(`It has expired: the domain controller needs a new one.`);
+  if (!matches) parts.push(`It is made for ${names.join(', ') || cnOf2(leaf.subject)}, not for ${host}: use ${names.length > 1 ? "one of these names" : "that name"} in the server address.`);
+  if (cas.length && !byAdded) parts.push(`The CA certificate in Settings (${cas.map(c => cnOf2(c.subject)).join(', ')}) did not issue it: add the certificate of ${cnOf2(chain[chain.length - 1].issuer)} instead.`);
+  if (!cas.length) parts.push(`Add the certificate of ${cnOf2(chain[chain.length - 1].issuer)} under CA certificate in Settings.`);
+  return { text: parts.join(' '), subject: cnOf2(leaf.subject), issuer: cnOf2(leaf.issuer), validTo: leaf.validTo, names, matches, expired, bits, weak, trustedByAdded: byAdded };
+}
+
 /* What the usual directory errors mean, in the words of the settings. Active Directory puts the reason of a failed bind
    in the message (data 52e, 775, …). */
 const LDAP_HINTS = [
   [/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ETIMEDOUT|timed? ?out|connect/i, 'The directory server cannot be reached. Check the server address and port (ldaps:// uses 636, ldap:// 389) and that the firewall lets this server through.'],
+  [/key too (weak|small)/i, 'The domain controller\'s certificate has a key that is too short (TLS today needs at least 2048 bits): renew it with a 2048-bit key.'],
   [/certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames/i, 'The directory server\'s certificate is not trusted, or does not match the address. Add the certificate of the CA that issued it under CA certificate in Settings (on Windows: the root CA certificate from AD Certificate Services, exported as .cer), and use the name the certificate is made for (dc01.example.ch, not an IP address).'],
   [/data 775/i, 'The service account is locked out.'],
   [/data 533/i, 'The service account is disabled.'],

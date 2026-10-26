@@ -115,3 +115,50 @@ test('the server\'s secrets go only where they were meant to: Lansweeper\'s API,
     assert.match(JSON.stringify(r.json), /saved for dc01\.example\.test.*Save the password again/);
   } finally { await srv.close(); }
 });
+
+test('an untrusted directory certificate is described: who it is for, who issued it, and what to do', async () => {
+  const { ldapCertReport } = await import('../server/ldap.js');
+  const dir = await startLdaps();
+  const port = dir.address().port;
+  try {
+    const cfg = { url: `ldaps://localhost:${port}`, searchBase: 'dc=test', serviceDn: 'cn=svc,dc=test', servicePassword: 'x', group: 'G', loginAttr: 'sAMAccountName' };
+    /* No CA added: the issuer to add is named. */
+    const none = await ldapCertReport(cfg);
+    assert.match(none.text, /certificate of dc01\.example\.test, issued by Test-Root-CA, valid until \d\d\.\d\d\.\d{4}/);
+    assert.match(none.text, /Add the certificate of Test-Root-CA under CA certificate/);
+    /* Another CA added (the -1 case): it is said that it did not issue it, and which one did. */
+    const other = await ldapCertReport({ ...cfg, caPem: fixture('other-ca.crt').toString() });
+    assert.match(other.text, /The CA certificate in Settings \(Other-Root-CA\) did not issue it: add the certificate of Test-Root-CA instead/);
+    /* The right CA, but an IP address in the server address: the names it is made for. */
+    const ip = await ldapCertReport({ ...cfg, url: `ldaps://127.0.0.1:${port}`, caPem });
+    assert.equal(ip.trustedByAdded, true);
+    assert.match(ip.text, /made for dc01\.example\.test, localhost, not for 127\.0\.0\.1: use one of these names/);
+    /* Through Test connection, without running openssl anywhere. */
+    const srv = await startServer({ ldapConfig: () => ({ ...cfg, bindTemplate: '{login}' }) });
+    try {
+      const a = await signIn(srv, 'admin', 'adminpass123');
+      const r = await srv.call('POST', '/api/ldap/test', { cookie: a.cookie });
+      assert.equal(r.status, 502);
+      assert.match(r.json.error, /presented the certificate of dc01\.example\.test, issued by Test-Root-CA/);
+    } finally { await srv.close(); }
+  } finally { dir.close(); }
+});
+
+test('a domain controller certificate with a 1024-bit key: refused, and the report says why and what to do', async () => {
+  const tlsMod = await import('node:tls');
+  const { ldapCertReport, ldapHint } = await import('../server/ldap.js');
+  /* A server that presents the weak certificate, as an old domain controller does. Only the handshake matters. */
+  const server = tlsMod.createServer({ cert: fixture('dc-weak.crt'), key: fixture('dc-weak.key'), ciphers: 'DEFAULT@SECLEVEL=0' }, s => s.end());
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  try {
+    const cfg = { url: `ldaps://localhost:${server.address().port}`, searchBase: 'dc=test', serviceDn: 'cn=svc', servicePassword: 'x', group: 'G', loginAttr: 'sAMAccountName', caPem };
+    /* What Node says to it at security level 2, the default of the Node 26 image (older Nodes accept 1024 bits). */
+    const err = await new Promise(resolve => { const s = tlsMod.connect({ host: 'localhost', port: server.address().port, ca: caPem, ciphers: 'DEFAULT@SECLEVEL=2' }, () => { s.end(); resolve(null); }); s.on('error', resolve); });
+    assert.match(String(err && err.message), /key too (weak|small)/i, 'Node refuses the weak key: ' + (err && err.message));
+    assert.match(ldapHint(err.message), /too short.*2048 bits/);
+    const r = await ldapCertReport(cfg);
+    assert.equal(r.bits, 1024); assert.equal(r.weak, true);
+    assert.match(r.text, /dc-weak\.example\.test, issued by Test-Root-CA, valid until .*, with a 1024-bit RSA key\. That key is too short/);
+    assert.ok(!/did not issue it/.test(r.text), 'the CA is the right one');
+  } finally { server.close(); }
+});
