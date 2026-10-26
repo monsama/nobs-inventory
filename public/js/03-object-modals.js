@@ -286,7 +286,17 @@ export function propRow(o, f, menu = ''){
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
   const barsBelow = bars ? `<span></span>${bars}` : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
+  const nics = k === 'mac' ? nicsHtml(o) : '';
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
+}
+/* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
+export function nicsHtml(o){
+  const list = Array.isArray(o.nics) ? o.nics : [];
+  if (!list.length) return '';
+  return `<label>Other adapters</label><ul class="nics" aria-label="Other network adapters">${list.map(n => `<li>
+    <span class="nic-name">${esc(n.name || 'Network adapter')}</span>
+    <span class="nic-addr mono">${esc(n.ip)}${n.mask ? '<span class="muted"> / ' + esc(n.mask) + '</span>' : ''}</span>
+    <span class="nic-meta muted">${[n.mac ? `<span class="mono">${esc(n.mac)}</span>` : '', n.dhcp === 'dhcp' ? 'DHCP' : n.dhcp === 'static' ? 'Static' : '', n.gateway ? 'gateway ' + esc(n.gateway) : ''].filter(Boolean).join(' · ')}</span></li>`).join('')}</ul>`;
 }
 /* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
    the space left. Returns '' when the text is not in that form. */
@@ -782,7 +792,8 @@ export function renderObj(o){
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
     const warns = [];
-    const sameIp = o.ip && o.status !== 'retired' ? objs.find(x => x !== o && x.ip === o.ip && x.status !== 'retired') : null;
+    /* Another device's other adapters count too: a notebook's Wi-Fi address is in use as much as its cable one. */
+    const sameIp = o.ip && o.status !== 'retired' ? objs.find(x => x !== o && x.status !== 'retired' && (x.ip === o.ip || (x.nics || []).some(n => n.ip === o.ip))) : null;
     if (sameIp) warns.push(`${o.ip} is also used by ${sameIp.name}`);
     const sn = o.subnet ? SUBNETS.find(n => n.cidr === o.subnet) : null, span = sn ? subnetSpan(sn) : null, ipn = ipInt(o.ip);
     if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
