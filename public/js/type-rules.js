@@ -16,7 +16,13 @@ export const DEFAULT_TYPE_RULES = [
   r('any', 'hikvision, ds-2cd, ds-2de, ds-2df, ds-2cv, ds-76, ds-77, ds-86, ds-96, ip camera, network camera, network video recorder, nvr, dvr, axis communications, dahua, cctv', 'camera'),
   /* HPE SimpliVity's OmniStack Virtual Controller: a VM on each node, though Lansweeper may call it a remote access controller. */
   r('any', 'simplivity, omnistack', 'vm'),
-  r('any', 'integrated lights-out, ilo, idrac, remote access controller, ipmi, bmc, xclarity controller, integrated management module, imm, imm2, irmc', 'bmc'),
+  /* A KVM switch (keyboard, video and mouse for several servers) is not a KVM virtual machine. */
+  r('any', 'kvm switch, kvm over ip, kvm-over-ip, ip kvm, kvm console, raritan, dominion kx, avocent, aten kvm, aten cn, aten kn, lantronix spider', 'other'),
+  /* The names an iLO or iDRAC is given (srv01-ilo) count; the short words that are also common names (bmc, imm, ipmi)
+     only count in the model or Lansweeper's type, so a server called bmc-app01 stays a server. */
+  r('any', 'integrated lights-out, ilo, idrac, irmc, remote access controller, xclarity controller, integrated management module', 'bmc'),
+  r('model', 'bmc, baseboard management controller, ipmi, imm, imm2', 'bmc'),
+  r('type', 'bmc, ipmi, imm, out-of-band, out of band management', 'bmc'),
   r('any', 'homeserver, facilityserver, feller, knx, gira, loxone, novar, hmi, operator panel, touch panel', 'plc'),
   r('any', 'omnipcx, oxo connect, oxo0, smartnode, patton electronics, mx-one, telefonbau, tas telefon', 'pbx'),
   r('any', 'gs105, gs108, gs110, gs116, gs305, gs308, gs316, gs324, gs724, gs728, gs752, procurve, catalyst, scalance x, unifi switch, usw-, aruba cx, 8320-, 8325-, 8360-, 6100-, 6200f, 6300f, 6300m, 6400-, 2530-, 2540-, 2930f, 2930m, 5406r, 5412r', 'switch'),

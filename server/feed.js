@@ -72,8 +72,25 @@ export function recordsFromJson(list) {
       name: String(x && x.name != null ? x.name : '').trim().slice(0, 200),
       version: String(x && x.version != null ? x.version : '').trim().slice(0, 100)
     })).filter(x => x.name) : null;
+    /* The device's other network adapters (Wi-Fi next to the cable, a second network): null when not sent. */
+    r.nics = Array.isArray(raw && raw.nics) ? raw.nics.slice(0, 16).map(x => {
+      const t = k => String(x && x[k] != null ? x[k] : '').trim().slice(0, 120);
+      return { name: t('name'), ip: t('ip'), mac: t('mac'), mask: t('mask'), gateway: t('gateway'), dhcp: t('dhcp') };
+    }) : null;
     return r;
   });
+}
+/* The other adapters with valid addresses only, each address once, never the device's own address. */
+export function cleanNics(list, mainIp) {
+  const seen = new Set(mainIp ? [mainIp] : []), out = [];
+  for (const n of Array.isArray(list) ? list : []) {
+    const ip = checkAddress('ip', n.ip), mac = checkAddress('mac', n.mac), gw = checkAddress('ip', n.gateway);
+    if (!ip.ok || !ip.value || seen.has(ip.value)) continue;
+    seen.add(ip.value);
+    out.push({ name: n.name || '', ip: ip.value, ...(mac.ok && mac.value ? { mac: mac.value } : {}), ...(prefixOf(n.mask) !== null ? { mask: n.mask } : {}),
+      ...(gw.ok && gw.value ? { gateway: gw.value } : {}), ...(['dhcp', 'static'].includes(n.dhcp) ? { dhcp: n.dhcp } : {}) });
+  }
+  return out;
 }
 
 /* A date as YYYY-MM-DD, from what Lansweeper writes (2027-03-31, 2027-03-31T00:00:00, 31.03.2027); anything else is no date. */
@@ -200,6 +217,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
     for (const k of ['purchased', 'warranty', 'scanned']) r[k] = dayOf(r[k]);
+    if (Array.isArray(r.nics)) r.nics = cleanNics(r.nics, r.ip);
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;
   };
@@ -231,7 +249,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...(r.scanned ? { scanned: r.scanned } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
-        ...(r.user ? { user: r.user } : {})
+        ...(r.user ? { user: r.user } : {}),
+        ...(r.nics && r.nics.length ? { nics: r.nics } : {})
       };
       s.objs.push(obj);
       pairs.push({ r, obj });
@@ -258,6 +277,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
         found[k] = incoming; changed = true;
       }
+    }
+    /* The other adapters go with the address: kept from Lansweeper while it fills in the IP address. */
+    const nicsOwned = s.feedOn !== false && (found.ovr && 'ip' in found.ovr ? found.ovr.ip : !!policy.ip);
+    if (nicsOwned && Array.isArray(r.nics) && JSON.stringify(r.nics) !== JSON.stringify(found.nics || [])) {
+      if (r.nics.length) found.nics = r.nics; else delete found.nics;
+      changed = true;
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
