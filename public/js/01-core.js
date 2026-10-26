@@ -242,17 +242,24 @@ export const JOIN_INFO = {
   'Entra registered': 'Registered in Microsoft Entra, not joined: often a personal (BYOD) device',
   'AD joined': 'Joined to the on-premises Active Directory only: not in Microsoft Entra',
 };
+/* How a device is joined. A device Graph no longer has is not joined there any more, whatever it was. */
 export const joinOf = o => {
-  const j = o.graph && o.graph.join;
+  const j = o.graph && !o.graph.gone && o.graph.join;
   if (j) return j === 'Domain joined' ? 'Hybrid joined' : j === 'Registered' ? 'Entra registered' : j;
   return o.inAd ? 'AD joined' : '';
 };
 /* The filters of the sidebar's Microsoft Graph group. Not in Entra or Intune counts only the types expected there. */
+/* A device of the inventory that a Graph record fits together with another one, so Graph put it on neither. */
+export const graphAmbiguousOf = o => (st.graphAmbiguous || []).find(a => a.devices.includes(o.id)) || null;
+const inGraph = o => !!o.graph && !o.graph.gone && o.status !== 'retired';
+/* Each filter: its label, its colour, the test, and whether it is listed only when a device has it. */
 export const GRAPH_FILTERS = {
-  noncompliant: ['Not compliant', 'bad', o => !!o.graph && o.status !== 'retired' && ['noncompliant', 'error'].includes(o.graph.compliance)],
-  unencrypted: ['Not encrypted', 'warn', o => !!o.graph && o.status !== 'retired' && o.graph.encrypted === 'no'],
-  stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => !!o.graph && o.status !== 'retired' && graphStale(o)],
-  missing: ['Not in Entra or Intune', 'off', o => !o.graph && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
+  noncompliant: ['Not compliant', 'bad', o => inGraph(o) && ['noncompliant', 'error'].includes(o.graph.compliance)],
+  unencrypted: ['Not encrypted', 'warn', o => inGraph(o) && o.graph.encrypted === 'no'],
+  stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => inGraph(o) && graphStale(o)],
+  missing: ['Not in Entra or Intune', 'off', o => (!o.graph || !!o.graph.gone) && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
+  duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).length > 0, true],
+  ambiguous: ['Name or serial used twice', 'warn', o => o.status !== 'retired' && !!graphAmbiguousOf(o), true],
   /* By how the device is joined. */
   entra: ['Entra joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra joined'],
   hybrid: ['Hybrid joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Hybrid joined'],
@@ -261,7 +268,7 @@ export const GRAPH_FILTERS = {
 };
 /* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
-  if (!SYNC.graph || !o.graph || (!o.graph.join && !o.graph.compliance)) return '';
+  if (!SYNC.graph || !o.graph || o.graph.gone || (!o.graph.join && !o.graph.compliance)) return '';
   const c = COMPLIANCE[o.graph.compliance];
   const text = [joinOf(o), c ? c[1] : o.graph.compliance].filter(Boolean).join(' · ');
   return `<span class="chip ${c && c[0] === 'bad' ? 'bad' : c && c[0] === 'warn' ? 'warn' : 'ok'}" title="Microsoft Entra and Intune">${esc(text)}</span>`;

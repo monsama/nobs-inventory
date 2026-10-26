@@ -1,7 +1,7 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { JOIN_INFO, joinOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -419,14 +419,21 @@ const graphTime = t => { const d = t ? new Date(t) : null; return d && !isNaN(d)
 export function graphPanel(o){
   if (!SYNC.graph) return '';
   const g = o.graph;
-  if (!g) return GRAPH_TYPES.includes(o.type) && o.status !== 'retired'
-    ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.${o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : ''}</p></div>` : '';
+  const amb = graphAmbiguousOf(o);
+  const ambNote = amb ? `<p class="note" style="padding:10px 12px 0"><span class="chip warn">Not matched</span> Graph has a device ${amb.by === 'serial' ? `with the serial number ${esc(amb.serial)}` : `named ${esc(amb.name)}`}, and so do ${amb.devices.length - 1 === 1 ? 'another device' : (amb.devices.length - 1) + ' other devices'} here: ${amb.devices.filter(id => id !== o.id).map(id => { const x = byId(id); return x ? esc(x.code + ' ' + x.name) : ''; }).filter(Boolean).join(', ')}. It was put on none of them. Give them distinct ${amb.by === 'serial' ? 'serial numbers' : 'names'}.</p>` : '';
+  const adOnly = o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : '';
+  if (!g) return (GRAPH_TYPES.includes(o.type) || amb) && o.status !== 'retired'
+    ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div>${ambNote}${amb ? '<div style="height:10px"></div>' : `<p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.${adOnly}</p>`}</div>` : '';
   const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
   const last = graphLast(o);
   const enc = g.encrypted === 'yes' ? '<span class="chip ok">Encrypted</span>' : g.encrypted === 'no' ? '<span class="chip warn">Not encrypted</span>' : '';
-  return `<div class="panelbox"><div class="hdr">Entra &amp; Intune${g.added ? ' <span class="cnt">added from Graph</span>' : ''}</div>
+  const others = g.gone ? [] : g.others || [];
+  const otherRows = others.map(x => `<li>${esc(x.join || 'Unknown join')}${x.managed ? ' · ' + esc(x.managed) : ''}${x.last ? ' · last heard of ' + esc(graphTime(x.last).slice(0, 10)) : ' · never signed in'}${x.serial && x.serial !== o.serial ? ' · serial ' + esc(x.serial) : ''}</li>`).join('');
+  return `<div class="panelbox"><div class="hdr">Entra &amp; Intune${g.added ? ' <span class="cnt">added from Graph</span>' : ''}</div>${ambNote}
+    ${g.gone ? `<p class="note" style="padding:10px 12px 0"><span class="chip warn">Gone</span> Not in Entra or Intune any more since the sync of ${esc(g.gone)}: deleted there, or renamed. Below is what Graph last said about it.${adOnly}</p>` : ''}
+    ${others.length ? `<div class="note" style="padding:10px 12px 0"><span class="chip warn">${others.length + 1} records in Entra</span> This device is listed more than once. The current record is shown below; the other${others.length === 1 ? ' is' : 's are'}:<ul style="margin:4px 0 0 18px;padding:0">${otherRows}</ul>Delete old records in the Entra admin center (Devices → All devices) so sign-in and policies use the right one.</div>` : ''}
     <dl class="lsbox">
-      ${row('Joined', `<span title="${esc(JOIN_INFO[joinOf(o)] || '')}">${esc(joinOf(o) || 'Not joined')}</span>${JOIN_INFO[joinOf(o)] ? `<span class="muted"> · ${esc(JOIN_INFO[joinOf(o)])}</span>` : ''}`)}
+      ${row(g.gone ? 'Was' : 'Joined', g.gone ? esc(g.join || '') : `<span title="${esc(JOIN_INFO[joinOf(o)] || '')}">${esc(joinOf(o) || 'Not joined')}</span>${JOIN_INFO[joinOf(o)] ? `<span class="muted"> · ${esc(JOIN_INFO[joinOf(o)])}</span>` : ''}`)}
       ${row('Intune', g.managed ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : 'Not managed')}
       ${row('Compliance', complianceChip(g.compliance))}
       ${row('Encryption', enc)}
