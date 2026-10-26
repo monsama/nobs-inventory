@@ -11,7 +11,9 @@ const app = compose.slice(compose.indexOf('\n  app:'), compose.indexOf('\n  prox
 
 test('every secret the app reads is mounted into it, declared with its file, and made by the scripts', () => {
   const read = [...app.matchAll(/NI_\w+_FILE: \/run\/secrets\/(\w+)/g)].map(m => m[1]);
-  const mounted = [...app.slice(app.indexOf('    secrets:')).matchAll(/^ {6}- (\w+)$/gm)].map(m => m[1]);
+  /* The app's secrets list: from its secrets: key to the next key of the service. */
+  const list = app.slice(app.indexOf('    secrets:') + 1); const end = list.search(/\n {4}\w/);
+  const mounted = [...(end > 0 ? list.slice(0, end) : list).matchAll(/^ {6}- (\w+)$/gm)].map(m => m[1]);
   const declared = [...compose.slice(compose.lastIndexOf('\nsecrets:')).matchAll(/^ {2}(\w+):\n {4}file: \.\/secrets\/(\w+)$/gm)].map(m => m[1]);
   assert.ok(read.length >= 5, 'the secrets the app reads: ' + read);
   for (const s of read) {

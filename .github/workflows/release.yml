@@ -53,7 +53,7 @@ jobs:
           mkdir -p dist
           V="${{ steps.v.outputs.version }}"
           git archive --format=tar.gz --prefix="nobs-inventory-$V/" -o "dist/nobs-inventory-$V.tar.gz" HEAD \
-            deploy-nobs.sh scripts Dockerfile docker-compose.yml Caddyfile .env.example \
+            deploy-nobs.sh scripts Dockerfile docker-compose.yml proxy .env.example \
             package.json package-lock.json server public VERSION README.md
           (cd dist && sha256sum "nobs-inventory-$V.tar.gz" > "nobs-inventory-$V.tar.gz.sha256")
       - uses: docker/setup-buildx-action@v4

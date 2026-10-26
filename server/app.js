@@ -29,7 +29,7 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'caddy', port: 443 } }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 } }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   initSheets(db);
