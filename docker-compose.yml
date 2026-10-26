@@ -1,11 +1,12 @@
 # NOBS Inventory. Generated values live in ./secrets and .env (see deploy-nobs.sh).
+# HTTPS comes from the shared proxy in proxy/ (its own Compose project, started by deploy-nobs.sh and update.sh).
 name: nobs-inventory
 
 services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.25}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.26}
     build: .
     restart: unless-stopped
     expose:
@@ -39,6 +40,10 @@ services:
     volumes:
       - ni-data:/data
       - ./feed:/feed:ro
+    # The shared proxy (proxy/, its own Compose project) reaches the app as nobs-inventory:8080 on this network.
+    networks:
+      - default
+      - nobs-proxy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
       interval: 30s
@@ -51,24 +56,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  caddy:
-    container_name: nobs-inventory-proxy
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      NI_HOST: ${NI_HOST:-}
-    ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./certificates:/certs:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      app:
-        condition: service_healthy
-    logging: *logging
 
 secrets:
   admin_password:
@@ -85,7 +72,7 @@ secrets:
 volumes:
   ni-data:
     name: nobs-inventory-data
-  caddy-data:
-    name: nobs-inventory-caddy-data
-  caddy-config:
-    name: nobs-inventory-caddy-config
+
+networks:
+  nobs-proxy:
+    external: true

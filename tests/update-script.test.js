@@ -9,12 +9,12 @@ import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'
 const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const sh = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text, { mode: 0o755 }); };
 
-function setup({ health = 'healthy' } = {}) {
+function setup({ health = 'healthy', oldProxy = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-update-'));
   const install = path.join(root, 'install'), bin = path.join(root, 'bin'), rel = path.join(root, 'releases', 'v2.0.0'), src = path.join(root, 'src');
   // The new release: this repository's code, as version 2.0.0, whose Compose file needs secrets/sheet_key.
   fs.mkdirSync(src, { recursive: true });
-  for (const f of ['scripts', 'server', 'public', 'docker-compose.yml', 'package.json', 'Dockerfile', 'Caddyfile', '.env.example', 'README.md', 'deploy-nobs.sh', 'package-lock.json'])
+  for (const f of ['scripts', 'server', 'public', 'docker-compose.yml', 'package.json', 'Dockerfile', 'proxy', '.env.example', 'README.md', 'deploy-nobs.sh', 'package-lock.json'])
     fs.cpSync(path.join(repo, f), path.join(src, 'nobs-inventory-2.0.0', f), { recursive: true });
   fs.writeFileSync(path.join(src, 'nobs-inventory-2.0.0', 'VERSION'), '2.0.0\n');
   fs.mkdirSync(rel, { recursive: true });
@@ -26,7 +26,15 @@ function setup({ health = 'healthy' } = {}) {
   const upd = path.join(install, 'scripts', 'update.sh');
   fs.writeFileSync(upd, fs.readFileSync(upd, 'utf8').split('\n').filter(l => !l.includes('sheet_key')).join('\n'), { mode: 0o755 });
   fs.mkdirSync(path.join(install, 'secrets')); fs.writeFileSync(path.join(install, 'secrets', 'feed_token'), '');
-  fs.writeFileSync(path.join(install, '.env'), 'NI_IMAGE=ghcr.io/monsama/nobs-inventory:1.0.0\n');
+  fs.writeFileSync(path.join(install, '.env'), 'NI_IMAGE=ghcr.io/monsama/nobs-inventory:1.0.0\nNI_HOST=inventory.argolite.ch\n');
+  /* An install from before the shared proxy: its own Caddy in its Compose file, the Caddyfile and certificate beside it. */
+  if (oldProxy) {
+    fs.rmSync(path.join(install, 'proxy'), { recursive: true, force: true });
+    fs.writeFileSync(path.join(install, 'Caddyfile'), ':443 {\n\treverse_proxy nobs-inventory:8080\n}\n');
+    fs.mkdirSync(path.join(install, 'certificates'));
+    fs.writeFileSync(path.join(install, 'certificates', 'nobs.crt'), 'CERT'); fs.writeFileSync(path.join(install, 'certificates', 'nobs.key'), 'KEY');
+    fs.appendFileSync(path.join(install, 'docker-compose.yml'), '\n# old layout\n  caddy:\n');
+  }
   // docker: Compose refuses to start without a declared secret file; health as asked.
   sh(path.join(bin, 'docker'), `#!/bin/bash
 echo "docker $*" >> "${root}/docker.log"
@@ -67,4 +75,27 @@ test('a new version that does not become healthy is switched back: the old code 
   assert.match(r.stderr, /not healthy - switching back/);
   assert.equal(fs.readFileSync(path.join(s.install, 'VERSION'), 'utf8').trim(), '1.0.0', 'the old code is back');
   assert.match(fs.readFileSync(path.join(s.install, '.env'), 'utf8'), /NI_IMAGE=ghcr\.io\/monsama\/nobs-inventory:1\.0\.0/);
+});
+
+test('an install with its own Caddy moves to the shared proxy: certificate, site from NI_HOST, old Caddy removed', () => {
+  const s = setup({ oldProxy: true });
+  const r = run(s);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const p = f => path.join(s.install, 'proxy', f);
+  assert.equal(fs.readFileSync(p('certificates/nobs.crt'), 'utf8'), 'CERT', 'the certificate is in proxy/certificates');
+  assert.match(fs.readFileSync(p('sites/inventory.caddy'), 'utf8'), /^https:\/\/inventory\.argolite\.ch, https:\/\/inventory \{$/m);
+  const log = fs.readFileSync(path.join(s.root, 'docker.log'), 'utf8');
+  assert.match(log, /docker compose up -d --no-build --remove-orphans/, 'the old Caddy goes with the app\'s Compose project');
+  assert.match(log, /docker compose -p nobs-proxy -f proxy\/docker-compose\.yml --env-file \.env up -d/, 'the shared proxy is started');
+  assert.ok(!fs.existsSync(path.join(s.install, 'Caddyfile')) && !fs.existsSync(path.join(s.install, 'certificates')), 'the old files are moved away');
+  assert.ok(fs.readdirSync(path.join(s.install, 'backup')).some(d => d.startsWith('before-shared-proxy-')), 'and kept in backup/');
+});
+
+test('a failed update of an install with its own Caddy leaves its Caddy files where they were', () => {
+  const s = setup({ health: 'unhealthy', oldProxy: true });
+  const r = run(s);
+  assert.equal(r.status, 1);
+  assert.equal(fs.readFileSync(path.join(s.install, 'certificates', 'nobs.crt'), 'utf8'), 'CERT');
+  assert.ok(fs.existsSync(path.join(s.install, 'Caddyfile')));
+  assert.doesNotMatch(fs.readFileSync(path.join(s.root, 'docker.log'), 'utf8'), /-p nobs-proxy .* up -d/, 'the shared proxy was not started');
 });

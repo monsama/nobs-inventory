@@ -1,15 +1,17 @@
 #!/bin/bash
 # ============================================================
-# deploy-nobs.sh - NOBS Inventory with Docker Compose and Caddy (HTTPS)
+# deploy-nobs.sh - NOBS Inventory with Docker Compose, behind the shared Caddy proxy (HTTPS)
 #
-#   sudo ./deploy-nobs.sh          first install, or re-run after changes (safe to repeat)
+#   sudo ./deploy-nobs.sh              first install, or re-run after changes (safe to repeat)
+#   sudo ./deploy-nobs.sh --no-proxy   without the shared proxy: another one is in front (NI_PROXY=none in .env)
 #
 # Creates (never overwrites existing values):
 #   .env                        non-secret settings (missing keys are added)
 #   secrets/admin_password      first admin password (generated, shown once at the end)
 #   secrets/ldap_service_password, secrets/ls_token, secrets/feed_token   empty unless you fill them in
 #
-# Then builds the image, starts app + Caddy, and waits until the app is healthy.
+# Then starts the app, waits until it is healthy, and starts the shared proxy (proxy/, its own Compose project):
+# one Caddy for every service on this server, each with a file in proxy/sites. The app's is inventory.caddy.
 #
 # Environment overrides (optional):
 #   NI_HOST=inventory.example.ch   name people type (required on first run; asked for otherwise)
@@ -24,6 +26,10 @@ PROJECT=nobs-inventory
 VERSION="$(cat VERSION)"
 IMAGE="${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:$VERSION}"
 INSTALL_BACKUP_CRON="${INSTALL_BACKUP_CRON:-true}"
+NO_PROXY_FLAG=false
+for a in "$@"; do case "$a" in --no-proxy) NO_PROXY_FLAG=true ;; *) echo "[ERROR] Unknown option: $a" >&2; exit 1 ;; esac; done
+# shellcheck source=scripts/proxy-lib.sh
+. "$(dirname "$0")/scripts/proxy-lib.sh"
 
 info() { echo "[INFO]  $*"; }
 warn() { echo "[WARN]  $*"; }
@@ -67,6 +73,7 @@ step_env() {
         sed -i -E "/^NI_IMAGE=/d" "$env"
         echo "NI_IMAGE=ghcr.io/monsama/nobs-inventory:$VERSION" >> "$env"
     fi
+    if [ "$NO_PROXY_FLAG" = true ]; then sed -i -E '/^NI_PROXY=/d' "$env"; echo "NI_PROXY=none" >> "$env"; fi
     # Old installs kept secrets here; they move to ./secrets below
     sed -i -E '/^(NI_ADMIN_PASSWORD|NI_LDAP_SERVICE_PASSWORD|NI_LS_TOKEN)=/d' "$env"
     chmod 640 "$env"
@@ -111,12 +118,14 @@ step_build_start() {
         docker build "${args[@]}" -t "$IMAGE" "$BASE_DIR" >/dev/null
     fi
     info "Starting containers ..."
-    docker compose -p "$PROJECT" up -d --no-build
+    proxy_network
+    # --remove-orphans: an install from before 0.9.26 had its own Caddy here; the shared proxy takes its place.
+    docker compose -p "$PROJECT" up -d --no-build --remove-orphans
     info "Waiting for the app to be healthy ..."
     local i status
     for i in $(seq 1 30); do
         status="$(docker inspect -f '{{.State.Health.Status}}' "$PROJECT" 2>/dev/null || echo starting)"
-        [ "$status" = healthy ] && { info "App healthy"; return 0; }
+        [ "$status" = healthy ] && { info "App healthy"; proxy_site && proxy_up; return 0; }
         [ "$status" = unhealthy ] && { docker logs --tail 20 "$PROJECT" 2>&1 | sed 's/^/        /'; fail "The app is unhealthy. See the log above."; }
         sleep 3
     done
@@ -124,10 +133,11 @@ step_build_start() {
 }
 
 step_certificate() {
-    echo; echo "Step 3b: TLS certificate (./certificates)"
-    local crt="$BASE_DIR/certificates/nobs.crt" key="$BASE_DIR/certificates/nobs.key"
+    echo; echo "Step 3b: TLS certificate (proxy/certificates)"
+    proxy_wanted || { info "NI_PROXY=none: the proxy in front has its own certificate"; return; }
+    proxy_take_certificates
+    local crt="$BASE_DIR/proxy/certificates/nobs.crt" key="$BASE_DIR/proxy/certificates/nobs.key"
     local host; host="$(grep '^NI_HOST=' "$BASE_DIR/.env" | cut -d= -f2-)"
-    mkdir -p "$BASE_DIR/certificates"; chmod 750 "$BASE_DIR/certificates"
     if [ -s "$crt" ] && [ -s "$key" ]; then
         info "Certificate exists - kept ($(openssl x509 -in "$crt" -noout -enddate | cut -d= -f2))"
         return
@@ -146,12 +156,13 @@ step_certificate() {
 
 step_check() {
     echo; echo "Step 5: Check through the proxy"
+    proxy_wanted || { info "NI_PROXY=none: check through your own proxy"; return; }
     local host code
     host="$(grep '^NI_HOST=' .env | cut -d= -f2-)"
     local port; port="$(grep '^HTTPS_PORT=' .env | cut -d= -f2- || true)"; port="${port:-443}"
     sleep 4
     code="$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$host:$port:127.0.0.1" "https://$host:$port/api/health" || true)"
-    if [ "$code" = 200 ]; then info "HTTPS OK: https://$host/"; else warn "HTTPS check returned ${code:-none}. Check: docker compose logs caddy"; fi
+    if [ "$code" = 200 ]; then info "HTTPS OK: https://$host/"; else warn "HTTPS check returned ${code:-none}. Check: docker logs nobs-proxy"; fi
 }
 
 step_cron() {
@@ -182,8 +193,9 @@ summary() {
         echo "  Admin:     login 'admin'. Password: $BASE_DIR/secrets/admin_password (sudo cat to read it)"
     fi
     echo
-    echo "  Certificate: Caddy issues it for a public name automatically (port 80/443"
-    echo "               must reach this server). For an internal name, see README."
+    echo "  Certificate: proxy/certificates/nobs.crt (self-signed until replaced):"
+    echo "               sudo ./scripts/install-cert.sh <cert.pem> <key.pem>   (one certificate for every name)"
+    echo "  Other sites: a file per service in proxy/sites, on the Docker network nobs-proxy (see README)"
     echo "  Update:      sudo ./scripts/update.sh"
     echo "  Backup:      sudo ./scripts/backup.sh     (copy backup/ off this server)"
     echo "  Restore:     sudo ./scripts/restore.sh backup/<file>.tar.gz"
