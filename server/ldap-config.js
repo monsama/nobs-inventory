@@ -4,7 +4,7 @@ import { readSecret } from './secrets.js';
    can change them without a restart. The service account's password is never stored there: it comes from the
    server's environment (NI_LDAP_SERVICE_PASSWORD, or NI_LDAP_SERVICE_PASSWORD_FILE for a secret file). The settings
    from the environment (NI_LDAP_URL and the rest) still work and are used when nothing is saved in the inventory. */
-const FIELDS = ['url', 'bindTemplate', 'searchBase', 'loginAttr', 'userFilter', 'group', 'adminGroup', 'serviceDn'];
+const FIELDS = ['url', 'bindTemplate', 'searchBase', 'loginAttr', 'userFilter', 'group', 'adminGroup', 'serviceDn', 'computerBase', 'computerGroups'];
 const clean = v => (typeof v === 'string' ? v.trim().slice(0, 500) : '');
 /* The sign-in name Active Directory takes when none is set: the login at the domain the search base names
    (DC=example,DC=ch -> {login}@example.ch). Without DC parts, the login as it is. */
@@ -26,6 +26,8 @@ export function configFromEnv(env) {
     userFilter: env.NI_LDAP_USER_FILTER || '',
     caFile: env.NI_LDAP_CA || '',
     allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1',
+    computerBase: env.NI_LDAP_COMPUTER_BASE || '',
+    computerGroups: env.NI_LDAP_COMPUTER_GROUPS === '0' ? 'off' : '',
   };
 }
 

@@ -77,7 +77,7 @@ $script:Wanted = [ordered]@{
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
-    tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled')
+    tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled', 'MACAddress', 'Caption', 'Description')
     tblComputersystem = @('AssetID', 'Domainrole')
     tblSystemEnclosure = @('AssetID', 'ChassisTypes')
     tblADusers     = @('Username', 'Userdomain', 'Department')
@@ -88,7 +88,7 @@ $script:Wanted = [ordered]@{
     tblSoftwareUni = @('SoftID', 'softwareName')
     tblBIOS        = @('AssetID', 'Version')
     tblUptime      = @('AssetId', 'EventTime')
-    tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace')
+    tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace', 'DriveType')
     tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
     tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
     web50repvCenterVmwareGuestNetworks = @('AssetID', 'Host')
@@ -433,15 +433,17 @@ function Get-HealthByAsset($conn) {
         try { while ($rd.Read()) { $id = ConvertTo-Text $rd['AssetId']; if ($id -and $rd['last'] -is [datetime]) { (Get-Entry $id)['boot'] = $rd['last'].ToString('yyyy-MM-dd HH:mm') } } } finally { $rd.Close() }
     }
     if (Test-Col 'tblVolume' 'DriveLetter') {
-        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [DriveLetter], [Capacity], [FreeSpace] FROM [tblVolume] WHERE [DriveLetter] IS NOT NULL'
+        $type = if (Test-Col 'tblVolume' 'DriveType') { '[DriveType]' } else { 'NULL AS [DriveType]' }
+        $r = $conn.CreateCommand(); $r.CommandText = "SELECT [AssetID], [DriveLetter], [Capacity], [FreeSpace], $type FROM [tblVolume] WHERE [DriveLetter] IS NOT NULL"
         $rd = $r.ExecuteReader()
         try { while ($rd.Read()) {
             $id = ConvertTo-Text $rd['AssetID']; $letter = ConvertTo-Text $rd['DriveLetter']
             if (-not $id -or -not $letter) { continue }
             $e = Get-Entry $id
             $capacity = ConvertTo-Text $rd['Capacity']; $free = ConvertTo-Text $rd['FreeSpace']
-            $size = if ($capacity -match '^\d+$') { '{0:N0}/{1:N0} GB' -f ([double]$free / 1GB), ([double]$capacity / 1GB) } else { '' }
-            $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size") | Where-Object { $_ }) -join '; '
+            # A CD/DVD drive (drive type 5) is listed as optical; it has no size, or only that of the disc in it.
+            $size = if ((ConvertTo-Text $rd['DriveType']) -eq '5') { 'optical' } elseif ($capacity -match '^\d+$') { '{0:N0}/{1:N0} GB' -f ([double]$free / 1GB), ([double]$capacity / 1GB) } else { '' }
+            $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size".Trim()) | Where-Object { $_ }) -join '; '
         } } finally { $rd.Close() }
     }
     if (Test-Col 'tblQuickFixEngineering' 'InstalledOn') {
@@ -562,7 +564,7 @@ function Get-FirstV6($v) {
 # Each asset's network adapters with an address: address, mask, gateway, DNS servers and DHCP.
 function Get-AdapterByAsset($conn) {
     $map = @{}
-    $cols = @('AssetID', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled')
+    $cols = @('AssetID', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'MACAddress', 'Caption', 'Description')
     if (-not ((Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'IPAddress') -and (Test-Col 'tblNetwork' 'IPSubnet'))) { return $map }
     $select = ($cols | ForEach-Object { Get-SelectItem 'tblNetwork' 'n' $_ }) -join ', '
     $where = if (Test-Col 'tblNetwork' 'IPEnabled') { 'WHERE n.[IPEnabled] = 1' } else { '' }
@@ -578,9 +580,13 @@ function Get-AdapterByAsset($conn) {
             $dns = @((ConvertTo-Text $reader['n__DNSServerSearchOrder']) -split '[,;\s]+' | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' }) -join ', '
             $dhcpText = ConvertTo-Text $reader['n__DHCPEnabled']
             if (-not $map.ContainsKey($id)) { $map[$id] = New-Object System.Collections.Generic.List[object] }
+            $mac = (Get-Clean $reader['n__MACAddress']) -replace '[^0-9a-fA-F]', ''
+            $name = Get-Clean $reader['n__Description']; if (-not $name) { $name = Get-Clean $reader['n__Caption'] }
             $map[$id].Add(@{
                 ip = $ip; ip6 = Get-FirstV6 $reader['n__IPAddress']; mask = Get-FirstV4 $reader['n__IPSubnet']; gateway = Get-FirstV4 $reader['n__DefaultIPGateway']; dns = $dns
                 dhcp = $(if ($dhcpText -match '^(1|true)$') { 'dhcp' } elseif ($dhcpText -match '^(0|false)$') { 'static' } else { '' })
+                mac = $(if ($mac.Length -eq 12) { (($mac -split '(..)' | Where-Object { $_ }) -join ':').ToLowerInvariant() } else { '' })
+                name = ($name -replace '^\[\d+\]\s*', '')
             })
         }
     } finally { $reader.Close() }
@@ -593,6 +599,19 @@ function Select-Adapter($nics, [string]$ip) {
     foreach ($n in $nics) { if ($ip -and $n['ip'] -eq $ip) { return $n } }
     foreach ($n in $nics) { if ($n['gateway']) { return $n } }
     return $null
+}
+
+# The device's other adapters: every one with an IPv4 address except the main one and the virtual ones, each address once.
+function Get-OtherAdapters($nics, $main, [string]$ip = '') {
+    # Adapters that are not a second network of the device: virtual switches, VPN and tunnel adapters, loopback, Bluetooth.
+    $virtual = 'hyper-v|vethernet|virtual|vmware|virtualbox|vpn|tap-|tap adapter|wan miniport|loopback|bluetooth|teredo|isatap|6to4|wireguard|tailscale|zerotier|anyconnect|fortinet|globalprotect|pangp|juniper|wi-fi direct|docker|npcap'
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($n in @($nics)) {
+        if (-not $n -or ($main -and $n['ip'] -eq $main['ip']) -or ($ip -and $n['ip'] -eq $ip) -or ($n['ip'] -like '169.254.*') -or ($n['name'] -match $virtual)) { continue }
+        if ($out | Where-Object { $_.ip -eq $n['ip'] }) { continue }
+        $out.Add([ordered]@{ name = $n['name']; ip = $n['ip']; mac = $n['mac']; mask = $n['mask']; gateway = $n['gateway']; dhcp = $n['dhcp'] })
+    }
+    return , $out.ToArray()
 }
 
 # Lansweeper's IP locations: named address ranges, often named after a site and room.
@@ -741,6 +760,8 @@ function Get-LsRecords {
         foreach ($rec in $list) {
             $nic = Select-Adapter $adapters[[string]$rec['ref']] $rec['ip']
             if ($nic) { foreach ($k in @('ip6', 'mask', 'gateway', 'dns', 'dhcp')) { $rec[$k] = $nic[$k] } }
+            # Sent only when the adapters could be read; then a device with one adapter sends an empty list.
+            if ($adapters.Count) { $rec['nics'] = Get-OtherAdapters $adapters[[string]$rec['ref']] $nic $rec['ip'] }
         }
         $health = Get-HealthByAsset $conn
         foreach ($rec in $list) {

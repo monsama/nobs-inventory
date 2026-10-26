@@ -30,6 +30,13 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
   assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'argoimm04.argo.intern'), 'bmc', 'an IBM IMM');
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-silo'), 'pc', 'ilo as a whole word only');
+  assert.equal(t('Windows', 'HPE ProLiant DL380 Gen10', 'bmc-app01', '', 'server'), 'server', 'bmc in a name is not a BMC');
+  assert.equal(t('Windows', 'HP EliteDesk 800 G9', 'imm-buchhaltung', 'desktop', 'workstation'), 'pc', 'imm in a name is not an IMM');
+  assert.equal(t('Network device', 'Supermicro BMC', 'host7-mgmt'), 'bmc', 'BMC in the model is');
+  assert.equal(t('Network device', 'Raritan Dominion KX III', 'KVM-RZ1'), 'other', 'a KVM switch');
+  assert.equal(t('Network device', 'ATEN CN8000A KVM over IP', ''), 'other', 'a KVM-over-IP box');
+  assert.equal(t('Windows', 'KVM', 'app-vm03', '', 'server'), 'vm', 'a KVM virtual machine');
+  assert.equal(t('Linux', 'Standard PC (Q35 + ICH9, 2009)', 'pve-guest'), 'vm', 'a Proxmox virtual machine');
   assert.equal(t('VoIP', 'ALE International OXO050/042.001 GW_050/042', 'ALE International 172.21.103.5'), 'pbx', 'an OmniPCX Office is a phone system');
   assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');
   assert.equal(t('Network device', 'Hewlett-Packard 8360-24XF2C v2 (JL722C)', 'core-sw'), 'switch', 'an Aruba CX 8360 is a switch');

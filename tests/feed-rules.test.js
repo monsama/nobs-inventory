@@ -117,3 +117,24 @@ test('every antivirus product and drive is kept, past 200 characters', () => {
   assert.equal(r.disk, disk);
   assert.equal(r.model.length, 200, 'other fields stay short');
 });
+
+test('other network adapters: kept with valid addresses, never the main one; a push without them keeps them', () => {
+  const s = base({ objs: [
+    { id: 'a', type: 'notebook', name: 'NB-A', serial: 'A1', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'a', seen: 'x' }, ip: '10.10.20.42' },
+    { id: 'b', type: 'pc', name: 'PC-B', serial: 'B1', status: 'active', ovr: { ip: false }, feed: { sys: 'Lansweeper', ref: 'b', seen: 'x' }, ip: '10.10.20.43' },
+  ], rels: [], policy: { ip: true } });
+  const nics = [{ name: 'Intel Wi-Fi 6 AX201', ip: '10.50.0.7', mac: 'AA:BB:CC:00:00:02', mask: '255.255.0.0', gateway: '', dhcp: 'dhcp' },
+    { name: 'Same as main', ip: '10.10.20.42' }, { name: 'Broken', ip: 'not an ip' }, { name: 'Twice', ip: '10.50.0.7' }];
+  mergeRecords(s, recordsFromJson([{ name: 'NB-A', serial: 'A1', ref: 'a', ip: '10.10.20.42', nics }, { name: 'PC-B', serial: 'B1', ref: 'b', ip: '10.10.20.43', nics }]), now);
+  const a = s.objs.find(o => o.id === 'a'), b = s.objs.find(o => o.id === 'b');
+  assert.equal(a.nics.length, 1);
+  assert.equal(a.nics[0].ip, '10.50.0.7');
+  assert.equal(a.nics[0].dhcp, 'dhcp');
+  assert.ok(a.nics[0].mac, 'the MAC is kept');
+  assert.equal(b.nics, undefined, 'an address kept by hand keeps its adapters as they are');
+  mergeRecords(s, recordsFromJson([{ name: 'NB-A', serial: 'A1', ref: 'a', ip: '10.10.20.42' }]), now);
+  assert.equal(a.nics.length, 1, 'not sent: kept');
+  mergeRecords(s, recordsFromJson([{ name: 'NB-A', serial: 'A1', ref: 'a', ip: '10.10.20.42', nics: [] }]), now);
+  assert.equal(a.nics, undefined, 'sent empty: removed');
+  checkState(s);
+});

@@ -48,6 +48,18 @@ Check 'adapter by ip: gateway' $nic['gateway'] '10.10.20.1'
 Check 'adapter by ip: dns' $nic['dns'] '10.10.1.5, 10.10.1.6'
 Check 'adapter by ip: dhcp' $nic['dhcp'] 'dhcp'
 Check 'adapter fallback has gateway' (Select-Adapter $map['7'] '1.2.3.4')['gateway'] '10.10.20.1'
+# The other adapters: the main one, virtual ones and link-local addresses are left out, each address once.
+$all = @(
+  @{ ip = '10.10.20.42'; name = 'Intel Ethernet I219-LM'; mac = 'aa:bb:cc:00:00:01'; mask = '255.255.255.0'; gateway = '10.10.20.1'; dhcp = 'dhcp' },
+  @{ ip = '10.50.0.7'; name = 'Intel Wi-Fi 6 AX201'; mac = 'aa:bb:cc:00:00:02'; mask = '255.255.0.0'; gateway = ''; dhcp = 'dhcp' },
+  @{ ip = '10.50.0.7'; name = 'Intel Wi-Fi 6 AX201'; mac = 'aa:bb:cc:00:00:02'; mask = '255.255.0.0'; gateway = ''; dhcp = 'dhcp' },
+  @{ ip = '172.17.80.1'; name = 'Hyper-V Virtual Ethernet Adapter'; mac = ''; mask = ''; gateway = ''; dhcp = 'static' },
+  @{ ip = '169.254.10.2'; name = 'Realtek USB'; mac = ''; mask = ''; gateway = ''; dhcp = 'dhcp' })
+$other = Get-OtherAdapters $all $all[0] '10.10.20.42'
+Check 'other adapters: one' $other.Count 1
+Check 'other adapters: the Wi-Fi' $other[0].name 'Intel Wi-Fi 6 AX201'
+Check 'other adapters: none without a main' (Get-OtherAdapters @($all[0]) $null '10.10.20.42').Count 0
+
 $locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @(@('Willisau Lager','172.21.108.1','172.21.108.254'), @('', '1.1.1.1', '1.1.1.2'))))
 Check 'ip locations read' $locs.Count 1
 Check 'ip location name' $locs[0].name 'Willisau Lager'
@@ -60,6 +72,13 @@ $av = New-Table @('AssetID','DisplayName','onAccessScanningEnabled','productUpTo
 $h = Get-HealthByAsset (New-Conn $av)
 Check 'antivirus: both products' $h['7']['av'] 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'
 Check 'antivirus: one product' $h['8']['av'] 'Sophos, scanning OFF, up to date'
+
+# Disks: a CD/DVD drive is listed as optical, a drive without a size by its letter only.
+$script:Cols = @{ tblVolume = @{ driveletter = 'DriveLetter'; drivetype = 'DriveType' } }
+$vol = New-Table @('AssetID','DriveLetter','Capacity','FreeSpace','DriveType') @(
+  @('7', 'C:', '254721126400', '56908316672', '3'), @('7', 'D:', '', '', '5'), @('7', 'E:', '', '', '2'))
+$h = Get-HealthByAsset (New-Conn $vol)
+Check 'disks: optical and no size' ($h['7']['disk'] -replace '[0-9][^/;]*/[^;]* GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
 $script:Cols = $saveCols
 
 # What the push leaves out is counted in Lansweeper and said in the log.
