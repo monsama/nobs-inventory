@@ -42,7 +42,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
 | Logs | `docker compose logs -f` |
 
-Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; settings and secrets are restored only with `RESTORE_SECRETS=yes`.
+Backups contain the database, certificates, `.env`, the Compose and Caddy files and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
 
 ## Accounts and directory
 
@@ -127,11 +127,9 @@ Keep a copy of `secrets/sheet_key` apart from the server: it encrypts the entry 
 
 ## Backup
 
-Copy the database while the app runs with the file in the volume:
+Use `sudo ./scripts/backup.sh` (see Operations): it copies the database with `VACUUM INTO`, which is consistent while the app runs. A plain file copy of `inventory.db` is not: the database runs in WAL mode, so recent changes may still be in `inventory.db-wal`. Otherwise stop the stack and copy the `nobs-inventory-data` volume.
 
-    docker compose exec app node -e "require('node:fs').copyFileSync('/data/inventory.db','/data/backup.db')"
-
-Or stop the stack and copy the `ni-data` volume.
+The backups in Settings → Maintenance hold the inventory (devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, settings and the sealed entry sheets). They do not hold passwords, the push token, the Graph private keys, the saved LDAP password or the log: for a move to a new server, use `scripts/backup.sh` and restore with `RESTORE_SECRETS=yes`.
 
 ## Development
 

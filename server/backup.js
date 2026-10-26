@@ -1,4 +1,4 @@
-import { loadState, saveState, SETTING_KEYS } from './state.js';
+import { loadState, saveState, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
 import { HttpError } from './errors.js';
 import { migrateState } from './migrate.js';
 
@@ -6,6 +6,8 @@ import { migrateState } from './migrate.js';
    (never the passwords). Taken before every Lansweeper sync, push and import, and by hand. The newest are kept. */
 const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
+/* How backups are taken is not part of the inventory: a restore of an old backup never switches them off or keeps fewer. */
+const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 
 /* A backup taken by the app itself (before a sync, push or import). Off when the setting "Automatic backups" is off. */
 export function autoBackup(db, reason) {
@@ -45,11 +47,19 @@ export function restoreBackup(db, data) {
   if (new Set(images.map(im => im.id)).size !== images.length) throw new HttpError(400, 'The backup has two plan pictures for the same plan.');
   const cur = loadState(db);
   const st = b.settings || {};
+  const blank = blankState();
   const s = { ...cur, objs: b.objs, rels: b.rels, history: b.history, types: b.types };
   const users = new Map(cur.users.map(u => [String(u.id), u]));
   for (const u of b.users) if (!users.has(String(u.id))) users.set(String(u.id), u);
   s.users = [...users.values()];
-  for (const k of SETTING_KEYS) if (st[k] !== undefined && !COUNTERS.includes(k)) s[k] = st[k];
+  /* Every setting is put back as it was, and one the backup does not have goes back to how a new server starts. The connections (LDAP, Graph and
+     its certificates, the Lansweeper API) stay as they are now: their keys and passwords are not in a backup, so the
+     backup's would not work. Into an empty database, they are taken from the backup. */
+  for (const k of SETTING_KEYS) {
+    if (COUNTERS.includes(k) || BACKUP_SETTINGS.includes(k)) continue;
+    if (CONNECTION_SETTINGS.includes(k) && cur[k] !== undefined) continue;
+    if (st[k] !== undefined) s[k] = st[k]; else if (k in blank) s[k] = blank[k]; else delete s[k];
+  }
   const codeOf = o => parseInt(String(o.code || '').replace(/\D/g, ''), 10) || 0;
   s.codeN = Math.max(cur.codeN || 0, st.codeN || 0, ...b.objs.map(codeOf));
   s.seq = Math.max(cur.seq || 0, st.seq || 0);
