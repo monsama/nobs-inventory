@@ -16,8 +16,14 @@ export function lansweeperConfigOf(db, env) {
   if (!token) return null;
   const row = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'lansweeper'").get();
   const saved = row ? (JSON.parse(row.data) || {}) : {};
+  /* The token is the server's: it is sent only to Lansweeper's own API or to the address the server names (NI_LS_URL),
+     never to another address saved in Settings. */
+  const host = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
+  const own = clean(saved.endpoint);
+  const allowed = own && /^https:\/\//i.test(own) && (/(^|\.)lansweeper\.com$/.test(host(own)) || (env.NI_LS_URL && host(own) === host(env.NI_LS_URL)));
   return {
-    endpoint: clean(saved.endpoint) || env.NI_LS_URL || DEFAULT_ENDPOINT,
+    endpoint: (allowed ? own : '') || env.NI_LS_URL || DEFAULT_ENDPOINT,
+    ...(own && !allowed ? { endpointProblem: `The API address in Settings (${host(own) || own}) is not Lansweeper's. The token is sent only to api.lansweeper.com over https, or to the address in NI_LS_URL.` } : {}),
     site: clean(saved.site) || env.NI_LS_SITE || '',
     authScheme: clean(saved.authScheme) || env.NI_LS_AUTH_SCHEME || 'Token',
     token,
@@ -39,6 +45,7 @@ export const ASSETS_QUERY = `query Assets($siteId: ID!, $after: String) {
 }`;
 
 export async function graphql(cfg, query, variables = {}, fetchImpl = fetch) {
+  if (cfg.endpointProblem) throw new HttpError(400, cfg.endpointProblem);
   let r;
   try {
     r = await fetchImpl(cfg.endpoint || DEFAULT_ENDPOINT, {

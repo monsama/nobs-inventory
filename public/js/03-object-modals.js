@@ -638,7 +638,7 @@ export function renderObj(o){
       ${i ? `<div class="ps-hop">${esc(KINDS[n.via.kind].fwd)}${n.via.port != null ? ` <b>${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : ''}
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
-  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
+  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
@@ -985,10 +985,19 @@ export function renderObj(o){
 }
 
 /* ---------- modals ---------- */
+/* A dialog opened from Settings (a password, a restore, a reset…) takes Settings' place; when it is closed, by OK or
+   Cancel, Settings comes back on the same tab. 04-settings.js gives the way to open it. */
+let settingsOpener = null, backToSettings = false;
+export const setSettingsOpener = fn => { settingsOpener = fn; };
+/* A dialog whose result is to be seen in the inventory (Clear inventory) leaves Settings closed. */
+export const leaveSettings = () => { backToSettings = false; };
 export function modal(html, cls=''){
   /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
   const gone = $('#mdl.minimized .box'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
-  if (!$('#mdl')) modalOpener = document.activeElement;
+  if (/\bsettings\b/.test(cls)) backToSettings = false;
+  else if ($('#mdl:not(.minimized) #setPane')) backToSettings = true;
+  /* The control that opened the first dialog gets the focus back; one replaced while minimized does not keep it. */
+  if (!$('#mdl') || gone) modalOpener = gone ? null : document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
   const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">${html}</div></div>`;
@@ -1048,6 +1057,7 @@ export const closeModal = () => {
   $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
   renderTray();
   if (wasSettings) render();
+  else if (backToSettings && settingsOpener){ backToSettings = false; render(); settingsOpener(); }
 };
 document.addEventListener('keydown', e => {
   if (!$('#mdl') || $('#mdl.minimized')) return;

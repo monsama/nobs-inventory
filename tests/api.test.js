@@ -621,3 +621,32 @@ test('the day Lansweeper last scanned a device is kept with it, and is not count
   mergeRecords(s, recordsFromJson([{ name: 'SVT-1', ref: 's1', serial: 'S1', scanned: 'not a date' }]));
   assert.equal(s.objs[0].feed.scanned, '2026-10-25', 'a day that is not one is ignored');
 });
+
+test('requests from another site are refused, large bodies need a signed-in admin, and a full save keeps the server-only settings', async () => {
+  const { startServer: start, signIn: login } = await import('./helpers.js');
+  const { loadState: load, saveState: save } = await import('../server/state.js');
+  const srv = await start();
+  try {
+    const a = await login(srv, 'admin', 'adminpass123');
+    const post = (path, headers, body = '{}') => fetch(srv.base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: a.cookie, ...headers }, body });
+    /* Another host on the same domain, or a form from another site: refused, and nothing is cleared. */
+    save(srv.db, { ...load(srv.db), graph: { tenant: 'contoso.onmicrosoft.com', clientId: '11111111-1111-1111-1111-111111111111' } });
+    assert.equal((await post('/api/connections/clear', { 'Sec-Fetch-Site': 'same-site' })).status, 403);
+    assert.equal((await post('/api/connections/clear', { Origin: 'https://wiki.example.ch' })).status, 403);
+    assert.ok(load(srv.db).graph, 'nothing was cleared');
+    /* The app's own page: allowed. */
+    assert.equal((await post('/api/backups', { Origin: srv.base, 'Sec-Fetch-Site': 'same-origin' })).status, 200);
+    /* A large body without signing in is turned away before it is read. */
+    const big = 'x'.repeat(2 * 1048576);
+    const anon = await fetch(srv.base + '/api/backups/restore-file', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: big });
+    assert.equal(anon.status, 401);
+    /* A full save cannot write or remove what only the server writes. */
+    save(srv.db, { ...load(srv.db), graphCerts: [{ thumbprint: 'AB'.repeat(20), created: '2026-10-25T13:00:00.000Z', expires: '2028-10-24T13:00:00.000Z' }] });
+    const cur = load(srv.db);
+    const body = { objs: [], rels: [], users: cur.users, types: {}, history: {}, locs: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, lsNets: [{ evil: true }] };
+    assert.equal((await srv.call('PUT', '/api/state', { body, cookie: a.cookie })).status, 200);
+    const after = load(srv.db);
+    assert.ok(after.graph && after.graphCerts.length === 1, 'the Graph settings and certificates are kept');
+    assert.equal(after.lsNets, undefined, 'a server-only setting is not taken from the request');
+  } finally { await srv.close(); }
+});

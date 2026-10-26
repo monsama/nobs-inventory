@@ -4,6 +4,7 @@ import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON,
 import { NOTICE_SOON_DAYS, contractStatus, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { render } from './07-render-plans.js';
+import { resetFilters } from './02-views.js';
 
 const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 /* A list of bars, longest first, each a button that opens the list behind it. One hue: the length is the message. */
@@ -19,7 +20,8 @@ export function renderOverview(){
   const wEnded = inUse.filter(o => warrantyState(o) === 'ended').length, wSoon = inUse.filter(o => warrantyState(o) === 'soon').length;
   const due = contractsDue(), over = licencesOver();
   const running = COSTS.contracts.filter(c => contractStatus(c).state !== 'ended');
-  const year = running.reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.reduce((t, l) => t + yearlyCost(l), 0);
+  /* Running only: a contract or licence that has ended costs nothing any more. */
+  const year = running.reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => contractStatus(l).state !== 'ended').reduce((t, l) => t + yearlyCost(l), 0);
   const value = inUse.reduce((t, o) => t + (typeof o.price === 'number' ? o.price : 0), 0), priced = inUse.filter(o => typeof o.price === 'number').length;
   const repair = objs.filter(o => o.status === 'repair').length, stock = objs.filter(o => o.status === 'stock').length;
   const nOld = LS_ON() ? live.filter(o => scanOld(o)).length : 0;
@@ -82,14 +84,15 @@ export function renderOverview(){
       <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
     </div></div>`;
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
-  const go = (tab, set = {}) => { Object.assign(st, { type: null, loc: null, status: null, warranty: null, scanOld: false, adGroup: null, intune: null, osFam: null, q: '' }, set); const s = $('#search'); if (s) s.value = ''; st.tab = tab; render(); };
+  const go = (tab, set = {}) => { resetFilters(); Object.assign(st, set); st.tab = tab; render(); };
   const v = $('#view');
-  v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt }));
-  v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl }));
-  v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune }));
-  v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos }));
-  v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true }));
+  v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt, live: true }));
+  v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl, live: true }));
+  v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));
+  v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos, live: true }));
+  v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.tab = b.dataset.ovtab; render(); });
+  /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; render(); });
 }

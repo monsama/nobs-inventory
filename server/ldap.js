@@ -1,5 +1,6 @@
 import ldap from 'ldapjs';
 import fs from 'node:fs';
+import { HttpError } from './errors.js';
 import { rootCertificates as tlsRootCertificates } from 'node:tls';
 
 /* Directory access: sign-in checks a user's own password against the directory and never stores it. Sync reads
@@ -8,6 +9,7 @@ export const ldapEnabled = config => !!config?.url;
 // All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs.
 const USER_ATTRS = ['*'];
 const LOGIN_OK = /^[\w.@-]{1,64}$/;
+export const DEFAULT_USER_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
 const escapeFilter = v => String(v).replace(/[\\*()\0]/g, c => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
 const cnOf = dn => String(dn).replace(/^CN=/i, '').split(',')[0];
@@ -137,6 +139,9 @@ export const computerBaseOf = config => {
 /* The computer accounts with the groups each is a direct member of, by group name. */
 export async function ldapListComputers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
+  /* No password is never sent: an empty one is an anonymous sign-in to Active Directory. */
+  if (config.passwordProblem) throw new HttpError(400, config.passwordProblem);
+  if (!config.servicePassword) throw new HttpError(400, 'The service account has no password: save it in Settings, or set NI_LDAP_SERVICE_PASSWORD on the server.');
   const client = await connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
@@ -148,10 +153,14 @@ export async function ldapListComputers(config) {
 
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
+  /* No password is never sent: an empty one is an anonymous sign-in to Active Directory. */
+  if (config.passwordProblem) throw new HttpError(400, config.passwordProblem);
+  if (!config.servicePassword) throw new HttpError(400, 'The service account has no password: save it in Settings, or set NI_LDAP_SERVICE_PASSWORD on the server.');
   const client = await connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
-    const userFilter = config.userFilter || '(objectClass=person)';
+    /* In Active Directory a computer account is a person too: it is left out, so PC01$ never becomes a user. */
+    const userFilter = config.userFilter || DEFAULT_USER_FILTER;
     const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`))
       .map(e => profileOf(e.attrs, config)).filter(p => p.login);
     const everyone = (await ldapSearch(client, config.searchBase, userFilter)).map(e => profileOf(e.attrs, config)).filter(p => p.login);

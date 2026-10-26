@@ -41,6 +41,7 @@ export function parseCaCerts(base64) {
     certs: certs.map(c => ({ name: cnOf(c.subject), issuer: cnOf(c.issuer), expires: new Date(c.validTo).toISOString(), sha256: c.fingerprint256 })),
   };
 }
+export const ldapHostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
 const savedCa = db => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const v = r ? JSON.parse(r.data) : null; return v && typeof v.pem === 'string' ? v.pem : ''; };
 
 export function configFromEnv(env) {
@@ -71,6 +72,11 @@ export function ldapConfigOf(db, env) {
   if (!cfg.bindTemplate) cfg.bindTemplate = defaultBindTemplate(cfg.searchBase);
   if (!cfg.loginAttr) cfg.loginAttr = 'sAMAccountName';
   if (!SECURITY.includes(cfg.security)) cfg.security = '';
+  /* The server's service password goes only to the directory the server names (NI_LDAP_URL), when it names one: an
+     address changed in Settings does not get it. */
+  const envPw = readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), envHost = ldapHostOf(env.NI_LDAP_URL || '');
+  const pwHere = !envPw || !envHost || envHost === ldapHostOf(cfg.url);
   return { ...cfg, searchBase: cfg.searchBase, caFile: env.NI_LDAP_CA || '', allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1' || cfg.security === 'plain',
-    servicePassword: readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), caPem: savedCa(db) };
+    servicePassword: pwHere ? envPw : '', caPem: savedCa(db),
+    ...(pwHere ? {} : { passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is for ${envHost}, not ${ldapHostOf(cfg.url)}. Set NI_LDAP_URL to the new server, or change the address back.` }) };
 }

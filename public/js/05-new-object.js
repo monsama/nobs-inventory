@@ -29,7 +29,7 @@ export function newObjModal(pre={}){
   const c = pre.copy;
   modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
+      <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">

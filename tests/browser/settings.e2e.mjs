@@ -72,6 +72,9 @@ try {
   assert.match(await page.getAttribute('#setBtn', 'title') || '', /\w/, 'the Settings button has a hover text');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');
+  // a dialog opened from Settings brings Settings back on the same tab, by Cancel as by OK
+  await page.click('#setUsers [data-pw]'); await page.waitForSelector('#pwCancel');
+  await page.click('#pwCancel'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');
   // Add subnet opens the editor, which spans the box; the device types ticked and the ranges added are saved
   await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('#snNew');

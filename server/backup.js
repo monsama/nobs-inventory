@@ -10,8 +10,10 @@ const COUNTERS = ['seq', 'codeN', 'rseq'];
 const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 
 /* A backup taken by the app itself (before a sync, push or import). Off when the setting "Automatic backups" is off. */
-export function autoBackup(db, reason) {
+export function autoBackup(db, reason, { daily = false } = {}) {
   if (loadState(db).autoBackups === false) return null;
+  /* A sync that runs every few hours backs up once a day, so its backups do not push the older ones out. */
+  if (daily && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at > ?").get(reason, new Date(Date.now() - 864e5).toISOString())) return null;
   return takeBackup(db, reason);
 }
 export function takeBackup(db, reason) {
@@ -49,15 +51,30 @@ export function restoreBackup(db, data) {
   const st = b.settings || {};
   const blank = blankState();
   const s = { ...cur, objs: b.objs, rels: b.rels, history: b.history, types: b.types };
+  /* An account of the backup that is not here (deleted since, or a new server) comes back switched off and without a password,
+     never with old sign-ins: an admin switches them on again, and a directory user is switched on by the next LDAP sync
+     when still in the group. A login now used by another account is not taken twice. */
   const users = new Map(cur.users.map(u => [String(u.id), u]));
-  for (const u of b.users) if (!users.has(String(u.id))) users.set(String(u.id), u);
+  const logins = new Set(cur.users.map(u => String(u.login || '').toLowerCase()).filter(Boolean));
+  for (const u of b.users) {
+    if (users.has(String(u.id))) continue;
+    const login = String(u.login || '').toLowerCase();
+    if (login && logins.has(login)) continue;
+    if (login) logins.add(login);
+    /* People without a login (device owners from Lansweeper) are not accounts: they come back as they were. */
+    const back = login ? { ...u, active: false } : u;
+    if (login && u.source === 'ldap' && u.active !== false) back.syncOff = true;
+    users.set(String(u.id), back);
+  }
   s.users = [...users.values()];
   /* Every setting is put back as it was, and one the backup does not have goes back to how a new server starts. The connections (LDAP, Graph and
      its certificates, the Lansweeper API) stay as they are now: their keys and passwords are not in a backup, so the
-     backup's would not work. Into an empty database, they are taken from the backup. */
+     backup's would not work. Into a server with no connection at all, they are taken from the backup. */
+  /* A server with no connection set up at all (a new one) takes the backup's; any other keeps its own, all of them. */
+  const freshServer = CONNECTION_SETTINGS.every(k => cur[k] === undefined || cur[k] === null);
   for (const k of SETTING_KEYS) {
     if (COUNTERS.includes(k) || BACKUP_SETTINGS.includes(k)) continue;
-    if (CONNECTION_SETTINGS.includes(k) && cur[k] !== undefined) continue;
+    if (CONNECTION_SETTINGS.includes(k) && !freshServer) continue;
     if (st[k] !== undefined) s[k] = st[k]; else if (k in blank) s[k] = blank[k]; else delete s[k];
   }
   const codeOf = o => parseInt(String(o.code || '').replace(/\D/g, ''), 10) || 0;

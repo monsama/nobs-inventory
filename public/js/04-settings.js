@@ -1,7 +1,7 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from './schedule.js';
 import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
-import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { setSettingsOpener, collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
@@ -13,6 +13,8 @@ import { sheetModal } from './08-sheets.js';
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
+  /* A dialog opened from here brings Settings back when it closes. */
+  setSettingsOpener(openSettings);
   snEdit = null; snDraft = null;   /* Settings opens with no subnet half edited */
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
@@ -530,7 +532,7 @@ export function mountModal(){
   if (!free.length){ toast('Every rackable device is already in a rack.'); return; }
   modal(`<div class="mh">Mount device in ${esc(rackOf(st.rackId).name)}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="mdDev">Device</label><select id="mdDev">${free.map(o => `<option value="${o.id}">${esc(o.name)} · ${TYPES[o.type].label}</option>`).join('')}</select>
+      <label for="mdDev">Device</label><select id="mdDev">${free.map(o => `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type].label)}</option>`).join('')}</select>
       <label for="mdU">Start U</label><input id="mdU" type="number" min="1" value="${rackUnits(rackOf(st.rackId))}">
       <label for="mdH">Height</label><input id="mdH" type="number" min="1" value="${TYPE_U[free[0].type] ?? 1}">
     </div><p class="note" id="mdErr"></p></div>
@@ -763,10 +765,12 @@ export function restoreModal(label, run){
   $('#rsCancel').onclick = closeModal;
   $('#rsWord').oninput = () => { $('#rsOk').disabled = $('#rsWord').value !== 'RESTORE'; };
   $('#rsOk').onclick = async () => {
+    /* Changes not saved yet are saved first, so the backup taken before the restore has them. */
+    await flushSave();
     const r = await run();
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The backup could not be restored.'); return; }
-    closeModal(); toast('Restored'); await reloadFromServer(); loadBackups();
+    closeModal(); toast('Restored'); await reloadFromServer({ discard: true }); loadBackups();
   };
   $('#rsWord').focus();
 }
@@ -872,7 +876,7 @@ export function renderSetLdap(){
       <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
         ${field('bindTemplate', 'Sign-in name', bindDefault(L.searchBase) + '   (or EXAMPLE\\{login})')}
         ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
-        ${field('userFilter', 'User filter', '(objectClass=person)')}
+        ${field('userFilter', 'User filter', '(&(objectClass=person)(!(objectClass=computer)))')}
         ${field('computerBase', 'Computers search base', computerDefault(L.searchBase))}
         <label for="lk_computerGroups">Computer groups</label><label class="pchk" style="width:auto"><input type="checkbox" id="lk_computerGroups" ${L.computerGroups === 'off' ? '' : 'checked'} ${ro}> Read the groups of each computer account (shown on the device)</label>
       </div>
@@ -1398,6 +1402,8 @@ export function renderBuiltinFields(box, type){
   box.querySelectorAll('[data-fup]').forEach(b => b.onclick = () => move(+b.dataset.fup, +b.dataset.fup - 1));
   box.querySelectorAll('[data-fdown]').forEach(b => b.onclick = () => move(+b.dataset.fdown, +b.dataset.fdown + 1));
 }
+/* A type's name as the server keeps it: plain text of up to 60 characters. */
+const typeName = v => String(v || '').replace(/[<>]/g, '').trim().slice(0, 60);
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
@@ -1415,8 +1421,8 @@ export function renderSetTypes(){
   const root = $('#setTypes');
   renderSetTypeFields();
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
-  root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = i.value.trim() || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
-  root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = i.value.trim() || TYPES[i.dataset.ts].short; render(); });
+  root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = typeName(i.value) || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
+  root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = typeName(i.value) || TYPES[i.dataset.ts].short; render(); });
   root.querySelectorAll('.icondd-btn').forEach(b => b.onclick = e => {
     e.stopPropagation();
     const list = b.nextElementSibling, open = list.hidden;
@@ -1441,7 +1447,7 @@ export function renderSetTypes(){
   });
   root.querySelectorAll('[data-td]').forEach(b => b.onclick = () => { const k = b.dataset.td; toast(TYPES[k].label + ' deleted'); delete TYPES[k]; renderSetTypes(); render(); });
   $('#ntAdd').onclick = () => {
-    const name = $('#ntName').value.trim();
+    const name = typeName($('#ntName').value);
     if (!name){ toast('Give the new type a name first.'); return; }
     if (Object.values(TYPES).some(t => t.label.toLowerCase() === name.toLowerCase())){ toast(name + ' already exists.'); return; }
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'type';

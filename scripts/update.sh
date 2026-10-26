@@ -77,6 +77,8 @@ if [ -d .git ]; then
     git checkout --quiet "v$TARGET"
   else
     echo "[INFO]  Pulling the latest code ..."
+    # An earlier update to a given version left the clone on that tag: back on main first.
+    git checkout --quiet main
     git pull --ff-only --quiet origin main
   fi
   restore_code() { git checkout --quiet "$PREV_REV"; }

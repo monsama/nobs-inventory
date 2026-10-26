@@ -52,6 +52,7 @@ export function loadState(db) {
 
 /* Factory reset: removes every record, setting, account and sign-in except the account that asked for it, and its
    sessions. The audit log is kept. The next load starts as a new server does. */
+const bumpRev = (db, kind, id) => db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, String(id));
 /* Tables made only once their feature is first used. */
 const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
 /* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
@@ -62,8 +63,8 @@ export function clearConnections(db) {
   db.exec('BEGIN');
   try {
     for (const id of CONNECTION_SETTINGS) {
-      db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id);
-      db.prepare("DELETE FROM revs WHERE kind = 'setting' AND id = ?").run(id);
+      /* The revision goes up, never back to 0, so a page still holding the old one cannot save it back. */
+      if (db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id).changes) bumpRev(db, 'setting', id);
     }
     db.exec('DELETE FROM feed_token');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
@@ -80,7 +81,9 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
   const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
   db.exec('BEGIN');
   try {
-    db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images; DELETE FROM feed_token;');
+    /* Every record goes; its revision goes up instead of away, so a page still open from before cannot save into the new start. */
+    for (const r of db.prepare('SELECT kind, id FROM docs').all()) bumpRev(db, r.kind, r.id);
+    db.exec('DELETE FROM docs; DELETE FROM plan_images; DELETE FROM feed_token;');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
@@ -175,6 +178,10 @@ export function checkState(s) {
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
+  /* A type's name is shown as text everywhere; angle brackets have no place in it. */
+  for (const [k, t] of Object.entries(s.types)) for (const f of ['label', 'short']) {
+    if (t && t[f] !== undefined && (typeof t[f] !== 'string' || t[f].length > 60 || /[<>]/.test(t[f]))) bad(`The ${f === 'label' ? 'name' : 'short name'} of the type ${k} is text of up to 60 characters, without < or >.`);
+  }
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
     /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
@@ -349,7 +356,11 @@ function writeDocs(db, s) {
       if (current.get(key) !== json) { put.run(kind, id, json); bump(kind, id); }
     }
     for (const key of current.keys()) {
-      if (!wanted.has(key)) { const i = key.indexOf('|'); const kind = key.slice(0, i), id = key.slice(i + 1); del.run(kind, id); bump(kind, id); }
+      if (!wanted.has(key)) {
+        const i = key.indexOf('|'); const kind = key.slice(0, i), id = key.slice(i + 1); del.run(kind, id); bump(kind, id);
+        /* A user deleted takes their password and sign-ins along, so a backup cannot bring the account back with them. */
+        if (kind === 'user') { db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id); db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id); }
+      }
     }
     db.exec('COMMIT');
   } catch (e) {
