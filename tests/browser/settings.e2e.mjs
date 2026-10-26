@@ -49,6 +49,9 @@ try {
   await page.selectOption('[data-sched-every="ldap"]', '0');
   assert.equal(await page.isHidden('[data-sched-at="ldap"]'), true, 'off has no start time');
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
+  /* Hover texts: every tab says what it holds, and so does the button that opens Settings. */
+  await page.waitForFunction(() => (document.querySelector('#setTabs [data-st=maintenance]').title || '').includes('Backups'));
+  assert.match(await page.getAttribute('#setBtn', 'title') || '', /\w/, 'the Settings button has a hover text');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');

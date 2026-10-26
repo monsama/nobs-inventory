@@ -82,3 +82,34 @@ test('the company name and logo are kept; a logo that is not a PNG or JPEG is re
   assert.throws(() => checkState({ ...base, company: { name: 'x', logo: 'data:image/svg+xml;base64,PHN2Zz4=' } }), /PNG or JPEG/);
   assert.throws(() => checkState({ ...base, company: { name: 'x'.repeat(81) } }), /80 characters/);
 });
+
+test('a restore puts every setting back as it was, also those that were not there yet when the backup was taken', () => {
+  const db = freshDb();
+  const s = loadState(db);
+  Object.assign(s, { vlans: [{ vid: 10, name: 'Users' }], currency: 'CHF', graph: { tenant: 'contoso.onmicrosoft.com', client: '11111111-1111-1111-1111-111111111111' } });
+  saveState(db, s);
+  const id = takeBackup(db, 'test');
+  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(id).data);
+  const later = loadState(db);
+  Object.assign(later, {
+    vlans: [{ vid: 20, name: 'Servers' }], currency: 'EUR', models: ['Added later'], subnets,
+    contracts: [{ id: 'c1', name: 'Support', kind: 'support', start: '2026-01-01', end: '2026-12-31', renew: 12, notice: 3, cost: 1, per: 'year', devices: [] }],
+    graph: { tenant: 'fabrikam.onmicrosoft.com', client: '22222222-2222-2222-2222-222222222222' },
+  });
+  saveState(db, later);
+  restoreBackup(db, data);
+  const back = loadState(db);
+  assert.deepEqual(back.vlans, [{ vid: 10, name: 'Users' }]);
+  assert.equal(back.currency, 'CHF');
+  assert.equal(back.models, undefined, 'a list that was added after the backup is gone again');
+  assert.deepEqual(back.sites, [], 'a list a new server starts with is empty again');
+  assert.equal(back.subnets, undefined);
+  assert.equal(back.contracts, undefined);
+  /* The connections are not part of the inventory: they stay as they are now, so a restore does not break a working sync. */
+  assert.equal(back.graph.tenant, 'fabrikam.onmicrosoft.com');
+  /* Into an empty database, the backup's connection settings are taken. */
+  const fresh = freshDb();
+  restoreBackup(fresh, data);
+  assert.equal(loadState(fresh).graph.tenant, 'contoso.onmicrosoft.com');
+  db.close(); fresh.close();
+});

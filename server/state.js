@@ -28,9 +28,11 @@ export function revsOf(db) {
   return m;
 }
 
+/* What a new server starts with; a setting that is not stored has this value. */
+export const blankState = () => ({ objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 });
 export function loadState(db) {
   const rows = db.prepare('SELECT kind, id, data FROM docs').all();
-  const s = { objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 };
+  const s = blankState();
   for (const r of rows) {
     const v = JSON.parse(r.data);
     if (r.kind === 'object') s.objs.push(v);
