@@ -204,3 +204,44 @@ test('the log says what a save changed: objects by name, relations, settings, an
     assert.equal(last(), 'saved: changed PC-1 (1 not saved: changed by someone else first)');
   } finally { await srv.close(); }
 });
+
+test('factory reset also removes Graph certificates with their keys and the entry sheets; backups only when asked. Removing the connections keeps the inventory', async () => {
+  const { initSheets } = await import('../server/sheets.js');
+  const { initGraphKeys } = await import('../server/graph-keys.js');
+  const { takeBackup } = await import('../server/backup.js');
+  const srv = await startServer();
+  const count = t => srv.db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    initSheets(srv.db); initGraphKeys(srv.db);
+    const seed = () => {
+      srv.db.prepare("INSERT OR REPLACE INTO graph_keys (thumbprint, cert, key) VALUES ('AB12', 'cert', 'sealed')").run();
+      srv.db.prepare("INSERT OR REPLACE INTO sheets (id, user_id, created, by, password, data) VALUES ('s1', 'u1', '2026-10-26', 'admin', 'kept', 'sealed')").run();
+      srv.db.prepare("INSERT OR REPLACE INTO feed_token (id, hash, created) VALUES (1, 'h', '2026-10-26')").run();
+    };
+    // removing the connections: settings, Graph keys and the push token go; devices and other settings stay
+    seed();
+    await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'x'), base: 0 },
+      { kind: 'setting', id: 'ldap', value: { url: 'ldaps://dc01' }, base: 0 },
+      { kind: 'setting', id: 'currency', value: 'EUR', base: 0 }], dels: [] }).then(r => assert.equal(r.status, 200, JSON.stringify(r.json)));
+    srv.db.prepare("INSERT OR REPLACE INTO docs (kind, id, data) VALUES ('setting', 'graph', ?)").run(JSON.stringify({ tenant: 't', clientId: 'c' }));
+    const cleared = await srv.call('POST', '/api/connections/clear', { cookie: a.cookie });
+    assert.equal(cleared.status, 200);
+    const s1 = await load(srv, a.cookie);
+    assert.equal(s1.objs.length, 1, 'the devices stay');
+    assert.equal(s1.currency, 'EUR', 'other settings stay');
+    assert.ok(!s1.ldap && !s1.graph, 'LDAP and Graph settings are gone');
+    assert.equal(count('graph_keys'), 0, 'Graph keys are gone');
+    assert.equal(count('feed_token'), 0, 'the push token is gone');
+    assert.equal(count('sheets'), 1, 'entry sheets are part of the inventory, not a connection');
+    // factory reset: keys and sheets go; backups stay unless asked
+    seed(); takeBackup(srv.db, 'test');
+    const r1 = await srv.call('POST', '/api/factory-reset', { cookie: a.cookie, body: { confirm: 'FACTORY RESET' } });
+    assert.equal(r1.status, 200);
+    assert.equal(count('graph_keys'), 0); assert.equal(count('sheets'), 0);
+    assert.ok(count('backups') >= 1, 'backups stay by default');
+    const r2 = await srv.call('POST', '/api/factory-reset', { cookie: (await signIn(srv, 'admin', 'adminpass123')).cookie, body: { confirm: 'FACTORY RESET', backups: true } });
+    assert.equal(r2.status, 200);
+    assert.equal(count('backups'), 0, 'backups go when asked');
+  } finally { await srv.close(); }
+});

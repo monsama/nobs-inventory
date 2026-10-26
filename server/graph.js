@@ -5,7 +5,7 @@ import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
-import { stamp } from './feed.js';
+import { stamp, typeFor } from './feed.js';
 import { checkAddress } from './validate.js';
 
 /* Intune writes a MAC as twelve hex digits with no separators (00155D012345). It is stored the way the inventory writes
@@ -94,7 +94,7 @@ export async function graphAll(token, url, fetchImpl = fetch) {
 }
 
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime';
-const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent';
+const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName';
 /* How a join type reads in the inventory. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Domain joined', Workplace: 'Registered' };
 const clean = v => String(v ?? '').trim();
@@ -112,7 +112,8 @@ export function toRecords(devices, managed) {
       join: JOIN[d.trustType] || clean(d.trustType), managed: m.managementAgent ? clean(m.managementAgent) : (d.isManaged ? 'Intune' : ''),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
-      owner: clean(m.userPrincipalName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
+      owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
+      platform: clean(m.operatingSystem), lastCheckIn: clean(m.lastSyncDateTime), lastSignIn: clean(d.approximateLastSignInDateTime),
       model: clean([m.manufacturer, m.model].filter(Boolean).join(' ')), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes),
     };
@@ -121,7 +122,7 @@ export function toRecords(devices, managed) {
   for (const d of devices) if (!seen.has(d.deviceId)) out.push({
     graphId: d.id, aadId: d.deviceId, name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType),
     managed: d.isManaged ? 'Intune' : '', enrolled: '', lastSync: clean(d.approximateLastSignInDateTime), compliance: '', encrypted: '',
-    owner: '', os: '', model: '', mac: '', ram: '', disk: '',
+    owner: '', ownerName: '', os: '', platform: '', lastCheckIn: '', lastSignIn: clean(d.approximateLastSignInDateTime), model: '', mac: '', ram: '', disk: '',
   });
   return out;
 }
@@ -133,25 +134,82 @@ export async function fetchGraph(cfg, now = new Date(), fetchImpl = fetch) {
   return toRecords(devices, managed);
 }
 
+/* What Graph keeps on a device: how it is joined and managed, its compliance, encryption, primary user and when it was
+   last seen, as Graph reports them. Shown on the device; never edited there. */
+const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
+  lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
+  ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}) });
+/* The fields Graph can give a device. */
+const FILL = ['os', 'model', 'mac', 'ram', 'disk'];
 /* Puts the records on the devices. The join, enrolment and compliance are kept on the device as they come. Values the
-   device does not have yet are filled in; values it has are never replaced here. A change of compliance is logged. */
+   device does not have yet are filled in, the primary user and the serial number among them; values it has are never
+   replaced here, except on a device that was added from Graph, which Graph keeps up to date. A change of compliance
+   is logged. The devices Graph has that the inventory does not are kept as a list, to be added from Settings. */
 export function applyGraph(s, records, now = new Date()) {
   const at = stamp(now);
   const counts = { matched: 0, unmatched: 0, filled: 0 };
   const live = s.objs.filter(o => o.status !== 'retired');
+  const unmatched = [];
   for (const r of records) {
     const o = (r.serial && live.find(x => clean(x.serial).toLowerCase() === r.serial.toLowerCase()))
       || (r.name && live.find(x => clean(x.name).toLowerCase() === r.name.toLowerCase()));
-    if (!o) { counts.unmatched++; continue; }
+    if (!o) {
+      counts.unmatched++;
+      unmatched.push({ id: r.graphId, name: r.name, serial: r.serial, model: r.model, os: r.os, platform: r.platform || '', owner: r.ownerName || r.owner,
+        join: r.join, managed: r.managed, compliance: r.compliance, lastSync: r.lastSync });
+      continue;
+    }
     counts.matched++;
     const before = o.graph || {};
     if (before.compliance && r.compliance && before.compliance !== r.compliance) {
       (s.history[o.id] ??= []).unshift({ t: at, msg: `Compliance changed from ${before.compliance} to ${r.compliance} (Microsoft Graph)` });
     }
-    o.graph = { id: r.graphId, aadId: r.aadId, join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync, compliance: r.compliance, encrypted: r.encrypted, owner: r.owner, seen: at };
-    for (const k of ['os', 'model', 'mac', 'ram', 'disk']) if (!o[k] && r[k]) { o[k] = r[k]; counts.filled++; }
+    const owns = !!before.added;
+    o.graph = graphOf(r, at, owns);
+    const ovr = o.ovr || {};
+    for (const k of FILL) {
+      if (!r[k] || o[k] === r[k]) continue;
+      if (!o[k] || (owns && ovr[k] !== false)) { o[k] = r[k]; counts.filled++; }
+    }
+    /* Matched by name: the serial number Intune knows is taken over. */
+    if (!o.serial && r.serial) { o.serial = r.serial; counts.filled++; }
+    /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. */
+    if (r.ownerName && !o.uid && !o.user && !o.hotdesk && ovr.user !== false) { o.user = r.ownerName; counts.filled++; }
   }
+  s.graphUnmatched = unmatched.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);
   return counts;
+}
+
+/* The type of a device Graph has, from its platform: a phone or tablet by its system, a Windows device by the type
+   rules on its model (a notebook model is a notebook), anything else from the rules or Other. */
+export function graphType(s, d) {
+  const p = String(d.platform || d.os || '').toLowerCase();
+  if (/ipados|ios/.test(p)) return 'ios';
+  if (/android/.test(p)) return 'android';
+  const t = typeFor(s, '', d.model, '', d.name, '');
+  if (/macos|mac os/.test(p)) return t === 'other' || t === 'pc' ? 'notebook' : t;
+  if (/windows/.test(p)) return t === 'other' ? 'pc' : t;
+  return t;
+}
+/* Adds devices from the list of those Graph has and the inventory does not. Each gets the next code, its type from its
+   platform, what Graph knows of it, and is kept up to date by Graph from then on. */
+export function addFromGraph(s, ids, who, now = new Date()) {
+  const at = stamp(now), want = ids === 'all' ? null : new Set(ids);
+  const list = (s.graphUnmatched || []).filter(d => !want || want.has(d.id));
+  const added = [];
+  for (const d of list) {
+    if (!d.name) continue;
+    s.codeN = (s.codeN || 0) + 1; s.seq = (s.seq || 100) + 1;
+    const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: graphType(s, d), name: d.name, serial: d.serial || '', status: 'active',
+      loc: '', ovr: {}, feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
+      graph: { id: d.id, join: d.join, managed: d.managed, compliance: d.compliance, lastSync: d.lastSync, seen: at, added: true } };
+    s.objs.push(o);
+    (s.history[o.id] ??= []).unshift({ t: at, msg: `Added from Microsoft Graph by ${who}` });
+    added.push(o.id);
+  }
+  const done = new Set(list.map(d => d.id));
+  s.graphUnmatched = (s.graphUnmatched || []).filter(d => !done.has(d.id));
+  return added;
 }
 
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
@@ -161,4 +219,11 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   autoBackup(db, 'before a Microsoft Graph sync');
   saveState(db, s);
   return { devices: records.length, ...counts };
+}
+export function addGraphDevices(db, ids, who) {
+  const s = loadState(db);
+  autoBackup(db, 'before adding devices from Microsoft Graph');
+  const added = addFromGraph(s, ids, who);
+  saveState(db, s);
+  return added;
 }

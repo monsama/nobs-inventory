@@ -31,6 +31,14 @@ try {
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   // LDAP and Microsoft Graph share a tab of their own; Feed and Users no longer show them
   await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setGraph .panelbox'); await page.waitForSelector('#setLdap #lk_url');
+  // the service account password: saved, never shown again, removable
+  await page.waitForSelector('#lk_pw');
+  await page.fill('#lk_pw', 'svc-secret'); await page.click('#lpSave');
+  await page.waitForSelector('#lpReplace');
+  assert.equal(await page.locator('#ldapPw input').count(), 0, 'a saved password is not shown');
+  assert.ok(!(await page.content()).includes('svc-secret'), 'the password is nowhere in the page');
+  page.once('dialog', d => d.accept()); await page.click('#lpRemove');
+  await page.waitForSelector('#lk_pw');
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');

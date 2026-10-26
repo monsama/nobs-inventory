@@ -6,7 +6,7 @@ import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['typeRules', 'company', 'graph', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['typeRules', 'company', 'graph', 'graphUnmatched', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
@@ -49,11 +49,39 @@ export function loadState(db) {
 
 /* Factory reset: removes every record, setting, account and sign-in except the account that asked for it, and its
    sessions. The audit log is kept. The next load starts as a new server does. */
-export function factoryReset(db, keepUserId) {
+/* Tables made only once their feature is first used. */
+const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+/* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
+   certificates with their sealed private keys, the Lansweeper API settings and push token. What the server's
+   environment sets (NI_LDAP_*, NI_GRAPH_*, the service passwords) is outside the app and stays. */
+export const CONNECTION_SETTINGS = ['ldap', 'graph', 'graphCerts', 'graphUnmatched', 'lansweeper'];
+export function clearConnections(db) {
+  db.exec('BEGIN');
+  try {
+    for (const id of CONNECTION_SETTINGS) {
+      db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id);
+      db.prepare("DELETE FROM revs WHERE kind = 'setting' AND id = ?").run(id);
+    }
+    db.exec('DELETE FROM feed_token');
+    if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
+    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+/* Everything goes but the account asking: the inventory, the users, the connections with Graph's keys, the entry sheets,
+   and the backups when asked. The audit log keeps a record. */
+export function factoryReset(db, keepUserId, { backups = false } = {}) {
   const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
   db.exec('BEGIN');
   try {
     db.exec('DELETE FROM docs; DELETE FROM revs; DELETE FROM plan_images; DELETE FROM feed_token;');
+    if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
+    if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
+    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
+    if (backups) db.exec('DELETE FROM backups');
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
     if (me) db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)').run('user', String(me.id), JSON.stringify(me));

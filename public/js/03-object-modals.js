@@ -1,7 +1,7 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -412,6 +412,31 @@ export function feedPanel(o){
   return `<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : `<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (monitors)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
+/* What Microsoft Entra and Intune report about the device, read-only: how it is joined and managed, its compliance and
+   encryption, its primary user and when it was last heard of. A device of a type expected there that was not found
+   says so. */
+const graphTime = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
+export function graphPanel(o){
+  if (!SYNC.graph) return '';
+  const g = o.graph;
+  if (!g) return GRAPH_TYPES.includes(o.type) && o.status !== 'retired'
+    ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.</p></div>` : '';
+  const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
+  const last = graphLast(o);
+  const enc = g.encrypted === 'yes' ? '<span class="chip ok">Encrypted</span>' : g.encrypted === 'no' ? '<span class="chip warn">Not encrypted</span>' : '';
+  return `<div class="panelbox"><div class="hdr">Entra &amp; Intune${g.added ? ' <span class="cnt">added from Graph</span>' : ''}</div>
+    <dl class="lsbox">
+      ${row('Entra', esc(g.join || 'Not joined'))}
+      ${row('Intune', g.managed ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : 'Not managed')}
+      ${row('Compliance', complianceChip(g.compliance))}
+      ${row('Encryption', enc)}
+      ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
+      ${row('Operating system', esc(g.os || ''))}
+      ${row(g.lastCheckIn ? 'Last check-in' : 'Last sign-in', last ? esc(graphTime(last)) + (graphStale(o) ? ` <span class="chip warn">over ${GRAPH_STALE_DAYS} days ago</span>` : '') : '')}
+      ${row('Read', esc(g.seen || ''))}
+    </dl>
+    <p class="note" style="padding:6px 12px 10px">From Microsoft Graph at the last sync. ${g.added ? 'Graph keeps this device up to date.' : 'It fills in fields this device does not have yet; it changes nothing in Entra or Intune.'}</p></div>`;
+}
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [];
@@ -618,6 +643,7 @@ export function renderObj(o){
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${feedPanel(o)}
+      ${graphPanel(o)}
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
