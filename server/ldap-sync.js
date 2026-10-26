@@ -45,8 +45,9 @@ export async function syncLdapUsers(db, config) {
   return counts;
 }
 
-/* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name),
-   as adGroups. A device with no account, or whose account is in no group, has none. Returns how many devices changed. */
+/* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name) as
+   adGroups, and is marked as being in Active Directory (inAd). A device with no account, or whose account is in no
+   group, has no groups. Returns how many devices changed. */
 export function applyComputerGroups(s, computers) {
   const byName = new Map();
   for (const c of computers) {
@@ -57,8 +58,10 @@ export function applyComputerGroups(s, computers) {
     if (o.status === 'retired' || !o.name) continue;
     const key = String(o.name).toLowerCase(), c = byName.get(key) || byName.get(key.split('.')[0]);
     const groups = c && c.groups.length ? c.groups : null;
-    if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null)) continue;
+    /* Whether the device has a computer account in Active Directory: with Graph, this tells an AD-only device apart. */
+    if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null) && !!c === !!o.inAd) continue;
     if (groups) o.adGroups = groups; else delete o.adGroups;
+    if (c) o.inAd = true; else delete o.inAd;
     n++;
   }
   return n;

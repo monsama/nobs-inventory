@@ -128,7 +128,7 @@ test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, 
   // a device that only matches a retired one is known, not offered again
   const c1 = applyGraph(s, [rec, { ...rec, graphId: 'm2', name: 'OLD-PC', serial: 'OLD1' }, { ...rec, graphId: 'm3' }], NOW);
   assert.equal(c1.retired, 1);
-  assert.deepEqual(s.graphUnmatched.map(d => d.id), ['m1', 'm3'], 'listed twice in Graph (enrolled again)');
+  assert.deepEqual(s.graphUnmatched.map(d => [d.id, d.others]), [['m1', 1]], 'listed twice in Graph (enrolled again): one entry, with one duplicate');
   addFromGraph(s, 'all', 'Admin', NOW);
   assert.equal(s.objs.filter(o => o.name === 'iPhone Ana').length, 1, 'a device listed twice is added once');
   const phone = s.objs.find(o => o.name === 'iPhone Ana');
@@ -148,4 +148,50 @@ test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, 
   // a device that got into the inventory since the last sync is not added again
   s.graphUnmatched = [{ id: 'm9', name: 'PC-X', serial: 'X1' }];
   assert.deepEqual(addFromGraph(s, 'all', 'Admin', NOW), []);
+});
+
+test('several Graph records of one device: the current one gives the join, the others are listed as duplicates', async () => {
+  const { applyGraph, toRecords, pickPrimary } = await import('../server/graph.js');
+  const at = new Date('2026-10-26T10:00:00Z');
+  const s = { objs: [{ id: 'o1', name: 'PC-01', status: 'active', ovr: {} }, { id: 'o2', name: 'PC-02', status: 'active', ovr: {} }], history: {} };
+  const devices = [
+    /* Dual state: hybrid joined and, from before, Entra registered; the registered record is the newer one here. */
+    { id: 'h', deviceId: 'h1', displayName: 'PC-01', trustType: 'ServerAd', approximateLastSignInDateTime: '2026-10-20T08:00:00Z' },
+    { id: 'w', deviceId: 'w1', displayName: 'PC-01', trustType: 'Workplace', approximateLastSignInDateTime: '2026-10-25T08:00:00Z' },
+    /* Reinstalled: the old record has not signed in for two years; the new one is managed by Intune. */
+    { id: 'old', deviceId: 'x1', displayName: 'PC-02', trustType: 'AzureAd', approximateLastSignInDateTime: '2024-01-01T08:00:00Z' },
+    { id: 'new', deviceId: 'x2', displayName: 'PC-02', trustType: 'AzureAd', approximateLastSignInDateTime: '2026-10-25T08:00:00Z' },
+  ];
+  const managed = [{ id: 'm-new', azureADDeviceId: 'x2', deviceName: 'PC-02', complianceState: 'compliant', lastSyncDateTime: '2026-10-25T09:00:00Z', managementAgent: 'mdm' }];
+  const c = applyGraph(s, toRecords(devices, managed), at);
+  assert.equal(s.objs[0].graph.join, 'Hybrid joined', 'joined wins over registered when both are recent');
+  assert.deepEqual(s.objs[0].graph.others.map(x => x.join), ['Entra registered']);
+  assert.equal(s.objs[1].graph.id, 'm-new', 'the current record, not the stale one');
+  assert.equal(s.objs[1].graph.others[0].last.slice(0, 10), '2024-01-01');
+  assert.deepEqual([c.records, c.devices, c.matched, c.duplicates], [4, 2, 2, 2]);
+  /* A stale record never wins over a current one, even with the stronger join. */
+  assert.equal(pickPrimary([{ join: 'Entra joined', lastSignIn: '2024-01-01T00:00:00Z' }, { join: 'Entra registered', lastSignIn: '2026-10-25T00:00:00Z' }]).join, 'Entra registered');
+  /* The same sync again logs no compliance change: only the current record counts. */
+  applyGraph(s, toRecords(devices, managed), at);
+  assert.equal((s.history.o2 || []).length, 0);
+});
+
+test('a Graph record that fits two inventory devices is put on neither and listed; a device Graph no longer has is marked gone', async () => {
+  const { applyGraph } = await import('../server/graph.js');
+  const rec = (id, name, serial = '') => ({ graphId: id, aadId: id, name, serial, join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastSync: '2026-10-25T08:00:00Z' });
+  const s = { objs: [
+    { id: 'o1', name: 'KIOSK', status: 'active', ovr: {} }, { id: 'o2', name: 'kiosk', status: 'active', ovr: {} },
+    { id: 'o3', name: 'PC-03', status: 'active', ovr: {}, graph: { id: 'g3', join: 'Entra joined', seen: '01.10.2026 06:00' } },
+  ], history: {} };
+  const c = applyGraph(s, [rec('k', 'Kiosk')], new Date('2026-10-26T10:00:00Z'));
+  assert.equal(s.objs[0].graph, undefined); assert.equal(s.objs[1].graph, undefined);
+  assert.deepEqual(s.graphAmbiguous, [{ name: 'Kiosk', serial: '', by: 'name', devices: ['o1', 'o2'], records: 1 }]);
+  assert.equal(c.ambiguous, 1);
+  assert.ok(s.objs[2].graph.gone, 'PC-03 is no longer in Graph');
+  assert.equal(s.objs[2].graph.join, 'Entra joined', 'what Graph said is kept');
+  assert.equal(c.gone, 1);
+  /* Back in Graph: no longer gone. */
+  applyGraph(s, [rec('g3', 'PC-03')], new Date('2026-10-27T10:00:00Z'));
+  assert.equal(s.objs[2].graph.gone, undefined);
+  assert.deepEqual(s.graphAmbiguous, []);
 });

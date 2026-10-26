@@ -16,11 +16,13 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 echo "[INFO]  Database ..."
+# A copy left by a backup that was cut short would make VACUUM INTO fail.
+docker exec "$APP" rm -f /data/backup-tmp.db
 docker exec "$APP" node -e "
   const { DatabaseSync } = require('node:sqlite');
   const db = new DatabaseSync('/data/inventory.db');
   db.exec(\"VACUUM INTO '/data/backup-tmp.db'\");
-  db.close();" 2>/dev/null
+  db.close();"
 docker cp "$APP:/data/backup-tmp.db" "$WORK/inventory.db"
 docker exec "$APP" rm -f /data/backup-tmp.db
 [ -s "$WORK/inventory.db" ] || { echo "[ERROR] Database copy is empty." >&2; exit 1; }
@@ -31,6 +33,9 @@ cp .env "$WORK/config/" 2>/dev/null || true
 cp Caddyfile docker-compose.yml "$WORK/config/"
 cp -a certificates "$WORK/certificates" 2>/dev/null || true
 cp -a secrets "$WORK/secrets"
+# Without secrets/sheet_key the app keeps its key in the data volume: without it, the entry sheets, the Graph keys
+# and the saved LDAP password in the database cannot be opened.
+if docker exec "$APP" test -f /data/sheet.key; then docker cp "$APP:/data/sheet.key" "$WORK/data-sheet.key"; fi
 
 ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"
 ( umask 077; tar -czf "$ARCHIVE" -C "$WORK" . )
