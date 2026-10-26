@@ -22,8 +22,9 @@ saveState(db, { ...s0,
   objs: [
     { id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-SOON', status: 'active', loc: 'Bern / Lager', ip: '10.10.20.5', gateway: '10.10.20.254', dhcp: 'dhcp', warranty: day(30), purchased: '2023-04-01', ovr: {}, feed: null },
     { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-ENDED', status: 'active', loc: 'Bern / Lager', ip: '10.10.20.6', gateway: '10.10.20.1', dhcp: 'static', warranty: day(-10), ovr: {}, feed: null },
-    { id: 'o3', code: 'INV-0003', type: 'pc', name: 'PC-FINE', status: 'active', loc: 'Bern / Lager', warranty: day(400), ovr: {}, feed: null },
-  ], rels: [], history: {} });
+    { id: 'o3', code: 'INV-0003', type: 'pc', name: 'PC-FINE', status: 'active', loc: 'Bern / Lager', warranty: day(400), user: 'JDoe', ovr: {}, feed: { sys: 'Lansweeper', ref: '3' } },
+  ], rels: [], history: {},
+  users: [...s0.users, { id: 'ls-jdoe', login: 'jdoe', name: 'John Doe', dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true }] });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -184,5 +185,13 @@ try {
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
 
   assert.deepEqual(errors, [], 'no page errors');
+  // a device whose user Lansweeper names by login belongs to that person and shows the full name; no second person is made
+  const people = await page.evaluate(async () => {
+    const m = await import('/js/04-settings.js'), c = await import('/js/01-core.js');
+    return { names: m.USERS.map(u => u.name), uid: c.byId('o3').uid, user: c.byId('o3').user };
+  });
+  assert.deepEqual([people.uid, people.user], ['ls-jdoe', 'John Doe']);
+  assert.ok(!people.names.some(n => n.toLowerCase() === 'jdoe'), 'no person is made from the login');
+
   console.log('lansweeper fields: all checks passed');
 } finally { await browser.close(); server.close(); }

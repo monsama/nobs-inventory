@@ -5,6 +5,8 @@ import { HttpError } from './errors.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
+import { parseCsv } from '../public/js/csv.js';
+export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
 import { typeByRules } from '../public/js/type-rules.js';
 
@@ -13,22 +15,6 @@ const FEED_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ram', '
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 export const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
-export function parseCsv(text) {
-  const rows = []; let row = [], cell = '', q = false;
-  /* The delimiter is the one the header line uses more of, so a semicolon inside an unquoted value does not split it. */
-  const head = text.split(/\r?\n/)[0] || '';
-  const delim = (head.match(/;/g) || []).length > (head.match(/,/g) || []).length ? ';' : ',';
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
-    else if (c === '"') q = true;
-    else if (c === delim) { row.push(cell); cell = ''; }
-    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
-    else if (c !== '\r') cell += c;
-  }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
-  return rows.filter(r => r.some(x => x.trim()));
-}
 
 /* A CSV export becomes records with the same fields the API gives. */
 export function recordsFromCsv(text) {
@@ -52,7 +38,7 @@ export function recordsFromCsv(text) {
 }
 
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'scanned'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned'];
 /* Lists joined with "; " (every antivirus product, every drive) are longer than one value. */
 const LONG_TEXT = ['av', 'disk'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
@@ -102,26 +88,50 @@ export const dayOf = v => {
   return `${m[1]}-${m[2]}-${m[3]}`;
 };
 
-/* The department of a device's user, from the directory Lansweeper reads. The person is made when the feed names them
-   and nobody has that name yet, as the page would; a department already set, or a directory user's, is kept. */
+/* The person behind a device's user, from the directory Lansweeper reads. Lansweeper names the user by their login
+   (tblAssets.Username, the sAMAccountName); the full name and department come from its AD users. The person is found
+   by login (or, for one kept before 0.9.28, by a name that is that login), else made when a device names them. A
+   person from the directory (LDAP) keeps what the directory says; one from Lansweeper gets the full name and
+   department, each only while it is empty (the name while it is still the login): a name or department changed by hand
+   on the page is kept, so a later change in AD reaches the person through the LDAP sync, not through Lansweeper. A
+   user that is not a login (a report file can give a full name) makes a person without a login, found by name.
+   The same login in two trusted domains is one person: Lansweeper's user domain is not sent. A login another account
+   already has is not given twice. The devices that name the person by login are
+   bound to them (uid), so the page shows the person's name and a rename moves the devices with them.
+   A login is letters (umlauts too), digits and . _ @ ' -, as Active Directory allows them. */
+export const LOGIN_RE = /^[\p{L}\p{N}_.@'-]{1,64}$/u;
 function applyDepartments(s, records) {
   let n = 0;
   if (s.feedOn === false || (s.policy && s.policy.dept === false)) return n;
+  const low = v => String(v || '').toLowerCase();
+  if (!records.some(r => r.user && (r.userDept || r.userName))) return n;
+  s.users ??= [];
+  /* Lookups instead of a pass over every person and device per record; kept up to date as people are added. */
+  const byLogin = new Map(), byName = new Map(), byUser = new Map();
+  const indexPerson = u => { if (u.login && !byLogin.has(low(u.login))) byLogin.set(low(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u); };
+  s.users.forEach(indexPerson);
+  for (const o of s.objs) if (o.user) { const k = low(o.user); byUser.set(k, [...(byUser.get(k) || []), o]); }
   for (const r of records) {
-    if (!r.user || !r.userDept) continue;
-    const named = s.objs.some(o => o.user === r.user);
-    let p = s.users.find(u => String(u.name || '').toLowerCase() === r.user.toLowerCase());
-    if (!p && named) { p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: '', name: r.user, dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true }; s.users.push(p); }
-    if (p && p.source !== 'ldap' && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+    if (!r.user || (!r.userDept && !r.userName)) continue;
+    const login = low(r.user), named = byUser.has(login);
+    /* A user that comes with a full name is a login; one without, that is not a login (a full name, as a report file
+       may give it), is a name, as before. */
+    const isLogin = !!r.userName || LOGIN_RE.test(r.user);
+    let p = byLogin.get(login) || byName.get(login);
+    if (!p && named) {
+      p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: isLogin ? r.user : '', name: r.userName || r.user, dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true };
+      s.users.push(p); indexPerson(p); n++;
+    }
+    if (!p) continue;
+    if (p.source === 'lansweeper') {
+      if (!p.login && isLogin && !byLogin.has(login)) { p.login = r.user; byLogin.set(login, p); n++; }
+      if (r.userName && p.name !== r.userName.slice(0, 120) && low(p.name) === low(p.login || r.user)) { p.name = r.userName.slice(0, 120); n++; }
+      if (r.userDept && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+    }
+    for (const o of byUser.get(login) || []) if (!o.uid && !o.hotdesk && low(o.user) === login) { o.uid = p.id; o.user = p.name; n++; }
   }
   return n;
 }
-
-const findByRef = (s, ref) => s.objs.find(o => o.feed && String(o.feed.ref) === String(ref));
-const findByName = (s, name) => {
-  const same = s.objs.filter(o => o.name.toLowerCase() === name.toLowerCase());
-  return same.length === 1 ? same[0] : null;
-};
 
 /* The software a push sends replaces what came from Lansweeper before; software typed in by hand is kept. */
 function applySoftware(s, pairs) {
@@ -143,12 +153,20 @@ function applySoftware(s, pairs) {
 function applyLinks(s, pairs, counts) {
   let n = 0;
   if (s.feedOn === false) return n;
+  /* The devices by Lansweeper ref and by name, once; and the links each merged device should have, removed in one pass. */
+  const byRef = new Map(), byName = new Map();
+  for (const o of s.objs) {
+    if (o.feed && o.feed.ref != null && !byRef.has(String(o.feed.ref))) byRef.set(String(o.feed.ref), o);
+    const k = o.name.toLowerCase(); byName.set(k, byName.has(k) ? null : o);   /* null: the name is used twice */
+  }
+  const wantedOf = new Map();
   for (const { r, obj } of pairs) {
     const owned = obj.ovr && 'links' in obj.ovr ? obj.ovr.links : !(s.policy && s.policy.links === false);
     if (!Array.isArray(r.links) || !owned) continue;
     const wanted = new Set();
+    wantedOf.set(obj.id, wanted);
     for (const l of r.links) {
-      const to = (l.ref && findByRef(s, l.ref)) || (l.name && findByName(s, l.name));
+      const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
       if (!to || to === obj) continue;
       const port = l.port || null;
       wanted.add(to.id + '|' + l.kind);
@@ -165,23 +183,24 @@ function applyLinks(s, pairs, counts) {
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
-    const before = s.rels.length;
-    /* Only monitor links are managed; a connection Lansweeper made earlier is kept as it is, and is now a manual one. */
-    s.rels = s.rels.filter(x => !(x.from === obj.id && x.src === 'Lansweeper' && x.kind === 'attached' && !wanted.has(x.to + '|' + x.kind)));
-    n += before - s.rels.length;
   }
+  if (!wantedOf.size) return n;
+  const before = s.rels.length;
+  /* Only monitor links are managed; a connection of another kind that Lansweeper made earlier is left alone (it keeps
+     its Lansweeper mark, but nothing changes or removes it any more). */
+  s.rels = s.rels.filter(x => !(x.src === 'Lansweeper' && x.kind === 'attached' && wantedOf.has(x.from) && !wantedOf.get(x.from).has(x.to + '|' + x.kind)));
+  n += before - s.rels.length;
   return n;
 }
 
-/* The app type for a Lansweeper type name: the table in Settings first (names match without case), then the built-in rules. */
 /* A model from Lansweeper is the model the user gave it, when there is a rename for it; otherwise it is kept as it comes. */
 export function modelFor(s, name) {
   const text = String(name || '');
   const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
   return own && s.modelMap[own] ? s.modelMap[own] : text;
 }
-/* A type mapping set in Settings (a Lansweeper type name, exactly) wins; then the type rules, in their order (the ones
-   shipped, or the list edited in Settings → Feed). */
+/* The app type for a Lansweeper type name: a type mapping set in Settings (the name, without case) wins; then the type
+   rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
@@ -223,6 +242,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
   };
   /* The room a device's address puts it in, by Lansweeper's IP locations, when the location it reports is not one. */
   const roomByIp = r => { const l = ipLocationOf(ipLocations, r.ip); return l ? roomForIpLocation(locs, l.name) : null; };
+  /* Lookups by serial number (the first device that has it) and by name, kept up to date as devices are added, so a
+     push of thousands does not go through every device for every record. */
+  const lc = v => String(v || '').toLowerCase();
+  const bySerial = new Map(), byName = new Map();
+  const index = o => { if (o.serial && !bySerial.has(lc(o.serial))) bySerial.set(lc(o.serial), o); const k = lc(o.name); byName.set(k, [...(byName.get(k) || []), o]); };
+  s.objs.forEach(index);
   const cleaned = [];
   for (const raw of records) {
     const r = clean(raw);
@@ -233,9 +258,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
-    const sameName = r.name ? s.objs.filter(o => o.name.toLowerCase() === r.name.toLowerCase() && !(r.serial && o.serial && o.serial.toLowerCase() !== r.serial.toLowerCase())) : [];
-    const found = s.objs.find(o => r.serial && (o.serial || '').toLowerCase() === r.serial.toLowerCase())
-      || (sameName.length === 1 ? sameName[0] : null);
+    const sameName = r.name ? (byName.get(lc(r.name)) || []).filter(o => !(r.serial && o.serial && lc(o.serial) !== lc(r.serial))) : [];
+    const found = (r.serial && bySerial.get(lc(r.serial))) || (sameName.length === 1 ? sameName[0] : null);
     if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
     /* An object excluded from sync, or detached from it, is left as it is. */
     if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
@@ -252,7 +276,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {})
       };
-      s.objs.push(obj);
+      s.objs.push(obj); index(obj);
       pairs.push({ r, obj });
       counts.created++;
       continue;
@@ -261,10 +285,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     const wasLinked = !!found.feed;
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, assetType: r.assetType || '' };
     else if (!found.feed.ref) found.feed.ref = r.ref;
-    if (found.feed && r.assetType) found.feed.assetType = r.assetType;
+    if (found.feed && r.assetType) found.feed.assetType = r.assetType;   /* the type name is kept, so a type mapping can apply to it later */
     /* Windows' role and the chassis are kept with the feed's data, for the type rules (Apply to existing devices). */
     if (found.feed && r.role) found.feed.role = r.role;
-    if (found.feed && r.chassis) found.feed.chassis = r.chassis;   /* the type name is kept, so a type mapping can apply to it later */
+    if (found.feed && r.chassis) found.feed.chassis = r.chassis;
     /* The day Lansweeper last scanned it: a device not scanned for months is flagged for a check by hand. It is not a
        change of the device, so it does not count as an update. */
     if (found.feed && r.scanned) found.feed.scanned = r.scanned;

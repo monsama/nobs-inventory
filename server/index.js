@@ -18,15 +18,16 @@ import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
 
 /* First start: one admin account, so someone can sign in and add the rest. Its password comes from
-   NI_ADMIN_PASSWORD; without that a random one is printed once. */
+   NI_ADMIN_PASSWORD; without that a random one is printed once. An inventory that has an admin under another login
+   (the first one deleted or renamed) gets no new account and no password: nothing is made that is not saved. */
 export function bootstrap(db, env, log = console.log) {
   const s = loadState(db);
   if (migrateState(s)) saveState(db, s);
   let admin = s.users.find(u => u.login === 'admin');
   if (!admin) {
     admin = { id: 'u-admin', login: 'admin', name: 'Administrator', dept: '', groups: [], source: 'manual', active: true, role: 'admin' };
-    const hasAdmin = s.users.some(u => u.role === 'admin');
-    if (!hasAdmin) { s.users.push(admin); saveState(db, s); }
+    if (s.users.some(u => u.role === 'admin')) return;
+    s.users.push(admin); saveState(db, s);
   }
   if (!hasPassword(db, admin.id)) {
     const pw = env.NI_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');

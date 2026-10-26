@@ -72,6 +72,8 @@ export function contractStatus(c, today = new Date()){
   const d = daysTo(noticeBy, today);
   return { state: d < 0 ? 'late' : d <= NOTICE_SOON_DAYS ? 'soon' : 'ok', end, noticeBy, days: d };
 }
+/* Running now: started (or no start given) and not ended. A contract signed for next year costs nothing yet. */
+export const runningNow = (c, today = new Date()) => contractStatus(c, today).state !== 'ended' && !(c.start && c.start > iso(today));
 /* The cost of a year: a monthly cost times twelve; a one-off cost is not a yearly one. */
 export const yearlyCost = c => !(c.cost > 0) ? 0 : c.per === 'month' ? c.cost * 12 : c.per === 'once' ? 0 : c.cost;
 /* What a contract costs in one calendar year: each month it runs in that year at a twelfth of its yearly cost (a month

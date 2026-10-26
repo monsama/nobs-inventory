@@ -129,7 +129,7 @@ const TIPS = [
   ['#clReset', 'Use the four card lines this type has by default'],
   ['[data-devs]', 'Show the devices of this person'],
   ['#nuAdd', 'Add a person who can sign in, or who devices can be given to'],
-  ['#coPick', 'Choose your company logo, for the top bar and the printouts'],
+  ['#coPick', 'Choose your company logo, printed on the entry sheets'],
   ['#bkAuto', 'Take a backup by itself before every sync, push and import'],
   ['#bkNew', 'Take a backup of the whole inventory now'],
   ['#frReset', 'Return the app to a new installation: everything but your own account is removed (asks first)'],

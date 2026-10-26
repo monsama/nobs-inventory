@@ -172,6 +172,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow button{width:100%;white-space:nowrap}
+/* Delete in the Object types table is as wide as in the other Settings lists. */
+button[data-td]{min-width:92px}
 .lrow.head .n{text-align:right}
 .lempty{padding:14px 12px;margin:0;color:var(--muted)}
 .lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
@@ -327,6 +329,19 @@ svg.cu{fill:currentColor;stroke:none}
 .card .cf{white-space:nowrap}
 .card .cf .code{font-family:var(--mono);flex:none}
 .card .cf .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* AD, Entra and Intune on a card: three equal marks above the footer. Lit in the colour of how the device is joined
+   (the Overview's colours) or of its compliance; dashed and grey where the device is not there. */
+.jbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:6px 10px;border-top:1px solid var(--bd2)}
+.jb{--c:var(--muted);display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:5px;row-gap:2px;min-width:0;padding:4px 7px 5px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-left:3px solid var(--c);border-radius:var(--r-m);background:color-mix(in srgb,var(--c) 10%,var(--bg));font-size:11px;line-height:1.15;white-space:nowrap}
+.jb i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.jb b{font-weight:700;letter-spacing:.2px;color:var(--fg)}
+.jb small{grid-column:1 / -1;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--c) 50%,var(--fg))}
+.jb.no{border-style:dashed;border-color:var(--bd);border-left:1px dashed var(--bd);background:transparent}
+.jb.no i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
+.jb.no b,.jb.no small{color:var(--muted);font-weight:500}
+@media (max-width:760px){.jb small{font-size:10px}}
+.jb.ad{--c:#7c3aed}.jb.en{--c:#2563eb}.jb.hy{--c:#0d9488}.jb.reg{--c:#d97706}
+.jb.ok{--c:var(--ok)}.jb.warn{--c:var(--warnbtn)}.jb.bad{--c:var(--danger-bg)}.jb.nc{--c:#64748b}
 
 /* table */
 .gridwrap{overflow:auto;height:100%}
@@ -357,7 +372,46 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
-.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0}
+.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0;align-items:flex-start}
+/* contacts: one card per person, the company's own first, then each IT partner */
+/* Under a long list drawn in part: how many are shown, and a way to show them all. */
+.more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
+.cn{padding:12px;display:flex;flex-direction:column;gap:12px}
+.cn-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
+.cn-group>.hdr{justify-content:flex-start;gap:8px;border-radius:var(--r-m) var(--r-m) 0 0}
+.cn-group>.hdr .cnt{margin-left:0}
+.cn-sub{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
+.cn-card{display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--bd);border-left:3px solid var(--cn,#2563eb);border-radius:var(--r-m);min-width:0}
+.cn-card.internal{--cn:#0d9488}.cn-card.external{--cn:#2563eb}
+.cn-head{display:flex;align-items:center;gap:10px;padding:10px 10px 6px}
+.cn-avatar{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--cn) 16%,var(--bg));color:color-mix(in srgb,var(--cn) 60%,var(--fg));font-weight:700;font-size:12px;letter-spacing:.5px}
+.cn-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cn-who b,.cn-who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-who span{font-size:12px}
+.cn-ways{display:flex;flex-direction:column;gap:3px;padding:0 10px 8px 54px;font-size:12px;min-width:0}
+.cn-way{color:var(--linktext, var(--accent));text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-way:hover{text-decoration:underline}
+.cn-note{margin:0 10px 8px 54px;font-size:12px;color:var(--muted);white-space:pre-line}
+.cn-foot{margin-top:auto;padding:6px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) 0;font-size:12px}
+.cn-foot .link[disabled]{color:var(--muted);cursor:default;text-decoration:none}
+.cn-kinds{flex-wrap:wrap;gap:4px 14px;min-height:28px;align-items:center}
+.cn-kinds .pchk{width:auto}
+.usrcs{display:inline-flex;flex-wrap:wrap;gap:4px}
+/* Where a person comes from is not a state: a neutral chip with the source's colour as a dot. */
+.usrc .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.sdot.ldap{background:#7c3aed}.sdot.entra{background:#2563eb}.sdot.lansweeper{background:#0d9488}.sdot.manual{background:var(--muted)}
+.tbgroup{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+@media (max-width:760px){.map-hint{right:110px}}
+/* on a device page: who is responsible for it */
+.resp{display:flex;flex-direction:column}
+.resp-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
+.resp-row:last-child{border-bottom:0}
+.resp-row>.k{color:var(--muted);width:118px;flex:none;font-size:12px;padding-top:6px}
+.resp-pick{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.resp-pick select{width:100%}
+.resp-pick .cn-ways{padding:0}
+@media (max-width:760px){.cn-ways,.cn-note{padding-left:10px;margin-left:10px}.cn-ways{margin-left:0}.resp-row>.k{width:80px}}
 .ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
 .ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
 .ct-sum-note{margin:0;padding:6px 12px 10px}
@@ -398,11 +452,14 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 /* costs: contracts, licences */
 .sw-page{display:flex;flex-direction:column;gap:12px}
 .sw-page>.panelbox.lic{margin:12px 12px 0}
+/* The lists under the summaries keep the same 12px gutter and a frame, like the panels above them. */
+.sw-page>.gridwrap,.ct-wrap{margin:0 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
+.ct-wrap{margin-top:12px}
 .sw-page>.panelbox.lic>.hdr+.note{margin:0;padding:9px 12px;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .lic-bar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--bd2);vertical-align:middle;margin-right:8px;overflow:hidden}
 .lic-bar>span{display:block;height:100%;background:var(--accent)}
 .lic-bar.over>span{background:var(--danger)}
-.lic-mark{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--bd);border-radius:var(--r-s);font-size:11px;font-weight:600;line-height:16px;color:var(--muted);vertical-align:1px}
+.lic-mark{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--bd);border-radius:var(--r-s);font-size:11px;font-weight:600;letter-spacing:.3px;line-height:16px;color:var(--muted);vertical-align:1px}
 .lic-mark.over{background:var(--danger-bg);border-color:var(--danger-bg);color:#fff}
 .ct-devs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-top:6px}
 .ct-devs .pchk{font-size:13px}
@@ -446,6 +503,8 @@ table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover
 table.grid[data-pinned="3"] tr>:nth-child(3),table.grid[data-pinned="2"] tr>:nth-child(2),table.grid[data-pinned="1"] tr>:nth-child(1){box-shadow:4px 0 6px -4px rgba(0,0,0,.35)}
 table.grid td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
 table.grid.mini{min-width:640px}
+/* In a device page's side panel a small table fits the panel; it does not ask for the width of a full page. */
+.obj .panelbox table.grid.mini{min-width:0}
 table.grid.mini tbody tr{cursor:default}
 .tdot{display:inline-flex;align-items:center;gap:6px}
 /* Columns: drag the edge of a header to resize it, drag a header onto another to move it (as in NOBS SQL). */
@@ -483,7 +542,7 @@ table.grid.sw th.sw-cnt{width:170px}
 .sw-row.open .sw-tg svg{transform:rotate(90deg)}
 .sw-row.open .sw-tg{color:var(--accent)}
 .vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
-.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
+.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:var(--r-s);font-family:var(--mono);font-size:11px;font-weight:600;line-height:16px;background:var(--bg)}
 .vchip i{font-style:normal;color:var(--muted);font-family:inherit}
 .vchip.odd{border-color:var(--warn);color:var(--warntext)}
 .sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
@@ -518,7 +577,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane>#setLocs>.locgrid{display:grid}
-#setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
+#setPane .panelbox>.hdr{font-size:11px;height:38px;padding:4px 12px}
 /* Settings sections open and close by their title: the arrow and title on the left, the count or state on the right. */
 #setPane .panelbox>.hdr.sechdr{justify-content:flex-start;gap:8px}
 #setPane .panelbox>.hdr.sechdr>:last-child:not(select){margin-left:auto}
@@ -714,7 +773,9 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .t{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.relrow button{height:22px;width:22px}
+.relrow button:not(.link){height:22px;width:22px}
+.relrow .t .link{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.relrow .t>.muted{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Links have their own shade, readable on the page and on the tinted section bands in either theme. */
 a,a.link{color:var(--linktext)}
 a.link{cursor:pointer;text-decoration:none}
@@ -848,7 +909,12 @@ details.menu>summary::-webkit-details-marker{display:none}
 .menubox button{justify-content:flex-start}
 .readonly .obj input:disabled,.readonly .obj select:disabled{opacity:.85}
 #whoBtn{height:28px;font-size:13px;color:var(--muted)}
-#toast{position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
+#toast.off{opacity:0;pointer-events:none}
+/* A table row's name opens the device; it reads as the name, not as a link. */
+table.grid a.rowopen{color:inherit;text-decoration:none}
+table.grid a.rowopen:hover{text-decoration:underline}
+@media (max-width:760px){table.grid a.rowopen{display:inline-flex;align-items:center;min-height:36px}}
+#toast{transition:opacity .15s;position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
 #sideBtn{display:none}
@@ -903,6 +969,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="grList" hidden></div>
     <div class="hdr" id="osHdr" hidden>Operating system</div>
     <div class="sidegroup" id="osList" hidden></div>
+    <div class="hdr" id="respHdr" hidden>Responsible</div>
+    <div class="sidegroup" id="respList" hidden></div>
     <div class="hdr" id="adgHdr" hidden>AD group</div>
     <div class="sidegroup" id="adgList" hidden></div>
   </aside>
@@ -924,7 +992,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 </footer>
 
 <div id="modalHost"></div>
-<div id="toast" hidden></div>
+<div id="toast" class="off" role="status" aria-live="polite"></div>
 
 <script type="module" src="js/main.js"></script>
 </body>

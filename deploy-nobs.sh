@@ -53,7 +53,7 @@ step_env() {
     echo; echo "Step 2: Settings (.env)"
     local env="$BASE_DIR/.env" host="${NI_HOST:-}"
     if [ -f "$env" ] && grep -q '^NI_HOST=' "$env"; then
-        [ -z "$host" ] && host="$(grep '^NI_HOST=' "$env" | cut -d= -f2-)"
+        [ -z "$host" ] && host="$(grep '^NI_HOST=' "$env" | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/")"
     fi
     if [ -z "$host" ] || [ "$host" = "inventory.example.ch" ]; then
         if [ -t 0 ]; then read -r -p "Name people will type (e.g. inventory.example.ch, or localhost for testing): " host; fi
@@ -137,7 +137,7 @@ step_certificate() {
     proxy_wanted || { info "NI_PROXY=none: the proxy in front has its own certificate"; return; }
     proxy_take_certificates
     local crt="$BASE_DIR/proxy/certificates/nobs.crt" key="$BASE_DIR/proxy/certificates/nobs.key"
-    local host; host="$(grep '^NI_HOST=' "$BASE_DIR/.env" | cut -d= -f2-)"
+    local host; host="$(grep '^NI_HOST=' "$BASE_DIR/.env" | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/")"
     if [ -s "$crt" ] && [ -s "$key" ]; then
         info "Certificate exists - kept ($(openssl x509 -in "$crt" -noout -enddate | cut -d= -f2))"
         return
@@ -158,8 +158,8 @@ step_check() {
     echo; echo "Step 5: Check through the proxy"
     proxy_wanted || { info "NI_PROXY=none: check through your own proxy"; return; }
     local host code
-    host="$(grep '^NI_HOST=' .env | cut -d= -f2-)"
-    local port; port="$(grep '^HTTPS_PORT=' .env | cut -d= -f2- || true)"; port="${port:-443}"
+    host="$(grep '^NI_HOST=' .env | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/")"
+    local port; port="$(grep '^HTTPS_PORT=' .env | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/" || true)"; port="${port:-443}"
     sleep 4
     code="$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$host:$port:127.0.0.1" "https://$host:$port/api/health" || true)"
     if [ "$code" = 200 ]; then info "HTTPS OK: https://$host/"; else warn "HTTPS check returned ${code:-none}. Check: docker logs nobs-proxy"; fi
@@ -183,7 +183,7 @@ summary() {
     echo; echo "=========================================="
     echo "  NOBS Inventory is running"
     echo "=========================================="
-    echo "  URL:       https://$(grep '^NI_HOST=' .env | cut -d= -f2-)/"
+    echo "  URL:       https://$(grep '^NI_HOST=' .env | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/")/"
     if [ -n "$FIRST_PASSWORD" ]; then
         echo "  Admin:     login 'admin', password below - shown ONCE:"
         echo "             $FIRST_PASSWORD"

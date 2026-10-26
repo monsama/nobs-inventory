@@ -7,7 +7,7 @@ import { loadState, saveState } from '../server/state.js';
 import { setPassword } from '../server/auth.js';
 import { takeBackup, restoreBackup } from '../server/backup.js';
 import { pdfText } from './pdf-text.js';
-import { newPassword, purgePasswords, sheetKeyOf, openSheet, sealSheet, PASSWORD_DAYS } from '../server/sheets.js';
+import { newPassword, purgePasswords, sheetKeyOf, openSheet, sealSheet, getSheet, PASSWORD_DAYS } from '../server/sheets.js';
 
 /* Entry sheets: a person's devices and the initial password of their AD account, kept sealed so they can be printed
    again; the password goes from the kept sheet once changed, or after PASSWORD_DAYS days. */
@@ -135,9 +135,13 @@ test('a restore adds the sheets that are missing and keeps those that are there'
     const backup = JSON.parse(srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(srv.db, 'test')).data);
     await srv.call('POST', `/api/sheets/${one}/changed`, { cookie: a.cookie });
     await srv.call('DELETE', '/api/sheets/' + two, { cookie: a.cookie });
-    restoreBackup(srv.db, backup);
+    restoreBackup(srv.db, backup, key);
     const rows = Object.fromEntries(srv.db.prepare('SELECT id, password FROM sheets').all().map(r => [r.id, r.password]));
     assert.equal(rows[one], 'changed', 'a restore does not bring back a password removed since');
-    assert.equal(rows[two], 'kept', 'a sheet deleted since comes back from the backup');
+    assert.equal(rows[two], 'expired', 'a sheet deleted since comes back from the backup, without its password');
+    assert.equal(getSheet(srv.db, key, two).sheet.password, undefined);
+    srv.db.prepare('DELETE FROM sheets WHERE id = ?').run(two);
+    restoreBackup(srv.db, backup, crypto.randomBytes(32));
+    assert.equal(srv.db.prepare('SELECT COUNT(*) AS n FROM sheets WHERE id = ?').get(two).n, 0, 'a sheet that cannot be opened to take the password out is left out');
   } finally { await srv.close(); }
 });

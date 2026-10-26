@@ -1,3 +1,5 @@
+import { LOGIN_RE } from './feed.js';
+import { svgProblem, svgWithoutComments } from './state.js';
 /* Brings older data up to the current types. Phones and tablets are now three types: Android device, iOS device and
    Other mobile device. Racks used to be a list in the settings; now each rack is an object of type rack, with the same
    id, so the devices mounted in it keep their place. Running it again changes nothing. */
@@ -60,6 +62,27 @@ export function migrateState(s) {
   /* A type's name and short name are plain text of up to 60 characters since 0.9.25: angle brackets are taken out. */
   for (const t of Object.values(s.types || {})) for (const f of ['label', 'short']) {
     if (t && typeof t[f] === 'string' && (/[<>]/.test(t[f]) || t[f].length > 60)) { t[f] = t[f].replace(/[<>]/g, '').slice(0, 60); changed = true; }
+  }
+  /* Before 0.9.28 the server took a type's icon and colour as the page sent them. One it would now refuse would block
+     every save, so it is put back to the usual one: comments are taken out, an icon with anything besides shapes goes
+     back to the built-in icon, a viewBox that is not four numbers to the usual box, a colour that is not hex to grey. */
+  for (const t of Object.values(s.types || {})) {
+    if (!t || typeof t !== 'object') continue;
+    if (typeof t.svgInner === 'string' && t.svgInner !== svgWithoutComments(t.svgInner)) { t.svgInner = svgWithoutComments(t.svgInner); changed = true; }
+    if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || svgProblem(t.svgInner))) { delete t.svgInner; delete t.svgView; if (t.icon === 'custom') t.icon = 'other'; changed = true; }
+    if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) { t.svgView = '0 0 24 24'; changed = true; }
+    if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) { t.color = '#5a6b7d'; changed = true; }
+  }
+  /* Before 0.9.28 a new object without a model was saved with '—' as its model, which then showed up in the model list. */
+  for (const o of s.objs || []) if (o && o.model === '—') { o.model = ''; changed = true; }
+  if (Array.isArray(s.models) && s.models.includes('—')) { s.models = s.models.filter(m => m !== '—'); changed = true; }
+  /* Before 0.9.28 a person from Lansweeper had its login (Lansweeper's Username) as the name and no login. The login
+     goes where it belongs; the name stays until Lansweeper or the directory gives the full one. */
+  const logins = new Set((s.users || []).map(u => String(u.login || '').toLowerCase()).filter(Boolean));
+  for (const u of s.users || []) {
+    const v = String(u.name || '').trim();
+    if (u.source !== 'lansweeper' || u.login || !LOGIN_RE.test(v) || logins.has(v.toLowerCase())) continue;
+    u.login = v; logins.add(v.toLowerCase()); changed = true;
   }
   return changed;
 }

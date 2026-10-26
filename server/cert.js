@@ -1,5 +1,5 @@
-/* Makes the certificate and key the Microsoft Graph sign-in uses. The key is returned once and is not kept:
-   the administrator puts it in the server's secrets. The certificate is uploaded to the Entra app.
+/* Makes the certificate and key the Microsoft Graph sign-in uses. The key is returned to the caller, which seals it
+   in the database (graph-keys.js); it never goes to the page. The certificate is uploaded to the Entra app.
    Built on Node's own crypto, so no certificate library is needed. */
 import crypto from 'node:crypto';
 import { thumbprintOf } from './graph.js';

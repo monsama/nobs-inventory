@@ -1,6 +1,6 @@
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
-import { loadState, saveState } from './state.js';
+import { freeUserId, loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 
@@ -15,12 +15,19 @@ export async function syncLdapUsers(db, config) {
   const s = loadState(db);
   const wanted = new Set(people.map(p => p.login.toLowerCase()));
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
+  const linked = [];
   for (const p of people) {
     const role = p.admin ? 'admin' : 'viewer';
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
     if (!u) {
-      s.users.push({ id: 'ldap-' + p.login.toLowerCase(), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
+      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
+    } else if (u.source === 'lansweeper' || u.source === 'entra') {
+      /* A person Lansweeper (or Entra) named by this login: the same person, now from the directory. Kept as the same record, so
+         devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
+         removed after the save: from now on the directory checks it. */
+      Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap' });
+      linked.push(u.id);
     } else if (u.source === 'ldap') {
       const next = { name: p.name, dept: p.dept, groups: p.groups, role };
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
@@ -42,7 +49,9 @@ export async function syncLdapUsers(db, config) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
-  if (counts.created || counts.updated || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (linked.length) counts.linked = linked.length;
+  if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
 }

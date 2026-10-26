@@ -1,4 +1,5 @@
-import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
+import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
+import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
@@ -26,7 +27,7 @@ export function rackNewModal(){
     if (!name){ $('#rnErr').textContent = 'Give the rack a name.'; $('#rnName').focus(); return; }
     if (objs.some(o => o.type === 'rack' && o.name.toLowerCase() === name.toLowerCase())){ $('#rnErr').textContent = `There is already a rack named ${name}.`; return; }
     if (!Number.isInteger(units) || units < 1 || units > 60){ $('#rnErr').textContent = 'The height is a number of U from 1 to 60.'; return; }
-    const o = O('rack', name, {model: $('#rnModel').value.trim() || '—', serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
+    const o = O('rack', name, {model: $('#rnModel').value.trim(), serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
     objs.push(o); hist(o, now(), 'Created manually by ' + who());
     st.rackId = o.id; st.tab = 'rack'; queueServerSave(); closeModal(); toast(name + ' added'); render();
   };
@@ -59,7 +60,7 @@ export function renderRack(){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
       cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
-        <span class="nm">${esc(top.name)}</span><span class="sub">${esc(top.code)} · ${esc(sub)}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
+        <span class="nm">${esc(top.name)}</span><span class="sub">${[esc(top.code), esc(sub)].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
   }
@@ -298,8 +299,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
-/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
-   ticked; untick it to edit the value here. */
+/* A field's ⋯ menu closes on a click elsewhere or Escape. */
 document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
@@ -321,6 +321,8 @@ export function fieldMenu(o, f, hiddenBy = ''){
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
   return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
 }
+/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
+   ticked; untick it to edit the value here. */
 export function propRow(o, f, menu = ''){
   const k = f[0];
   const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
@@ -447,7 +449,7 @@ export function graphPanel(o){
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [];
-  return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length} installed</span></div>
+  return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
     ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing recorded.</td></tr>'}
     </tbody></table></div>
@@ -655,8 +657,9 @@ export function renderObj(o){
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
+      ${deviceRespPanel(o)}
       ${deviceContractsPanel(o)}
-      <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length}</span></div>
+      <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
         <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
@@ -670,6 +673,7 @@ export function renderObj(o){
 
   bindSoftware(o);
   bindDeviceContracts(o);
+  bindDeviceResp(o);
   const objView = $('#view').querySelector('.obj');
   const dirty = () => { $('#saveBtn').disabled = false; };
   objView.addEventListener('input', dirty);
@@ -685,15 +689,15 @@ export function renderObj(o){
     h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
-  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   /* A device with ports but no port count yet cannot have its port checked: say so, but let the connection be made. */
   const portHint = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     $('#arHint').textContent = to && hasPorts(to) && !(to.ports > 0) ? `${to.name} has no port count yet. Set its ports in its details, so the port can be checked.` : '';
   };
+  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
@@ -804,19 +808,21 @@ export function renderObj(o){
     o.accessories = o.accessories.filter((_, i) => i !== +b.dataset.delacc);
     hist(o, now(), `Attachment removed: ${a.name} by ${who()}`); queueServerSave(); render();
   });
+  /* Saves the device's fields. Returns false when it stopped (a wrong address, a blocked change): then nothing is
+     redrawn, so what was typed stays in the fields to be corrected. */
   const saveObj = (rerender = true) => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
     const addrs = [...$('#view').querySelectorAll('[data-k="ip"],[data-k="ip6"],[data-k="mac"]')];
     const checked = addrs.map(el => ({ el, c: checkAddress(el.dataset.k, el.value) }));
     const wrong = checked.find(x => !x.c.ok);
-    if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return; }
+    if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return false; }
     /* A rack with devices in it stays a rack; and the ports cannot shrink below the connections that use them. */
     const typeEl = $('#view').querySelector('[data-k="type"]');
-    if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return; }
+    if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return false; }
     const pEl = $('#view').querySelector('[data-k="ports"]'), sEl = $('#view').querySelector('[data-k="sfp"]');
     if (pEl && sEl){
       const total = (+pEl.value || 0) + (+sEl.value || 0);
-      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return; }
+      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
     }
     checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
@@ -826,7 +832,7 @@ export function renderObj(o){
       if (top){ place = {ontop: top, rack: byId(top).rack}; }
       else if (rackId){
         const err = rackCheck(rackId, u, h, o.id);
-        if (err){ toast(err); return; }
+        if (err){ toast(err); return false; }
         place = {rack: rackId, u, h};
       } else place = {};
     }
@@ -843,7 +849,8 @@ export function renderObj(o){
       }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
-      if (k === 'price'){ const t = v.trim().replace(/['’\s]/g, '').replace(',', '.'); if (t === '' || !isFinite(+t) || +t < 0){ if (t !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = Math.round(+t * 100) / 100; }
+      /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
@@ -868,7 +875,7 @@ export function renderObj(o){
     /* A device that is not in use is not kept in a rack: its units are freed, and devices on top of it come out too. */
     if (o.status === 'unused' && o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' as not in use by ' + who()); unplace(o); }
     /* A model typed here is kept in the list, so the other devices can choose it. */
-    if (o.model && !MODELS.includes(o.model)) MODELS.push(o.model);
+    if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
@@ -881,6 +888,7 @@ export function renderObj(o){
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '') + (warns.length ? '. Check: ' + warns.join('; ') : ''));
     queueServerSave();
     if (rerender) render(); else $('#saveBtn').disabled = true;
+    return true;
   };
   $('#saveBtn').onclick = () => saveObj();
   /* Typing over a value from Lansweeper keeps it: the field's From feed box is unticked, and the save keeps it as set here. */
@@ -946,7 +954,7 @@ export function renderObj(o){
   const avAdd = $('#view').querySelector('[data-combo="av"]'), avHid = $('#view').querySelector('input[type=hidden][data-k="av"]');
   if (avAdd && avHid){
     const cur = () => avHid.value.split(';').map(x => x.trim()).filter(Boolean);
-    const set = list => { avHid.value = list.join('; '); saveObj(false); render(); };
+    const set = list => { avHid.value = list.join('; '); if (saveObj(false)) render(); };
     const add = () => {
       const v = avAdd.value.trim().replace(/;/g, ',');
       if (!v) return;
