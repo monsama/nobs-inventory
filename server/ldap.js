@@ -44,7 +44,7 @@ async function connect(config) {
   // Connection errors also reach the pending bind or search callback; without this listener they would crash the server.
   client.on('error', () => {});
   if (startTls) {
-    const host = new URL(config.url).hostname;
+    const host = new URL(config.url).hostname.replace(/^\[|\]$/g, '');
     /* An address is no TLS server name: it is sent only for a host name (an address is still checked against the certificate). */
     try { await new Promise((resolve, reject) => client.starttls({ ...tlsOpts, host, ...(isIP(host) ? {} : { servername: host }) }, [], e => (e ? reject(e) : resolve()))); }
     catch (e) { close(client); throw e; }
@@ -127,7 +127,7 @@ const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || Str
 const day = t => { const d = new Date(t); return isNaN(d) ? String(t) : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
 export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
 async function peerChain(config) {
-  const u = new URL(config.url), host = u.hostname, servername = isIP(host) ? undefined : host;
+  const u = new URL(config.url), host = u.hostname.replace(/^\[|\]$/g, ''), servername = isIP(host) ? undefined : host;
   if (/^ldaps:/i.test(config.url)) {
     return new Promise((resolve, reject) => {
       const s = tls.connect({ host, port: Number(u.port) || 636, servername, rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=0' }, () => { const c = s.getPeerCertificate(true); s.end(); resolve(c); });

@@ -190,8 +190,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const clean = v => String(v ?? '').trim().slice(0, 100);
       const first = clean(req.body?.first), last = clean(req.body?.last), dept = clean(req.body?.dept);
       if (!first && !last) throw new HttpError(400, 'Give a first or last name.');
-      if (u.source === 'ldap') { u.dept = dept; }   /* the directory keeps the name */
-      else Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept });
+      /* A directory user's name and department come from the directory (the next sync would undo them here). */
+      if (u.source !== 'ldap') Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept });
       saveUserDoc(u); bumpUser(u.id);
       audit(db, u.id, 'changed own details');
       res.json({ ok: true, me: me(u) });

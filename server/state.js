@@ -101,7 +101,13 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
 /* What a custom icon may hold: the elements the page's cleaning keeps (sanitizeSvg in public/js/04-settings.js), and no
    event handler, style, link or script. */
 const SVG_ELEMENTS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'title', 'defs', 'desc'];
-const SVG_BAD = /\son\w+\s*=|javascript:|href|style|<!|<\?/i;
+const SVG_ATTRS = ['d', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'points', 'fill', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity', 'transform', 'id', 'xmlns'];
+const SVG_BAD = /javascript:|<!|<\?|&#|\\/i;
+/* Every element is a shape and every attribute one the page keeps (names checked with the quoted values taken out, so
+   "<svg/onload=…>" is caught as well as " onload="). */
+const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(\/?)\s*([^\s/>]+)([^>]*)>?/g)].some(([, , name, attrs]) =>
+  !SVG_ELEMENTS.includes(name.toLowerCase())
+  || [...attrs.replace(/"[^"]*"|'[^']*'/g, '""').matchAll(/([^\s=/"'>]+)\s*(=|(?=[\s/>]|$))/g)].some(m => !SVG_ATTRS.includes(m[1].toLowerCase())));
 
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
 export const KNOWN_TYPES = ['pc', 'notebook', 'camera', 'bmc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
@@ -201,8 +207,7 @@ function checkStateRules(s) {
     if (!t || typeof t !== 'object') bad(`The type ${k} must be a record.`);
     if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) bad(`The colour of the type ${k} must be a hex colour such as #3a7bd5.`);
     if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) bad(`The icon of the type ${k} has a viewBox that is not four numbers.`);
-    if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || SVG_BAD.test(t.svgInner)
-      || [...t.svgInner.matchAll(/<\/?\s*([\w:-]+)/g)].some(m => !SVG_ELEMENTS.includes(m[1].toLowerCase())))) bad(`The icon of the type ${k} has something besides shapes. Upload it again.`);
+    if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || svgProblem(t.svgInner))) bad(`The icon of the type ${k} has something besides shapes. Upload it again.`);
   }
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');

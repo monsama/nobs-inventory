@@ -52,7 +52,8 @@ const loadStateBlank = () => ({ objs: [], rels: [], users: [], types: {}, histor
 test('a type icon or colour with anything but shapes is refused', () => {
   const ok = { ...loadStateBlank(), types: { dect: { label: 'DECT', color: '#3a7bd5', icon: 'custom', svgView: '0 0 24 24', svgInner: '<path d="M1 1h4"/>' } } };
   assert.doesNotThrow(() => checkState(ok));
-  for (const t of [{ svgView: '0 0 24 24"><script>' }, { svgInner: '<path onload="x()"/>' }, { svgInner: '<foreignObject><img/></foreignObject>' }, { svgInner: '<a href="javascript:x">' }, { color: 'red;background:url(x)' }]) {
+  assert.doesNotThrow(() => checkState({ ...ok, types: { dect: { ...ok.types.dect, svgInner: '<g transform="translate(1 1)"><circle cx="12" cy="12" r="4" fill="none" stroke-width="2"/><title>On "x"</title></g>' } } }), 'shapes with their usual attributes stay allowed');
+  for (const t of [{ svgView: '0 0 24 24"><script>' }, { svgInner: '<path onload="x()"/>' }, { svgInner: '<foreignObject><img/></foreignObject>' }, { svgInner: '<a href="javascript:x">' }, { color: 'red;background:url(x)' }, { svgInner: '<svg/onload=alert(1)>' }, { svgInner: '<path/onclick="x()" d="M1 1"/>' }, { svgInner: '<path d="M1 1" fill=\'red\' onmouseover=x>' }, { svgInner: '<path d="M1 1" style="x"/>' }]) {
     assert.throws(() => checkState({ ...ok, types: { dect: { ...ok.types.dect, ...t } } }), e => e.status === 400, JSON.stringify(t));
   }
 });

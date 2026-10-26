@@ -643,6 +643,9 @@ function Get-LsRecords {
 
         # Which joins this Lansweeper version allows; the columns read from them follow the same conditions.
         $hasNet = (Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'DNSHostname')
+        $hasCustom = Test-Col 'tblAssetCustom' 'AssetID'
+        $hasCs = (Test-Col 'tblComputersystem' 'AssetID') -and (Test-Col 'tblComputersystem' 'Domainrole')
+        $hasSe = (Test-Col 'tblSystemEnclosure' 'AssetID') -and (Test-Col 'tblSystemEnclosure' 'ChassisTypes')
         $hasAd = (Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')
         $hasOs = (Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')
         $hasOx = (Test-Col 'tblOperatingsystem' 'AssetID') -and (Test-Col 'tblOperatingsystem' 'Caption')
@@ -651,27 +654,27 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssets' 'a' 'Username'), (Get-SelectItem 'tblAssets' 'a' 'Userdomain'),
             (Get-SelectItem 'tblAssets' 'a' 'IPAddress'), (Get-SelectItem 'tblAssets' 'a' 'Mac'), (Get-SelectItem 'tblAssets' 'a' 'Lastseen'),
             (Get-SelectItem 'tblAssets' 'a' 'Memory'), (Get-SelectItem 'tblAssets' 'a' 'Processor'),
-            (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
-            (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
-            (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
-            (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
-            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department' $hasAd), (Get-SelectItem 'tblADusers' 'ad' 'Displayname' $hasAd),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Model' $hasCustom),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Location' $hasCustom),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'Building' $hasCustom),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate' $hasCustom),
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole' $hasCs), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes' $hasSe), (Get-SelectItem 'tblADusers' 'ad' 'Department' $hasAd), (Get-SelectItem 'tblADusers' 'ad' 'Displayname' $hasAd),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname' $hasOs),
             (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption' $hasOx), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version' $hasOx),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname' $hasNet), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain' $hasNet)
         ) -join ', '
 
         $joins = ''
-        if (Test-Col 'tblAssetCustom' 'AssetID') { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
+        if ($hasCustom) { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
         if ($hasNet) {
             $netDomain = if (Test-Col 'tblNetwork' 'DNSDomain') { ', MAX([DNSDomain]) AS [DNSDomain]' } else { '' }
             $joins += "LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname]$netDomain FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] "
         }
         $joins += 'LEFT JOIN [tsysAssetTypes] ty ON ty.[AssetType] = a.[Assettype] '
-        if ((Test-Col 'tblComputersystem' 'AssetID') -and (Test-Col 'tblComputersystem' 'Domainrole')) {
+        if ($hasCs) {
             $joins += 'LEFT JOIN (SELECT [AssetID], MAX([Domainrole]) AS [Domainrole] FROM [tblComputersystem] GROUP BY [AssetID]) cs ON cs.[AssetID] = a.[AssetID] '
         }
-        if ((Test-Col 'tblSystemEnclosure' 'AssetID') -and (Test-Col 'tblSystemEnclosure' 'ChassisTypes')) {
+        if ($hasSe) {
             $joins += 'LEFT JOIN (SELECT [AssetID], MAX([ChassisTypes]) AS [ChassisTypes] FROM [tblSystemEnclosure] GROUP BY [AssetID]) se ON se.[AssetID] = a.[AssetID] '
         }
         # The department and the full name of the logged-on user, from the Active Directory users Lansweeper scans.
