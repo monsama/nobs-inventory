@@ -2,7 +2,7 @@
    the inventory does not have yet. It signs in with a certificate, so no password is kept, and it only reads. */
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
-import { loadState, saveState } from './state.js';
+import { freeUserId, loadState, saveState } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
@@ -76,6 +76,12 @@ export async function testGraph(cfg, fetchImpl = fetch) {
     out[name] = r.ok;
     if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? permission : `${permission} (Microsoft Graph answered ${r.status})`);
   }
+  /* People are read only when Settings asks for them; then their permission is checked too. */
+  if (cfg.people && cfg.people !== 'off') {
+    const r = await fetchImpl(`${GRAPH}/users?$top=1&$select=id`, { headers: { authorization: `Bearer ${token}` } });
+    out.users = r.ok;
+    if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? 'User.Read.All' : `User.Read.All (Microsoft Graph answered ${r.status})`);
+  }
   return out;
 }
 
@@ -131,11 +137,67 @@ export function toRecords(devices, managed) {
   return out;
 }
 
-export async function fetchGraph(cfg, now = new Date(), fetchImpl = fetch) {
+export async function fetchGraph(cfg, now = new Date(), fetchImpl = fetch) { return (await fetchGraphAll(cfg, now, fetchImpl)).records; }
+/* The devices, and the people when Settings asks for them (cfg.people). users is null when people are not read, and
+   peopleError says why when the app may not read them: the devices are synced all the same. */
+export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
   const token = await graphToken(cfg, now, fetchImpl);
   const devices = await graphAll(token, `${GRAPH}/devices?$select=${DEVICE_SELECT}`, fetchImpl);
   const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl);
-  return toRecords(devices, managed);
+  let users = null, peopleError = '';
+  if (cfg.people && cfg.people !== 'off') {
+    try { users = (await graphAll(token, `${GRAPH}/users?$select=${USER_SELECT}`, fetchImpl)).filter(u => u.userType !== 'Guest'); }
+    catch (e) { peopleError = /answered 40[13]/.test(e.message) ? 'People were not read: the app needs the permission User.Read.All (Application), with admin consent.' : 'People were not read: ' + e.message; }
+  }
+  return { records: toRecords(devices, managed), users, peopleError };
+}
+
+/* ---------- people from Entra ----------
+   Entra's members (guests left out) beside the inventory's people. Settings → LDAP & Graph decides how far it goes:
+   off; match (the default): a person whose login is an Entra user's on-premises login (sAMAccountName) or user
+   principal name gets a note of it (p.entra), so the Users list shows who is in AD, in Entra, or in both; add: as
+   match, and the primary users Intune names on the inventory's devices who are nobody here yet are added (source
+   entra). Entra never takes over a person from LDAP, Lansweeper or by hand: it fills in an empty name or department of
+   one from Lansweeper, as Lansweeper does, and keeps the ones it added in step (name, department, switched off with the
+   Entra account). The LDAP sync takes over a person from Entra with the same login, as one from Lansweeper. */
+const USER_SELECT = 'id,userPrincipalName,displayName,department,accountEnabled,onPremisesSamAccountName,onPremisesSyncEnabled,userType';
+export const PEOPLE_MODES = ['off', 'match', 'add'];
+export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
+  const at = stamp(now), counts = { inEntra: 0, added: 0, gone: 0, bound: 0 };
+  if (!users || mode === 'off') return counts;
+  const byId = new Map(users.map(u => [u.id, u])), bySam = new Map(), byUpn = new Map();
+  for (const u of users) { if (u.onPremisesSamAccountName) bySam.set(low(u.onPremisesSamAccountName), u); if (u.userPrincipalName) byUpn.set(low(u.userPrincipalName), u); }
+  const ref = u => ({ id: u.id, upn: clean(u.userPrincipalName), enabled: u.accountEnabled !== false, synced: u.onPremisesSyncEnabled === true, seen: at });
+  const taken = new Set();
+  for (const p of s.users) {
+    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login)))) || null;
+    if (u && !taken.has(u.id)) {
+      taken.add(u.id); p.entra = ref(u); counts.inEntra++;
+      const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
+      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; p.active = u.accountEnabled !== false; }
+      else if (p.source === 'lansweeper') { if (name && low(p.name) === low(p.login)) p.name = name; if (dept && !p.dept) p.dept = dept; }
+    } else if (p.entra && !p.entra.gone) { p.entra = { ...p.entra, gone: at }; counts.gone++; }
+  }
+  if (mode === 'add') {
+    const owners = new Set(s.objs.filter(o => o.status !== 'retired' && o.graph && !o.graph.gone && o.graph.owner).map(o => low(o.graph.owner)));
+    for (const upn of owners) {
+      const u = byUpn.get(upn); if (!u || taken.has(u.id)) continue;
+      const login = clean(u.onPremisesSamAccountName) || clean(u.userPrincipalName);
+      if (!login || s.users.some(x => low(x.login) === low(login))) continue;
+      s.users.push({ id: freeUserId(s.users, 'entra-' + low(login).replace(/[^a-z0-9._-]+/g, '-').slice(0, 40)), login, name: clean(u.displayName).slice(0, 120) || login,
+        ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'viewer', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u) });
+      taken.add(u.id); counts.added++;
+    }
+  }
+  /* A device whose primary user in Intune is one of the people, and that has nobody else yet (or that person's name, as
+     the device sync filled it in), is bound to them, so it moves with a rename. */
+  const byOwner = new Map(s.users.filter(p => p.entra && !p.entra.gone && p.entra.upn).map(p => [low(p.entra.upn), p]));
+  for (const o of s.objs) {
+    if (o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || (o.ovr && o.ovr.user === false)) continue;
+    const p = byOwner.get(low(o.graph.owner));
+    if (p && (!o.user || low(o.user) === low(p.name) || low(o.user) === low(o.graph.ownerName))) { o.uid = p.id; o.user = p.name; counts.bound++; }
+  }
+  return counts;
 }
 
 /* What Graph keeps on a device: how it is joined and managed, its compliance, encryption, primary user and when it was
@@ -282,9 +344,11 @@ export function addFromGraph(s, ids, who, now = new Date()) {
 }
 
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const records = await fetchGraph(cfg, now, fetchImpl);
+  const { records, users, peopleError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   const counts = applyGraph(s, records, now);
+  if (users) counts.people = applyGraphPeople(s, users, cfg.people, now);
+  if (peopleError) counts.peopleError = peopleError;
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

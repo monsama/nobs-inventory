@@ -227,7 +227,9 @@ export function graphSummary(c){
     c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
     c.unmatched ? `${c.unmatched} not in the inventory: see the list below.` : '',
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
-    c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : ''].filter(Boolean).join(' ');
+    c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',
+    c.people ? `People: ${c.people.inEntra} in Entra${c.people.added ? `, ${c.people.added} added` : ''}${c.people.bound ? `, ${c.people.bound} devices given their user` : ''}${c.people.gone ? `, ${c.people.gone} no longer in Entra` : ''}.` : '',
+    c.peopleError || ''].filter(Boolean).join(' ');
 }
 /* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 function unmatchedHtml(edit){
@@ -298,12 +300,18 @@ export async function renderSetGraph(){
       <li><div class="gs-head"><b>Allow it to read devices</b></div>
         <ol class="gs-sub">
           <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
-          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>.</li>
+          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For people from Entra (step 4) also <span class="mono">User.Read.All</span>.</li>
           <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
           <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
         </ol>
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
+      <li><div class="gs-head"><b>People from Entra</b> <span class="muted">(optional)</span></div>
+        <p class="note">Beside the devices, the sync can read Entra's people (members, no guests) and show in Settings → Users who is in the directory (LDAP), in Entra, or in both. It never changes a person from LDAP or added here, and for one from Lansweeper only fills in an empty name or department; LDAP takes over a person Entra added when the same login comes. Needs <span class="mono">User.Read.All</span>; without it the devices still sync.</p>
+        <div class="form" style="padding:8px 0 0"><label for="gPeople">People</label><select id="gPeople" ${edit ? '' : 'disabled'}>
+          <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
+          <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
+          <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
       <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
         <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set below.</p>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div>
@@ -320,6 +328,10 @@ export async function renderSetGraph(){
     if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }
     toast('Microsoft Graph IDs saved'); await refreshGraph();
   };
+  $('#gPeople').onchange = async () => {
+    const x = await post('api/graph/settings', {people: $('#gPeople').value});
+    toast(x.ok ? 'Saved: people are read at the next sync' : (x.j.error || 'Not saved.'));
+  };
   $('#graphCert').onclick = async () => {
     const x = await post('api/graph/cert');
     if (!x.ok){ toast(x.j.error || 'The certificate could not be made.'); return; }
@@ -330,7 +342,7 @@ export async function renderSetGraph(){
     const x = await post('api/graph/test');
     if (!x.ok) return say(x.j.error || 'The test failed.', true);
     if (x.j.missing.length) return say('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
-    say('Signed in and read both lists. Ready to sync.');
+    say(x.j.users ? 'Signed in and read the devices and the people. Ready to sync.' : 'Signed in and read both device lists. Ready to sync.');
   };
   $('#graphSync').onclick = async () => {
     const btn = $('#graphSync'); btn.disabled = true; say('Syncing…');
@@ -553,15 +565,31 @@ export function mountModal(){
   };
 }
 
+/* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
+const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
+/* Where a person comes from, and whether Entra knows them too: one chip each, with the details in the tooltip. */
+export function sourceChips(u){
+  const from = {ldap: ['info', 'LDAP', 'From the directory (LDAP sync)'], lansweeper: ['info', 'Lansweeper', "Named as a device's user by Lansweeper"], entra: ['info', 'Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['kept', 'Manual', 'Added here']}[u.source] || ['kept', 'Manual', 'Added here'];
+  const e = u.entra;
+  const entra = !e || u.source === 'entra' && !e.gone && e.enabled !== false ? ''
+    : e.gone ? `<span class="chip kept usrc" title="Was in Microsoft Entra until ${esc(e.gone)}">Entra: gone</span>`
+    : `<span class="chip ${e.enabled === false ? 'warn' : 'ok'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : 'Entra'}</span>`;
+  return `<span class="chip ${from[0]} usrc" title="${esc(from[2])}">${from[1]}</span>${entra}`;
+}
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
   for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
   const devicesOfUser = name => devCount.get(name) || 0;
-  const rows = USERS.map((u, i) => `<tr>
-      ${u.source === 'ldap' ? `<td title="From LDAP: changed in the directory">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
-      ${u.source === 'ldap' ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
+  /* Where each person is known: in the directory (LDAP), in Entra, in both, or in neither. The filter shows one group. */
+  const inLdap = u => u.source === 'ldap', inEntra = u => !!(u.entra && !u.entra.gone);
+  const DIRS = {both: ['LDAP and Entra', u => inLdap(u) && inEntra(u)], ldap: ['LDAP only', u => inLdap(u) && !inEntra(u)], entra: ['Entra only', u => !inLdap(u) && inEntra(u)], none: ['Neither', u => !inLdap(u) && !inEntra(u)]};
+  const dirOn = USERS.some(inLdap) || USERS.some(u => u.entra);
+  if (!dirOn || !DIRS[st.userDir]) st.userDir = '';
+  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => !st.userDir || DIRS[st.userDir][1](u)).map(([u, i]) => `<tr>
+      ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
+      ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
+      <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
@@ -569,11 +597,13 @@ export function renderSetUsers(){
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
-    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
+    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → LDAP &amp; Graph → People).</p>
+    ${dirOn ? `<div class="addrel"><label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select></div>` : ''}
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
+  const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;

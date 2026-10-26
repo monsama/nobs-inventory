@@ -140,17 +140,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
       const lc = cfgLdap();
-      /* The directory signs in its own users, new logins and persons Lansweeper named by their login (who become its
-         users). A local account with the same login is never taken over by it: that would let a directory user sign in
+      /* The directory signs in its own users, new logins and persons Lansweeper or Entra named by their login (who
+         become its users). A local account with the same login is never taken over by it: that would let a directory user sign in
          as, and demote, the local admin. */
-      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap' || user.source === 'lansweeper')) {
+      if (!ok && ldapEnabled(lc) && (!user || ['ldap', 'lansweeper', 'entra'].includes(user.source))) {
         let d;
         try { d = await ldapLogin(lc, login, password); }
         /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
         catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
           let isAdmin = !!d.admin;
-          const wasLansweeper = !!user && user.source === 'lansweeper';
+          const wasLansweeper = !!user && (user.source === 'lansweeper' || user.source === 'entra');
           if (!user) user = { id: freeUserId(loadState(db).users, 'ldap-' + login.toLowerCase()), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           /* The last active admin stays one, as in the sync: a renamed or emptied admin group must not lock everyone out. */
           if (!isAdmin && user.role === 'admin' && user.active !== false
@@ -235,7 +235,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const s = loadState(db); delete s.empty;
     if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
-      s.users = s.users.map(({ login, groups, ...u }) => u);
+      /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
+      s.users = s.users.map(({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u));
     }
     res.json(s);
   });
@@ -413,7 +414,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const pair = g.tenant && g.clientId ? graphKeyPair(db, SHEET_KEY, g.thumbprint) : null;
     return pair ? { tenant: g.tenant, clientId: g.clientId, ...pair } : null;
   };
-  const cfgGraph = () => (graphConfig && graphConfig()) || graphFromApp();
+  /* How far the people from Entra go (Settings): the same whichever way the connection is set. */
+  const cfgGraph = () => { const c = (graphConfig && graphConfig()) || graphFromApp(); return c ? { ...c, people: graphSettings().people || 'match' } : null; };
   const graphSource = () => (graphConfig && graphConfig() ? 'server' : graphFromApp() ? 'app' : null);
   const editGraph = fn => { const s = loadState(db); s.graph = fn({ ...(s.graph || {}) }); const p = graphSettingsProblem(s.graph); if (p) throw new HttpError(400, p); saveState(db, s); };
 
@@ -424,13 +426,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let used = null;
     if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
     const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint, chosen: c.thumbprint === set.thumbprint, onServer: hasGraphKey(db, c.thumbprint) }));
-    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', ...(used || {}), certs });
+    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', ...(used || {}), certs });
   });
   /* The tenant and the app (client) id, from the app registration's Overview page in Entra. */
   app.post('/api/graph/settings', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {};
-      editGraph(g => ({ ...g, tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() }));
+      /* Each part is saved on its own: the IDs from step 1, how far people go from step 5. */
+      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}) }));
       audit(db, req.user.id, 'Microsoft Graph settings saved');
       res.json({ ok: true });
     } catch (e) { next(e); }

@@ -22,8 +22,8 @@ export async function syncLdapUsers(db, config) {
     if (!u) {
       s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
-    } else if (u.source === 'lansweeper') {
-      /* A person Lansweeper named by this login: the same person, now from the directory. Kept as the same record, so
+    } else if (u.source === 'lansweeper' || u.source === 'entra') {
+      /* A person Lansweeper (or Entra) named by this login: the same person, now from the directory. Kept as the same record, so
          devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
          removed after the save: from now on the directory checks it. */
       Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap' });

@@ -92,6 +92,12 @@ Settings → LDAP & Graph reads each device's Entra join status, Intune enrolmen
 
 When Entra lists one device more than once (an old record after a reinstall, or a hybrid-joined PC that is also Entra registered), the current record is used: one heard of in the last 30 days, then the one Intune manages, then joined before registered. The others are listed on the device and under the sidebar filter *Duplicates in Entra*, to be deleted in Entra. A record whose serial number or name fits two devices of the inventory is put on neither and listed under *Name or serial used twice*. A device Entra no longer has is marked as gone and counts as not in Entra. Set it up in four steps, all shown in the app:
 
+**People from Entra** (optional, step 4 in Settings → LDAP & Graph; needs `User.Read.All`, Application, with admin consent): the sync also reads Entra's members (no guests).
+- *Mark the people who are in Entra* (the default) notes on each person whose login is an Entra user's on-premises login or user principal name that Entra knows them. Settings → Users then shows, per person, LDAP, Entra, both or neither, and can show only one of these groups.
+- *…and add the primary users of the devices* also adds the people Intune names as a device's primary user who are nobody here yet (source Entra), and gives them their devices. Their name, department and active state follow Entra.
+- A person from LDAP or added by hand is never changed by Entra; one from Lansweeper only gets an empty name or department filled in. The LDAP sync and a directory sign-in take over a person Entra added, as one from Lansweeper.
+- Without the permission the devices sync as before, and the sync says why people were not read.
+
 On the Cards tab, tick **AD · Entra · Intune** to see on each computer and phone whether it has a computer account in Active Directory (from the LDAP sync, or hybrid joined), how it is in Microsoft Entra ID (formerly Azure AD: joined, hybrid or registered) and whether Intune manages it, coloured by compliance. The choice is kept in the browser. It is offered once Graph is set up or the LDAP sync has found computer accounts.
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
@@ -107,6 +113,12 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 - **Device costs**: each device has Price, Supplier and Invoice no. under Properties. The Table can show them (Columns menu) and the CSV export includes them, with the purchase and warranty dates.
 - **Contracts** tab: maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
 - **Licences** (Software tab): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
+
+## Contacts and responsibles
+
+The **Contacts** tab holds the people who look after the devices: your own IT staff (internal) and the people at your IT partners (external: a service provider, a maker's support), each with role, e-mail, phone, mobile and a note (support hours, how to open a ticket). Internal people come first, then each partner company. E-mail and phone numbers are links, so they open the mail program or dial on a phone. An internal contact can be linked to one of the users.
+
+Each device names one **internal** and one **external responsible**, on its page under Responsible, or for many devices at once in the table (select them, then Responsible…). The table has a Responsible column (under Columns), and Responsible can be a card line (Settings → Object types). A contact's "Responsible for n devices" opens those devices in the table. Deleting a contact takes it off its devices, with a line in their history. Contracts suggest the partner companies as suppliers. Contacts are in the backups.
 
 ## Device types from Lansweeper
 
