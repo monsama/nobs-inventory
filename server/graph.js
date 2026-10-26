@@ -82,7 +82,10 @@ export async function testGraph(cfg, fetchImpl = fetch) {
 /* Every page of a list. A next link is only followed while it stays on Microsoft Graph. */
 export async function graphAll(token, url, fetchImpl = fetch) {
   const out = [];
-  for (let next = url, pages = 0; next && pages < 200; pages++) {
+  let next = url;
+  for (let pages = 0; next; pages++) {
+    /* A list cut short would make every device not read look gone: the sync stops instead. */
+    if (pages >= 1000) throw new HttpError(502, 'Microsoft Graph returned more than 1000 pages; the sync was stopped so no device is marked as gone by mistake.');
     if (new URL(next).origin !== GRAPH_ORIGIN) throw new HttpError(502, 'Microsoft Graph gave a link to somewhere else.');
     const r = await fetchImpl(next, { headers: { authorization: `Bearer ${token}` } });
     if (!r.ok) throw new HttpError(502, `Microsoft Graph answered ${r.status} for ${new URL(url).pathname}.`);
@@ -179,7 +182,9 @@ export function applyGraph(s, records, now = new Date()) {
   const onDevice = new Map(), unmatched = [], ambiguous = new Map(), held = new Set();
   for (const r of records) {
     /* By serial number first; by name only when the serial number does not find the device. */
-    const found = (r.serial && bySerial.get(low(r.serial))) || (r.name && byName.get(low(r.name))) || [];
+    /* By name only a device with no serial number or the same one: another serial number is another machine, as in the Lansweeper sync. */
+    const found = (r.serial && bySerial.get(low(r.serial)))
+      || (r.name && (byName.get(low(r.name)) || []).filter(o => !(o.serial && r.serial && low(o.serial) !== low(r.serial)))) || [];
     if (found.length > 1) {
       const k = found.map(o => o.id).join('|');
       const a = ambiguous.get(k) || { name: r.name, serial: r.serial, by: r.serial && bySerial.has(low(r.serial)) ? 'serial' : 'name', devices: found.map(o => o.id), records: 0 };
@@ -207,11 +212,12 @@ export function applyGraph(s, records, now = new Date()) {
     if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
     for (const k of FILL) {
-      if (!r[k] || o[k] === r[k]) continue;
+      /* A field set or cleared by hand (ovr false) is never filled, empty or not. */
+      if (!r[k] || o[k] === r[k] || ovr[k] === false) continue;
       if (!o[k] || (owns && ovr[k] !== false)) { o[k] = r[k]; counts.filled++; }
     }
     /* Matched by name: the serial number Intune knows is taken over. */
-    if (!o.serial && r.serial) { o.serial = r.serial; counts.filled++; }
+    if (!o.serial && r.serial && ovr.serial !== false) { o.serial = r.serial; counts.filled++; }
     /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. */
     if (r.ownerName && !o.uid && !o.user && !o.hotdesk && ovr.user !== false) { o.user = r.ownerName; counts.filled++; }
   }
@@ -278,7 +284,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const records = await fetchGraph(cfg, now, fetchImpl);
   const s = loadState(db);
   const counts = applyGraph(s, records, now);
-  autoBackup(db, 'before a Microsoft Graph sync');
+  autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;
 }

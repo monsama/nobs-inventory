@@ -83,3 +83,30 @@ test('the scheduler runs Graph at 10:00 on the default schedule, and not a sourc
     assert.deepEqual(runs, ['graph'], 'Graph once at 10:00, LDAP not (off, and not due)');
   } finally { clearInterval(timer); t.mock.timers.reset(); await srv.close(); }
 });
+
+test('a sync that runs long is not overtaken: the next ones wait for it and still run in order', async t => {
+  const { startScheduler } = await import('../server/index.js');
+  const dir = tempDataDir();
+  const srv = await startServer({ dir });
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: new Date(2026, 9, 26, 5, 59, 50) });
+  const runs = [];
+  let release;
+  const slow = new Promise(r => { release = r; });
+  saveState(srv.db, { ...loadState(srv.db), syncSchedule: { graph: { every: 24, at: '06:01' } } });
+  /* LDAP at 06:00 hangs past 06:01, when Graph is due. */
+  const timer = startScheduler(srv.db, {}, {
+    ldapConfig: () => ({ url: 'ldaps://dc.test', serviceDn: 'cn=svc', servicePassword: 'x', searchBase: 'dc=test', loginAttr: 'sAMAccountName',
+      createClient: () => ({ on() {}, unbind() {}, bind(dn, pw, cb) { runs.push('ldap start'); slow.then(() => { runs.push('ldap end'); cb(new Error('directory gone')); }); } }) }),
+    graphConfig: () => { runs.push('graph'); return null; },
+  }, () => {});
+  const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
+  try {
+    t.mock.timers.tick(30_000); await settle();   /* 06:00:20 */
+    t.mock.timers.tick(30_000); await settle();   /* 06:00:50 */
+    t.mock.timers.tick(30_000); await settle();   /* 06:01:20: Graph is due, LDAP still runs */
+    assert.deepEqual(runs, ['ldap start'], 'nothing starts while LDAP runs');
+    release(); await settle();
+    t.mock.timers.tick(30_000); await settle();   /* 06:01:50: the missed 06:01 is caught up */
+    assert.deepEqual(runs, ['ldap start', 'ldap end', 'graph']);
+  } finally { clearInterval(timer); t.mock.timers.reset(); await srv.close(); }
+});

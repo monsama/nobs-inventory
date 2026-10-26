@@ -11,6 +11,8 @@ export function createThrottle() {
   return {
     blocked(keys, now = Date.now()) { return keys.some(k => { const b = buckets.get(k); return b && b.lockedUntil > now; }); },
     recordFailure(keys, now = Date.now()) {
+      /* Counts that have run out are dropped now and then, so addresses and logins tried once do not pile up for good. */
+      if (buckets.size > 1000) for (const [k, b] of buckets) if (b.lockedUntil <= now && b.fails.every(t => now - t >= WINDOW_MS)) buckets.delete(k);
       for (const k of keys) {
         const b = bucket(k);
         b.fails = b.fails.filter(t => now - t < WINDOW_MS);
@@ -19,6 +21,7 @@ export function createThrottle() {
         if (b.fails.length >= limit) { b.lockedUntil = now + LOCK_MS; b.fails = []; }
       }
     },
-    clearFailures(keys) { for (const k of keys) buckets.delete(k); }
+    clearFailures(keys) { for (const k of keys) buckets.delete(k); },
+    size: () => buckets.size
   };
 }

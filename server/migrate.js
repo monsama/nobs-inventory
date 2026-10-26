@@ -57,5 +57,9 @@ export function migrateState(s) {
   }
   /* Lansweeper's update text (a KB number) was stored in the field that is now the commissioning date. It is cleared on synced devices. */
   for (const o of s.objs) if (o.feed && typeof o.patch === 'string' && /^KB\d+/i.test(o.patch.trim())) { delete o.patch; changed = true; }
+  /* A type's name and short name are plain text of up to 60 characters since 0.9.25: angle brackets are taken out. */
+  for (const t of Object.values(s.types || {})) for (const f of ['label', 'short']) {
+    if (t && typeof t[f] === 'string' && (/[<>]/.test(t[f]) || t[f].length > 60)) { t[f] = t[f].replace(/[<>]/g, '').slice(0, 60); changed = true; }
+  }
   return changed;
 }
