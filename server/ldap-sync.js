@@ -32,7 +32,8 @@ export async function syncLdapUsers(db, config) {
   }
   /* The computers' groups: read after the users, and a directory that will not list computers does not stop the user sync. */
   if (config.computerGroups !== 'off') {
-    try { counts.computers = applyComputerGroups(s, await ldapListComputers(config)); }
+    /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
+    try { const list = await ldapListComputers(config); if (list.length) counts.computers = applyComputerGroups(s, list); else counts.computerError = 'No computer accounts were found in the computers search base.'; }
     catch (e) { counts.computerError = e.message; }
   }
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {

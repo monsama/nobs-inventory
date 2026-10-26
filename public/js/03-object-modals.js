@@ -831,7 +831,7 @@ export function renderObj(o){
         const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
         if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; }
         /* A user picked by hand on a linked device is kept: the next sync does not put the Lansweeper user back. */
-        if (feedLinked(o) && was !== (v || '')){ o.ovr.user = false; kept.push(FIELD_LABEL.user || 'User'); }
+        if ((feedLinked(o) || (o.graph && o.graph.added)) && was !== (v || '')){ o.ovr.user = false; kept.push(FIELD_LABEL.user || 'User'); }
         return;
       }
       if (['ports','sfp'].includes(k)) v = +v || 0;
@@ -846,7 +846,8 @@ export function renderObj(o){
         if (v === 'switch'){ o.ports ??= 24; o.sfp ??= 4; }
       }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
-      if (feedLinked(o) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
+      /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added from Graph. */
+      if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       o[k] = v;
     });
     if (place){
@@ -978,6 +979,8 @@ export function renderObj(o){
 
 /* ---------- modals ---------- */
 export function modal(html, cls=''){
+  /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
+  const gone = $('#mdl.minimized .box'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
   if (!$('#mdl')) modalOpener = document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
   const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();

@@ -236,9 +236,9 @@ export const COMPLIANCE = { compliant: ['ok', 'Compliant'], noncompliant: ['bad'
 export const complianceChip = c => { const x = COMPLIANCE[c]; return c ? `<span class="chip ${x ? x[0] : ''}">${esc(x ? x[1] : c)}</span>` : ''; };
 /* The filters of the sidebar's Microsoft Graph group. Not in Entra or Intune counts only the types expected there. */
 export const GRAPH_FILTERS = {
-  noncompliant: ['Not compliant', 'bad', o => !!o.graph && ['noncompliant', 'error'].includes(o.graph.compliance)],
-  unencrypted: ['Not encrypted', 'warn', o => !!o.graph && o.graph.encrypted === 'no'],
-  stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => !!o.graph && graphStale(o)],
+  noncompliant: ['Not compliant', 'bad', o => !!o.graph && o.status !== 'retired' && ['noncompliant', 'error'].includes(o.graph.compliance)],
+  unencrypted: ['Not encrypted', 'warn', o => !!o.graph && o.status !== 'retired' && o.graph.encrypted === 'no'],
+  stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => !!o.graph && o.status !== 'retired' && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => !o.graph && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
 };
 /* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */

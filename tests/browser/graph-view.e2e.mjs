@@ -74,6 +74,12 @@ try {
   const added = await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana'); return [o.type, o.serial, o.code]; });
   assert.deepEqual(added, ['ios', 'F2LX', 'INV-0001']);
   await p.waitForSelector('#guList', { state: 'detached' });
+  // a model corrected by hand on a device added from Graph is kept from the next sync
+  await p.click('.wc-close');
+  const id = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').id);
+  await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id);
+  await p.fill(`#f_${id}_model`, 'iPhone 15 (blue)'); await p.press(`#f_${id}_model`, 'Tab');
+  await until(p, async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').ovr.model === false);
   assert.deepEqual(errors, []);
   console.log('graph in the inventory: ok');
 } finally { await browser.close(); server.close(); }
