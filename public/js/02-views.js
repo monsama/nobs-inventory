@@ -293,7 +293,8 @@ export function addSearchHits(){
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
-  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
+  /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
   {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].short)}</span></td>`},
   {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
@@ -358,13 +359,15 @@ export function renderTable(){
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
     if (!bk.value) return;
+    let moved = 0;
     st.bulk.forEach(id => {
       const o = byId(id); if (!o || o.loc === bk.value) return;
+      moved++;
       if (feedLinked(o) || (o.graph && o.graph.added)) (o.ovr ??= {}).loc = false;
       o.loc = bk.value; o.handAt = new Date().toISOString();
       hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
     });
-    toast(n + ' moved to ' + bk.value); renderTable(); render();
+    toast(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`); renderTable(); render();
   };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };

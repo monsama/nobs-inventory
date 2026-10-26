@@ -84,7 +84,6 @@ $script:Wanted = [ordered]@{
     tblSystemEnclosure = @('AssetID', 'ChassisTypes')
     tblADusers     = @('Username', 'Userdomain', 'Department', 'Displayname')
     tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
-    web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
@@ -93,7 +92,6 @@ $script:Wanted = [ordered]@{
     tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace', 'DriveType')
     tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
     tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
-    web50repvCenterVmwareGuestNetworks = @('AssetID', 'Host')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -816,7 +814,7 @@ function Show-NobsCertificate {
 
 function Send-Records($records, [string]$Token) {
     Set-NobsCertificatePin
-    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; detached = 0; skippedIp = 0; people = 0; links = 0; software = 0; portConflict = 0 }
+    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; detached = 0; skippedIp = 0; people = 0; links = 0; software = 0 }
     $url = $Config.NobsUrl.TrimEnd('/') + '/api/feed/push'
     for ($i = 0; $i -lt $records.Count; $i += $Config.BatchSize) {
         $last = [math]::Min($i + $Config.BatchSize - 1, $records.Count - 1)
@@ -902,8 +900,8 @@ try {
     }
     Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded, {6} detached, {7} IP-only skipped" -f `
         $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded, $totals.detached, $totals.skippedIp)
-    Write-PushLog ("NOBS: {0} people, {1} monitor links, {2} devices with software changes, {3} port conflict(s)" -f `
-        $totals.people, $totals.links, $totals.software, $totals.portConflict)
+    Write-PushLog ("NOBS: {0} changes to people and device owners, {1} monitor links, {2} devices with software changes" -f `
+        $totals.people, $totals.links, $totals.software)
     exit 0
 } catch {
     $where = $_.InvocationInfo

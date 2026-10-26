@@ -1,4 +1,4 @@
-import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
+import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
@@ -846,7 +846,8 @@ export function renderObj(o){
       }
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
-      if (k === 'price'){ const t = v.trim().replace(/['’\s]/g, '').replace(',', '.'); if (t === '' || !isFinite(+t) || +t < 0){ if (t !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = Math.round(+t * 100) / 100; }
+      /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){

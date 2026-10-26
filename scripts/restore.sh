@@ -19,18 +19,18 @@ echo "This replaces all inventory data on this server with the backup."
 read -r -p "Type RESTORE to continue: " confirm
 [ "$confirm" = RESTORE ] || { echo "Aborted."; exit 1; }
 
-# The secrets go back before the app starts, so it opens the restored database with the key that sealed it.
 RESTORE_SECRETS="${RESTORE_SECRETS:-no}"
 docker compose stop app >/dev/null
 # Whatever fails from here on, the app is started again (with what it had, if the copy did not happen).
 trap 'echo "[ERROR] The restore stopped; starting the app again." >&2; docker compose start app >/dev/null || true' ERR
+docker run --rm -v "$VOLUME:/data" -v "$WORK:/in:ro" -e RESTORE_SECRETS="$RESTORE_SECRETS" alpine sh -c \
+  'rm -f /data/inventory.db-wal /data/inventory.db-shm && cp /in/inventory.db /data/inventory.db && chown 1000:1000 /data/inventory.db &&
+   if [ "$RESTORE_SECRETS" = yes ] && [ -f /in/data-sheet.key ]; then cp /in/data-sheet.key /data/sheet.key && chown 1000:1000 /data/sheet.key && chmod 600 /data/sheet.key; fi'
+# The secrets go back once the database is in place, so the app never starts with a key that is not the database's.
 if [ -d "$WORK/secrets" ] && [ "$RESTORE_SECRETS" = yes ]; then
   cp -a "$WORK/secrets/." secrets/ && chmod 600 secrets/*
   echo "[INFO]  Secrets restored from the backup."
 fi
-docker run --rm -v "$VOLUME:/data" -v "$WORK:/in:ro" -e RESTORE_SECRETS="$RESTORE_SECRETS" alpine sh -c \
-  'rm -f /data/inventory.db-wal /data/inventory.db-shm && cp /in/inventory.db /data/inventory.db && chown 1000:1000 /data/inventory.db &&
-   if [ "$RESTORE_SECRETS" = yes ] && [ -f /in/data-sheet.key ]; then cp /in/data-sheet.key /data/sheet.key && chown 1000:1000 /data/sheet.key && chmod 600 /data/sheet.key; fi'
 trap - ERR
 docker compose start app >/dev/null
 echo "[INFO]  Database restored."

@@ -103,9 +103,11 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
 const SVG_ELEMENTS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'title', 'defs', 'desc'];
 const SVG_ATTRS = ['d', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'points', 'fill', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity', 'transform', 'id', 'xmlns'];
 const SVG_BAD = /javascript:|<!|<\?|&#|\\/i;
+/* Comments (an icon set's licence line) carry nothing drawn: they are taken out, not refused. */
+export const svgWithoutComments = text => text.replace(/<!--[\s\S]*?-->/g, '');
 /* Every element is a shape and every attribute one the page keeps (names checked with the quoted values taken out, so
    "<svg/onload=…>" is caught as well as " onload="). */
-const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(\/?)\s*([^\s/>]+)([^>]*)>?/g)].some(([, , name, attrs]) =>
+export const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(\/?)\s*([^\s/>]+)([^>]*)>?/g)].some(([, , name, attrs]) =>
   !SVG_ELEMENTS.includes(name.toLowerCase())
   || [...attrs.replace(/"[^"]*"|'[^']*'/g, '""').matchAll(/([^\s=/"'>]+)\s*(=|(?=[\s/>]|$))/g)].some(m => !SVG_ATTRS.includes(m[1].toLowerCase())));
 
@@ -205,6 +207,7 @@ function checkStateRules(s) {
      that cleaning leaves (shapes, no scripts, handlers, styles or links), so a save sent around the page cannot add any. */
   for (const [k, t] of Object.entries(s.types)) {
     if (!t || typeof t !== 'object') bad(`The type ${k} must be a record.`);
+    if (typeof t.svgInner === 'string') t.svgInner = svgWithoutComments(t.svgInner);
     if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) bad(`The colour of the type ${k} must be a hex colour such as #3a7bd5.`);
     if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) bad(`The icon of the type ${k} has a viewBox that is not four numbers.`);
     if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || svgProblem(t.svgInner))) bad(`The icon of the type ${k} has something besides shapes. Upload it again.`);

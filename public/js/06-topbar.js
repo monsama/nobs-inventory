@@ -67,6 +67,8 @@ export function applyView(t){
   const heads = [...head.cells];
   const ciAt = heads.map(th => +th.dataset.ci);                 // visual position -> original column
   heads.forEach(th => th.dataset.sort = s.sort && +th.dataset.ci === s.sort.ci ? (s.sort.dir > 0 ? 'asc' : 'desc') : '');
+  /* The sort is announced too, not only drawn. */
+  heads.forEach(th => { if (th.dataset.sort) th.setAttribute('aria-sort', th.dataset.sort === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
   const rows = [...t.tBodies].flatMap(tb => [...tb.rows]);
   const at = (row, ci) => { const c = row.cells[ciAt.indexOf(ci)]; return c ? c.textContent.trim() : ''; };
   const filters = Object.entries(s.filters).filter(([, q]) => q);
@@ -143,8 +145,8 @@ export function setupTable(t){
   applyTable(t);
 }
 /* Any table drawn later, in the page or in a dialog, gets the same behaviour. Links that only act on a click (no
-   address) and rows that open a device can be reached with Tab and used with Enter, like a button. */
-const keyboardReach = () => document.querySelectorAll('a.link:not([href]):not([tabindex]), tr[data-open]:not([tabindex])').forEach(el => {
+   address), such as a table row's name, can be reached with Tab and used with Enter. */
+const keyboardReach = () => document.querySelectorAll('a.link:not([href]):not([tabindex])').forEach(el => {
   el.tabIndex = 0;
   if (el.tagName === 'A') el.setAttribute('role', 'link');
 });
@@ -152,6 +154,6 @@ new MutationObserver(() => { document.querySelectorAll('table.grid').forEach(set
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || e.defaultPrevented) return;
   const el = e.target;
-  if ((el.matches && el.matches('a.link:not([href])')) || (el.tagName === 'TR' && el.dataset.open)){ e.preventDefault(); el.click(); }
+  if (el.matches && el.matches('a.link:not([href])')){ e.preventDefault(); el.click(); }
 });
 

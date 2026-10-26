@@ -312,7 +312,8 @@ export const JOIN_STATE = { 'Entra joined': ['en', 'joined'], 'Hybrid joined': [
 export const COMPLIANCE_SHORT = { compliant: 'compliant', noncompliant: 'not compliant', inGracePeriod: 'grace', conflict: 'conflict', error: 'error' };
 export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
-  const j = joinOf(o), g = o.graph && !o.graph.gone ? o.graph : null;
+  /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
+  const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
   const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && g.managed);
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
   const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
@@ -362,8 +363,14 @@ export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => 
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
 });
 export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
-/* A short message at the bottom. The box is a live region: it is shown before the text is set, so screen readers read it. */
-export function toast(msg){ const t = $('#toast'); t.hidden = false; t.textContent = msg; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
+/* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
+   hidden), so a screen reader hears each new text. The same message again is changed by an invisible character, so
+   it is read again too. */
+export function toast(msg){
+  const t = $('#toast');
+  t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
+  t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 2800);
+}
 /* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
 export const releaseRetiredPort = (to, port) => {
   const holders = rels.filter(r => r.to === to.id && String(r.port) === String(port));

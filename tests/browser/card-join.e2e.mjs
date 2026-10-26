@@ -38,7 +38,10 @@ try {
 
   // off by default; ticked, the computers get the three marks and the printer none
   assert.equal(await page.locator('.jbar').count(), 0);
+  // without Microsoft Graph set up, what Graph said before is not shown: only AD
   await page.check('#cardJoin');
+  assert.deepEqual(await page.locator('.card:has(.nm:text-is("NB-CLOUD")) .jb small').allTextContents(), ['not joined', 'not joined', 'not managed']);
+  await page.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
   assert.equal(await page.locator('.jbar').count(), 4);
   const marks = name => page.locator(`.card:has(.nm:text-is("${name}")) .jb`).evaluateAll(els => els.map(e => e.className.replace('jb ', '') + ':' + e.querySelector('small').textContent));
   assert.deepEqual(await marks('NB-HYBRID'), ['on ad:hybrid', 'on hy:hybrid', 'on ok:compliant']);
@@ -47,11 +50,12 @@ try {
   assert.match(await page.getAttribute('.card:has(.nm:text-is("NB-CLOUD")) .jbar', 'aria-label'), /Entra ID \(Azure AD\): Entra joined.*Intune: managed, not compliant/);
   // the choice is kept in this browser
   await page.reload(); await page.waitForSelector('.card');
-  assert.equal(await page.locator('.jbar').count(), 4, 'the choice is kept');
+  assert.ok(await page.isChecked('#cardJoin'), 'the choice is kept');
 
   // amounts as people type them
   const nums = await page.evaluate(async () => { const { num } = await import('/js/09-costs.js'); return ['1,200', "1'200.50", '1.200,50', '1,200.50', '12,5', '99.9', ''].map(num); });
   assert.deepEqual(nums, [1200, 1200.5, 1200.5, 1200.5, 12.5, 99.9, undefined]);
+  assert.equal(await page.evaluate(async () => (await import('/js/09-costs.js')).num('0,500')), 0.5, 'a leading 0 is a decimal comma');
 
   // the table: a drop that is not a column changes nothing; a header sorts from the keyboard
   await page.click('[data-tab=table]'); await page.waitForSelector('table.grid th');
@@ -72,6 +76,14 @@ try {
   assert.match(await page.textContent('#toast'), /used by type rule 1/);
   assert.equal(await page.getAttribute('#toast', 'role'), 'status');
   assert.ok(await page.evaluate(async () => !!(await import('/js/01-core.js')).TYPES.dect), 'the type is still there');
+
+  // a name typed by hand stays that person, even when another person has it as login
+  const who = await page.evaluate(async () => {
+    const m = await import('/js/04-settings.js');
+    m.USERS.push({ id: 'ua', login: '', name: 'Anna', role: 'viewer', source: 'manual', active: true }, { id: 'um', login: 'anna', name: 'Anna Muster', role: 'viewer', source: 'lansweeper', active: true });
+    return [m.ensureUser('Anna').id, m.ensureUser('ANNA').id];
+  });
+  assert.deepEqual(who, ['ua', 'um']);
 
   assert.deepEqual(errors, []);
   console.log('card join: all checks passed');

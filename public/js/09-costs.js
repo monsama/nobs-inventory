@@ -13,8 +13,8 @@ export const money = v => typeof v === 'number' && isFinite(v) ? `${esc(COSTS.cu
 export const num = v => {
   let t = String(v ?? '').trim().replace(/['’\s]/g, '');
   if (/[.,].*[.,]/.test(t) && t.includes('.') && t.includes(',')) t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
-  else if (/^\d{1,3}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
-  else if (/^\d{1,3}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, '');
+  else if (/^[1-9]\d{0,2}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
+  else if (/^[1-9]\d{0,2}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, '');
   else t = t.replace(',', '.');
   return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100);
 };

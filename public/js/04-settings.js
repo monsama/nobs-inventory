@@ -485,10 +485,11 @@ export function applyRole(){
 }
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 /* source: 'lansweeper' for a person first named as a device's user by the feed; they are kept like one added by hand. */
-/* Lansweeper names a device's user by login, a person picked or typed by hand is a name: the login is looked for first. */
+/* A person picked or typed by hand (or a CSV import) names them; Lansweeper names a device's user by login. The exact
+   name is looked for first, so a typed "Anna" stays Anna; then the login. */
 export function ensureUser(name, source = 'manual'){
   const low = String(name).toLowerCase();
-  let u = USERS.find(x => x.login && x.login.toLowerCase() === low) || USERS.find(x => x.name === name);
+  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low);
   if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }
@@ -984,6 +985,10 @@ export function sanitizeSvg(text){
   const OK_EL = ['svg','g','path','circle','ellipse','rect','line','polyline','polygon','title','defs','desc'];
   const OK_AT = ['d','x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','width','height','points','fill','fill-rule','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','opacity','transform','id'];
   root.querySelectorAll('*').forEach(n => { if (n !== root && !OK_EL.includes(n.localName)) n.remove(); });
+  /* Comments (an icon set's licence line) are dropped too: the server keeps shapes only. */
+  const notes = doc.createTreeWalker(root, NodeFilter.SHOW_COMMENT), drop = [];
+  while (notes.nextNode()) drop.push(notes.currentNode);
+  drop.forEach(n => n.remove());
   root.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => { if (!OK_AT.includes(a.name.toLowerCase())) n.removeAttribute(a.name); }));
   const ser = new XMLSerializer();
   /* The viewBox goes into an attribute: only numbers are kept, anything else gets the usual box. */

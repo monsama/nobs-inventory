@@ -15,7 +15,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 echo "[INFO]  Database ..."
-if docker inspect -f '{{.State.Running}}' "$APP" 2>/dev/null | grep -q true; then
+# A container that keeps restarting counts as running to Docker, but cannot run a command: it takes the other way.
+if docker inspect -f '{{and .State.Running (not .State.Restarting)}}' "$APP" 2>/dev/null | grep -q true; then
   RUNNING=yes
   # A copy left by a backup that was cut short would make VACUUM INTO fail.
   docker exec "$APP" rm -f /data/backup-tmp.db

@@ -333,7 +333,7 @@ svg.cu{fill:currentColor;stroke:none}
 .jb{--c:var(--muted);display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:5px;row-gap:2px;min-width:0;padding:4px 7px 5px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-left:3px solid var(--c);border-radius:var(--r-m);background:color-mix(in srgb,var(--c) 10%,var(--bg));font-size:11px;line-height:1.15;white-space:nowrap}
 .jb i{width:7px;height:7px;border-radius:50%;background:var(--c)}
 .jb b{font-weight:700;letter-spacing:.2px;color:var(--fg)}
-.jb small{grid-column:1 / -1;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--c) 75%,var(--fg))}
+.jb small{grid-column:1 / -1;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--c) 50%,var(--fg))}
 .jb.no{border-style:dashed;border-color:var(--bd);border-left:1px dashed var(--bd);background:transparent}
 .jb.no i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
 .jb.no b,.jb.no small{color:var(--muted);font-weight:500}
@@ -861,7 +861,12 @@ details.menu>summary::-webkit-details-marker{display:none}
 .menubox button{justify-content:flex-start}
 .readonly .obj input:disabled,.readonly .obj select:disabled{opacity:.85}
 #whoBtn{height:28px;font-size:13px;color:var(--muted)}
-#toast{position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
+#toast.off{opacity:0;pointer-events:none}
+/* A table row's name opens the device; it reads as the name, not as a link. */
+table.grid a.rowopen{color:inherit;text-decoration:none}
+table.grid a.rowopen:hover{text-decoration:underline}
+@media (max-width:760px){table.grid a.rowopen{display:inline-flex;align-items:center;min-height:36px}}
+#toast{transition:opacity .15s;position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
 #sideBtn{display:none}
@@ -937,7 +942,7 @@ details.menu>summary::-webkit-details-marker{display:none}
 </footer>
 
 <div id="modalHost"></div>
-<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="toast" class="off" role="status" aria-live="polite"></div>
 
 <script type="module" src="js/main.js"></script>
 </body>
