@@ -50,7 +50,8 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 - Groups: give `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP` as the group's distinguished name (`CN=IT-Inventory,OU=Groups,DC=example,DC=ch`) to count people in groups nested inside it too; a plain name counts only direct membership. Plain `ldap://` addresses are refused unless `NI_LDAP_ALLOW_PLAIN=1`.
 - Directory settings are edited in Settings → LDAP sync and saved in the inventory: server, sign-in name, search base, groups, service account. The service account password can be saved there too: it is kept encrypted with the server's secret key in a table of its own, never shown again, and not in the inventory, backups or logs. A password in the server environment (`NI_LDAP_SERVICE_PASSWORD` or `NI_LDAP_SERVICE_PASSWORD_FILE`) takes precedence. The `NI_LDAP_*` variables still work as a fallback when nothing is saved.
 - Active Directory sign-in: set `NI_LDAP_URL`, `NI_LDAP_BIND`, `NI_LDAP_BASE`, `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP`. People sign in with their directory password, which is never stored. Only members of `NI_LDAP_GROUP` may sign in; members of `NI_LDAP_ADMIN_GROUP` are admins, everyone else is a viewer.
-- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs nightly at 06:00, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
+- Sync schedule: each sync (Lansweeper API or report file, LDAP directory, Microsoft Graph) has its own interval and start time next to its Sync now button in Settings — off, every 1–12 hours, or daily. Defaults: Lansweeper and LDAP daily at 06:00, Microsoft Graph every 4 hours from 06:00. Syncs due at the same minute run in that order.
+- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs daily at 06:00 by default, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
 - Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
 
@@ -61,7 +62,7 @@ Settings → LDAP & Graph reads each device's Entra join status, Intune enrolmen
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
 2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.
 3. **Certificate**: click Create a certificate. The server keeps it with its private key, encrypted with `secrets/sheet_key`; the key never leaves the server and is not in backups. Download the .cer (any time, from the list) and upload it to the app registration under Certificates & secrets → Certificates. Entra shows the same thumbprint as the list.
-4. **Test connection**, then **Sync now**. The test names a certificate Entra does not know, a wrong ID, or a missing permission. The sync also runs nightly at 06:00.
+4. **Test connection**, then **Sync now**. The test names a certificate Entra does not know, a wrong ID, or a missing permission. The sync also runs by itself, every 4 hours from 06:00 by default.
 
 To renew: create a new certificate, upload it, click Use this one, test, then remove the old one in the app and in Entra. `NI_GRAPH_TENANT`, `NI_GRAPH_CLIENT_ID`, `NI_GRAPH_CERT(_FILE)` and `NI_GRAPH_KEY(_FILE)` on the server still work and take precedence when all four are set.
 
@@ -93,7 +94,7 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
 
 ## Lansweeper
 
-- Direct API: set `NI_LS_TOKEN`. The sync runs nightly at 06:00 and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
+- Direct API: set `NI_LS_TOKEN`. The sync runs daily at 06:00 by default, and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
 
       NI_LS_TOKEN=... npm run lansweeper:introspect -- AssetResources
 

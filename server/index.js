@@ -9,6 +9,7 @@ import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
 import { graphConfigOf, syncGraph } from './graph.js';
+import { isDue, scheduleOf } from '../public/js/schedule.js';
 import { autoBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { purgePasswords, sheetKeyOf } from './sheets.js';
@@ -47,36 +48,42 @@ export function runFeedFile(db, file, now = new Date()) {
   return counts;
 }
 
-/* Nightly at 06:00: the Lansweeper API when a token is set, otherwise the report file; then the directory users; then Microsoft Graph. */
+/* The syncs the server runs by itself, each on its schedule from Settings (scheduleOf): the Lansweeper API when a token
+   is set, otherwise the report file; the directory users; Microsoft Graph. Due in the same minute, they run in that order,
+   so the devices Lansweeper adds are there for Graph to match. Kept passwords on entry sheets are cleared daily at 06:00. */
 export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null } = {}, log = console.log) {
   if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig) return null;
-  let lastRun = '';
+  const done = {};
+  const once = (key, now) => { const k = `${now.toDateString()} ${now.getHours()}:${now.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
   return setInterval(async () => {
     const now = new Date();
-    const key = now.toDateString();
-    if (now.getHours() !== 6 || now.getMinutes() !== 0 || lastRun === key) return;
-    lastRun = key;
     /* Anything that throws here (a secret file that can no longer be read, say) is logged; it must not stop the server. */
     try {
-      if (sheetKey) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
-      const cur = loadState(db);
+      if (sheetKey && now.getHours() === 6 && now.getMinutes() === 0 && once('sheets', now)) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
+      const cur = loadState(db), plan = scheduleOf(cur);
+      const due = job => isDue(plan[job], now) && once(job, now);
       const lsOn = cur.useLansweeper !== false;
-      const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
-      if (ls) {
-        try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
-      } else if (env.NI_FEED_CSV && lsOn && cur.lsSource !== 'api') {
-        try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
+      if (due('lansweeper')) {
+        const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
+        if (ls) {
+          try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
+        } else if (env.NI_FEED_CSV && lsOn && cur.lsSource !== 'api') {
+          try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
+        }
       }
-      const lc = ldapConfig ? ldapConfig() : null;
-      if (lc) {
-        try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
+      if (due('ldap')) {
+        const lc = ldapConfig ? ldapConfig() : null;
+        if (lc) {
+          try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
+        }
       }
-      /* Microsoft Graph last, so the devices Lansweeper added tonight are matched. */
-      const gc = graphConfig ? graphConfig() : null;
-      if (gc) {
-        try { const c = await syncGraph(db, gc, now); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }
+      if (due('graph')) {
+        const gc = graphConfig ? graphConfig() : null;
+        if (gc) {
+          try { const c = await syncGraph(db, gc, now); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }
+        }
       }
-    } catch (e) { log('nightly sync failed:', e.message); try { audit(db, null, 'Nightly sync failed: ' + e.message); } catch { /* the log is best effort */ } }
+    } catch (e) { log('scheduled sync failed:', e.message); try { audit(db, null, 'Scheduled sync failed: ' + e.message); } catch { /* the log is best effort */ } }
   }, 30_000);
 }
 
