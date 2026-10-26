@@ -34,3 +34,16 @@ test('migration changes nothing a second time', () => {
   migrateState(s);
   assert.equal(migrateState(s), false);
 });
+
+test('a person from Lansweeper whose name is a login gets it as login; a taken login and a full name are left alone', () => {
+  const s = base([]);
+  s.users = [
+    { id: 'a', login: '', name: 'amuster', role: 'viewer', source: 'lansweeper', active: true },
+    { id: 'b', login: '', name: 'Ben Muster', role: 'viewer', source: 'lansweeper', active: true },
+    { id: 'c', login: '', name: 'admin', role: 'viewer', source: 'lansweeper', active: true },
+    { id: 'd', login: 'admin', name: 'Administrator', role: 'admin', source: 'manual', active: true },
+    { id: 'e', login: '', name: 'eva', role: 'viewer', source: 'manual', active: true }];
+  assert.equal(migrateState(s), true);
+  assert.deepEqual(s.users.map(u => u.login), ['amuster', '', '', 'admin', '']);
+  assert.equal(migrateState(s), false);
+});

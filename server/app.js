@@ -142,7 +142,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const lc = cfgLdap();
       /* The directory signs in its own users and new logins only. A local account with the same login is never taken
          over by it: that would let a directory user sign in as, and demote, the local admin. */
-      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap')) {
+      /* A person Lansweeper named by this login signs in through the directory too, and becomes its user. */
+      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap' || user.source === 'lansweeper')) {
         let d;
         try { d = await ldapLogin(lc, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }

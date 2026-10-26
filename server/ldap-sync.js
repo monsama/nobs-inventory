@@ -21,6 +21,11 @@ export async function syncLdapUsers(db, config) {
     if (!u) {
       s.users.push({ id: 'ldap-' + p.login.toLowerCase(), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
+    } else if (u.source === 'lansweeper') {
+      /* A person Lansweeper named by this login: the same person, now from the directory. Kept as the same record, so
+         devices assigned to them stay theirs. */
+      Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap', active: true });
+      counts.linked = (counts.linked || 0) + 1;
     } else if (u.source === 'ldap') {
       const next = { name: p.name, dept: p.dept, groups: p.groups, role };
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
@@ -42,7 +47,7 @@ export async function syncLdapUsers(db, config) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
-  if (counts.created || counts.updated || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
 }

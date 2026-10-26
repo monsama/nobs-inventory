@@ -93,6 +93,36 @@ test('directory sync: adds people, follows role changes, deactivates people who 
   }
 });
 
+test('a person Lansweeper named by a login becomes the directory user, by sync and by sign-in, and keeps their devices', async () => {
+  const people = {
+    'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory', 'Inventory-Users'], 'annas-secret'),
+    'cn=cla,ou=people,dc=test': person('cla', 'Cla Test', 'Sales', ['Inventory-Users'], 'clas-secret')
+  };
+  const dir = await startDirectory(people);
+  const config = cfg(`ldap://127.0.0.1:${dir.address().port}`);
+  const srv = await startServer({ ldap: config });
+  try {
+    saveState(srv.db, { objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-ANNA', user: 'anna', uid: 'ls1', ovr: {}, feed: null }],
+      rels: [], users: [{ id: 'u-admin', login: 'admin', name: 'Administrator', role: 'admin', active: true, source: 'manual' },
+        { id: 'ls1', login: 'anna', name: 'anna', dept: '', role: 'viewer', active: true, source: 'lansweeper' },
+        { id: 'ls2', login: 'cla', name: 'cla', dept: '', role: 'viewer', active: true, source: 'lansweeper' }],
+      types: {}, history: {}, locs: [], policy: {}, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 101, codeN: 1, rseq: 0 });
+    const cla = await signIn(srv, 'cla', 'clas-secret');
+    assert.equal(cla.status, 200, 'a person Lansweeper named signs in through the directory');
+    assert.equal(cla.user.id, 'ls2');
+    assert.equal(loadState(srv.db).users.find(u => u.id === 'ls2').source, 'ldap');
+    const counts = await syncLdapUsers(srv.db, config);
+    assert.equal(counts.created, 0, 'no second record is made for a login Lansweeper named');
+    assert.equal(counts.linked, 1);
+    const st = loadState(srv.db);
+    const anna = st.users.find(u => u.login === 'anna');
+    assert.deepEqual([anna.id, anna.name, anna.dept, anna.role, anna.source], ['ls1', 'Anna Test', 'IT', 'admin', 'ldap']);
+    assert.equal(st.objs[0].uid, 'ls1', 'the device is still theirs');
+  } finally {
+    await srv.close(); await new Promise(r => dir.close(r));
+  }
+});
+
 test('directory sync refuses a change that would leave no active admin, and changes nothing', async () => {
   const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['Inventory-Users'], 'x') };
   const dir = await startDirectory(people);

@@ -85,6 +85,25 @@ test('a user\'s department is filled in from the directory Lansweeper reads; a d
   checkState(s);
 });
 
+test('Lansweeper\'s user is a login: the person gets it as login and the full name from the directory as name', () => {
+  const s = base({ policy: { user: true }, users: [{ id: 'old', login: '', name: 'cmuster', dept: '', role: 'viewer', source: 'lansweeper', active: true }] });
+  mergeRecords(s, recordsFromJson([
+    { name: 'PC-1', ref: '1', assetType: 'Windows', user: 'amuster', userName: 'Anna Muster', userDept: 'Logistik' },
+    { name: 'PC-2', ref: '2', assetType: 'Windows', user: 'cmuster', userName: 'Cla Muster' },
+  ]), now);
+  const anna = s.users.find(u => u.login === 'amuster');
+  assert.ok(anna, 'the person is made with the login');
+  assert.equal(anna.name, 'Anna Muster');
+  assert.equal(anna.dept, 'Logistik');
+  const cla = s.users.filter(u => u.login === 'cmuster');
+  assert.equal(cla.length, 1, 'a person made before, with the login as name, is the same person');
+  assert.equal(cla[0].id, 'old');
+  assert.equal(cla[0].name, 'Cla Muster', 'a name that was only the login gets the full name');
+  mergeRecords(s, recordsFromJson([{ name: 'PC-1', ref: '1', assetType: 'Windows', user: 'amuster', userName: 'Anna Other' }]), now);
+  assert.equal(s.users.find(u => u.login === 'amuster').name, 'Anna Muster', 'a full name, once set, is not changed by the feed');
+  checkState(s);
+});
+
 test('subnets the adapters report and the inventory lacks are suggested, with their usual gateway and the IP location name', () => {
   const recs = [
     { ip: '172.21.108.14', mask: '255.255.255.0', gateway: '172.21.108.1', dns: '172.21.1.5, 172.21.1.6', type: 'pc', dhcp: 'dhcp' },

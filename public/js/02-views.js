@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { userText, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -175,7 +175,7 @@ const mono = v => v ? `<span class="mono">${esc(String(v))}</span>` : '';
 export const CARD_FIELDS = {
   ip: ['IP', o => mono(o.ip)],
   mac: ['MAC', o => mono(o.mac)],
-  user: ['User', o => esc(o.user || '')],
+  user: ['User', o => esc(userText(o))],
   loc: ['Location', o => esc((o.loc || '').replace(' / ', ' · '))],
   warranty: ['Warranty', o => { const w = warrantyState(o); return w ? `<span class="wty ${w}">${w === 'ended' ? 'ended ' : 'ends '}${esc(dayText(o.warranty))}</span>` : ''; }],
   serial: ['Serial', o => mono(o.serial)],
@@ -244,7 +244,7 @@ export function renderCardsBody(){
   }
   const idx = relIndex(), card = o => cardHtml(o, idx);
   if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
-  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
+  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => userText(o) || 'No user' : o => o.loc;
   const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
   st.groupsClosed ??= {};
   $('#view').innerHTML = groups.map(g => {
@@ -269,7 +269,7 @@ export function addSearchHits(){
   const people = USERS.filter(u => [u.name, u.login, u.dept].some(v => v && v.toLowerCase().includes(q)));
   const locs = LOCS.filter(l => l.toLowerCase().includes(q));
   if (!people.length && !locs.length) return;
-  $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${devicesOf(u.name)} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
+  $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${devicesOf(u)} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
   $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
   $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; render(); });
 }
@@ -286,7 +286,7 @@ export const TABLE_COLS = [
   {k:'serial', w:160, label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
   {k:'loc', w:190, label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
   {k:'rack', w:130, label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
-  {k:'user', w:160, label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
+  {k:'user', w:160, label:'User', cell: o => `<td>${esc(userText(o))}</td>`},
   {k:'warranty', w:130, label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
   {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
   {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
@@ -378,7 +378,7 @@ export function parseCsv(text){
 export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
 export function exportCsv(list){
   const head = ['code','name','type','model','serial','ip','mac','location','user','status','purchased','warranty','price','supplier','invoice'];
-  const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice].map(csvCell).join(',')));
+  const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, userText(o), STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice].map(csvCell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'inventory.csv'});
   document.body.appendChild(a); a.click(); a.remove();
@@ -447,7 +447,7 @@ const fitMap = (t, px) => {
   const text = String(t ?? ''), max = Math.floor((MAP_W - 16) / (px * 0.56));
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 };
-export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
+export const mapLines = o => [o.model, o.ip || userText(o) || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
 export const mapH = () => 91;
 

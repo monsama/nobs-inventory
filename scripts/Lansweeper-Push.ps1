@@ -82,7 +82,7 @@ $script:Wanted = [ordered]@{
     tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled', 'MACAddress', 'Caption', 'Description')
     tblComputersystem = @('AssetID', 'Domainrole')
     tblSystemEnclosure = @('AssetID', 'ChassisTypes')
-    tblADusers     = @('Username', 'Userdomain', 'Department')
+    tblADusers     = @('Username', 'Userdomain', 'Department', 'Displayname')
     tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
     web50repSwitchports = @('AssetID', 'If', 'Portname', 'deviceassetid')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
@@ -691,7 +691,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
-            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'), (Get-SelectItem 'tblADusers' 'ad' 'Displayname'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
             (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption'), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version'),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
@@ -710,9 +710,11 @@ function Get-LsRecords {
         if ((Test-Col 'tblSystemEnclosure' 'AssetID') -and (Test-Col 'tblSystemEnclosure' 'ChassisTypes')) {
             $joins += 'LEFT JOIN (SELECT [AssetID], MAX([ChassisTypes]) AS [ChassisTypes] FROM [tblSystemEnclosure] GROUP BY [AssetID]) se ON se.[AssetID] = a.[AssetID] '
         }
-        # The department of the logged-on user, from the Active Directory users Lansweeper scans.
+        # The department and the full name of the logged-on user, from the Active Directory users Lansweeper scans.
+        # tblAssets.Username is the login (sAMAccountName); Displayname is the name people read.
         if ((Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')) {
-            $joins += 'LEFT JOIN (SELECT [Username], [Userdomain], MAX([Department]) AS [Department] FROM [tblADusers] GROUP BY [Username], [Userdomain]) ad ON ad.[Username] = a.[Username] AND ad.[Userdomain] = a.[Userdomain] '
+            $adName = if (Test-Col 'tblADusers' 'Displayname') { ', MAX([Displayname]) AS [Displayname]' } else { '' }
+            $joins += "LEFT JOIN (SELECT [Username], [Userdomain], MAX([Department]) AS [Department]$adName FROM [tblADusers] GROUP BY [Username], [Userdomain]) ad ON ad.[Username] = a.[Username] AND ad.[Userdomain] = a.[Userdomain] "
         }
         if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
         if ((Test-Col 'tblOperatingsystem' 'AssetID') -and (Test-Col 'tblOperatingsystem' 'Caption')) {
@@ -760,6 +762,7 @@ function Get-LsRecords {
                     role = Get-RoleText $reader['cs__Domainrole']
                     chassis = Get-ChassisText $reader['se__ChassisTypes']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })
+                    userName = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Displayname'] } else { '' })
                     ip6 = ''; mask = ''; gateway = ''; dns = ''; dhcp = ''
                     ref = ConvertTo-Text $reader['a__AssetID']
                     links = @()

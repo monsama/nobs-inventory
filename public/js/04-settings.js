@@ -1,6 +1,6 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from './schedule.js';
-import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
+import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip, personOf, setPeopleSource } from './01-core.js';
 import { setSettingsOpener, collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -460,7 +460,9 @@ export async function renderSetAbout(){
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
 export let USERS = [];
 export const setUsers = v => { USERS = v; };
-export const devicesOf = name => objs.filter(o => o.user === name).length;
+setPeopleSource(() => USERS);
+/* A person's devices: picked by hand, or named by their login or their name. */
+export const devicesOf = u => objs.filter(o => personOf(o) === u).length;
 export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */
 export const who = () => (me() && me().name) || 'someone';
@@ -555,18 +557,18 @@ export function mountModal(){
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
-  for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
-  const devicesOfUser = name => devCount.get(name) || 0;
+  for (const o of objs){ const p = personOf(o); if (p) devCount.set(p.id, (devCount.get(p.id) || 0) + 1); }
+  const devicesOfUser = u => devCount.get(u.id) || 0;
   const rows = USERS.map((u, i) => `<tr>
       ${u.source === 'ldap' ? `<td title="From LDAP: changed in the directory">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
       ${u.source === 'ldap' ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
-      <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
+      <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
-      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
+      <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>

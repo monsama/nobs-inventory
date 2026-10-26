@@ -141,6 +141,7 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
   - purchase date and warranty end. Warranties that end within 90 days, or have ended, are marked and can be filtered in the sidebar;
   - the Windows role (workstation, server, domain controller), which decides PC or server for a new device;
   - the department of the logged-on user, from the Active Directory users Lansweeper scans.
+- The user Lansweeper reports on a device is a login (its `Username`). A person it names is added under Settings → Users with that login and, from the Active Directory users Lansweeper scans, the full name and department; devices show the full name. Persons from before 0.9.28, whose name was the login, get it as their login on the first start. When the LDAP sync or a directory sign-in brings the same login, the directory takes over that person (same record, so their devices stay assigned); a local account with that login is never taken over.
 
 ## Updating
 
