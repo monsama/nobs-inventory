@@ -703,11 +703,12 @@ export function refusedModal(items){
    restored inventory replaces everything here. */
 export async function reloadFromServer({ flush = true, skip = [], discard = false } = {}){
   if (flush && !discard && SERVER.base && canEdit()){ if (SERVER.busy) await SERVER.inflight; await flushSave(); }
-  const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (r.status === 401){ loginModal(); return false; }
   if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
   const d = await r.json();
+  /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
+  const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
   applyState(d);
   SERVER.revs = d.revs || {};
   setBaseline();
