@@ -47,3 +47,15 @@ test('a person from Lansweeper whose name is a login gets it as login; a taken l
   assert.deepEqual(s.users.map(u => u.login), ['amuster', '', '', 'admin', '']);
   assert.equal(migrateState(s), false);
 });
+
+test('a type icon the server would refuse now is put back on start, so it cannot block every save', () => {
+  const s = base([]);
+  s.types = {
+    fa: { label: 'FA', icon: 'custom', svgView: '0 0 24 24', svgInner: '<!--! Font Awesome --><path d="M0 0h1"/>', color: '#123456' },
+    bad: { label: 'Bad', icon: 'custom', svgView: '0 0 24 24"><x', svgInner: '<path/onclick="x()"/>', color: 'red;x' },
+  };
+  assert.equal(migrateState(s), true);
+  assert.equal(s.types.fa.svgInner, '<path d="M0 0h1"/>', 'only the comment goes');
+  assert.deepEqual([s.types.bad.icon, s.types.bad.svgInner, s.types.bad.svgView, s.types.bad.color], ['other', undefined, undefined, '#5a6b7d']);
+  assert.doesNotThrow(() => checkState(s));
+});
