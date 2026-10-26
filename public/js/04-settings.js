@@ -224,7 +224,7 @@ export async function renderSetGraph(){
       <td>${c.inUse ? '<span class="chip ok">In use</span>' : c.onServer ? `<button data-gcuse="${esc(c.thumbprint)}" ${fromServer ? 'disabled title="The server settings decide the certificate"' : ''}>Use this one</button>` : '<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>'}</td>
       <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${fromServer && c.inUse ? '' : ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" ${c.inUse || c.chosen ? 'data-gcinuse="1"' : ''} aria-label="Delete this certificate" title="Delete">×</button>`}</td></tr>`).join('');
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph ${g.configured ? '<span class="chip ok">Connected</span>' : '<span class="cnt">not set up</span>'}</div>
-    <p class="note">Reads the Entra join status, Intune enrolment and compliance of the devices, matched by serial number. Values the inventory does not have yet are filled in; the rest stays. It only reads, it changes nothing in Entra or Intune.</p>
+    <p class="note">Reads what Microsoft Entra and Intune know of each device: join type, management, compliance, encryption, primary user and last contact, shown on the device. Devices are matched by serial number, else by name. Fields a device does not have yet are filled in; ones it has stay, except on devices added from here, which Graph keeps up to date until Lansweeper takes them over. It only reads: it changes nothing in Entra or Intune.</p>
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
       <li><div class="gs-head">${done(ids)}<b>Register the app in Entra</b></div>
@@ -291,7 +291,8 @@ export async function renderSetGraph(){
     if (!x.ok) return say(x.j.error || 'The sync failed.', true);
     const c = x.j.counts;
     await reloadFromServer(); await renderSetGraph();
-    say(`${c.devices} devices in Entra and Intune: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.${c.unmatched ? ` ${c.unmatched} are not in the inventory: see the list below.` : ''}`);
+    /* The pane was drawn again: the message goes to its new line. */
+    const m2 = $('#graphMsg'); if (m2) m2.textContent = (`${c.devices} devices in Entra and Intune: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.${c.unmatched ? ` ${c.unmatched} are not in the inventory: see the list below.` : ''}`);
   };
   root.querySelectorAll('[data-gcuse]').forEach(b => b.onclick = async () => {
     const x = await post(`api/graph/cert/${encodeURIComponent(b.dataset.gcuse)}/use`);
@@ -1235,7 +1236,8 @@ export function renderBuiltinFields(box, type){
   /* Fields Lansweeper fills in on devices of this type that the type does not have (firmware on a printer): listed too,
      so they can be renamed, moved and hidden here like the rest. */
   const extras = LS_ON() ? Object.keys(FIELD_LABEL).filter(k => !seen.has(k) && ofType.some(o => o.feed && o[k] !== undefined && o[k] !== '')).map(k => [k, FIELD_LABEL[k], fieldKind(k), false, true]) : [];
-  const all = [...builtins, ...extras, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true])];
+  /* In the order the page shows them before any is moved: the type's fields, its own ones, then Lansweeper's extras. */
+  const all = [...builtins, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true]), ...extras];
   /* Rows whose Shown tick is not the whole story. */
   const NOTES = { boot: 'Only while Lansweeper is on' };
   if (canAddPorts(type)) Object.assign(NOTES, { ports: 'Only on devices with ports', pfx: 'Only on devices with ports' });

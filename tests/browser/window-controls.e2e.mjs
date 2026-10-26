@@ -59,6 +59,7 @@ try {
   await p.click('#newBtn'); await p.waitForSelector('#nName'); await p.click('.wc-min');
   await p.click('#setBtn'); await p.waitForSelector('#setPane');
   assert.equal(await p.locator('#mdlTray').count(), 0);
+  assert.match(await p.textContent('#toast'), /The minimized “New object” was closed/, 'it says so');
   assert.deepEqual(errors, []);
   console.log('window controls: ok');
 } finally { await browser.close(); server.close(); }
