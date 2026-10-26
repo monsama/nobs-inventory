@@ -577,7 +577,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -743,6 +743,7 @@ export function applyState(d){
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
   st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
+  st.syncSchedule = d.syncSchedule && typeof d.syncSchedule === 'object' ? d.syncSchedule : null;
   COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';
   SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];

@@ -1,4 +1,5 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
+import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from './schedule.js';
 import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
 import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
@@ -193,6 +194,29 @@ async function retypeModal(){
 /* Microsoft Graph: the join status, Intune enrolment and compliance of the devices, matched by serial number. Set up in
    four steps; the server makes the certificate and keeps its key, so no file is copied to the server. */
 const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
+/* When a sync runs by itself: an interval from a start time, or off. Saved with the settings; the server picks it up at once. */
+export function scheduleRowHtml(job, edit){
+  const plan = scheduleOf(st)[job], ro = edit ? '' : 'disabled';
+  const label = h => h === 0 ? 'Off (only Sync now)' : h === 24 ? 'Daily' : h === 1 ? 'Every hour' : `Every ${h} hours`;
+  return `<div class="sched-row" data-sched="${job}"><span class="sched-l">Runs by itself</span>
+    <select data-sched-every="${job}" aria-label="How often ${esc(SCHEDULE_JOBS[job])} syncs" ${ro}>${EVERY_HOURS.map(h => `<option value="${h}" ${h === plan.every ? 'selected' : ''}>${label(h)}</option>`).join('')}</select>
+    <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span><input type="time" data-sched-at="${job}" value="${esc(plan.at)}" aria-label="Start time" ${plan.every ? '' : 'hidden'} ${ro}>
+    <span class="muted sched-next">${plan.every ? 'next at ' + nextRun(plan) : ''}</span></div>`;
+}
+export function bindScheduleRows(root){
+  root.querySelectorAll('[data-sched]').forEach(row => {
+    const job = row.dataset.sched, every = row.querySelector('[data-sched-every]'), at = row.querySelector('[data-sched-at]');
+    const save = () => {
+      const v = {every: +every.value, at: at.value || '06:00'};
+      st.syncSchedule = {...(st.syncSchedule || {}), [job]: v};
+      queueServerSave();
+      row.outerHTML = scheduleRowHtml(job, true);
+      bindScheduleRows(root);
+      toast(`${SCHEDULE_JOBS[job]}: ${scheduleText(v)}`);
+    };
+    every.onchange = save; at.onchange = save;
+  });
+}
 /* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 function unmatchedHtml(edit){
   const list = st.graphUnmatched || [];
@@ -258,8 +282,9 @@ export async function renderSetGraph(){
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
       <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
-        <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs every night at 06:00.</p>
-        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div></li>
+        <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set below.</p>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div>
+        ${scheduleRowHtml('graph', edit)}</li>
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
@@ -326,6 +351,7 @@ export async function renderSetGraph(){
     toast('Certificate deleted' + (inUse ? '. Microsoft Graph is off until a new one is uploaded.' : ''));
     await refreshGraph();
   });
+  bindScheduleRows(root);
   applyRole();
 }
 /* After a change: the server's view of Graph (is it connected now?) and the pane. */
@@ -680,7 +706,7 @@ export function backupPanel(edit){
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, and before the nightly LDAP sync.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
+    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, and before an LDAP sync.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} Restoring puts the devices, relations, history, locations, plans and settings back. Users are kept, and the current state is backed up before a restore, so it can be restored again.</p>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
@@ -782,7 +808,9 @@ export function renderSetLdap(){
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
+    <div style="padding:6px 12px 0">${scheduleRowHtml('ldap', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  bindScheduleRows($('#setLdap'));
   if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
@@ -1397,14 +1425,16 @@ export function renderSetFeed(){
       ${field('site', 'Site ID', 'empty: the first site of the token')}
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
+    <div style="padding:6px 12px 0">${scheduleRowHtml('lansweeper', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
   <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
-    <div class="note" style="padding:10px 12px">The server can also import this report every night from a file your administrator sets up.</div></div>`;
+    <div class="note" style="padding:10px 12px">The server can also import this report by itself, on the Lansweeper schedule, from a file your administrator sets up.</div></div>`;
   /* One source at a time: show the script push or the API panel, never both. */
   if ($('#lsPushPanel')) $('#lsPushPanel').hidden = st.lsSource === 'api';
   if ($('#lsApiPanel')) $('#lsApiPanel').hidden = st.lsSource !== 'api';
+  bindScheduleRows($('#setFeed'));
   $('#setFeed').querySelectorAll('[data-ls]').forEach(i => i.onchange = () => { st.lansweeper[i.dataset.ls] = i.value.trim(); queueServerSave(); renderSetFeed(); });
   const pushMsg = t => { const m = $('#pushMsg'); if (m) m.textContent = t; };
   if ($('#pushNew')) $('#pushNew').onclick = async () => {

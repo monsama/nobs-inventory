@@ -1,5 +1,6 @@
 /* Browser test of Settings on a fresh server: every tab draws, and the admin can clear the inventory. */
 import { chromium } from 'playwright';
+import { until } from './until.mjs';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
@@ -39,6 +40,14 @@ try {
   assert.ok(!(await page.content()).includes('svc-secret'), 'the password is nowhere in the page');
   page.once('dialog', d => d.accept()); await page.click('#lpRemove');
   await page.waitForSelector('#lk_pw');
+  // the schedule of a sync: Graph every 4 hours by default; changed here, saved to the server
+  assert.equal(await page.inputValue('[data-sched-every="graph"]'), '4');
+  assert.equal(await page.inputValue('[data-sched-every="ldap"]'), '24');
+  await page.selectOption('[data-sched-every="graph"]', '2');
+  await page.waitForFunction(() => /every 2 hours from 06:00/.test(document.querySelector('#toast').textContent));
+  await until(page, async () => { const r = await fetch('api/state', { credentials: 'same-origin' }); const d = await r.json(); return d.syncSchedule && d.syncSchedule.graph && d.syncSchedule.graph.every === 2; });
+  await page.selectOption('[data-sched-every="ldap"]', '0');
+  assert.equal(await page.isHidden('[data-sched-at="ldap"]'), true, 'off has no start time');
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');

@@ -43,8 +43,43 @@ test('a nightly run that throws (a secret file that can no longer be read) is lo
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
     assert.deepEqual(escaped, [], 'the error escaped the scheduler');
-    assert.ok(logged.some(l => l.includes('nightly sync failed') && l.includes('NI_LDAP_SERVICE_PASSWORD_FILE')), 'the failure is logged: ' + logged.join(' | '));
+    assert.ok(logged.some(l => l.includes('scheduled sync failed') && l.includes('NI_LDAP_SERVICE_PASSWORD_FILE')), 'the failure is logged: ' + logged.join(' | '));
   } finally {
     clearInterval(timer); t.mock.timers.reset(); process.off('unhandledRejection', onRejection); await srv.close();
   }
+});
+
+test('each sync runs on its own schedule: Graph every 4 hours by default, the others daily at 06:00, changeable or off', async () => {
+  const { isDue, nextRun, scheduleOf, scheduleProblem, scheduleText } = await import('../public/js/schedule.js');
+  const at = (h, m = 0) => new Date(2026, 9, 26, h, m);
+  const plan = scheduleOf({});
+  assert.deepEqual([2, 6, 10, 14, 18, 22].map(h => isDue(plan.graph, at(h))), [true, true, true, true, true, true], 'Graph every 4 hours from 06:00');
+  assert.equal(isDue(plan.graph, at(7)), false);
+  assert.equal(isDue(plan.ldap, at(6)), true); assert.equal(isDue(plan.ldap, at(10)), false, 'LDAP daily');
+  assert.equal(nextRun(plan.graph, at(7, 30)), '10:00');
+  assert.equal(scheduleText(plan.graph), 'every 4 hours from 06:00');
+  const own = scheduleOf({ syncSchedule: { ldap: { every: 0, at: '06:00' }, lansweeper: { every: 12, at: '05:30' } } });
+  assert.equal(isDue(own.ldap, at(6)), false, 'off');
+  assert.equal(scheduleText(own.ldap), 'off, only Sync now');
+  assert.equal(isDue(own.lansweeper, at(17, 30)), true);
+  assert.equal(own.graph.every, 4, 'a source not set keeps its default');
+  assert.match(scheduleProblem({ graph: { every: 5, at: '06:00' } }), /interval/);
+  assert.match(scheduleProblem({ graph: { every: 4, at: '6 Uhr' } }), /HH:MM/);
+  assert.match(scheduleProblem({ backup: { every: 4, at: '06:00' } }), /not a sync/);
+  assert.equal(scheduleProblem({ graph: { every: 2, at: '00:15' } }), null);
+});
+
+test('the scheduler runs Graph at 10:00 on the default schedule, and not a source that is off', async t => {
+  const { startScheduler } = await import('../server/index.js');
+  const dir = tempDataDir();
+  const srv = await startServer({ dir });
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: new Date(2026, 9, 26, 9, 59, 50) });
+  const runs = [];
+  saveState(srv.db, { ...loadState(srv.db), syncSchedule: { ldap: { every: 0, at: '06:00' } } });
+  const timer = startScheduler(srv.db, {}, { ldapConfig: () => { runs.push('ldap'); return null; }, graphConfig: () => { runs.push('graph'); return null; } }, () => {});
+  try {
+    t.mock.timers.tick(30_000); await new Promise(r => setImmediate(r));
+    t.mock.timers.tick(30_000); await new Promise(r => setImmediate(r));
+    assert.deepEqual(runs, ['graph'], 'Graph once at 10:00, LDAP not (off, and not due)');
+  } finally { clearInterval(timer); t.mock.timers.reset(); await srv.close(); }
 });
