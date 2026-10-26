@@ -98,7 +98,7 @@ export function start(env = process.env) {
   const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig, sheetKey, graphConfig: () => app.locals.graphConfig() });
+  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig() });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }

@@ -19,6 +19,7 @@ import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
 import tls from 'node:tls';
 import { syncLdapUsers } from './ldap-sync.js';
+import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
 
@@ -29,12 +30,19 @@ const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.js
 
 export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'caddy', port: 443 } }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
-  const SHEET_KEY = sheetKey || crypto.randomBytes(32);
+  const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   initSheets(db);
   initGraphKeys(db);
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
-  /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
-  const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
+  /* The directory settings are read when they are needed, so a change in Settings applies without a restart. The service
+     account's password is the server's (NI_LDAP_SERVICE_PASSWORD) when it has one, else the one saved in Settings. */
+  const cfgLdap = () => {
+    const c = ldapConfig ? ldapConfig() : ldap;
+    if (!c || c.servicePassword) return c;
+    const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
+    return saved ? { ...c, servicePassword: saved } : c;
+  };
+  const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
   const app = express();
   app.disable('x-powered-by');
   /* Caddy is the only proxy in front of the app: its forwarded address is the client's, so login throttling is per user. */
@@ -245,6 +253,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* The service account's password: set or replaced here, removed here, never read back. The server's own setting wins. */
+  app.get('/api/ldap/password', requireUser, requireAdmin, (req, res) => {
+    res.json({ source: ldapPasswordFromServer() ? 'server' : appSecretSetAt(db, 'ldapServicePassword') ? 'app' : null, setAt: appSecretSetAt(db, 'ldapServicePassword') });
+  });
+  app.post('/api/ldap/password', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const pw = req.body && typeof req.body.password === 'string' ? req.body.password : '';
+      if (!pw) throw new HttpError(400, 'Enter the password.');
+      if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
+      setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
+      audit(db, req.user.id, 'directory service account password saved');
+      res.json({ ok: true, setAt: appSecretSetAt(db, 'ldapServicePassword') });
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/ldap/password', requireUser, requireAdmin, (req, res) => {
+    dropAppSecret(db, 'ldapServicePassword');
+    audit(db, req.user.id, 'directory service account password removed');
+    res.json({ ok: true });
+  });
+  /* The nightly run reads the directory with the same settings and password. */
+  app.locals.ldapConfig = cfgLdap;
   /* Test connection: reads the users of the saved directory settings and says how many are in scope. */
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {

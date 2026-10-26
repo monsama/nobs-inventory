@@ -762,11 +762,12 @@ export function renderSetLdap(){
   const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = !!L.url && edit;
   $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory</div>
-    <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account's password is not stored here: the server reads it from its environment (NI_LDAP_SERVICE_PASSWORD).</div>
+    <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
+      <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
@@ -781,6 +782,7 @@ export function renderSetLdap(){
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
@@ -807,6 +809,37 @@ export function renderSetLdap(){
       + (c.computerError ? ` Computer groups could not be read: ${c.computerError}` : c.computers != null ? ` Computer groups changed on ${c.computers} ${c.computers === 1 ? 'device' : 'devices'}.` : '');
     await reloadFromServer();
   };
+}
+/* The service account's password: saved encrypted on the server, never sent back. Set on the server instead, it says so. */
+async function loadLdapPassword(replace = false){
+  const box = $('#ldapPw'); if (!box) return;
+  const r = await fetch('api/ldap/password', {credentials: 'same-origin'}).catch(() => null);
+  const j = r && r.ok ? await r.json().catch(() => ({})) : {};
+  if (!$('#ldapPw')) return;
+  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  if (j.source === 'server'){ box.innerHTML = '<span class="muted">Set on the server (NI_LDAP_SERVICE_PASSWORD), which takes precedence</span>'; return; }
+  if (j.source === 'app' && !replace){
+    box.innerHTML = `<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${esc(day(j.setAt))}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
+    $('#lpReplace').onclick = () => loadLdapPassword(true);
+    $('#lpRemove').onclick = async () => {
+      if (!confirm('Remove the saved password? The directory cannot be read until a new one is saved.')) return;
+      await fetch('api/ldap/password', {method: 'DELETE', credentials: 'same-origin'});
+      toast('Password removed'); loadLdapPassword();
+    };
+    return;
+  }
+  box.innerHTML = `<input id="lk_pw" type="password" autocomplete="new-password" placeholder="The service account’s password" aria-label="Service account password"><button type="button" id="lpSave" style="flex:none">Save password</button>${replace ? '<button type="button" id="lpCancel" style="flex:none">Cancel</button>' : ''}`;
+  const save = async () => {
+    const pw = $('#lk_pw').value;
+    if (!pw){ $('#lk_pw').focus(); return; }
+    const x = await fetch('api/ldap/password', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})});
+    const e = await x.json().catch(() => ({}));
+    if (!x.ok){ toast(e.error || 'Not saved.'); return; }
+    toast('Password saved. Test connection checks it.'); loadLdapPassword();
+  };
+  $('#lpSave').onclick = save;
+  $('#lk_pw').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); save(); } };
+  if ($('#lpCancel')) $('#lpCancel').onclick = () => loadLdapPassword();
 }
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
 export function sanitizeSvg(text){
