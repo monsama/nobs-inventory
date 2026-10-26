@@ -106,7 +106,11 @@ export const dayOf = v => {
    (tblAssets.Username, the sAMAccountName); the full name and department come from its AD users. The person is found
    by login (or, for one kept before 0.9.28, by a name that is that login), else made when a device names them. A
    person from the directory (LDAP) keeps what the directory says; one from Lansweeper gets the full name and
-   department. A login another account already has is not given twice. The devices that name the person by login are
+   department, each only while it is empty (the name while it is still the login): a name or department changed by hand
+   on the page is kept, so a later change in AD reaches the person through the LDAP sync, not through Lansweeper. A
+   user that is not a login (a report file can give a full name) makes a person without a login, found by name.
+   The same login in two trusted domains is one person: Lansweeper's user domain is not sent. A login another account
+   already has is not given twice. The devices that name the person by login are
    bound to them (uid), so the page shows the person's name and a rename moves the devices with them.
    A login is letters (umlauts too), digits and . _ @ ' -, as Active Directory allows them. */
 export const LOGIN_RE = /^[\p{L}\p{N}_.@'-]{1,64}$/u;
@@ -185,22 +189,22 @@ function applyLinks(s, pairs, counts) {
       n++;
     }
     const before = s.rels.length;
-    /* Only monitor links are managed; a connection Lansweeper made earlier is kept as it is, and is now a manual one. */
+    /* Only monitor links are managed; a connection of another kind that Lansweeper made earlier is left alone (it keeps
+       its Lansweeper mark, but nothing changes or removes it any more). */
     s.rels = s.rels.filter(x => !(x.from === obj.id && x.src === 'Lansweeper' && x.kind === 'attached' && !wanted.has(x.to + '|' + x.kind)));
     n += before - s.rels.length;
   }
   return n;
 }
 
-/* The app type for a Lansweeper type name: the table in Settings first (names match without case), then the built-in rules. */
 /* A model from Lansweeper is the model the user gave it, when there is a rename for it; otherwise it is kept as it comes. */
 export function modelFor(s, name) {
   const text = String(name || '');
   const own = s.modelMap && Object.keys(s.modelMap).find(k => k.toLowerCase() === text.toLowerCase());
   return own && s.modelMap[own] ? s.modelMap[own] : text;
 }
-/* A type mapping set in Settings (a Lansweeper type name, exactly) wins; then the type rules, in their order (the ones
-   shipped, or the list edited in Settings → Feed). */
+/* The app type for a Lansweeper type name: a type mapping set in Settings (the name, without case) wins; then the type
+   rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
@@ -280,10 +284,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     const wasLinked = !!found.feed;
     if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, assetType: r.assetType || '' };
     else if (!found.feed.ref) found.feed.ref = r.ref;
-    if (found.feed && r.assetType) found.feed.assetType = r.assetType;
+    if (found.feed && r.assetType) found.feed.assetType = r.assetType;   /* the type name is kept, so a type mapping can apply to it later */
     /* Windows' role and the chassis are kept with the feed's data, for the type rules (Apply to existing devices). */
     if (found.feed && r.role) found.feed.role = r.role;
-    if (found.feed && r.chassis) found.feed.chassis = r.chassis;   /* the type name is kept, so a type mapping can apply to it later */
+    if (found.feed && r.chassis) found.feed.chassis = r.chassis;
     /* The day Lansweeper last scanned it: a device not scanned for months is flagged for a check by hand. It is not a
        change of the device, so it does not count as an update. */
     if (found.feed && r.scanned) found.feed.scanned = r.scanned;

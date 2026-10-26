@@ -1,15 +1,18 @@
+import { openSheet, sealSheet } from './sheets.js';
 import { loadState, saveState, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
 import { HttpError } from './errors.js';
 import { migrateState } from './migrate.js';
 
 /* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images and the users
-   (never the passwords). Taken before every Lansweeper sync, push and import, and by hand. The newest are kept. */
+   (never the passwords). Taken by hand and before what changes much at once: a Lansweeper sync, push or import, an LDAP
+   or Graph sync, adding Graph, applying type rules, and a restore. The newest are kept (Settings → Backups). */
 const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
 /* How backups are taken is not part of the inventory: a restore of an old backup never switches them off or keeps fewer. */
 const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 
-/* A backup taken by the app itself (before a sync, push or import). Off when the setting "Automatic backups" is off. */
+/* A backup taken by the app itself, before one of the changes above. Off when the setting "Automatic backups" is off.
+   daily: at most one a day for this reason (a sync that runs every few hours). */
 export function autoBackup(db, reason, { daily = false } = {}) {
   if (loadState(db).autoBackups === false) return null;
   /* A sync that runs every few hours backs up once a day, so its backups do not push the older ones out. */
@@ -36,7 +39,7 @@ export function takeBackup(db, reason) {
 
 /* Puts a backup back. The users are kept (a backup adds the users it has that are missing now), and the number
    counters only go up, so no code is given out twice. The current state is backed up first by the caller. */
-export function restoreBackup(db, data) {
+export function restoreBackup(db, data, sheetKey = null) {
   if (!data || data.version !== 1 || !data.state) throw new HttpError(400, 'This file is not a backup of NOBS Inventory.');
   const b = data.state;
   if (!Array.isArray(b.objs) || !Array.isArray(b.rels) || !Array.isArray(b.users) || !b.types || !b.history) throw new HttpError(400, 'The backup is incomplete.');
@@ -67,10 +70,10 @@ export function restoreBackup(db, data) {
     users.set(String(u.id), back);
   }
   s.users = [...users.values()];
-  /* Every setting is put back as it was, and one the backup does not have goes back to how a new server starts. The connections (LDAP, Graph and
-     its certificates, the Lansweeper API) stay as they are now: their keys and passwords are not in a backup, so the
-     backup's would not work. Into a server with no connection at all, they are taken from the backup. */
-  /* A server with no connection set up at all (a new one) takes the backup's; any other keeps its own, all of them. */
+  /* Every setting is put back as it was, and one the backup does not have goes back to how a new server starts. The
+     connections (LDAP, Graph and its certificates, the Lansweeper API) stay as they are now: their keys and passwords
+     are not in a backup, so the backup's would not work. A server with no connection at all (a new one) takes the
+     backup's. */
   const freshServer = CONNECTION_SETTINGS.every(k => cur[k] === undefined || cur[k] === null);
   for (const k of SETTING_KEYS) {
     if (COUNTERS.includes(k) || BACKUP_SETTINGS.includes(k)) continue;
@@ -88,11 +91,21 @@ export function restoreBackup(db, data) {
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');
   for (const im of images) put.run(im.id, im.data);
   /* Entry sheets: those missing here are added; one that is here is kept as it is, so an older backup cannot bring back
-     a password that was removed from a sheet since. */
+     a password that was removed from a sheet since. A sheet added back never brings its password: it was deleted here
+     (or this is another server), so the password is taken out, and a sheet that cannot be opened to do that is left out. */
   const sheets = Array.isArray(data.sheets) ? data.sheets.filter(r => r && ['id', 'user_id', 'created', 'by', 'data'].every(k => typeof r[k] === 'string') && ['kept', 'changed', 'expired'].includes(r.password)) : [];
   if (sheets.length) {
     db.exec(`CREATE TABLE IF NOT EXISTS sheets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created TEXT NOT NULL, by TEXT NOT NULL, password TEXT NOT NULL, data TEXT NOT NULL)`);
     const add = db.prepare('INSERT OR IGNORE INTO sheets (id, user_id, created, by, password, data) VALUES (?, ?, ?, ?, ?, ?)');
-    for (const r of sheets) add.run(r.id, r.user_id, r.created, r.by, r.password, r.data);
+    const have = new Set(db.prepare('SELECT id FROM sheets').all().map(r => r.id));
+    for (const r of sheets) {
+      if (have.has(r.id)) continue;
+      let { password, data: sealed } = r;
+      if (password === 'kept') {
+        try { const sheet = openSheet(sheetKey, sealed); delete sheet.password; sealed = sealSheet(sheetKey, sheet); password = 'expired'; }
+        catch { continue; }
+      }
+      add.run(r.id, r.user_id, r.created, r.by, password, sealed);
+    }
   }
 }

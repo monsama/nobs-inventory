@@ -8,7 +8,7 @@ import { isIP } from 'node:net';
 /* Directory access: sign-in checks a user's own password against the directory and never stores it. Sync reads
    the users with a service account. Both use the same connection settings. */
 export const ldapEnabled = config => !!config?.url;
-// All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs.
+/* All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs. */
 const USER_ATTRS = ['*'];
 const LOGIN_OK = /^[\w.@-]{1,64}$/;
 export const DEFAULT_USER_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
@@ -45,7 +45,8 @@ async function connect(config) {
   client.on('error', () => {});
   if (startTls) {
     const host = new URL(config.url).hostname;
-    try { await new Promise((resolve, reject) => client.starttls({ ...tlsOpts, host, servername: host }, [], e => (e ? reject(e) : resolve()))); }
+    /* An address is no TLS server name: it is sent only for a host name (an address is still checked against the certificate). */
+    try { await new Promise((resolve, reject) => client.starttls({ ...tlsOpts, host, ...(isIP(host) ? {} : { servername: host }) }, [], e => (e ? reject(e) : resolve()))); }
     catch (e) { close(client); throw e; }
   }
   return client;
@@ -120,8 +121,6 @@ export async function ldapLogin(config, login, password) {
   } finally { close(client); }
 }
 
-/* Every user the sync covers, read with the service account: the members of the sign-in group, each with admin set
-   when they are in the admin group. */
 /* The directory server's certificate, read without trusting it, to say why it is not trusted: who it is for, who issued
    it, until when, and whether the CA added in Settings issued it. So nobody has to run openssl on the server. */
 const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];
@@ -208,6 +207,8 @@ export async function ldapListComputers(config) {
   } finally { close(client); }
 }
 
+/* Every user the sync covers, read with the service account: the members of the sign-in group, each with admin set
+   when they are in the admin group. */
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   /* No password is never sent: an empty one is an anonymous sign-in to Active Directory. */

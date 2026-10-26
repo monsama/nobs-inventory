@@ -8,9 +8,9 @@ import { scheduleProblem } from '../public/js/schedule.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'ldapCa', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
-/* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
+/* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
 export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -50,8 +50,7 @@ export function loadState(db) {
   return s;
 }
 
-/* Factory reset: removes every record, setting, account and sign-in except the account that asked for it, and its
-   sessions. The audit log is kept. The next load starts as a new server does. */
+/* A record's revision goes up by one with every write, so a page that saves from an older one is told of the conflict. */
 const bumpRev = (db, kind, id) => db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, String(id));
 /* Tables made only once their feature is first used. */
 const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
@@ -75,8 +74,9 @@ export function clearConnections(db) {
     throw e;
   }
 }
-/* Everything goes but the account asking: the inventory, the users, the connections with Graph's keys, the entry sheets,
-   and the backups when asked. The audit log keeps a record. */
+/* Factory reset: everything goes but the account asking and its sessions: the inventory, the users, the connections
+   with Graph's keys, the entry sheets, and the backups when asked. The audit log is kept and records it. The next load
+   starts as a new server does. */
 export function factoryReset(db, keepUserId, { backups = false } = {}) {
   const me = loadState(db).users.find(u => String(u.id) === String(keepUserId));
   db.exec('BEGIN');
@@ -98,12 +98,25 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
   }
 }
 
-/* The rules a whole inventory must follow before it is stored. */
+/* What a custom icon may hold: the elements the page's cleaning keeps (sanitizeSvg in public/js/04-settings.js), and no
+   event handler, style, link or script. */
+const SVG_ELEMENTS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'title', 'defs', 'desc'];
+const SVG_BAD = /\son\w+\s*=|javascript:|href|style|<!|<\?/i;
+
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
 export const KNOWN_TYPES = ['pc', 'notebook', 'camera', 'bmc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
 const STATUSES = ['active', 'stock', 'unused', 'repair', 'retired'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
+/* A user id that is free: the directory's ids come from the login, and a login can change after the id was made. */
+export const freeUserId = (users, id) => { let n = 1, out = id; while (users.some(u => String(u.id) === out)) out = id + '-' + (++n); return out; };
+
+/* The rules a whole inventory must follow before it is stored. Something not in the expected form (a null where a
+   record belongs) is refused like any other wrong value, not answered with a server error. */
 export function checkState(s) {
+  try { checkStateRules(s); }
+  catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
+}
+function checkStateRules(s) {
   const bad = msg => { throw new HttpError(400, msg); };
   /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
   for (const [name, list] of [['objects', s.objs], ['relations', s.rels], ['users', s.users]]) if (Array.isArray(list) && !list.every(x => x && typeof x === 'object' && !Array.isArray(x))) bad(`The ${name} must be a list of records.`);
@@ -134,7 +147,6 @@ export function checkState(s) {
     for (const n of s.subnets) { const problem = subnetProblem(n); if (problem) bad(problem); }
     const overlap = overlapProblem(s.subnets); if (overlap) bad(overlap);
   }
-  /* Contracts and licences, and the currency their costs are in. */
   /* The company the inventory belongs to: its name and logo on entry sheets. The logo is a PNG or JPEG, at most about 400 KB. */
   if (s.company !== undefined) {
     const c = s.company;
@@ -143,9 +155,10 @@ export function checkState(s) {
     if (c.logo !== undefined && c.logo !== '' && (typeof c.logo !== 'string' || c.logo.length > 560000 || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(c.logo))) bad('The company logo is a PNG or JPEG of up to about 400 KB.');
   }
   if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
-  /* The type rules: null for the ones shipped, or the list edited in Settings → Feed. */
   { const p = scheduleProblem(s.syncSchedule); if (p) bad(p); }
+  /* The type rules: null for the ones shipped, or the list edited in Settings → Feed. */
   if (s.typeRules !== undefined && s.typeRules !== null) { const p = typeRulesProblem(s.typeRules, new Set([...KNOWN_TYPES, ...Object.keys(s.types || {})])); if (p) bad(p); }
+  /* Contracts and licences, and the currency their costs are in. */
   if (s.contracts !== undefined) { const p = listProblem(s.contracts, contractProblem, 'contracts'); if (p) bad(p); }
   if (s.licences !== undefined) { const p = listProblem(s.licences, licenceProblem, 'licences'); if (p) bad(p); }
   if (s.currency !== undefined && (typeof s.currency !== 'string' || !/^[A-Za-z€$£¥]{1,5}$/.test(s.currency))) bad('The currency is a short code such as CHF or EUR.');
@@ -181,6 +194,15 @@ export function checkState(s) {
   /* A type's name is shown as text everywhere; angle brackets have no place in it. */
   for (const [k, t] of Object.entries(s.types)) for (const f of ['label', 'short']) {
     if (t && t[f] !== undefined && (typeof t[f] !== 'string' || t[f].length > 60 || /[<>]/.test(t[f]))) bad(`The ${f === 'label' ? 'name' : 'short name'} of the type ${k} is text of up to 60 characters, without < or >.`);
+  }
+  /* A type's colour and icon are drawn into every page: the page cleans an uploaded icon, and the server takes only what
+     that cleaning leaves (shapes, no scripts, handlers, styles or links), so a save sent around the page cannot add any. */
+  for (const [k, t] of Object.entries(s.types)) {
+    if (!t || typeof t !== 'object') bad(`The type ${k} must be a record.`);
+    if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) bad(`The colour of the type ${k} must be a hex colour such as #3a7bd5.`);
+    if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) bad(`The icon of the type ${k} has a viewBox that is not four numbers.`);
+    if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || SVG_BAD.test(t.svgInner)
+      || [...t.svgInner.matchAll(/<\/?\s*([\w:-]+)/g)].some(m => !SVG_ELEMENTS.includes(m[1].toLowerCase())))) bad(`The icon of the type ${k} has something besides shapes. Upload it again.`);
   }
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
@@ -370,10 +392,11 @@ function writeDocs(db, s) {
   return bumped;
 }
 
+/* The history of an object keeps its newest entries; older ones are dropped, so the inventory and its backups stay a
+   sane size. Both saveState and the page's saves (applyChanges) trim it. */
+export const HISTORY_KEEP = 500;
 /* Replaces the stored inventory with the one sent. Used by the admin's full save and by the server's own jobs
    (feed, directory). Logins and sessions are not touched. */
-/* The history of an object keeps its newest entries; older ones are dropped, so the inventory and its backups stay a sane size. */
-export const HISTORY_KEEP = 500;
 export function saveState(db, s) {
   checkState(s);
   /* The counters only go up, so a save that leaves one out cannot make a new code or id repeat an old one. */
@@ -383,9 +406,6 @@ export function saveState(db, s) {
   writeDocs(db, s);
 }
 
-/* The page's saves. Each change says which kind of record it is, its new value (or none, for a delete) and the
-   revision it was based on. A change based on an old revision is not applied: someone else changed that record
-   first. The other changes are applied. New objects get their code here, so codes stay unique. */
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
    many relations, users, types and which settings. The history lines that go with an object change are not counted. */
 const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', company: 'company', locs: 'locations', sites: 'sites',
@@ -422,6 +442,9 @@ export function describeChanges(body, before) {
   return parts.length ? 'saved: ' + parts.join('; ') : 'saved history notes';
 }
 
+/* The page's saves. Each change says which kind of record it is, its new value (or none, for a delete) and the
+   revision it was based on. A change based on an old revision is not applied: someone else changed that record
+   first. The other changes are applied. New objects get their code here, so codes stay unique. */
 export function applyChanges(db, body, guard = () => {}) {
   const bad = msg => { throw new HttpError(400, msg); };
   const puts = body && body.puts, dels = body && body.dels;
@@ -472,12 +495,13 @@ export function applyChanges(db, body, guard = () => {}) {
       const i = s.users.findIndex(u => String(u.id) === c.id);
       if (i >= 0) s.users[i] = v2; else s.users.push(v2);
     } else if (c.kind === 'type') s.types[c.id] = v;
-    else if (c.kind === 'history') s.history[c.id] = v;
+    else if (c.kind === 'history') s.history[c.id] = Array.isArray(v) ? v.slice(0, HISTORY_KEEP) : v;   /* kept short, as in saveState */
     else if (c.kind === 'setting') s[c.id] = v;
   }
   /* A change refused as stale can be one the rest of the save needs (a connection to an object deleted in the same save).
      Then nothing is saved and every change is answered as a conflict, so the page reloads and offers its edits again,
-     instead of a refusal it would send again and again. */
+     instead of a refusal it would send again and again. Without a stale change the save itself is wrong: that is
+     refused with the reason, since sending it again would not help. */
   try { checkState(s); }
   catch (e) {
     if (!conflicts.length) throw e;

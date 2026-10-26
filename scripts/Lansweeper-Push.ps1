@@ -5,13 +5,13 @@
 .DESCRIPTION
     Reads the active assets from the Lansweeper database (SQL LocalDB or SQL Server) and sends them to
     NOBS Inventory at POST /api/feed/push. NOBS matches them by serial number, then by name, and merges
-    the fields its policy allows (IP, MAC, OS, model). Nothing is deleted, and what you set by hand stays.
+    the fields its policy allows (Settings -> Feed: addresses, OS, model, hardware, user and more). Nothing is deleted, and what you set by hand stays.
 
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
     Monitors are linked to the PC they are attached to (from the monitor scan). The installed software of each device is
-    sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not linked by
-    the inventory: those connections are kept by hand.
+    sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not read: the
+    inventory keeps those connections by hand.
 
     The first run asks for the NOBS address and the feed token (Settings -> Feed -> Create token), checks both
     against the server, and keeps them: the address in Lansweeper-Push.config.ps1 next to this script, the token
@@ -354,48 +354,6 @@ function Find-LsTables {
         try { while ($reader.Read()) { $lines.Add("$($reader[0]).$($reader[1])") } } finally { $reader.Close() }
         return , $lines.ToArray()
     } finally { $conn.Dispose() }
-}
-
-# Which device is connected to which switch port, from the Lansweeper switch report. Keyed by the device's AssetID.
-function Get-SwitchLinks($conn) {
-    $map = @{}
-    if (-not (Test-Col 'web50repSwitchports' 'deviceassetid')) { Write-PushLog 'The switch port table is not in this Lansweeper version - no switch links' 'WARN'; return $map }
-    $cmd = $conn.CreateCommand()
-    $cmd.CommandText = 'SELECT [AssetID], [If], [Portname], [deviceassetid] FROM [web50repSwitchports] WHERE [deviceassetid] IS NOT NULL'
-    $cmd.CommandTimeout = 300
-    $reader = $cmd.ExecuteReader()
-    try {
-        while ($reader.Read()) {
-            $switch = ConvertTo-Text $reader['AssetID']
-            $device = ConvertTo-Text $reader['deviceassetid']
-            if (-not $switch -or -not $device) { continue }
-            $port = Get-Clean $reader['Portname']
-            if (-not $port) { $port = Get-Clean $reader['If'] }
-            if (-not $map.ContainsKey($device)) { $map[$device] = New-Object System.Collections.Generic.List[object] }
-            $map[$device].Add([ordered]@{ ref = $switch; kind = 'connected'; port = $port })
-        }
-    } finally { $reader.Close() }
-    return $map
-}
-
-# The host of each virtual machine, from the Lansweeper vCenter report. Keyed by the VM's AssetID.
-function Get-HostLinks($conn) {
-    $map = @{}
-    if (-not ((Test-Col 'web50repvCenterVmwareGuestNetworks' 'Host') -and (Test-Col 'web50repvCenterVmwareGuestNetworks' 'AssetID'))) { return $map }
-    $cmd = $conn.CreateCommand()
-    $cmd.CommandText = 'SELECT DISTINCT [AssetID], [Host] FROM [web50repvCenterVmwareGuestNetworks] WHERE [Host] IS NOT NULL'
-    $cmd.CommandTimeout = 300
-    $reader = $cmd.ExecuteReader()
-    try {
-        while ($reader.Read()) {
-            $vm = ConvertTo-Text $reader['AssetID']
-            $hostName = Get-Clean $reader['Host']
-            if (-not $vm -or -not $hostName) { continue }
-            if (-not $map.ContainsKey($vm)) { $map[$vm] = New-Object System.Collections.Generic.List[object] }
-            $map[$vm].Add([ordered]@{ name = $hostName; kind = 'hosted'; port = '' })
-        }
-    } finally { $reader.Close() }
-    return $map
 }
 
 # Installed software per asset, from the Lansweeper software tables. Null when those tables are not there.
@@ -778,10 +736,6 @@ function Get-LsRecords {
             }
         } finally { $reader.Close() }
         try { $script:LeftOut = Get-LeftOut $conn $list.Count } catch { Write-PushLog "Could not count the assets left out: $($_.Exception.Message)" 'WARN' }
-        $links = Get-SwitchLinks $conn
-        foreach ($rec in $list) { if ($links.ContainsKey($rec['ref'])) { $rec['links'] = @($links[$rec['ref']]) } }
-        $hostLinks = Get-HostLinks $conn
-        foreach ($rec in $list) { if ($hostLinks.ContainsKey($rec['ref'])) { $rec['links'] = @($rec['links']) + @($hostLinks[$rec['ref']]) } }
         $adapters = Get-AdapterByAsset $conn
         foreach ($rec in $list) {
             $nic = Select-Adapter $adapters[[string]$rec['ref']] $rec['ip']
@@ -859,7 +813,7 @@ function Show-NobsCertificate {
 
 function Send-Records($records, [string]$Token) {
     Set-NobsCertificatePin
-    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; people = 0 }
+    $totals = @{ created = 0; updated = 0; linked = 0; unchanged = 0; ambiguous = 0; excluded = 0; detached = 0; skippedIp = 0; people = 0; links = 0; software = 0; portConflict = 0 }
     $url = $Config.NobsUrl.TrimEnd('/') + '/api/feed/push'
     for ($i = 0; $i -lt $records.Count; $i += $Config.BatchSize) {
         $last = [math]::Min($i + $Config.BatchSize - 1, $records.Count - 1)
@@ -943,8 +897,10 @@ try {
         if (-not (Confirm-TrustCertificate)) { throw }
         $totals = Send-Records $records $token
     }
-    Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded" -f `
-        $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded)
+    Write-PushLog ("NOBS: {0} created, {1} updated, {2} linked, {3} unchanged, {4} ambiguous name(s) skipped, {5} excluded, {6} detached, {7} IP-only skipped" -f `
+        $totals.created, $totals.updated, $totals.linked, $totals.unchanged, $totals.ambiguous, $totals.excluded, $totals.detached, $totals.skippedIp)
+    Write-PushLog ("NOBS: {0} people, {1} monitor links, {2} devices with software changes, {3} port conflict(s)" -f `
+        $totals.people, $totals.links, $totals.software, $totals.portConflict)
     exit 0
 } catch {
     $where = $_.InvocationInfo

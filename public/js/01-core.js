@@ -30,7 +30,7 @@ export const ICON = {
 };
 export const svg = (t, cls='i') => {
   const T = TYPES[t] || {};
-  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${T.svgView}">${T.svgInner}</svg>`;
+  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${VIEWBOX_RE.test(T.svgView || '') ? T.svgView : '0 0 24 24'}">${T.svgInner}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24">${ICON[T.icon] || ICON.other}</svg>`;
 };
 
@@ -307,9 +307,13 @@ export const feedLinked = o => !!o.feed && !o.excluded && !o.detached;
 export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
+/* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
+export const VIEWBOX_RE = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/;
+export const COLOR_RE = /^#[0-9a-f]{3,8}$/i;
 export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const tcol = t => TYPES[t]?.color || '#888';
+/* A type's colour goes into a style attribute: only a hex colour is used. */
+export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
 export const pad2 = n => String(n).padStart(2, '0');
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */

@@ -1,6 +1,6 @@
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
-import { loadState, saveState } from './state.js';
+import { freeUserId, loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 
@@ -20,7 +20,7 @@ export async function syncLdapUsers(db, config) {
     const role = p.admin ? 'admin' : 'viewer';
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
     if (!u) {
-      s.users.push({ id: 'ldap-' + p.login.toLowerCase(), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
+      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
     } else if (u.source === 'lansweeper') {
       /* A person Lansweeper named by this login: the same person, now from the directory. Kept as the same record, so

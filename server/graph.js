@@ -27,9 +27,9 @@ export function graphConfigOf(env) {
   return { tenant, clientId, keyPem, certPem };
 }
 
-/* The thumbprint Microsoft matches the certificate by: the SHA-256 of the certificate, base64url. */
 /* The thumbprint Entra shows for an uploaded certificate: SHA-1, upper-case hex. */
 export const entraThumbprintOf = certPem => crypto.createHash('sha1').update(new crypto.X509Certificate(certPem).raw).digest('hex').toUpperCase();
+/* The thumbprint Microsoft matches the certificate by: the SHA-256 of the certificate, base64url. */
 export const thumbprintOf = certPem => crypto.createHash('sha256').update(new crypto.X509Certificate(certPem).raw).digest('base64url');
 
 /* A signed assertion that proves the app holds the private key. It is valid for five minutes. */
@@ -218,7 +218,8 @@ export function applyGraph(s, records, now = new Date()) {
     }
     /* Matched by name: the serial number Intune knows is taken over. */
     if (!o.serial && r.serial && ovr.serial !== false) { o.serial = r.serial; counts.filled++; }
-    /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. */
+    /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. Graph gives the
+       display name (Lansweeper gives a login): the page binds either to the person, by login first, then by name. */
     if (r.ownerName && !o.uid && !o.user && !o.hotdesk && ovr.user !== false) { o.user = r.ownerName; counts.filled++; }
   }
   /* Graph had the device and has it no more (deleted in Entra, or renamed): what it said is kept, marked as gone, so the

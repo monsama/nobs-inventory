@@ -3,7 +3,7 @@ import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from '.
 import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
 import { setSettingsOpener, collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
-import { SUBNETS } from './01-core.js';
+import { SUBNETS, VIEWBOX_RE, tcol } from './01-core.js';
 import { subnetProblem } from './net.js';
 import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
@@ -980,7 +980,9 @@ export function sanitizeSvg(text){
   root.querySelectorAll('*').forEach(n => { if (n !== root && !OK_EL.includes(n.localName)) n.remove(); });
   root.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => { if (!OK_AT.includes(a.name.toLowerCase())) n.removeAttribute(a.name); }));
   const ser = new XMLSerializer();
-  return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: root.getAttribute('viewBox') || '0 0 24 24'};
+  /* The viewBox goes into an attribute: only numbers are kept, anything else gets the usual box. */
+  const view = (root.getAttribute('viewBox') || '').trim();
+  return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: VIEWBOX_RE.test(view) ? view : '0 0 24 24'};
 }
 export function passwordModal(u){
   modal(`<div class="mh">Password for ${esc(u.name)}</div>
@@ -1297,7 +1299,7 @@ export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] 
 /* A dropdown that shows the icon and its name, for the object type's icon. */
 export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
-  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
+  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${t.svgInner}</svg>` : iconSvg(n);
   return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
     <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
@@ -1422,7 +1424,7 @@ export function renderSetTypes(){
     const n = objs.filter(o => o.type === k).length;
     const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} objects` : '';
     return `<tr>
-      <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
+      <td style="width:1%"><input type="color" value="${esc(tcol(k))}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" aria-label="Short name"></td>
       <td>${iconChoice(k, t)}</td>
