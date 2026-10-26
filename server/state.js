@@ -7,7 +7,7 @@ import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'ldapCa', 'contracts', 'licences', 'currency', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'seq', 'codeN', 'rseq'];
 /* The settings a page may change. The counters belong to the server. */
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
@@ -57,7 +57,7 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
    certificates with their sealed private keys, the Lansweeper API settings and push token. What the server's
    environment sets (NI_LDAP_*, NI_GRAPH_*, the service passwords) is outside the app and stays. */
-export const CONNECTION_SETTINGS = ['ldap', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'lansweeper'];
+export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'lansweeper'];
 export function clearConnections(db) {
   db.exec('BEGIN');
   try {
