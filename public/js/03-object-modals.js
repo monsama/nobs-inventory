@@ -204,7 +204,10 @@ function ipChoices(input, all){
   if (!free.length) return [{off: true, label: (sub.ranges || []).length && sub.ranges.every(rangeKeptOut) ? `The ranges of ${subnetName(sub)} are all DHCP or reserved` : typed && !all ? 'No free address starts like that' : `No free address in the ranges of ${subnetName(sub)}`}];
   /* The device's own address is in the list too, as its current one; the first other one is the first free. */
   const first = free.find(f => f.ip !== o.ip);
-  return free.map(f => ({v: f.ip, label: f.ip, html: `<span class="mono">${esc(f.ip)}</span> <span class="muted">· ${f.ip === o.ip ? 'current' : f === first ? 'first free' : 'free'}${f.range.use ? ' (' + esc(f.range.use) + ')' : ''}</span>`}));
+  /* A device set to DHCP gets its address from the DHCP server: the list says so above the static addresses. */
+  const dhcpSel = $('#f_' + o.id + '_dhcp'), dhcp = (dhcpSel ? dhcpSel.value : o.dhcp) === 'dhcp';
+  const hint = dhcp ? [{off: true, label: 'This device gets its address from DHCP. Free static addresses:'}] : [];
+  return [...hint, ...free.map(f => ({v: f.ip, label: f.ip, html: `<span class="mono">${esc(f.ip)}</span> <span class="muted">· ${f.ip === o.ip ? 'current' : f === first ? 'first free' : 'free'}${f.range.use ? ' (' + esc(f.range.use) + ')' : ''}</span>`}))];
 }
 /* Under the address: taken by another device, or the gateway of its subnet. */
 function ipNote(input, note){

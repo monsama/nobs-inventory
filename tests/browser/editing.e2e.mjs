@@ -125,6 +125,13 @@ try {
   assert.deepEqual((await p.$$eval('#f_p1_ip_list li', ls => ls.slice(0, 2).map(l => l.textContent.trim()))), ['10.20.0.101 · first free (Static)', '10.20.0.102 · free (Static)']);
   await p.click('#f_p1_ip_list li >> nth=0');
   assert.equal(await p.inputValue('#f_p1_ip'), '10.20.0.101');
+  // set to DHCP, the list says so above the static addresses, and that line cannot be picked
+  await p.selectOption('#f_p1_dhcp', 'dhcp');
+  await p.click('.combo:has(#f_p1_ip) .combo-arrow'); await p.waitForSelector('#f_p1_ip_list li.off');
+  assert.equal((await p.textContent('#f_p1_ip_list li >> nth=0')).trim(), 'This device gets its address from DHCP. Free static addresses:');
+  await p.click('#f_p1_ip_list li >> nth=0', { force: true });
+  assert.equal(await p.inputValue('#f_p1_ip'), '10.20.0.101', 'the hint is not picked');
+  await p.keyboard.press('Escape'); await p.selectOption('#f_p1_dhcp', '');
   await p.fill('#f_p1_ip', '10.20.0.11');
   assert.deepEqual(await p.$$eval('#f_p1_ip_list li', ls => ls.map(l => l.textContent.trim().split(' ')[0])), ['10.20.0.110', '10.20.0.111', '10.20.0.112', '10.20.0.113', '10.20.0.114', '10.20.0.115', '10.20.0.116', '10.20.0.117', '10.20.0.118', '10.20.0.119'], 'typing narrows the list');
   await p.fill('#f_p1_ip', '10.20.0.100');
