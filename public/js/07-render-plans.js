@@ -742,6 +742,7 @@ export function applyState(d){
   MODELS.splice(0, MODELS.length, ...(d.models || []));
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
+  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
   COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';
   SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
   for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
@@ -768,6 +769,7 @@ export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
+      <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
   $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
@@ -796,9 +798,15 @@ export async function clearAll(){
   const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
+  /* The connections go after the devices, so the save above cannot write their settings back. */
+  let connMsg = '';
+  if ($('#clrConn') && $('#clrConn').checked){
+    const c = await fetch('api/connections/clear', {method: 'POST', credentials: 'same-origin'});
+    connMsg = c.ok ? ' Connections removed.' : ' The connections could not be removed.';
+  }
   closeModal();
   await reloadFromServer();
-  toast(j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared'));
+  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 export const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];

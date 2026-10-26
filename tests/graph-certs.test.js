@@ -61,6 +61,11 @@ test('Graph is set up in Settings: IDs, a certificate kept on the server, its .c
     assert.equal((await srv.call('POST', `/api/graph/cert/${two.thumbprint}/use`, { cookie: a.cookie })).status, 200);
     assert.equal((await srv.call('DELETE', '/api/graph/cert/' + one.thumbprint.toLowerCase(), { cookie: a.cookie })).status, 200);
     assert.equal((await srv.call('GET', `/api/graph/cert/${one.thumbprint}/cer`, { cookie: a.cookie })).status, 404);
+    // The one in use can be deleted too, when that is confirmed: Graph is then not set up until another one is made.
+    assert.equal((await srv.call('DELETE', `/api/graph/cert/${two.thumbprint}?inUse=1`, { cookie: a.cookie })).status, 200);
+    st = (await srv.call('GET', '/api/graph/status', { cookie: a.cookie })).json;
+    assert.equal(st.certs.length, 0, 'no certificate left');
+    assert.equal(st.configured, false, 'Graph is off without a certificate');
 
     // The key is in no state, no backup, no log; only sealed in its own table.
     const state = (await srv.call('GET', '/api/state', { cookie: a.cookie })).text;

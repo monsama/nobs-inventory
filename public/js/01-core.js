@@ -224,11 +224,29 @@ export function syncOf(o){
   if (daysSince(o.feed.seen) >= 30) return {k: 'stale', label: 'Stale · last seen ' + o.feed.seen, cls: 'warn'};
   return {k: 'synced', label: 'Synced · ' + o.feed.seen, cls: 'ok'};
 }
-/* The Microsoft Graph status of a device: its join type and compliance. Red when it is not compliant. */
+/* Microsoft Graph. The types a managed company device has: these are expected in Entra and Intune. */
+export const GRAPH_TYPES = ['pc', 'notebook', 'ios', 'android', 'mobile'];
+/* Intune's last contact with a device, else Entra's last sign-in; a device not heard of for 30 days may be gone. */
+export const GRAPH_STALE_DAYS = 30;
+export const graphLast = o => (o.graph && (o.graph.lastCheckIn || o.graph.lastSync || o.graph.lastSignIn)) || '';
+export const graphStale = (o, today = new Date()) => { const t = Date.parse(graphLast(o)); return !isNaN(t) && (today - t) / 864e5 > GRAPH_STALE_DAYS; };
+/* How Intune names a compliance state, and how it reads here. */
+export const COMPLIANCE = { compliant: ['ok', 'Compliant'], noncompliant: ['bad', 'Not compliant'], inGracePeriod: ['warn', 'In grace period'], conflict: ['warn', 'Conflict'],
+  error: ['bad', 'Error'], configManager: ['', 'Config Manager'], unknown: ['', 'Unknown'] };
+export const complianceChip = c => { const x = COMPLIANCE[c]; return c ? `<span class="chip ${x ? x[0] : ''}">${esc(x ? x[1] : c)}</span>` : ''; };
+/* The filters of the sidebar's Microsoft Graph group. Not in Entra or Intune counts only the types expected there. */
+export const GRAPH_FILTERS = {
+  noncompliant: ['Not compliant', 'bad', o => !!o.graph && ['noncompliant', 'error'].includes(o.graph.compliance)],
+  unencrypted: ['Not encrypted', 'warn', o => !!o.graph && o.graph.encrypted === 'no'],
+  stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => !!o.graph && graphStale(o)],
+  missing: ['Not in Entra or Intune', 'off', o => !o.graph && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
+};
+/* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
   if (!SYNC.graph || !o.graph || (!o.graph.join && !o.graph.compliance)) return '';
-  const text = [o.graph.join, o.graph.compliance].filter(Boolean).join(' · ');
-  return `<span class="chip ${o.graph.compliance === 'noncompliant' ? 'bad' : 'ok'}" title="Microsoft Graph">${esc(text)}</span>`;
+  const c = COMPLIANCE[o.graph.compliance];
+  const text = [o.graph.join, c ? c[1] : o.graph.compliance].filter(Boolean).join(' · ');
+  return `<span class="chip ${c && c[0] === 'bad' ? 'bad' : c && c[0] === 'warn' ? 'warn' : 'ok'}" title="Microsoft Entra and Intune">${esc(text)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
 
@@ -293,7 +311,7 @@ export const isAttached = k => k === 'attached';
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
+  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !SYNC.graph || !GRAPH_FILTERS[st.intune] || GRAPH_FILTERS[st.intune][2](o)) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || [])].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

@@ -341,6 +341,12 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .graph-steps .form{grid-template-columns:170px minmax(0,1fr)}
 .gs-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .gs-head .chip{min-width:22px;justify-content:center}
+.gs-sub{margin:2px 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--fg);line-height:1.5}
+.gs-why{margin-top:6px}
+.gu-box{border-top:1px solid var(--bd2)}
+#guList td{white-space:nowrap}
+.gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
+.gs-why>p{margin:4px 0 0}
 /* overview */
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
@@ -872,6 +878,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="wtyList"></div>
     <div class="hdr" id="chkHdr">Lansweeper</div>
     <div class="sidegroup" id="chkList"></div>
+    <div class="hdr" id="grHdr" hidden>Entra &amp; Intune</div>
+    <div class="sidegroup" id="grList" hidden></div>
     <div class="hdr" id="adgHdr" hidden>AD group</div>
     <div class="sidegroup" id="adgList" hidden></div>
   </aside>

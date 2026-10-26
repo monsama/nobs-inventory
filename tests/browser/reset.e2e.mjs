@@ -26,6 +26,7 @@ try {
   await p.click('#setBtn'); await p.click('#setTabs [data-st=maintenance]');
   await p.click('#frReset'); await p.waitForSelector('#frOk');
   await p.fill('#frWord', 'factory reset'); assert.equal(await p.isDisabled('#frOk'), true, 'a wrong word confirms');
+  assert.equal(await p.isChecked('#frBackups'), false, 'backups are kept unless asked');
   await p.fill('#frWord', 'FACTORY RESET'); await p.click('#frOk');
   /* the admin who reset keeps the session, so the page reloads straight into the empty inventory */
   await p.waitForSelector('text=The inventory is empty', { timeout: 15000 });

@@ -1,5 +1,5 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL } from './01-core.js';
+import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
 import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -193,6 +193,18 @@ async function retypeModal(){
 /* Microsoft Graph: the join status, Intune enrolment and compliance of the devices, matched by serial number. Set up in
    four steps; the server makes the certificate and keeps its key, so no file is copied to the server. */
 const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
+/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
+function unmatchedHtml(edit){
+  const list = st.graphUnmatched || [];
+  if (!list.length) return '';
+  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Entra or Intune, not in the inventory</b><span class="cnt">${list.length}</span></div>
+    <p class="note" style="padding:4px 12px 8px">Found at the last sync, by neither serial number nor name. Often phones and tablets Lansweeper does not scan, or devices named differently. Added ones get their type from their system, and Graph keeps them up to date.</p>
+    <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="guList" style="min-width:0"><thead><tr><th><input type="checkbox" id="guAllBox" aria-label="Select all" ${edit ? '' : 'disabled'}></th><th>Name</th><th>System</th><th>Model</th><th>Serial</th><th>Primary user</th><th>Compliance</th><th>Last contact</th></tr></thead><tbody>
+      ${list.map(d => `<tr><td><input type="checkbox" data-gu="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${edit ? '' : 'disabled'}></td><td>${esc(d.name)}</td><td>${esc(d.os || d.platform || (d.join ? d.join : ''))}</td><td>${esc(d.model || '')}</td><td class="mono">${esc(d.serial || '')}</td><td>${esc(d.owner || '')}</td><td>${complianceChip(d.compliance)}</td><td>${esc(day(d.lastSync))}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="addrel" style="padding:8px 12px"><button id="guAdd" disabled>Add selected</button><button id="guAddAll" ${edit ? '' : 'disabled'}>Add all ${list.length}</button></div></div>`;
+}
 export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
@@ -210,29 +222,48 @@ export async function renderSetGraph(){
   const certRows = g.certs.map(c => `<tr><td class="mono">${esc(c.thumbprint)}</td><td>${day(c.created)}</td>
       <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
       <td>${c.inUse ? '<span class="chip ok">In use</span>' : c.onServer ? `<button data-gcuse="${esc(c.thumbprint)}" ${fromServer ? 'disabled title="The server settings decide the certificate"' : ''}>Use this one</button>` : '<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>'}</td>
-      <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${!c.inUse && !c.chosen ? ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" aria-label="Remove this certificate" title="Remove">×</button>` : ''}</td></tr>`).join('');
+      <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${fromServer && c.inUse ? '' : ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" ${c.inUse || c.chosen ? 'data-gcinuse="1"' : ''} aria-label="Delete this certificate" title="Delete">×</button>`}</td></tr>`).join('');
   root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph ${g.configured ? '<span class="chip ok">Connected</span>' : '<span class="cnt">not set up</span>'}</div>
     <p class="note">Reads the Entra join status, Intune enrolment and compliance of the devices, matched by serial number. Values the inventory does not have yet are filled in; the rest stays. It only reads, it changes nothing in Entra or Intune.</p>
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
-      <li><div class="gs-head">${done(ids)}<b>Register an app in Entra</b></div>
-        <p class="note">In the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a>: Applications → App registrations → New registration. Name it e.g. “NOBS Inventory”, accounts in this organizational directory only, no redirect URI. Its Overview page shows the two IDs below.</p>
+      <li><div class="gs-head">${done(ids)}<b>Register the app in Entra</b></div>
+        <ol class="gs-sub">
+          <li>Open the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a> → <b>Applications</b> → <b>App registrations</b> → <b>New registration</b>.</li>
+          <li><b>Name:</b> <span class="mono">NOBS Inventory</span></li>
+          <li><b>Supported account types:</b> <i>Accounts in this organizational directory only (single tenant)</i></li>
+          <li><b>Redirect URI:</b> leave it empty. The inventory signs in as itself with a certificate, not as a person, so nothing is sent back to a web address.</li>
+          <li>Click <b>Register</b>. The app's <b>Overview</b> page opens: copy its two IDs into the fields below and save.</li>
+        </ol>
         <div class="form" style="padding:8px 0 0">
           <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="1b2c3d4e-5f60-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
           <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="9a8b7c6d-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
         </div>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
-      <li><div class="gs-head"><b>Give it read permissions</b></div>
-        <p class="note">In the app: API permissions → Add a permission → Microsoft Graph → <b>Application permissions</b>: <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span>. Then <b>Grant admin consent</b>. Test connection below checks both.</p></li>
-      <li><div class="gs-head">${done(!!chosen || fromServer)}<b>Create a certificate and upload it to the app</b></div>
-        <p class="note">Create one here. The server keeps it with its private key, encrypted; the key never leaves the server. Download the .cer (any time, from the list) and upload it in the app: Certificates &amp; secrets → Certificates → Upload certificate. Entra then shows the same thumbprint as the list.</p>
-        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer in use</a>` : ''}</div></li>
+      <li><div class="gs-head">${done(!!chosen || fromServer)}<b>Give the app a certificate</b></div>
+        <ol class="gs-sub">
+          <li>Click <b>Create a certificate</b> below. The server keeps its private key, encrypted; the key never leaves the server.</li>
+          <li>Click <b>Download the .cer</b>.</li>
+          <li>In the app in Entra: <b>Certificates &amp; secrets</b> → tab <b>Certificates</b> (not Client secrets) → <b>Upload certificate</b> → choose the .cer → <b>Add</b>.</li>
+          <li>Entra lists it with a thumbprint: the same as in the list at the bottom of this box.</li>
+        </ol>
+        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer</a>` : ''}</div></li>
+      <li><div class="gs-head"><b>Allow it to read devices</b></div>
+        <ol class="gs-sub">
+          <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
+          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>.</li>
+          <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
+          <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
+        </ol>
+        <details class="gs-why"><summary>Why Application and not Delegated?</summary>
+          <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
       <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
-        <p class="note">Test connection signs in and reads one device from each list. Sync now reads them all; it also runs every night at 06:00.</p>
+        <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs every night at 06:00.</p>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div></li>
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
-    <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}</div>`;
+    <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
+    ${unmatchedHtml(edit)}</div>`;
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
@@ -259,18 +290,39 @@ export async function renderSetGraph(){
     btn.disabled = false;
     if (!x.ok) return say(x.j.error || 'The sync failed.', true);
     const c = x.j.counts;
-    say(`${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`);
-    await reloadFromServer();
+    await reloadFromServer(); await renderSetGraph();
+    say(`${c.devices} devices in Entra and Intune: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.${c.unmatched ? ` ${c.unmatched} are not in the inventory: see the list below.` : ''}`);
   };
   root.querySelectorAll('[data-gcuse]').forEach(b => b.onclick = async () => {
     const x = await post(`api/graph/cert/${encodeURIComponent(b.dataset.gcuse)}/use`);
     if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
     toast('The server signs in with this certificate now'); await refreshGraph();
   });
+  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
+     certificate is created and uploaded. */
+  /* Devices Graph has that the inventory does not: add the ticked ones, or all. */
+  const addGraph = async ids => {
+    const x = await post('api/graph/add', {ids});
+    if (!x.ok){ toast(x.j.error || 'Not added.'); return; }
+    toast(`${x.j.added} ${x.j.added === 1 ? 'device' : 'devices'} added from Microsoft Graph`);
+    await reloadFromServer(); await renderSetGraph();
+  };
+  const gu = $('#guList');
+  if (gu){
+    const picked = () => [...gu.querySelectorAll('[data-gu]:checked')].map(c => c.dataset.gu);
+    const fit = () => { const n = picked().length; $('#guAdd').disabled = !n; $('#guAdd').textContent = n ? `Add ${n} selected` : 'Add selected'; };
+    gu.querySelectorAll('[data-gu]').forEach(c => c.onchange = fit);
+    $('#guAllBox').onchange = e => { gu.querySelectorAll('[data-gu]').forEach(c => { c.checked = e.target.checked; }); fit(); };
+    $('#guAdd').onclick = () => addGraph(picked());
+    $('#guAddAll').onclick = () => { if (confirm(`Add all ${(st.graphUnmatched || []).length} devices to the inventory?`)) addGraph('all'); };
+  }
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this certificate and delete its key here? Delete it in Entra as well, under Certificates & secrets.')) return;
-    const d = await fetch('api/graph/cert/' + encodeURIComponent(b.dataset.gcdel), {method: 'DELETE', credentials: 'same-origin'});
-    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not removed.'); return; }
+    const t = b.dataset.gcdel, inUse = !!b.dataset.gcinuse;
+    if (!confirm(`Delete certificate ${t}? Its private key is deleted from the server; this cannot be undone. Delete it in Entra as well (the app → Certificates & secrets → Certificates).`
+      + (inUse ? '\n\nThis is the certificate the inventory signs in with: Microsoft Graph stops working until you create a new one and upload it to Entra.' : ''))) return;
+    const d = await fetch('api/graph/cert/' + encodeURIComponent(t) + (inUse ? '?inUse=1' : ''), {method: 'DELETE', credentials: 'same-origin'});
+    if (!d.ok){ const e = await d.json().catch(() => ({})); toast(e.error || 'Not deleted.'); return; }
+    toast('Certificate deleted' + (inUse ? '. Microsoft Graph is off until a new one is uploaded.' : ''));
     await refreshGraph();
   });
   applyRole();
@@ -674,15 +726,16 @@ export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   $('#setMaint').innerHTML = `${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
-    <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings. Only your own account stays, with its password, so you can sign in again.</div>
-    <div class="note" style="padding:10px 12px">Backups are not affected, and the audit log keeps a record of the reset. The Lansweeper token and the directory password stay on the server.</div>
+    <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
+    <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
 }
 export function factoryResetModal(){
   modal(`<div class="mh">Factory reset?</div>
-    <div class="mb"><p class="note">Everything is removed, except your own account. This cannot be undone: only a backup brings the data back.</p>
+    <div class="mb"><p class="note">Everything is removed, except your own account, including the LDAP and Microsoft Graph connections with Graph's certificates and keys, and the entry sheets. This cannot be undone: only a backup brings the data back.</p>
+      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="frBackups"> Also delete all backups (then nothing can be brought back)</label>
       <label class="note" for="frWord" style="display:block;margin-top:6px">Type FACTORY RESET to confirm</label><input id="frWord" autocomplete="off" aria-label="Type FACTORY RESET" style="width:100%"></div>
     <div class="mf"><button id="frCancel">Cancel</button><button id="frOk" class="danger-text" disabled>Factory reset</button></div>`, 'sm');
   $('#frWord').oninput = () => { $('#frOk').disabled = $('#frWord').value.trim() !== 'FACTORY RESET'; };
@@ -690,7 +743,7 @@ export function factoryResetModal(){
   $('#frCancel').onclick = closeModal;
   $('#frOk').onclick = async () => {
     clearTimeout(SERVER.timer);
-    const r = await fetch('api/factory-reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({confirm: 'FACTORY RESET'})});
+    const r = await fetch('api/factory-reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({confirm: 'FACTORY RESET', backups: $('#frBackups').checked})});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The reset did not run.'); return; }
     location.reload();
@@ -709,11 +762,12 @@ export function renderSetLdap(){
   const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = !!L.url && edit;
   $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory</div>
-    <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account's password is not stored here: the server reads it from its environment (NI_LDAP_SERVICE_PASSWORD).</div>
+    <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
+      <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
@@ -728,6 +782,7 @@ export function renderSetLdap(){
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+  if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
@@ -754,6 +809,37 @@ export function renderSetLdap(){
       + (c.computerError ? ` Computer groups could not be read: ${c.computerError}` : c.computers != null ? ` Computer groups changed on ${c.computers} ${c.computers === 1 ? 'device' : 'devices'}.` : '');
     await reloadFromServer();
   };
+}
+/* The service account's password: saved encrypted on the server, never sent back. Set on the server instead, it says so. */
+async function loadLdapPassword(replace = false){
+  const box = $('#ldapPw'); if (!box) return;
+  const r = await fetch('api/ldap/password', {credentials: 'same-origin'}).catch(() => null);
+  const j = r && r.ok ? await r.json().catch(() => ({})) : {};
+  if (!$('#ldapPw')) return;
+  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  if (j.source === 'server'){ box.innerHTML = '<span class="muted">Set on the server (NI_LDAP_SERVICE_PASSWORD), which takes precedence</span>'; return; }
+  if (j.source === 'app' && !replace){
+    box.innerHTML = `<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${esc(day(j.setAt))}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
+    $('#lpReplace').onclick = () => loadLdapPassword(true);
+    $('#lpRemove').onclick = async () => {
+      if (!confirm('Remove the saved password? The directory cannot be read until a new one is saved.')) return;
+      await fetch('api/ldap/password', {method: 'DELETE', credentials: 'same-origin'});
+      toast('Password removed'); loadLdapPassword();
+    };
+    return;
+  }
+  box.innerHTML = `<input id="lk_pw" type="password" autocomplete="new-password" placeholder="The service account’s password" aria-label="Service account password"><button type="button" id="lpSave" style="flex:none">Save password</button>${replace ? '<button type="button" id="lpCancel" style="flex:none">Cancel</button>' : ''}`;
+  const save = async () => {
+    const pw = $('#lk_pw').value;
+    if (!pw){ $('#lk_pw').focus(); return; }
+    const x = await fetch('api/ldap/password', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})});
+    const e = await x.json().catch(() => ({}));
+    if (!x.ok){ toast(e.error || 'Not saved.'); return; }
+    toast('Password saved. Test connection checks it.'); loadLdapPassword();
+  };
+  $('#lpSave').onclick = save;
+  $('#lk_pw').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); save(); } };
+  if ($('#lpCancel')) $('#lpCancel').onclick = () => loadLdapPassword();
 }
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
 export function sanitizeSvg(text){

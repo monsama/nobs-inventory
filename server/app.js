@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset } from './state.js';
+import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
 import { cleanIpLocations } from './lsnet.js';
@@ -11,7 +11,7 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from '
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { autoBackup, takeBackup, restoreBackup } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
+import { entraThumbprintOf, syncGraph, testGraph, addGraphDevices } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
 import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
@@ -19,6 +19,7 @@ import { generateGraphCert } from './cert.js';
 import crypto from 'node:crypto';
 import tls from 'node:tls';
 import { syncLdapUsers } from './ldap-sync.js';
+import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
 
@@ -29,12 +30,19 @@ const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.js
 
 export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'caddy', port: 443 } }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
-  const SHEET_KEY = sheetKey || crypto.randomBytes(32);
+  const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   initSheets(db);
   initGraphKeys(db);
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
-  /* The directory settings are read when they are needed, so a change in Settings applies without a restart. */
-  const cfgLdap = () => (ldapConfig ? ldapConfig() : ldap);
+  /* The directory settings are read when they are needed, so a change in Settings applies without a restart. The service
+     account's password is the server's (NI_LDAP_SERVICE_PASSWORD) when it has one, else the one saved in Settings. */
+  const cfgLdap = () => {
+    const c = ldapConfig ? ldapConfig() : ldap;
+    if (!c || c.servicePassword) return c;
+    const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
+    return saved ? { ...c, servicePassword: saved } : c;
+  };
+  const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
   const app = express();
   app.disable('x-powered-by');
   /* Caddy is the only proxy in front of the app: its forwarded address is the client's, so login throttling is per user. */
@@ -197,8 +205,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/factory-reset', requireUser, requireAdmin, (req, res, next) => {
     try {
       if (!req.body || req.body.confirm !== 'FACTORY RESET') throw new HttpError(400, 'Type FACTORY RESET to confirm.');
-      audit(db, req.user.id, 'factory reset');
-      factoryReset(db, req.user.id);
+      const backups = req.body.backups === true;
+      audit(db, req.user.id, 'factory reset' + (backups ? ', backups deleted' : ''));
+      factoryReset(db, req.user.id, { backups });
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* The connections to other systems are removed: LDAP and Microsoft Graph settings, Graph's certificates and keys,
+     the Lansweeper API settings and push token. The inventory itself stays. */
+  app.post('/api/connections/clear', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      clearConnections(db);
+      audit(db, req.user.id, 'connections removed: LDAP, Microsoft Graph with its certificates, Lansweeper API and push token');
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
@@ -235,6 +253,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
+  /* The service account's password: set or replaced here, removed here, never read back. The server's own setting wins. */
+  app.get('/api/ldap/password', requireUser, requireAdmin, (req, res) => {
+    res.json({ source: ldapPasswordFromServer() ? 'server' : appSecretSetAt(db, 'ldapServicePassword') ? 'app' : null, setAt: appSecretSetAt(db, 'ldapServicePassword') });
+  });
+  app.post('/api/ldap/password', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const pw = req.body && typeof req.body.password === 'string' ? req.body.password : '';
+      if (!pw) throw new HttpError(400, 'Enter the password.');
+      if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
+      setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
+      audit(db, req.user.id, 'directory service account password saved');
+      res.json({ ok: true, setAt: appSecretSetAt(db, 'ldapServicePassword') });
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/ldap/password', requireUser, requireAdmin, (req, res) => {
+    dropAppSecret(db, 'ldapServicePassword');
+    audit(db, req.user.id, 'directory service account password removed');
+    res.json({ ok: true });
+  });
+  /* The nightly run reads the directory with the same settings and password. */
+  app.locals.ldapConfig = cfgLdap;
   /* Test connection: reads the users of the saved directory settings and says how many are in scope. */
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {
@@ -354,7 +393,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const s = loadState(db), t = String(req.params.thumbprint).toUpperCase();
       const g = cfgGraph();
-      if ((g && entraThumbprintOf(g.certPem) === t) || (s.graph && s.graph.thumbprint === t)) throw new HttpError(400, 'This is the certificate the server signs in with. Use another one first.');
+      /* One set in the server's environment is not the app's to remove. The one the app signs in with can go when that is
+         asked for: Graph then stops until another certificate is created or chosen. */
+      if (graphSource() === 'server' && g && entraThumbprintOf(g.certPem) === t) throw new HttpError(400, 'This certificate is set in the server settings (NI_GRAPH_CERT). Remove it there.');
+      const inUse = s.graph && s.graph.thumbprint === t;
+      if (inUse && req.query.inUse !== '1') throw new HttpError(400, 'This is the certificate the server signs in with. Use another one first, or confirm removing it.');
+      if (inUse) delete s.graph.thumbprint;
       s.graphCerts = (s.graphCerts || []).filter(c => c.thumbprint !== t);
       saveState(db, s);
       dropGraphKey(db, t);
@@ -380,6 +424,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
   });
+  /* Adds devices Graph has that the inventory does not: the ones picked, or all of them. */
+  app.post('/api/graph/add', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const ids = req.body && req.body.ids === 'all' ? 'all' : Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String).slice(0, 2000) : null;
+      if (!ids) throw new HttpError(400, 'Say which devices to add.');
+      const added = addGraphDevices(db, ids, req.user.name || req.user.login || 'an admin');
+      audit(db, req.user.id, `added ${added.length} devices from Microsoft Graph`);
+      res.json({ added: added.length });
+    } catch (e) { next(e); }
+  });
+  /* The nightly run uses the same connection as the buttons. */
+  app.locals.graphConfig = cfgGraph;
   /* Entry sheets: admins only. The password is in the answer that makes the sheet and in a re-download until it is
      marked as changed or PASSWORD_DAYS have passed; it is never written to the log. */
   app.get('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
