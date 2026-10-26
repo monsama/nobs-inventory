@@ -366,7 +366,7 @@ export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = 'button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+export const RO_NAV = 'button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
 export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
@@ -700,6 +700,8 @@ export function factoryResetModal(){
    account's password is not stored there: the server reads it from its environment. */
 /* The same default as the server: the login at the domain the search base names. */
 const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
+/* The computers are looked for in the whole domain of the search base, unless a base is given. */
+const computerDefault = base => { const dcs = String(base || '').split(',').map(x => x.trim()).filter(x => /^DC=/i.test(x)); return dcs.length ? dcs.join(',') : 'DC=example,DC=ch'; };
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -715,16 +717,19 @@ export function renderSetLdap(){
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
-    <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
+    <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter || L.computerBase || L.computerGroups === 'off' ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
       <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
         ${field('bindTemplate', 'Sign-in name', bindDefault(L.searchBase) + '   (or EXAMPLE\\{login})')}
         ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
         ${field('userFilter', 'User filter', '(objectClass=person)')}
+        ${field('computerBase', 'Computers search base', computerDefault(L.searchBase))}
+        <label for="lk_computerGroups">Computer groups</label><label class="pchk" style="width:auto"><input type="checkbox" id="lk_computerGroups" ${L.computerGroups === 'off' ? '' : 'checked'} ${ro}> Read the groups of each computer account (shown on the device)</label>
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
+  $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
   $('#ldapTest').onclick = async () => {
     const msg = $('#ldapMsg'); msg.textContent = 'Testing…';
@@ -745,7 +750,8 @@ export function renderSetLdap(){
     btn.disabled = false;
     if (!r.ok){ msg.innerHTML = bad(j.error || 'The sync failed.'); return; }
     const c = j.counts;
-    msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`;
+    msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`
+      + (c.computerError ? ` Computer groups could not be read: ${c.computerError}` : c.computers != null ? ` Computer groups changed on ${c.computers} ${c.computers === 1 ? 'device' : 'devices'}.` : '');
     await reloadFromServer();
   };
 }

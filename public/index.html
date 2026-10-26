@@ -82,6 +82,9 @@ details.fmenu .menubox{min-width:210px;top:30px}
 .nics li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
 .nics .nic-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nics .nic-meta{grid-column:1/-1}
+.adgroups{display:flex;flex-wrap:wrap;gap:4px;padding:3px 0;min-width:0}
+.adgroups .chip.adg{cursor:pointer;border:1px solid var(--bd);background:var(--panel2);color:var(--fg);font:inherit;font-size:12px}
+.adgroups .chip.adg:hover{border-color:var(--accent)}
 label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}
@@ -832,6 +835,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="wtyList"></div>
     <div class="hdr" id="chkHdr">Lansweeper</div>
     <div class="sidegroup" id="chkList"></div>
+    <div class="hdr" id="adgHdr" hidden>AD group</div>
+    <div class="sidegroup" id="adgList" hidden></div>
   </aside>
 
   <section id="content">

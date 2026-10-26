@@ -223,3 +223,29 @@ test('a failed directory test says what to fix, in the words of the settings', a
   assert.match(ldapHint('0000208D: NameErr: DSID-03100241, problem 2001 (NO_OBJECT)  No Such Object'), /search base does not exist/);
   assert.equal(ldapHint('something else'), null);
 });
+
+test('computer groups: the sync reads the computer accounts and gives each device of the same name its groups', async () => {
+  const { ldapListComputers, computerBaseOf } = await import('../server/ldap.js');
+  const { applyComputerGroups } = await import('../server/ldap-sync.js');
+  assert.equal(computerBaseOf({ searchBase: 'OU=Users,DC=example,DC=ch' }), 'DC=example,DC=ch', 'the whole domain by default');
+  assert.equal(computerBaseOf({ searchBase: 'OU=Users,DC=example,DC=ch', computerBase: 'OU=Clients,DC=example,DC=ch' }), 'OU=Clients,DC=example,DC=ch');
+  const computer = (cn, groups) => ({ attrs: { cn: [cn], dNSHostName: [cn.toLowerCase() + '.test.ch'], memberOf: groups.map(g => `CN=${g},OU=Groups,DC=test`), objectClass: ['computer'] } });
+  const dir = await startDirectory({
+    'cn=zh-pc-0151,ou=clients,dc=test': computer('ZH-PC-0151', ['SW-Office365', 'GPO-Kiosk']),
+    'cn=zh-pc-0152,ou=clients,dc=test': computer('ZH-PC-0152', []),
+    'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory'], 'x'),
+  });
+  try {
+    const list = await ldapListComputers(cfg(`ldap://127.0.0.1:${dir.address().port}`));
+    assert.deepEqual(list.map(c => [c.name, c.groups]), [['ZH-PC-0151', ['GPO-Kiosk', 'SW-Office365']], ['ZH-PC-0152', []]], 'only computers, groups by name');
+    const s = { objs: [
+      { id: 'a', name: 'zh-pc-0151', status: 'active' }, { id: 'b', name: 'ZH-PC-0152.test.ch', status: 'active', adGroups: ['Old'] },
+      { id: 'c', name: 'SW-01', status: 'active' }, { id: 'd', name: 'ZH-PC-0151', status: 'retired' },
+    ] };
+    assert.equal(applyComputerGroups(s, list), 2);
+    assert.deepEqual(s.objs[0].adGroups, ['GPO-Kiosk', 'SW-Office365'], 'matched by name, whatever the case');
+    assert.equal(s.objs[1].adGroups, undefined, 'an account in no group: none');
+    assert.equal(s.objs[3].adGroups, undefined, 'a retired device is left alone');
+    assert.equal(applyComputerGroups(s, list), 0, 'nothing changes the second time');
+  } finally { await new Promise(r => dir.close(r)); }
+});

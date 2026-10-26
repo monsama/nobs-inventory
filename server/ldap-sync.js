@@ -2,7 +2,7 @@ import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
 import { loadState, saveState } from './state.js';
 import { audit } from './db.js';
-import { ldapListUsers } from './ldap.js';
+import { ldapListComputers, ldapListUsers } from './ldap.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
@@ -30,11 +30,35 @@ export async function syncLdapUsers(db, config) {
   for (const u of s.users) {
     if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; counts.deactivated++; }
   }
+  /* The computers' groups: read after the users, and a directory that will not list computers does not stop the user sync. */
+  if (config.computerGroups !== 'off') {
+    try { counts.computers = applyComputerGroups(s, await ldapListComputers(config)); }
+    catch (e) { counts.computerError = e.message; }
+  }
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
-  if (counts.created || counts.updated || counts.deactivated) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (counts.created || counts.updated || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
+}
+
+/* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name),
+   as adGroups. A device with no account, or whose account is in no group, has none. Returns how many devices changed. */
+export function applyComputerGroups(s, computers) {
+  const byName = new Map();
+  for (const c of computers) {
+    for (const k of [c.name, c.dns, String(c.dns || '').split('.')[0]]) if (k && !byName.has(k.toLowerCase())) byName.set(k.toLowerCase(), c);
+  }
+  let n = 0;
+  for (const o of s.objs) {
+    if (o.status === 'retired' || !o.name) continue;
+    const key = String(o.name).toLowerCase(), c = byName.get(key) || byName.get(key.split('.')[0]);
+    const groups = c && c.groups.length ? c.groups : null;
+    if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null)) continue;
+    if (groups) o.adGroups = groups; else delete o.adGroups;
+    n++;
+  }
+  return n;
 }
