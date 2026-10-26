@@ -1,6 +1,7 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
+import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render-plans.js';
@@ -92,7 +93,7 @@ export function contractModal(c, preset = []){
     <div class="mb"><div class="form" style="padding:0">
       <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${esc(cur.name)}" placeholder="e.g. Switch maintenance HPE">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
-      <label for="ctSupplier">Supplier</label><input id="ctSupplier" maxlength="120" value="${esc(cur.supplier || '')}">
+      <label for="ctSupplier">Supplier</label><input id="ctSupplier" maxlength="120" value="${esc(cur.supplier || '')}" list="ctSuppliers"><datalist id="ctSuppliers">${contactCompanies().map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
       <label for="ctStart">Starts</label><input id="ctStart" type="date" value="${esc(cur.start || '')}">
       <label for="ctEnd">Ends</label><input id="ctEnd" type="date" value="${esc(cur.end || '')}">

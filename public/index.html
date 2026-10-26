@@ -371,6 +371,36 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
 .ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0}
+/* contacts: one card per person, the company's own first, then each IT partner */
+.cn{padding:12px;display:flex;flex-direction:column;gap:14px}
+.cn-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
+.cn-group>.hdr{justify-content:flex-start;gap:8px;border-radius:var(--r-m) var(--r-m) 0 0}
+.cn-group>.hdr .cnt{margin-left:0}
+.cn-sub{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:10px}
+.cn-card{display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--bd);border-left:3px solid var(--cn,#2563eb);border-radius:var(--r-m);min-width:0}
+.cn-card.internal{--cn:#0d9488}.cn-card.external{--cn:#2563eb}
+.cn-head{display:flex;align-items:center;gap:10px;padding:10px 10px 6px}
+.cn-avatar{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--cn) 16%,var(--bg));color:color-mix(in srgb,var(--cn) 60%,var(--fg));font-weight:700;font-size:12px;letter-spacing:.5px}
+.cn-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cn-who b,.cn-who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-who span{font-size:12px}
+.cn-ways{display:flex;flex-direction:column;gap:3px;padding:0 10px 8px 54px;font-size:12px;min-width:0}
+.cn-way{color:var(--accent);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-way:hover{text-decoration:underline}
+.cn-note{margin:0 10px 8px 54px;font-size:12px;color:var(--muted);white-space:pre-line}
+.cn-foot{margin-top:auto;padding:6px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) 0;font-size:12px}
+.cn-foot .link[disabled]{color:var(--muted);cursor:default;text-decoration:none}
+.cn-kinds{flex-wrap:wrap;gap:4px 14px}
+/* on a device page: who is responsible for it */
+.resp{display:flex;flex-direction:column}
+.resp-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
+.resp-row:last-child{border-bottom:0}
+.resp-row>.k{color:var(--muted);width:118px;flex:none;font-size:12px;padding-top:6px}
+.resp-pick{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.resp-pick select{width:100%}
+.resp-pick .cn-ways{padding:0}
+@media (max-width:760px){.cn-ways,.cn-note{padding-left:10px;margin-left:10px}.cn-ways{margin-left:0}.resp-row>.k{width:80px}}
 .ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
 .ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
 .ct-sum-note{margin:0;padding:6px 12px 10px}
@@ -921,6 +951,8 @@ table.grid a.rowopen:hover{text-decoration:underline}
     <div class="sidegroup" id="grList" hidden></div>
     <div class="hdr" id="osHdr" hidden>Operating system</div>
     <div class="sidegroup" id="osList" hidden></div>
+    <div class="hdr" id="respHdr" hidden>Responsible</div>
+    <div class="sidegroup" id="respList" hidden></div>
     <div class="hdr" id="adgHdr" hidden>AD group</div>
     <div class="sidegroup" id="adgList" hidden></div>
   </aside>
