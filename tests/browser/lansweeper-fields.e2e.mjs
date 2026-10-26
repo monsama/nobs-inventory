@@ -132,7 +132,7 @@ try {
   // with the sync paused, only the product names show: the scan state is out of date
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = false; (await import('/js/02-views.js')).openObj('o1'); });
   await page.waitForSelector('.avpick .avitem');
-  assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
+  assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.querySelector('b').textContent.trim())), ['Windows Defender', 'SentinelOne']);
   await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
 
   // the other network adapters show under the MAC address, are found by the search, and count as an address in use

@@ -72,6 +72,13 @@ $av = New-Table @('AssetID','DisplayName','onAccessScanningEnabled','productUpTo
 $h = Get-HealthByAsset (New-Conn $av)
 Check 'antivirus: both products' $h['7']['av'] 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'
 Check 'antivirus: one product' $h['8']['av'] 'Sophos, scanning OFF, up to date'
+
+# Disks: a CD/DVD drive is listed as optical, a drive without a size by its letter only.
+$script:Cols = @{ tblVolume = @{ driveletter = 'DriveLetter'; drivetype = 'DriveType' } }
+$vol = New-Table @('AssetID','DriveLetter','Capacity','FreeSpace','DriveType') @(
+  @('7', 'C:', '254721126400', '56908316672', '3'), @('7', 'D:', '', '', '5'), @('7', 'E:', '', '', '2'))
+$h = Get-HealthByAsset (New-Conn $vol)
+Check 'disks: optical and no size' ($h['7']['disk'] -replace '\d[\d,.’'']*/[\d,.’'']+ GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
 $script:Cols = $saveCols
 
 # What the push leaves out is counted in Lansweeper and said in the log.

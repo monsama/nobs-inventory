@@ -88,7 +88,7 @@ $script:Wanted = [ordered]@{
     tblSoftwareUni = @('SoftID', 'softwareName')
     tblBIOS        = @('AssetID', 'Version')
     tblUptime      = @('AssetId', 'EventTime')
-    tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace')
+    tblVolume      = @('AssetID', 'DriveLetter', 'Capacity', 'FreeSpace', 'DriveType')
     tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
     tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
     web50repvCenterVmwareGuestNetworks = @('AssetID', 'Host')
@@ -433,15 +433,17 @@ function Get-HealthByAsset($conn) {
         try { while ($rd.Read()) { $id = ConvertTo-Text $rd['AssetId']; if ($id -and $rd['last'] -is [datetime]) { (Get-Entry $id)['boot'] = $rd['last'].ToString('yyyy-MM-dd HH:mm') } } } finally { $rd.Close() }
     }
     if (Test-Col 'tblVolume' 'DriveLetter') {
-        $r = $conn.CreateCommand(); $r.CommandText = 'SELECT [AssetID], [DriveLetter], [Capacity], [FreeSpace] FROM [tblVolume] WHERE [DriveLetter] IS NOT NULL'
+        $type = if (Test-Col 'tblVolume' 'DriveType') { '[DriveType]' } else { 'NULL AS [DriveType]' }
+        $r = $conn.CreateCommand(); $r.CommandText = "SELECT [AssetID], [DriveLetter], [Capacity], [FreeSpace], $type FROM [tblVolume] WHERE [DriveLetter] IS NOT NULL"
         $rd = $r.ExecuteReader()
         try { while ($rd.Read()) {
             $id = ConvertTo-Text $rd['AssetID']; $letter = ConvertTo-Text $rd['DriveLetter']
             if (-not $id -or -not $letter) { continue }
             $e = Get-Entry $id
             $capacity = ConvertTo-Text $rd['Capacity']; $free = ConvertTo-Text $rd['FreeSpace']
-            $size = if ($capacity -match '^\d+$') { '{0:N0}/{1:N0} GB' -f ([double]$free / 1GB), ([double]$capacity / 1GB) } else { '' }
-            $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size") | Where-Object { $_ }) -join '; '
+            # A CD/DVD drive (drive type 5) is listed as optical; it has no size, or only that of the disc in it.
+            $size = if ((ConvertTo-Text $rd['DriveType']) -eq '5') { 'optical' } elseif ($capacity -match '^\d+$') { '{0:N0}/{1:N0} GB' -f ([double]$free / 1GB), ([double]$capacity / 1GB) } else { '' }
+            $e['disk'] = (@($e['disk'], "$($letter.TrimEnd(':')): $size".Trim()) | Where-Object { $_ }) -join '; '
         } } finally { $rd.Close() }
     }
     if (Test-Col 'tblQuickFixEngineering' 'InstalledOn') {
