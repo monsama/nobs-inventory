@@ -172,6 +172,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow button{width:100%;white-space:nowrap}
+/* Delete in the Object types table is as wide as in the other Settings lists. */
+button[data-td]{min-width:92px}
 .lrow.head .n{text-align:right}
 .lempty{padding:14px 12px;margin:0;color:var(--muted)}
 .lpanel-add{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--bd2)}
@@ -370,14 +372,14 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
-.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0}
+.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0;align-items:flex-start}
 /* contacts: one card per person, the company's own first, then each IT partner */
-.cn{padding:12px;display:flex;flex-direction:column;gap:14px}
+.cn{padding:12px;display:flex;flex-direction:column;gap:12px}
 .cn-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
 .cn-group>.hdr{justify-content:flex-start;gap:8px;border-radius:var(--r-m) var(--r-m) 0 0}
 .cn-group>.hdr .cnt{margin-left:0}
 .cn-sub{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
-.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:10px}
+.cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .cn-card{display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--bd);border-left:3px solid var(--cn,#2563eb);border-radius:var(--r-m);min-width:0}
 .cn-card.internal{--cn:#0d9488}.cn-card.external{--cn:#2563eb}
 .cn-head{display:flex;align-items:center;gap:10px;padding:10px 10px 6px}
@@ -386,13 +388,19 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .cn-who b,.cn-who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn-who span{font-size:12px}
 .cn-ways{display:flex;flex-direction:column;gap:3px;padding:0 10px 8px 54px;font-size:12px;min-width:0}
-.cn-way{color:var(--accent);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-way{color:var(--linktext, var(--accent));text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn-way:hover{text-decoration:underline}
 .cn-note{margin:0 10px 8px 54px;font-size:12px;color:var(--muted);white-space:pre-line}
 .cn-foot{margin-top:auto;padding:6px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) 0;font-size:12px}
 .cn-foot .link[disabled]{color:var(--muted);cursor:default;text-decoration:none}
-.cn-kinds{flex-wrap:wrap;gap:4px 14px}
+.cn-kinds{flex-wrap:wrap;gap:4px 14px;min-height:28px;align-items:center}
+.cn-kinds .pchk{width:auto}
 .usrcs{display:inline-flex;flex-wrap:wrap;gap:4px}
+/* Where a person comes from is not a state: a neutral chip with the source's colour as a dot. */
+.usrc .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.sdot.ldap{background:#7c3aed}.sdot.entra{background:#2563eb}.sdot.lansweeper{background:#0d9488}.sdot.manual{background:var(--muted)}
+.tbgroup{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+@media (max-width:760px){.map-hint{right:110px}}
 /* on a device page: who is responsible for it */
 .resp{display:flex;flex-direction:column}
 .resp-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
@@ -442,11 +450,14 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 /* costs: contracts, licences */
 .sw-page{display:flex;flex-direction:column;gap:12px}
 .sw-page>.panelbox.lic{margin:12px 12px 0}
+/* The lists under the summaries keep the same 12px gutter and a frame, like the panels above them. */
+.sw-page>.gridwrap,.ct-wrap{margin:0 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m);overflow:auto}
+.ct-wrap{margin-top:12px}
 .sw-page>.panelbox.lic>.hdr+.note{margin:0;padding:9px 12px;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .lic-bar{display:inline-block;width:90px;height:8px;border-radius:4px;background:var(--bd2);vertical-align:middle;margin-right:8px;overflow:hidden}
 .lic-bar>span{display:block;height:100%;background:var(--accent)}
 .lic-bar.over>span{background:var(--danger)}
-.lic-mark{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--bd);border-radius:var(--r-s);font-size:11px;font-weight:600;line-height:16px;color:var(--muted);vertical-align:1px}
+.lic-mark{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--bd);border-radius:var(--r-s);font-size:11px;font-weight:600;letter-spacing:.3px;line-height:16px;color:var(--muted);vertical-align:1px}
 .lic-mark.over{background:var(--danger-bg);border-color:var(--danger-bg);color:#fff}
 .ct-devs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-top:6px}
 .ct-devs .pchk{font-size:13px}
@@ -490,6 +501,8 @@ table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover
 table.grid[data-pinned="3"] tr>:nth-child(3),table.grid[data-pinned="2"] tr>:nth-child(2),table.grid[data-pinned="1"] tr>:nth-child(1){box-shadow:4px 0 6px -4px rgba(0,0,0,.35)}
 table.grid td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
 table.grid.mini{min-width:640px}
+/* In a device page's side panel a small table fits the panel; it does not ask for the width of a full page. */
+.obj .panelbox table.grid.mini{min-width:0}
 table.grid.mini tbody tr{cursor:default}
 .tdot{display:inline-flex;align-items:center;gap:6px}
 /* Columns: drag the edge of a header to resize it, drag a header onto another to move it (as in NOBS SQL). */
@@ -527,7 +540,7 @@ table.grid.sw th.sw-cnt{width:170px}
 .sw-row.open .sw-tg svg{transform:rotate(90deg)}
 .sw-row.open .sw-tg{color:var(--accent)}
 .vchips{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
-.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:999px;font-family:var(--mono);font-size:11px;line-height:16px;background:var(--bg)}
+.vchip{display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border:1px solid var(--bd);border-radius:var(--r-s);font-family:var(--mono);font-size:11px;font-weight:600;line-height:16px;background:var(--bg)}
 .vchip i{font-style:normal;color:var(--muted);font-family:inherit}
 .vchip.odd{border-color:var(--warn);color:var(--warntext)}
 .sw-bar{display:inline-block;width:60px;height:4px;border-radius:2px;background:var(--bd2);margin-right:8px;vertical-align:middle;overflow:hidden}
@@ -562,7 +575,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ldap-adv[open]>summary{border-bottom:1px solid var(--bd2)}
 #setPane>*,#setPane>*>*{flex-shrink:0}
 #setPane>#setLocs>.locgrid{display:grid}
-#setPane .panelbox>.hdr{font-size:12px;height:40px;padding:4px 12px}
+#setPane .panelbox>.hdr{font-size:11px;height:38px;padding:4px 12px}
 /* Settings sections open and close by their title: the arrow and title on the left, the count or state on the right. */
 #setPane .panelbox>.hdr.sechdr{justify-content:flex-start;gap:8px}
 #setPane .panelbox>.hdr.sechdr>:last-child:not(select){margin-left:auto}
@@ -758,7 +771,9 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .t{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.relrow button{height:22px;width:22px}
+.relrow button:not(.link){height:22px;width:22px}
+.relrow .t .link{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.relrow .t>.muted{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Links have their own shade, readable on the page and on the tinted section bands in either theme. */
 a,a.link{color:var(--linktext)}
 a.link{cursor:pointer;text-decoration:none}

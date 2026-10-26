@@ -64,7 +64,7 @@ export function renderContracts(){
   const due = contractsDue().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}${due ? ` · <b class="wty soon">${due} due within ${NOTICE_SOON_DAYS} days</b>` : ''}</span><div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
+    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
   $('#ctNew').onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
@@ -72,7 +72,7 @@ export function renderContracts(){
     $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;
     return;
   }
-  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
+  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
     ${rows.map(({ c }) => `<tr><td><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>

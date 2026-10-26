@@ -683,14 +683,13 @@ export function renderMap(){
   }
   const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
-    <label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
+    <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
+    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
-    <input id="mapFind" type="search" placeholder="Find object…" style="width:200px" value="${esc(st.mapFind)}" aria-label="Find object">
-    <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
-    <button id="mapExport">Export SVG</button>`;
+    <input id="mapFind" type="search" placeholder="Find object…" style="width:160px" value="${esc(st.mapFind)}" aria-label="Find object">
+    <div class="grow"></div><span class="tbgroup"><button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);

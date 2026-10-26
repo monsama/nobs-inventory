@@ -60,7 +60,7 @@ export function renderRack(){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
       cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
-        <span class="nm">${esc(top.name)}</span><span class="sub">${esc(top.code)} · ${esc(sub)}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
+        <span class="nm">${esc(top.name)}</span><span class="sub">${[esc(top.code), esc(sub)].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
   }
@@ -449,7 +449,7 @@ export function graphPanel(o){
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [];
-  return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length} installed</span></div>
+  return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
     ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing recorded.</td></tr>'}
     </tbody></table></div>
@@ -659,7 +659,7 @@ export function renderObj(o){
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       ${deviceRespPanel(o)}
       ${deviceContractsPanel(o)}
-      <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length}</span></div>
+      <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
         <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>

@@ -569,12 +569,13 @@ export function mountModal(){
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip each, with the details in the tooltip. */
 export function sourceChips(u){
-  const from = {ldap: ['info', 'LDAP', 'From the directory (LDAP sync)'], lansweeper: ['info', 'Lansweeper', "Named as a device's user by Lansweeper"], entra: ['info', 'Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['kept', 'Manual', 'Added here']}[u.source] || ['kept', 'Manual', 'Added here'];
+  const src = ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
+  const from = {ldap: ['LDAP', 'From the directory (LDAP sync)'], lansweeper: ['Lansweeper', "Named as a device's user by Lansweeper"], entra: ['Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['Manual', 'Added here']}[src];
   const e = u.entra;
   const entra = !e || u.source === 'entra' && !e.gone && e.enabled !== false ? ''
     : e.gone ? `<span class="chip kept usrc" title="Was in Microsoft Entra until ${esc(e.gone)}">Entra: gone</span>`
-    : `<span class="chip ${e.enabled === false ? 'warn' : 'ok'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : 'Entra'}</span>`;
-  return `<span class="chip ${from[0]} usrc" title="${esc(from[2])}">${from[1]}</span>${entra}`;
+    : `<span class="chip ${e.enabled === false ? 'warn' : 'kept'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : '<span class="sdot entra" aria-hidden="true"></span>Entra'}</span>`;
+  return `<span class="chip kept usrc" title="${esc(from[1])}"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}`;
 }
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
@@ -596,7 +597,7 @@ export function renderSetUsers(){
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
-  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
+  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → LDAP &amp; Graph → People).</p>
     ${dirOn ? `<div class="addrel"><label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select></div>` : ''}
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -1258,7 +1259,7 @@ export function renderSetLocs(){
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Used by</span><span></span></div>
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
-      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
+      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
   </div>`;
   const root = $('#setLocs');
@@ -1341,7 +1342,7 @@ export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
   const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${t.svgInner}</svg>` : iconSvg(n);
   return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
-    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
+    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
 export function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
 document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });

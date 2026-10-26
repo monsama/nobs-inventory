@@ -1,0 +1,12 @@
+import { seedDb, tmpFile } from './seed.mjs';
+import { createApp } from '../server/app.js';
+const { db } = seedDb(tmpFile(), { sw: 40 });
+const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
+const base = `http://127.0.0.1:${server.address().port}`;
+const lg = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: 'admin', password: 'adminpass123' }) });
+const cookie = lg.headers.get('set-cookie').split(';')[0];
+const st = await (await fetch(base + '/api/state', { headers: { Cookie: cookie } })).json();
+const o = st.objs[10]; o.purpose = 'x';
+const r = await fetch(base + '/api/changes', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ puts: [{ kind: 'object', id: o.id, value: o, base: st.revs['object|' + o.id] }], dels: [] }) });
+console.log(r.status, await r.text());
+server.close(); 
