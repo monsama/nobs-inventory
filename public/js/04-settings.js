@@ -866,6 +866,11 @@ export function renderSetLdap(){
         ${SECURITY_OPTS.map(([v, t]) => `<option value="${v}" ${(L.security || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
         ${securityNote(L)}</div>
       ${L.security === 'plain' ? '' : `<label>CA certificate</label><div class="ctlrow" id="ldapCa">${caHtml(edit)}</div>`}
+      ${L.security === 'plain' ? '' : `<label for="lk_legacyTls">Old certificates</label><div>
+        <label class="pchk" style="width:auto"><input type="checkbox" id="lk_legacyTls" ${L.legacyTls === 'on' ? 'checked' : ''} ${ro}> Accept old certificates (RSA keys from 1024 bits)</label>
+        <p class="note" style="padding:4px 0 0;margin:0">${L.legacyTls === 'on'
+          ? '<span class="chip warn">On</span> <span style="color:var(--danger)">Not recommended: a 1024-bit key is no longer considered safe. Only for compatibility, until the domain controller’s certificate is renewed with a 2048-bit key; then switch this off.</span>'
+          : 'Not recommended. Only for a domain controller whose certificate still has a 1024-bit key (“key too weak”), until it is renewed. The certificate is still checked against the CA and the name.'}</p></div>`}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
@@ -897,6 +902,12 @@ export function renderSetLdap(){
     if (v === 'plain' && !confirm('Send passwords unencrypted? Anyone on the network path can read them. StartTLS encrypts on the same port.')){ e.target.value = st.ldap.security || ''; return; }
     if (v) st.ldap.security = v; else delete st.ldap.security;
     st.ldap.url = ldapUrlFor(st.ldap.url, v);
+    queueServerSave(); renderSetLdap();
+  };
+  const legacy = $('#lk_legacyTls');
+  if (legacy) legacy.onchange = e => {
+    if (e.target.checked && !confirm('Accept old certificates with 1024-bit keys? This weakens the protection of every directory sign-in. Use it only until the domain controller’s certificate is renewed with a 2048-bit key.')){ e.target.checked = false; return; }
+    if (e.target.checked) st.ldap.legacyTls = 'on'; else delete st.ldap.legacyTls;
     queueServerSave(); renderSetLdap();
   };
   if (edit) bindCa();
