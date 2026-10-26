@@ -57,6 +57,7 @@ try {
   assert.match(await page.textContent('#toast'), /8|least|Password/i, 'a short password is refused');
   await page.fill('#pwNew', 'a-new-password-99'); await page.click('#pwOk'); await page.waitForTimeout(300);
 
+  await page.click('#setClose');   // the password dialog went back to Settings
   await page.click('#signOutBtn'); // sign out
   await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'dora'); await page.fill('#lgPw', 'anything-here'); await page.click('#lgOk');

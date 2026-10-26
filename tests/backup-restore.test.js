@@ -103,3 +103,34 @@ test('a backup restored into a new server gives back the whole inventory: every 
   assert.deepEqual(fresh.prepare('SELECT id, data FROM plan_images').all().map(r => ({ ...r })), [{ id: 'p1', data: PNG }]);
   db.close(); fresh.close();
 });
+
+test('a deleted account is not brought back by a restore with its password or sign-ins, and a login taken since is not doubled', async () => {
+  const { startServer, signIn } = await import('./helpers.js');
+  const { loadState: load, saveState: save } = await import('../server/state.js');
+  const { takeBackup } = await import('../server/backup.js');
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const s0 = load(srv.db); save(srv.db, { ...s0, users: [...s0.users, { id: 'u-eve', login: 'eve', name: 'Eve', role: 'admin', active: true, source: 'local' }] });
+    const pw = await srv.call('POST', '/api/users/u-eve/password', { cookie: a.cookie, body: { password: 'eves-long-password-1' } });
+    assert.equal(pw.status, 200, JSON.stringify(pw.json));
+    const eve = await signIn(srv, 'eve', 'eves-long-password-1');
+    assert.equal(eve.status, 200);
+    const backupId = takeBackup(srv.db, 'test');
+    /* Eve is deleted: her password and sign-in go with her. */
+    const s = load(srv.db); save(srv.db, { ...s, users: s.users.filter(u => u.login !== 'eve') });
+    assert.equal((await srv.call('GET', '/api/state', { cookie: eve.cookie })).status, 401);
+    /* Another account named jane, then a restore of the backup that had eve. */
+    const r = await srv.call('POST', `/api/backups/${backupId}/restore`, { cookie: a.cookie });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const back = load(srv.db).users.find(u => u.login === 'eve');
+    assert.equal(back.active, false, 'Eve comes back switched off');
+    assert.equal((await srv.call('GET', '/api/state', { cookie: eve.cookie })).status, 401, 'her old sign-in does not work');
+    assert.equal((await signIn(srv, 'eve', 'eves-long-password-1')).status, 401, 'nor her old password');
+    /* Deleted again, and a new account takes the login eve: the restore keeps that one and does not add a second eve. */
+    const t = load(srv.db); save(srv.db, { ...t, users: [...t.users.filter(u => u.login !== 'eve'), { id: 'u-eve2', login: 'eve', name: 'Eve New', role: 'viewer', active: true, source: 'local' }] });
+    const r2 = await srv.call('POST', `/api/backups/${backupId}/restore`, { cookie: a.cookie });
+    assert.equal(r2.status, 200, JSON.stringify(r2.json));
+    assert.deepEqual(load(srv.db).users.filter(u => u.login === 'eve').map(u => u.id), ['u-eve2']);
+  } finally { await srv.close(); }
+});

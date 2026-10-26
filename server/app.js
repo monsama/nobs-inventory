@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
-import { parseCaCerts } from './ldap-config.js';
+import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -41,9 +41,15 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let c = ldapConfig ? ldapConfig() : ldap;
     /* The CA certificate added in Settings, whichever way the settings came. */
     if (c && !c.caPem) { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const pem = r && JSON.parse(r.data)?.pem; if (pem) c = { ...c, caPem: pem }; }
-    if (!c || c.servicePassword) return c;
+    if (!c || c.servicePassword || c.passwordProblem) return c;
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
-    return saved ? { ...c, servicePassword: saved } : c;
+    if (!saved) return c;
+    /* The password saved here goes only to the directory server it was saved for. One saved before this was kept is
+       tied to the server it is first used with. */
+    const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost');
+    if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host);
+    else if (pinned && pinned !== host) return { ...c, passwordProblem: `The service password was saved for ${pinned}; the directory server is now ${host}. Save the password again for it.` };
+    return { ...c, servicePassword: saved };
   };
   const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
   const app = express();
@@ -59,6 +65,29 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
+  });
+  /* Requests from another site are refused before anything is done: a browser names where a request comes from (Origin,
+     Sec-Fetch-Site), and a change must come from this app's own page. The Lansweeper push signs in with its token and
+     comes from a script, not a browser. Tools that send neither header are not browsers and are let through. */
+  app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path === '/feed/push') return next();
+    const site = req.get('sec-fetch-site'), origin = req.get('origin');
+    let sameOrigin = true;
+    if (site && !['same-origin', 'none'].includes(site)) sameOrigin = false;
+    if (origin) { try { sameOrigin = sameOrigin && new URL(origin).host === req.get('host'); } catch { sameOrigin = false; } }
+    if (!sameOrigin) return res.status(403).json({ error: 'This request did not come from the inventory\'s own page.' });
+    next();
+  });
+  /* A large body is read only for a signed-in admin, or for the push with its token: nobody else can make the server
+     read megabytes before being turned away. */
+  app.use('/api', (req, res, next) => {
+    const big = Number(req.get('content-length') || 0) > 1048576 || !!req.get('transfer-encoding');
+    if (!big) return next();
+    const ok = req.path === '/feed/push'
+      ? feedTokenValid(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1], feedToken)
+      : currentUser(req)?.role === 'admin';
+    if (ok) return next();
+    res.set('Connection', 'close').status(401).json({ error: 'Sign in as an admin first.' });
   });
   /* A backup can be larger than a normal save; the largest is a full backup with its history and plan pictures. */
   app.use(express.json({ limit: '30mb' }));
@@ -96,7 +125,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const login = String(req.body?.login ?? '').trim().slice(0, 200);
       const password = String(req.body?.password ?? '');
       const keys = ['login:' + login.toLowerCase(), 'ip:' + (req.ip || '')];
-      if (throttle.blocked(keys)) { audit(db, null, 'sign in throttled for ' + login); throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.'); }
+      if (throttle.blocked(keys)) {
+        const known = db.prepare("SELECT data FROM docs WHERE kind = 'user'").all().some(r => String(JSON.parse(r.data).login || '').toLowerCase() === login.toLowerCase());
+        audit(db, null, 'sign in throttled for ' + (known ? login : 'an unknown login'));
+        throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.');
+      }
       if (!login || !password || password.length > 256) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
       let user = null;   /* only the user records are read; a sign-in does not load the whole inventory */
       for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'user'").all()) {
@@ -114,8 +147,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         try { d = await ldapLogin(lc, login, password); }
         catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
-          const isAdmin = !!d.admin;
+          let isAdmin = !!d.admin;
           if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
+          /* The last active admin stays one, as in the sync: a renamed or emptied admin group must not lock everyone out. */
+          if (!isAdmin && user.role === 'admin' && user.active !== false
+            && !loadState(db).users.some(u => String(u.id) !== String(user.id) && u.role === 'admin' && u.active !== false)) {
+            isAdmin = true;
+            audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
+          }
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
           if (user.active !== false) { saveUserDoc(user); bumpUser(user.id); }   /* a new revision, so a page holding the old record cannot save it back */
           ok = true;
@@ -123,7 +162,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       }
       if (!ok || !user || user.active === false) {
         throttle.recordFailure(keys);
-        audit(db, null, 'failed sign in for ' + login);
+        /* The login as typed is logged only when it is one: a password typed into the login field must not end up in the log. */
+        audit(db, null, 'failed sign in for ' + (user ? user.login : 'an unknown login'));
         throw new HttpError(401, FAILED);
       }
       throttle.clearFailures(keys.slice(0, 1));   /* only this login: a success must not clear the address count */
@@ -201,7 +241,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const users = incoming.users || [];
       if (!users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
       if (!users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
-      saveState(db, incoming);
+      /* Settings only the server writes (connections, sync results, certificates) are kept as they are, whatever is sent,
+         as with every other save. The counters only go up anyway. */
+      const cur = loadState(db), next = { ...incoming };
+      for (const k of SETTING_KEYS) {
+        if (PAGE_SETTINGS.includes(k) || ['seq', 'codeN', 'rseq'].includes(k)) continue;
+        if (cur[k] !== undefined) next[k] = cur[k]; else delete next[k];
+      }
+      saveState(db, next);
       audit(db, req.user.id, 'save inventory');
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -269,12 +316,15 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!pw) throw new HttpError(400, 'Enter the password.');
       if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
       setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
+      /* Tied to the directory server it is saved for. */
+      const host = ldapHostOf(((ldapConfig ? ldapConfig() : ldap) || {}).url || '');
+      if (host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host); else dropAppSecret(db, 'ldapServicePasswordHost');
       audit(db, req.user.id, 'directory service account password saved');
       res.json({ ok: true, setAt: appSecretSetAt(db, 'ldapServicePassword') });
     } catch (e) { next(e); }
   });
   app.delete('/api/ldap/password', requireUser, requireAdmin, (req, res) => {
-    dropAppSecret(db, 'ldapServicePassword');
+    dropAppSecret(db, 'ldapServicePassword'); dropAppSecret(db, 'ldapServicePasswordHost');
     audit(db, req.user.id, 'directory service account password removed');
     res.json({ ok: true });
   });

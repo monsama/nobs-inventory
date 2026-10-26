@@ -8,6 +8,10 @@ import { ldapListComputers, ldapListUsers } from './ldap.js';
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
 export async function syncLdapUsers(db, config) {
   const people = await ldapListUsers(config);   /* the members of the sign-in group, with admin set for the admin group */
+  /* The computers' groups: a directory that will not list computers does not stop the user sync. Everything is read from
+     the directory before the inventory is loaded, so a save made on the page meanwhile is not overwritten. */
+  let computers = null, computerError = null;
+  if (config.computerGroups !== 'off') { try { computers = await ldapListComputers(config); } catch (e) { computerError = e.message; } }
   const s = loadState(db);
   const wanted = new Set(people.map(p => p.login.toLowerCase()));
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
@@ -30,12 +34,10 @@ export async function syncLdapUsers(db, config) {
   for (const u of s.users) {
     if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; counts.deactivated++; }
   }
-  /* The computers' groups: read after the users, and a directory that will not list computers does not stop the user sync. */
-  if (config.computerGroups !== 'off') {
-    /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
-    try { const list = await ldapListComputers(config); if (list.length) counts.computers = applyComputerGroups(s, list); else counts.computerError = 'No computer accounts were found in the computers search base.'; }
-    catch (e) { counts.computerError = e.message; }
-  }
+  /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
+  if (computerError) counts.computerError = computerError;
+  else if (computers && computers.length) counts.computers = applyComputerGroups(s, computers);
+  else if (computers) counts.computerError = 'No computer accounts were found in the computers search base.';
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }

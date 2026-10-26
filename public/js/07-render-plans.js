@@ -5,7 +5,7 @@ import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABL
 import { renderContracts } from './09-costs.js';
 import { renderOverview } from './10-overview.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
-import { closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
+import { leaveSettings, closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
 /* ---------- render ---------- */
 /* ---------- floor plans ---------- */
@@ -556,6 +556,8 @@ export function renderStatus(){
     offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
   }[SERVER.save] || ['', '', ''];
   save.innerHTML = `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
+  /* On a phone the status bar is short: a save that failed is shown there anyway. */
+  save.classList.toggle('hide-n', !S[0]);
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
   updateSync();
   const last = SYNC.run ? {at: SYNC.run, days: daysSince(SYNC.run)} : null;
@@ -657,7 +659,8 @@ async function sendNow(){
         const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
           .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
         toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
-        await reloadFromServer();
+        /* Only the records someone else changed take their version; edits made meanwhile stay and are saved next. */
+        await reloadFromServer({ flush: false, skip: j.conflicts });
         const items = refused.map(r => {
           const now = byId(r.id);
           return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
@@ -694,18 +697,42 @@ export function refusedModal(items){
     closeModal(); saveData(); render(); toast(n ? 'Your changes are applied again' : 'Nothing to apply');
   };
 }
-/* Loads the inventory and its revisions from the server, and makes it the base for the next save. */
-export async function reloadFromServer(){
+/* Loads the inventory and its revisions from the server, and makes it the base for the next save. Changes not saved
+   yet are saved first; what still cannot be saved (offline, signed out) is put back on top and saved later, so a
+   reload never drops an edit. Records in skip are the ones someone else changed: their newer version is kept. After a restore (discard), the
+   restored inventory replaces everything here. */
+export async function reloadFromServer({ flush = true, skip = [], discard = false } = {}){
+  if (flush && !discard && SERVER.base && canEdit()){ if (SERVER.busy) await SERVER.inflight; await flushSave(); }
+  const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (r.status === 401){ loginModal(); return false; }
   if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
   const d = await r.json();
   applyState(d);
-  dropMissingTabs();
   SERVER.revs = d.revs || {};
   setBaseline();
+  if (keep && replayLocal(keep, skip)) queueServerSave();
+  dropMissingTabs();
   render();
   return true;
+}
+/* Puts unsaved records back after a reload: objects, connections, users, types and history. */
+function replayLocal({ puts, dels }, skip){
+  const lists = { object: objs, rel: rels, user: USERS };
+  const maps = { type: TYPES, history: HISTORY };
+  let n = 0;
+  for (const c of puts){
+    if (skip.includes(c.key)) continue;
+    const v = JSON.parse(c.json);
+    if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0) a[i] = v; else a.push(v); n++; }
+    else if (maps[c.kind]){ maps[c.kind][c.id] = v; n++; }
+  }
+  for (const c of dels){
+    if (skip.includes(c.key)) continue;
+    if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0){ a.splice(i, 1); n++; } }
+    else if (maps[c.kind] && c.id in maps[c.kind]){ delete maps[c.kind][c.id]; n++; }
+  }
+  return n;
 }
 /* An object open in a tab may have been deleted by someone else: its tab is closed. */
 export function dropMissingTabs(){
@@ -807,7 +834,7 @@ export async function clearAll(){
     const c = await fetch('api/connections/clear', {method: 'POST', credentials: 'same-origin'});
     connMsg = c.ok ? ' Connections removed.' : ' The connections could not be removed.';
   }
-  closeModal();
+  leaveSettings(); closeModal();   /* the emptied inventory is shown, not Settings */
   await reloadFromServer();
   toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
@@ -883,7 +910,11 @@ export function loginModal(err = '', login = ''){
       body: JSON.stringify({login, password: $('#lgPw').value})});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ loginModal(j.error || 'Sign in failed.', login); return; }
-    closeModal(); await loadFromServer(j.user);
+    closeModal();
+    /* Signed in again after the sign-in ended: what was not saved is sent now (the load saves it first). Someone else
+       signing in on this page does not send the previous person's changes under their name. */
+    if (SERVER.base && String(j.user.id) !== String(st.meId)) SERVER.base = null;
+    await loadFromServer(j.user);
   };
   $('#lgOk').onclick = go;
   $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });

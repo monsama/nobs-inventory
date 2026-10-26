@@ -54,14 +54,26 @@ export function runFeedFile(db, file, now = new Date()) {
 export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null } = {}, log = console.log) {
   if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig) return null;
   const done = {};
-  const once = (key, now) => { const k = `${now.toDateString()} ${now.getHours()}:${now.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
+  const once = (key, t) => { const k = `${t.toDateString()} ${t.getHours()}:${t.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
+  /* One run at a time: a tick while a sync is still going is skipped, and the next one also looks at the minutes it
+     missed (up to three hours back), so a job that fell due meanwhile still runs, after the one before it. */
+  let running = false, last = null;
+  const minutesTo = now => {
+    const end = Math.floor(now.getTime() / 60000);
+    const start = last === null ? end : Math.max(Math.floor(last / 60000) + 1, end - 180);
+    const out = []; for (let m = start; m <= end; m++) out.push(new Date(m * 60000));
+    return out;
+  };
   return setInterval(async () => {
-    const now = new Date();
+    if (running) return;
+    running = true;
+    const now = new Date(), mins = minutesTo(now);
+    last = now.getTime();
     /* Anything that throws here (a secret file that can no longer be read, say) is logged; it must not stop the server. */
     try {
-      if (sheetKey && now.getHours() === 6 && now.getMinutes() === 0 && once('sheets', now)) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
+      if (sheetKey && mins.some(t => t.getHours() === 6 && t.getMinutes() === 0 && once('sheets', t))) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
       const cur = loadState(db), plan = scheduleOf(cur);
-      const due = job => isDue(plan[job], now) && once(job, now);
+      const due = job => mins.some(t => isDue(plan[job], t) && once(job, t));
       const lsOn = cur.useLansweeper !== false;
       if (due('lansweeper')) {
         const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
@@ -84,6 +96,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
         }
       }
     } catch (e) { log('scheduled sync failed:', e.message); try { audit(db, null, 'Scheduled sync failed: ' + e.message); } catch { /* the log is best effort */ } }
+    finally { running = false; }
   }, 30_000);
 }
 
