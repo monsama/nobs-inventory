@@ -359,25 +359,11 @@ export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';
 
-/* The people the page knows (Settings → Users), handed over by 04-settings.js, so a device's user shows by name. */
-let PEOPLE = () => [];
-export const setPeopleSource = fn => { PEOPLE = fn; };
-const lowText = v => String(v || '').toLowerCase();
-/* The person a device belongs to: picked by hand (uid), else named by Lansweeper (a login) or Graph (a name). */
-export const personOf = o => {
-  const list = PEOPLE();
-  if (o.uid){ const p = list.find(u => u.id === o.uid); if (p) return p; }
-  const t = lowText(o.user);
-  return t ? list.find(u => lowText(u.login) === t) || list.find(u => lowText(u.name) === t) || null : null;
-};
-/* A device's user as people read it: the person's name, else what the device says. */
-export const userText = o => { const p = personOf(o); return p ? p.name : (o.user || ''); };
-
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
   return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
-    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,userText(o),o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || [])].some(v => v && String(v).toLowerCase().includes(q))));
+    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || [])].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */

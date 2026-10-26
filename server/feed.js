@@ -106,8 +106,10 @@ export const dayOf = v => {
    (tblAssets.Username, the sAMAccountName); the full name and department come from its AD users. The person is found
    by login (or, for one kept before 0.9.28, by a name that is that login), else made when a device names them. A
    person from the directory (LDAP) keeps what the directory says; one from Lansweeper gets the full name and
-   department. A login another account already has is not given twice. */
-export const LOGIN_RE = /^[\w.@-]{1,64}$/;
+   department. A login another account already has is not given twice. The devices that name the person by login are
+   bound to them (uid), so the page shows the person's name and a rename moves the devices with them.
+   A login is letters (umlauts too), digits and . _ @ ' -, as Active Directory allows them. */
+export const LOGIN_RE = /^[\p{L}\p{N}_.@'-]{1,64}$/u;
 function applyDepartments(s, records) {
   let n = 0;
   if (s.feedOn === false || (s.policy && s.policy.dept === false)) return n;
@@ -115,17 +117,21 @@ function applyDepartments(s, records) {
   for (const r of records) {
     if (!r.user || (!r.userDept && !r.userName)) continue;
     const login = low(r.user), named = s.objs.some(o => low(o.user) === login);
-    /* A user that is not a login (a full name, as a report file may give it) is a name, as before. */
-    const isLogin = LOGIN_RE.test(r.user);
-    let p = (isLogin && s.users.find(u => low(u.login) === login)) || s.users.find(u => low(u.name) === login);
+    /* A user that comes with a full name is a login; one without, that is not a login (a full name, as a report file
+       may give it), is a name, as before. */
+    const isLogin = !!r.userName || LOGIN_RE.test(r.user);
+    let p = s.users.find(u => low(u.login) === login) || s.users.find(u => low(u.name) === login);
     if (!p && named) {
       p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: isLogin ? r.user : '', name: r.userName || r.user, dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true };
       s.users.push(p); n++;
     }
-    if (!p || p.source !== 'lansweeper') continue;
-    if (!p.login && isLogin && !s.users.some(u => u !== p && low(u.login) === login)) { p.login = r.user; n++; }
-    if (r.userName && p.name !== r.userName.slice(0, 120) && low(p.name) === low(p.login || r.user)) { p.name = r.userName.slice(0, 120); n++; }
-    if (r.userDept && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+    if (!p) continue;
+    if (p.source === 'lansweeper') {
+      if (!p.login && isLogin && !s.users.some(u => u !== p && low(u.login) === login)) { p.login = r.user; n++; }
+      if (r.userName && p.name !== r.userName.slice(0, 120) && low(p.name) === low(p.login || r.user)) { p.name = r.userName.slice(0, 120); n++; }
+      if (r.userDept && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+    }
+    for (const o of s.objs) if (!o.uid && !o.hotdesk && low(o.user) === login) { o.uid = p.id; o.user = p.name; n++; }
   }
   return n;
 }

@@ -1,3 +1,4 @@
+import { LOGIN_RE } from './feed.js';
 /* Brings older data up to the current types. Phones and tablets are now three types: Android device, iOS device and
    Other mobile device. Racks used to be a list in the settings; now each rack is an object of type rack, with the same
    id, so the devices mounted in it keep their place. Running it again changes nothing. */
@@ -66,7 +67,7 @@ export function migrateState(s) {
   const logins = new Set((s.users || []).map(u => String(u.login || '').toLowerCase()).filter(Boolean));
   for (const u of s.users || []) {
     const v = String(u.name || '').trim();
-    if (u.source !== 'lansweeper' || u.login || !/^[\w.@-]{1,64}$/.test(v) || logins.has(v.toLowerCase())) continue;
+    if (u.source !== 'lansweeper' || u.login || !LOGIN_RE.test(v) || logins.has(v.toLowerCase())) continue;
     u.login = v; logins.add(v.toLowerCase()); changed = true;
   }
   return changed;

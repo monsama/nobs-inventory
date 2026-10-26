@@ -99,8 +99,19 @@ test('Lansweeper\'s user is a login: the person gets it as login and the full na
   assert.equal(cla.length, 1, 'a person made before, with the login as name, is the same person');
   assert.equal(cla[0].id, 'old');
   assert.equal(cla[0].name, 'Cla Muster', 'a name that was only the login gets the full name');
+  assert.equal(s.objs.find(o => o.name === 'PC-1').uid, anna.id, 'the device is bound to the person');
+  assert.equal(s.objs.find(o => o.name === 'PC-1').user, 'Anna Muster');
   mergeRecords(s, recordsFromJson([{ name: 'PC-1', ref: '1', assetType: 'Windows', user: 'amuster', userName: 'Anna Other' }]), now);
   assert.equal(s.users.find(u => u.login === 'amuster').name, 'Anna Muster', 'a full name, once set, is not changed by the feed');
+  checkState(s);
+});
+
+test('a login with an umlaut or an apostrophe is a login: pushed again, it makes no second person', () => {
+  const s = base({ policy: { user: true } });
+  for (let i = 0; i < 3; i++) mergeRecords(s, recordsFromJson([
+    { name: 'PC-1', ref: '1', assetType: 'Windows', user: 'müller', userName: 'Hans Müller' },
+    { name: 'PC-2', ref: '2', assetType: 'Windows', user: "o'brien", userName: "Pat O'Brien" }]), now);
+  assert.deepEqual(s.users.map(u => [u.login, u.name]), [['müller', 'Hans Müller'], ["o'brien", "Pat O'Brien"]]);
   checkState(s);
 });
 

@@ -15,6 +15,7 @@ export async function syncLdapUsers(db, config) {
   const s = loadState(db);
   const wanted = new Set(people.map(p => p.login.toLowerCase()));
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
+  const linked = [];
   for (const p of people) {
     const role = p.admin ? 'admin' : 'viewer';
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
@@ -23,9 +24,10 @@ export async function syncLdapUsers(db, config) {
       counts.created++;
     } else if (u.source === 'lansweeper') {
       /* A person Lansweeper named by this login: the same person, now from the directory. Kept as the same record, so
-         devices assigned to them stay theirs. */
-      Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap', active: true });
-      counts.linked = (counts.linked || 0) + 1;
+         devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
+         removed after the save: from now on the directory checks it. */
+      Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap' });
+      linked.push(u.id);
     } else if (u.source === 'ldap') {
       const next = { name: p.name, dept: p.dept, groups: p.groups, role };
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
@@ -47,7 +49,9 @@ export async function syncLdapUsers(db, config) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
+  if (linked.length) counts.linked = linked.length;
   if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
 }

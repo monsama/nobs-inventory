@@ -281,9 +281,10 @@ function Initialize-Schema($conn) {
 }
 
 # One select item. A column that does not exist is selected as NULL, so the reader always has the same names.
-function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col) {
+# A column of a joined table is read only when its join is made ($Joined); otherwise it is NULL, so the query still runs.
+function Get-SelectItem([string]$Table, [string]$Alias, [string]$Col, [bool]$Joined = $true) {
     $out = "${Alias}__$Col"
-    if (Test-Col $Table $Col) { return "$Alias.[$($script:Cols[$Table][$Col.ToLowerInvariant()])] AS [$out]" }
+    if ($Joined -and (Test-Col $Table $Col)) { return "$Alias.[$($script:Cols[$Table][$Col.ToLowerInvariant()])] AS [$out]" }
     return "CAST(NULL AS nvarchar(200)) AS [$out]"
 }
 
@@ -682,24 +683,29 @@ function Get-LsRecords {
         }
         if ($schema.Missing.Count) { Write-PushLog ("Not in this Lansweeper version, skipped: " + ($schema.Missing -join ', ')) 'WARN' }
 
+        # Which joins this Lansweeper version allows; the columns read from them follow the same conditions.
+        $hasNet = (Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'DNSHostname')
+        $hasAd = (Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')
+        $hasOs = (Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')
+        $hasOx = (Test-Col 'tblOperatingsystem' 'AssetID') -and (Test-Col 'tblOperatingsystem' 'Caption')
         $select = @(
             (Get-SelectItem 'tblAssets' 'a' 'AssetID'), (Get-SelectItem 'tblAssets' 'a' 'AssetName'),
             (Get-SelectItem 'tblAssets' 'a' 'Username'), (Get-SelectItem 'tblAssets' 'a' 'Userdomain'),
             (Get-SelectItem 'tblAssets' 'a' 'IPAddress'), (Get-SelectItem 'tblAssets' 'a' 'Mac'), (Get-SelectItem 'tblAssets' 'a' 'Lastseen'),
-            (Get-SelectItem 'tblAssets' 'a' 'Memory'), (Get-SelectItem 'tblAssets' 'a' 'Processor'), (Get-SelectItem 'tblAssets' 'a' 'Username'),
+            (Get-SelectItem 'tblAssets' 'a' 'Memory'), (Get-SelectItem 'tblAssets' 'a' 'Processor'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer'), (Get-SelectItem 'tblAssetCustom' 'c' 'Model'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber'), (Get-SelectItem 'tblAssetCustom' 'c' 'Location'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
-            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'), (Get-SelectItem 'tblADusers' 'ad' 'Displayname'),
-            (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
-            (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption'), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version'),
-            (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
+            (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department' $hasAd), (Get-SelectItem 'tblADusers' 'ad' 'Displayname' $hasAd),
+            (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname' $hasOs),
+            (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption' $hasOx), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version' $hasOx),
+            (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname' $hasNet), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain' $hasNet)
         ) -join ', '
 
         $joins = ''
         if (Test-Col 'tblAssetCustom' 'AssetID') { $joins += 'LEFT JOIN [tblAssetCustom] c ON c.[AssetID] = a.[AssetID] ' }
-        if ((Test-Col 'tblNetwork' 'AssetID') -and (Test-Col 'tblNetwork' 'DNSHostname')) {
+        if ($hasNet) {
             $netDomain = if (Test-Col 'tblNetwork' 'DNSDomain') { ', MAX([DNSDomain]) AS [DNSDomain]' } else { '' }
             $joins += "LEFT JOIN (SELECT [AssetID], MAX([DNSHostname]) AS [DNSHostname]$netDomain FROM [tblNetwork] GROUP BY [AssetID]) n ON n.[AssetID] = a.[AssetID] "
         }
@@ -712,12 +718,12 @@ function Get-LsRecords {
         }
         # The department and the full name of the logged-on user, from the Active Directory users Lansweeper scans.
         # tblAssets.Username is the login (sAMAccountName); Displayname is the name people read.
-        if ((Test-Col 'tblADusers' 'Username') -and (Test-Col 'tblADusers' 'Userdomain') -and (Test-Col 'tblADusers' 'Department') -and (Test-Col 'tblAssets' 'Userdomain')) {
+        if ($hasAd) {
             $adName = if (Test-Col 'tblADusers' 'Displayname') { ', MAX([Displayname]) AS [Displayname]' } else { '' }
             $joins += "LEFT JOIN (SELECT [Username], [Userdomain], MAX([Department]) AS [Department]$adName FROM [tblADusers] GROUP BY [Username], [Userdomain]) ad ON ad.[Username] = a.[Username] AND ad.[Userdomain] = a.[Userdomain] "
         }
-        if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
-        if ((Test-Col 'tblOperatingsystem' 'AssetID') -and (Test-Col 'tblOperatingsystem' 'Caption')) {
+        if ($hasOs) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
+        if ($hasOx) {
             $osVer = if (Test-Col 'tblOperatingsystem' 'Version') { ', MAX([Version]) AS [Version]' } else { '' }
             $joins += "LEFT JOIN (SELECT [AssetID], MAX([Caption]) AS [Caption]$osVer FROM [tblOperatingsystem] GROUP BY [AssetID]) ox ON ox.[AssetID] = a.[AssetID] "
         }
