@@ -3,6 +3,7 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 import { contactsProblem } from '../public/js/contacts.js';
+import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
@@ -14,7 +15,9 @@ export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
 export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
-const MAX_BYTES = 5 * 1024 * 1024;
+/* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
+   runaway import. A page save is limited to 30 MB before it gets here. */
+const MAX_BYTES = 100 * 1024 * 1024;
 const MAX_CHANGES = 5000;
 const DEFAULT_POLICY = { ip: true, ip6: true, mac: true, os: true, model: true, cpu: true, ram: true, fw: true, boot: true, disk: false, patch: true, av: false, domain: true, user: false, loc: false,
   software: true, links: true, dept: true, ipRoom: true,
@@ -23,6 +26,11 @@ const DEFAULT_POLICY = { ip: true, ip6: true, mac: true, os: true, model: true, 
 /* One key per stored record, used for revisions: "object|o101", "setting|locs". */
 export const docKey = (kind, id) => kind + '|' + id;
 
+/* A tag that changes with every write: revisions only ever go up (a delete bumps its record's too). Cheap to read,
+   so a page that asks whether anything changed is answered without loading the inventory. */
+/* One setting, read from its own row: for a job that needs one value, not the whole inventory. */
+export const settingOf = (db, id) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); return r ? JSON.parse(r.data) : undefined; };
+export const stateTag = db => { const r = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(rev), 0) AS s FROM revs').get(); return `${r.n}.${r.s}`; };
 export function revsOf(db) {
   const m = {};
   for (const r of db.prepare('SELECT kind, id, rev FROM revs').all()) m[docKey(r.kind, r.id)] = r.rev;
@@ -99,10 +107,8 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
   }
 }
 
-/* What a custom icon may hold: the elements the page's cleaning keeps (sanitizeSvg in public/js/04-settings.js), and no
-   event handler, style, link or script. */
-const SVG_ELEMENTS = ['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'title', 'defs', 'desc'];
-const SVG_ATTRS = ['d', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'points', 'fill', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity', 'transform', 'id', 'xmlns'];
+/* What a custom icon may hold: the elements and attributes of public/js/svg-rules.js (the page cleans an upload down to
+   the same), and no script, entity or markup declaration. */
 const SVG_BAD = /javascript:|<!|<\?|&#|\\/i;
 /* Comments (an icon set's licence line) carry nothing drawn: they are taken out, not refused. */
 export const svgWithoutComments = text => text.replace(/<!--[\s\S]*?-->/g, '');
@@ -358,7 +364,9 @@ function checkStateRules(s) {
       used[key] = o.name;
     }
   }
-  if (JSON.stringify(s).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  /* Measured as stored: the revisions and the empty flag that loadState adds are not part of it. */
+  const { revs: _revs, empty: _empty, ...stored } = s;   // eslint-disable-line no-unused-vars
+  if (JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
 }
 
 function rowsOf(s) {
@@ -413,8 +421,7 @@ export const HISTORY_KEEP = 500;
 export function saveState(db, s) {
   checkState(s);
   /* The counters only go up, so a save that leaves one out cannot make a new code or id repeat an old one. */
-  const prev = loadState(db);
-  for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(prev[k]) || 0);
+  for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(settingOf(db, k)) || 0);
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   writeDocs(db, s);
 }

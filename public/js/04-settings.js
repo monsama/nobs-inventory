@@ -4,6 +4,7 @@ import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChi
 import { setSettingsOpener, collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS, VIEWBOX_RE, tcol } from './01-core.js';
+import { SVG_ATTRS, SVG_ELEMENTS } from './svg-rules.js';
 import { subnetProblem } from './net.js';
 import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
@@ -505,6 +506,15 @@ export function ensureUser(name, source = 'manual'){
   if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }
+/* The person with an id, through a lookup of their place in USERS: every device's .user reads it, so going through all
+   people each time added up. A place that holds someone else (the list changed) rebuilds the lookup. */
+let personAt = new Map();
+export function personById(id){
+  if (!id) return null;
+  let u = USERS[personAt.get(id)];
+  if (!u || u.id !== id){ personAt = new Map(USERS.map((x, i) => [x.id, i])); u = USERS[personAt.get(id)]; }
+  return u && u.id === id ? u : null;
+}
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
 export function bindUser(o){
   const d = Object.getOwnPropertyDescriptor(o, 'user');
@@ -513,7 +523,7 @@ export function bindUser(o){
   delete o.user;
   if (!o.uid) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
   Object.defineProperty(o, 'user', {
-    get(){ if (this.hotdesk) return 'Hot desk'; const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
+    get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
     enumerable: true, configurable: true
   });
@@ -1013,8 +1023,7 @@ export function sanitizeSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const root = doc.documentElement;
   if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
-  const OK_EL = ['svg','g','path','circle','ellipse','rect','line','polyline','polygon','title','defs','desc'];
-  const OK_AT = ['d','x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','width','height','points','fill','fill-rule','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','opacity','transform','id'];
+  const OK_EL = SVG_ELEMENTS, OK_AT = SVG_ATTRS;
   root.querySelectorAll('*').forEach(n => { if (n !== root && !OK_EL.includes(n.localName)) n.remove(); });
   /* Comments (an icon set's licence line) are dropped too: the server keeps shapes only. */
   const notes = doc.createTreeWalker(root, NodeFilter.SHOW_COMMENT), drop = [];
@@ -1312,25 +1321,7 @@ export function renameLoc(old, value){
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
-export const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-export const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
-export function validIPv6(v){
-  if (v.length > 45 || !/^[0-9a-f:.]+$/i.test(v)) return false;
-  if (v.includes('.')){ const i = v.lastIndexOf(':'); if (i < 0 || !IPV4_RE.test(v.slice(i + 1))) return false; v = v.slice(0, i + 1) + '0:0'; }
-  const parts = v.split('::'); if (parts.length > 2) return false;
-  const groups = x => (x === '' ? [] : x.split(':'));
-  const all = [...groups(parts[0]), ...(parts.length === 2 ? groups(parts[1]) : [])];
-  if (!all.every(g => /^[0-9a-f]{1,4}$/i.test(g))) return false;
-  return parts.length === 2 ? all.length <= 7 : all.length === 8;
-}
-export function checkAddress(k, raw){
-  const v = String(raw ?? '').trim();
-  if (!v) return {ok: true, value: ''};
-  if (k === 'ip') return IPV4_RE.test(v) ? {ok: true, value: v} : {ok: false, msg: `"${v}" is not an IPv4 address, such as 10.10.0.12.`};
-  if (k === 'ip6') return validIPv6(v) ? {ok: true, value: v.toLowerCase()} : {ok: false, msg: `"${v}" is not an IPv6 address, such as 2001:db8::12.`};
-  if (k === 'mac') return MAC_RE.test(v) ? {ok: true, value: v.toLowerCase().replace(/-/g, ':')} : {ok: false, msg: `"${v}" is not a MAC address, such as 70:b3:17:4a:00:01.`};
-  return {ok: true, value: v};
-}
+export { IPV4_RE, MAC_RE, validIPv6, checkAddress } from './addr.js';
 /* Readable names for the icons, for the dropdown. */
 export const ICON_LABEL = { plc: 'PLC / Controller', tablet: 'Tablet', pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',

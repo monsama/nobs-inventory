@@ -1,4 +1,5 @@
 import { money } from './09-costs.js';
+import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
@@ -241,8 +242,10 @@ export function cardHtml(o, idx, join = showJoin()){
     <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
+/* How many cards or table rows are drawn before "Show all". */
+export const SHOW_FIRST = 500;
 export function renderCardsBody(){
-  const list = filtered();
+  let list = filtered();
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
@@ -261,7 +264,12 @@ export function renderCardsBody(){
     return;
   }
   const idx = relIndex(), join = showJoin(), card = o => cardHtml(o, idx, join);
-  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
+  /* Thousands of cards take long to draw: the first ones are drawn, the rest on request. A search or a filter narrows it. */
+  const cut = !st.cardsAll && list.length > SHOW_FIRST + 100;
+  const more = cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length}. Search or filter to narrow them down.</span><button id="cardsAll">Show all ${list.length}</button></div>` : '';
+  const bindMore = () => { const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); }; };
+  if (cut) list = list.slice(0, SHOW_FIRST);
+  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>${more}`; bindMore(); return; }
   const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
   /* The group of devices without a user or location comes last. */
   const none = g => g === 'No user' || g === 'No location';
@@ -270,7 +278,8 @@ export function renderCardsBody(){
   $('#view').innerHTML = groups.map(g => {
     const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
     return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(card).join('')}</div></section>`;
-  }).join('');
+  }).join('') + more;
+  bindMore();
   $('#view').querySelectorAll('.grphdr').forEach(h => {
     const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
     h.addEventListener('click', toggle);
@@ -389,11 +398,18 @@ export function renderTable(){
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
   const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
-  $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
+  /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. A column that is sorted or
+     filtered needs every row, so then all are drawn (06-topbar.js draws them all before it sorts or filters). */
+  const tv = TBL['view:table:0'] || {};
+  const narrowed = !!tv.sort || Object.values(tv.filters || {}).some(v => String(v || '').trim());
+  const cut = !st.tableAll && !narrowed && list.length > SHOW_FIRST + 100;
+  const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
+  $('#view').innerHTML = `<div class="gridwrap"><table class="grid"${cut ? ' data-cut="1"' : ''}><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
-    </tbody></table></div>`;
+    ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
+    </tbody></table>${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search, filter or sort a column to see the others.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
+  const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
@@ -404,20 +420,8 @@ export function renderTable(){
   all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };
 }
 
-/* CSV: a plain comma or semicolon file, first row is the header. */
-export function parseCsv(text){
-  const rows = []; let row = [], cell = '', q = false;
-  for (let i = 0; i < text.length; i++){
-    const c = text[i];
-    if (q){ if (c === '"'){ if (text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
-    else if (c === '"') q = true;
-    else if (c === ',' || c === ';'){ row.push(cell); cell = ''; }
-    else if (c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
-    else if (c !== '\r') cell += c;
-  }
-  if (cell || row.length){ row.push(cell); rows.push(row); }
-  return rows.filter(r => r.some(x => x.trim()));
-}
+/* CSV: a plain comma or semicolon file, first row is the header (public/js/csv.js decides which). */
+export { parseCsv };
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
 export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
 export function exportCsv(list){
@@ -681,7 +685,8 @@ export function renderMap(){
     rels.filter(r => (ids.has(r.from) || ids.has(r.to)) && (st.mapAttached || !isAttached(r.kind))).forEach(r => { ids.add(r.from); ids.add(r.to); });
     nodes = objs.filter(o => ids.has(o.id));
   }
-  const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
+  const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
     <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>

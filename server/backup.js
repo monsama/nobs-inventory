@@ -1,5 +1,5 @@
 import { openSheet, sealSheet } from './sheets.js';
-import { loadState, saveState, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
+import { loadState, saveState, settingOf, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
 import { HttpError } from './errors.js';
 import { migrateState } from './migrate.js';
 
@@ -14,7 +14,7 @@ const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 /* A backup taken by the app itself, before one of the changes above. Off when the setting "Automatic backups" is off.
    daily: at most one a day for this reason (a sync that runs every few hours). */
 export function autoBackup(db, reason, { daily = false } = {}) {
-  if (loadState(db).autoBackups === false) return null;
+  if (settingOf(db, 'autoBackups') === false) return null;
   /* A sync that runs every few hours backs up once a day, so its backups do not push the older ones out. */
   if (daily && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at > ?").get(reason, new Date(Date.now() - 864e5).toISOString())) return null;
   return takeBackup(db, reason);

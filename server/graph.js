@@ -137,7 +137,6 @@ export function toRecords(devices, managed) {
   return out;
 }
 
-export async function fetchGraph(cfg, now = new Date(), fetchImpl = fetch) { return (await fetchGraphAll(cfg, now, fetchImpl)).records; }
 /* The devices, and the people when Settings asks for them (cfg.people). users is null when people are not read, and
    peopleError says why when the app may not read them: the devices are synced all the same. */
 export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
@@ -161,7 +160,6 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
    one from Lansweeper, as Lansweeper does, and keeps the ones it added in step (name, department, switched off with the
    Entra account). The LDAP sync takes over a person from Entra with the same login, as one from Lansweeper. */
 const USER_SELECT = 'id,userPrincipalName,displayName,department,accountEnabled,onPremisesSamAccountName,onPremisesSyncEnabled,userType';
-export const PEOPLE_MODES = ['off', 'match', 'add'];
 export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const at = stamp(now), counts = { inEntra: 0, added: 0, gone: 0, bound: 0 };
   if (!users || mode === 'off') return counts;
@@ -325,7 +323,6 @@ export function addFromGraph(s, ids, who, now = new Date()) {
   const added = [];
   /* The list is from the last sync: a device the inventory got since (from Lansweeper, say), or one listed twice in Graph
      (enrolled again), is not added a second time. Retired devices count, so they are not brought back as new ones. */
-  const low = v => clean(v).toLowerCase();
   const names = new Set(s.objs.map(o => low(o.name)).filter(Boolean)), serials = new Set(s.objs.map(o => low(o.serial)).filter(Boolean));
   for (const d of list) {
     if (!d.name || names.has(low(d.name)) || (d.serial && serials.has(low(d.serial)))) continue;

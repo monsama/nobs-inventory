@@ -27,6 +27,14 @@ try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch { TBL =
 export const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
 /* On an object's page the tab is the object's id, so each object opened keeps its own entry; they are small, and a
    table that has other columns now starts over from its default order (applyTable). */
+/* A table that shows only its first rows (data-cut) is drawn again with all of them before a column is sorted or
+   filtered, so the sort and the filter see every row. focusFilter: the filter box to put the cursor back in. */
+function showAllRows(t, focusFilter = null){
+  if (!t.dataset.cut) return false;
+  st.tableAll = true; render();
+  if (focusFilter !== null){ const box = document.querySelectorAll('table.grid tr.fr th')[focusFilter]?.querySelector('input'); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  return true;
+}
 export function tableKey(t){
   const scope = t.closest('#mdl') || $('#view');
   return (t.closest('#mdl') ? 'modal' : 'view') + ':' + st.tab + ':' + [...scope.querySelectorAll('table.grid')].indexOf(t);
@@ -38,7 +46,8 @@ export function applyTable(t){
   const n = head.cells.length;
   if (!Array.isArray(s.order) || s.order.length !== n || new Set(s.order).size !== n || !s.order.every(i => Number.isInteger(i) && i >= 0 && i < n)) s.order = [...Array(n).keys()];
   if (!s.widths || typeof s.widths !== 'object') s.widths = {};
-  [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
+  /* Cells are moved only when the columns are in another order than drawn: moving every cell of thousands of rows costs. */
+  if (s.order.some((c, i) => c !== i)) [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
   /* A column is as wide as it was dragged to, or as its default (data-w). When every column has a width, the table is
      exactly as wide as its columns, so the box around it scrolls sideways instead of squeezing them. */
   const ws = [...head.cells].map(th => s.widths[th.dataset.ci] || +th.dataset.w || 0);
@@ -106,7 +115,7 @@ export function setupTable(t){
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
       inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
-      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); applyView(t); });
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!showAllRows(t, i)) applyView(t); });
       c.appendChild(inp); fr.appendChild(c);
     });
     head.parentNode.appendChild(fr);
@@ -121,7 +130,7 @@ export function setupTable(t){
     const sortBy = () => {
       const cur = TBL[tableKey(t)], ci = +th.dataset.ci;
       cur.sort = cur.sort && cur.sort.ci === ci ? {ci, dir: -cur.sort.dir} : {ci, dir: 1};
-      saveTBL(); applyView(t);
+      saveTBL(); if (!showAllRows(t)) applyView(t);
     };
     th.addEventListener('click', e => { if (!e.target.classList.contains('rz')) sortBy(); });
     /* Sorting works from the keyboard too: Tab to a column header, Enter or Space. */

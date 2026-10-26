@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
@@ -232,6 +232,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   app.get('/api/state', requireUser, (req, res) => {
+    /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
+       page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}"`;
+    res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
+    if (req.get('if-none-match') === tag) return res.status(304).end();
     const s = loadState(db); delete s.empty;
     if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
