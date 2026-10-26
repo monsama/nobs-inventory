@@ -265,7 +265,33 @@ export const GRAPH_FILTERS = {
   hybrid: ['Hybrid joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Hybrid joined'],
   adonly: ['AD joined only', 'join', o => o.status !== 'retired' && joinOf(o) === 'AD joined'],
   registered: ['Entra registered', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra registered'],
+  notjoined: ['Not joined', 'join', o => o.status !== 'retired' && GRAPH_TYPES.includes(o.type) && !joinOf(o)],
+  /* Opened from the Overview; in the sidebar only while they filter. */
+  managed: ['Managed by Intune', 'ok', o => inGraph(o) && !!o.graph.managed, true, true],
+  unmanaged: ['In Entra, not managed by Intune', 'off', o => inGraph(o) && !o.graph.managed, true, true],
+  compliant: ['Compliant', 'ok', o => inGraph(o) && o.graph.compliance === 'compliant', true, true],
+  grace: ['In grace period', 'warn', o => inGraph(o) && o.graph.compliance === 'inGracePeriod', true, true],
 };
+/* The operating system of a device as a family: Windows 11, Windows 10, Windows Server 2022, macOS, iOS, Android, Linux.
+   Graph writes Windows by its build (10.0.22631): from build 22000 on it is Windows 11. */
+export const osFamily = o => {
+  const v = String(o.os || '').trim(), l = v.toLowerCase();
+  if (!v) return '';
+  const server = l.match(/windows\s*server\s*(\d{4})?(\s*r2)?/);
+  if (server) return 'Windows Server' + (server[1] ? ' ' + server[1] + (server[2] ? ' R2' : '') : '');
+  const build = l.match(/windows\s*10\.0\.(\d+)/);
+  if (build) return +build[1] >= 22000 ? 'Windows 11' : 'Windows 10';
+  const win = l.match(/win(?:dows)?\s*(11|10|8\.1|8|7)\b/);
+  if (win) return 'Windows ' + win[1];
+  if (/mac\s*os|macos|os x/.test(l)) return 'macOS';
+  if (/ipados|ios/.test(l)) return 'iOS / iPadOS';
+  if (/android/.test(l)) return 'Android';
+  if (/linux|ubuntu|debian|red hat|rhel|centos|suse|fedora/.test(l)) return 'Linux';
+  if (/windows/.test(l)) return 'Windows (other)';
+  return 'Other';
+};
+/* Systems the maker no longer updates. */
+export const OS_ENDED = ['Windows 10', 'Windows 8.1', 'Windows 8', 'Windows 7', 'Windows Server 2008', 'Windows Server 2012', 'Windows Server 2012 R2'];
 /* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
   if (!SYNC.graph || !o.graph || o.graph.gone || (!o.graph.join && !o.graph.compliance)) return '';
@@ -336,7 +362,7 @@ export const isAttached = k => k === 'attached';
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !SYNC.graph || !GRAPH_FILTERS[st.intune] || GRAPH_FILTERS[st.intune][2](o)) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
+  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
     && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || [])].some(v => v && String(v).toLowerCase().includes(q))));
 }
 

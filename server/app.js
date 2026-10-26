@@ -6,6 +6,7 @@ import { audit } from './db.js';
 import { KNOWN_TYPES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers } from './ldap.js';
+import { parseCaCerts } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -37,7 +38,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* The directory settings are read when they are needed, so a change in Settings applies without a restart. The service
      account's password is the server's (NI_LDAP_SERVICE_PASSWORD) when it has one, else the one saved in Settings. */
   const cfgLdap = () => {
-    const c = ldapConfig ? ldapConfig() : ldap;
+    let c = ldapConfig ? ldapConfig() : ldap;
+    /* The CA certificate added in Settings, whichever way the settings came. */
+    if (c && !c.caPem) { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const pem = r && JSON.parse(r.data)?.pem; if (pem) c = { ...c, caPem: pem }; }
     if (!c || c.servicePassword) return c;
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
     return saved ? { ...c, servicePassword: saved } : c;
@@ -278,6 +281,21 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* The nightly run reads the directory with the same settings and password. */
   app.locals.ldapConfig = cfgLdap;
   /* Test connection: reads the users of the saved directory settings and says how many are in scope. */
+  /* The CA certificate the directory server's certificate is checked against. Public, so it is kept with the settings. */
+  app.post('/api/ldap/ca', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const { pem, certs } = parseCaCerts(req.body && req.body.file);
+      const s = loadState(db);
+      s.ldapCa = { pem, certs, at: new Date().toISOString(), by: req.user.name || req.user.login || '' };
+      saveState(db, s);
+      audit(db, req.user.id, 'directory CA certificate added: ' + certs.map(c => c.name).join(', '));
+      res.json({ certs });
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/ldap/ca', requireUser, requireAdmin, (req, res, next) => {
+    try { const s = loadState(db); delete s.ldapCa; saveState(db, s); audit(db, req.user.id, 'directory CA certificate removed'); res.json({ ok: true }); }
+    catch (e) { next(e); }
+  });
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();

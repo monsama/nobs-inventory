@@ -99,6 +99,9 @@ try {
   });
   await p.waitForSelector('#snUseAll');
   assert.match(await p.textContent('#snUseAll'), /Use all 3/);
+  /* Use all and each Use are one size. */
+  const sizes = await p.$$eval('#setSubnets .sn-suggest button', bs => bs.map(b => { const r = b.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }));
+  assert.ok(sizes.length > 1 && new Set(sizes).size === 1, 'suggestion buttons are the same size: ' + sizes.join(', '));
   await p.click('#snUseAll');
   await until(p, async () => (await import('/js/01-core.js')).SUBNETS.length === 3);
   const nets = await core(async () => (await import('/js/01-core.js')).SUBNETS.map(n => [n.cidr, n.name, n.gateway, n.types.join(','), n.ranges.length]));

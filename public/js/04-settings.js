@@ -803,6 +803,51 @@ export function factoryResetModal(){
 const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
 /* The computers are looked for in the whole domain of the search base, unless a base is given. */
 const computerDefault = base => { const dcs = String(base || '').split(',').map(x => x.trim()).filter(x => /^DC=/i.test(x)); return dcs.length ? dcs.join(',') : 'DC=example,DC=ch'; };
+/* How the connection to the directory is secured. ldaps:// is TLS from the start (port 636); StartTLS starts on ldap://
+   (port 389) and is encrypted before anything is sent; none sends the passwords readable. */
+const SECURITY_OPTS = [['', 'TLS: ldaps://, port 636'], ['starttls', 'StartTLS: ldap://, port 389, then encrypted'], ['plain', 'None: unencrypted (not recommended)']];
+const securityNote = L => {
+  const t = L.security === 'plain' ? '<span style="color:var(--danger)">Passwords cross the network readable: those of everyone who signs in, and the service account\'s. Only on a network you trust, and prefer StartTLS.</span>'
+    : L.security === 'starttls' ? 'Encrypted like ldaps://, on the usual port 389. The certificate is checked the same way.'
+    : 'The domain controller needs a certificate. If your company’s CA issued it (AD Certificate Services), add that CA’s certificate below.';
+  return `<p class="note" style="padding:4px 0 0;margin:0">${t}</p>`;
+};
+/* Moves the address to the scheme and port of the security chosen: ldaps:// and 636, or ldap:// and 389. */
+export const ldapUrlFor = (url, security) => {
+  const u = String(url || '').trim();
+  if (!u) return u;
+  return security ? u.replace(/^ldaps:\/\//i, 'ldap://').replace(/:636(\/|$)/, ':389$1') : u.replace(/^ldap:\/\//i, 'ldaps://').replace(/:389(\/|$)/, ':636$1');
+};
+/* The CA certificate the directory server's certificate is checked against, when a company CA issued it. */
+function caHtml(edit){
+  const ca = st.ldapCa;
+  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  const pick = `<label class="btnlike ${edit ? '' : 'disabled'}" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
+  if (!ca) return `<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
+  return `<span style="flex:1;min-width:0">${ca.certs.map(c => `<span class="chip ok" style="flex:none">${esc(c.name)}</span> <span class="muted">until ${esc(day(c.expires))}</span>`).join(' ')}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
+}
+function bindCa(){
+  const f = $('#caFile');
+  if (f) f.onchange = async () => {
+    const file = f.files[0]; if (!file) return;
+    /* Changes still waiting to be saved go first: the settings are read again from the server afterwards. */
+    await flushSave();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
+    const r = await fetch('api/ldap/ca', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({file: btoa(bin)})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'The certificate was not added.'); f.value = ''; return; }
+    toast('CA certificate added: ' + j.certs.map(c => c.name).join(', ') + '. Test the connection.');
+    await reloadFromServer(); renderSetLdap();
+  };
+  const rm = $('#caRemove');
+  if (rm) rm.onclick = async () => {
+    if (!confirm('Remove the CA certificate? A directory server whose certificate it issued can no longer be reached.')) return;
+    await flushSave();
+    const r = await fetch('api/ldap/ca', {method: 'DELETE', credentials: 'same-origin'});
+    if (r.ok){ toast('CA certificate removed'); await reloadFromServer(); renderSetLdap(); }
+  };
+}
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -813,6 +858,10 @@ export function renderSetLdap(){
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
+      <label for="lk_security">Connection security</label><div><select id="lk_security" ${ro}>
+        ${SECURITY_OPTS.map(([v, t]) => `<option value="${v}" ${(L.security || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        ${securityNote(L)}</div>
+      ${L.security === 'plain' ? '' : `<label>CA certificate</label><div class="ctlrow" id="ldapCa">${caHtml(edit)}</div>`}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
@@ -829,11 +878,24 @@ export function renderSetLdap(){
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
-    <div style="padding:6px 12px 0">${scheduleRowHtml('ldap', edit)}</div>
+    <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   bindScheduleRows($('#setLdap'));
   if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
-  $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => { st.ldap[i.dataset.lk] = i.value.trim(); queueServerSave(); renderSetLdap(); });
+  $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => {
+    st.ldap[i.dataset.lk] = i.value.trim();
+    /* An address typed with ldaps:// is TLS; one with ldap:// is secured with StartTLS unless something else was chosen. */
+    if (i.dataset.lk === 'url'){ if (/^ldaps:\/\//i.test(st.ldap.url)) delete st.ldap.security; else if (/^ldap:\/\//i.test(st.ldap.url) && !st.ldap.security) st.ldap.security = 'starttls'; }
+    queueServerSave(); renderSetLdap();
+  });
+  $('#lk_security').onchange = e => {
+    const v = e.target.value;
+    if (v === 'plain' && !confirm('Send passwords unencrypted? Anyone on the network path can read them. StartTLS encrypts on the same port.')){ e.target.value = st.ldap.security || ''; return; }
+    if (v) st.ldap.security = v; else delete st.ldap.security;
+    st.ldap.url = ldapUrlFor(st.ldap.url, v);
+    queueServerSave(); renderSetLdap();
+  };
+  if (edit) bindCa();
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
   $('#ldapTest').onclick = async () => {
@@ -1446,7 +1508,7 @@ export function renderSetFeed(){
       ${field('site', 'Site ID', 'empty: the first site of the token')}
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
-    <div style="padding:6px 12px 0">${scheduleRowHtml('lansweeper', edit)}</div>
+    <div style="padding:8px 12px 12px">${scheduleRowHtml('lansweeper', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
   <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>

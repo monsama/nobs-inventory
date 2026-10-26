@@ -21,8 +21,8 @@ saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
   graph: { tenant: '1b2c3d4e-5f60-4a1b-9c2d-3e4f5a6b7c8d', clientId: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' },
   graphUnmatched: [{ id: 'm9', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', platform: 'iOS', owner: 'Ana Muster', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent }],
   objs: [
-    pc('a', 'PC-OK', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' }),
-    pc('b', 'PC-BAD', { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' }),
+    { ...pc('a', 'PC-OK'), os: 'Windows 11 Pro', graph: { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' } },
+    { ...pc('b', 'PC-BAD'), os: 'Windows 10 Pro', graph: { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' } },
     { ...pc('c', 'PC-NONE'), inAd: true },
     /* Listed twice in Entra (an old record from before a reinstall); gone from Entra since the last sync; a name used twice here. */
     pc('d', 'PC-DUP', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastCheckIn: recent, seen: '26.10.2026 06:00', others: [{ id: 'x1', join: 'Entra registered', managed: '', serial: '', last: old }] }),
@@ -81,13 +81,30 @@ try {
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
   await p.click('[data-ovintune="noncompliant"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['b']);
+  // the Overview: how devices are joined, Intune, operating systems, and Windows 10 under Needs attention
+  const ids = () => p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id));
+  const overview = async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); }); await p.waitForSelector('.ov-split'); };
+  await overview();
+  if (process.env.NI_SHOTS) await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'overview-join.png'), fullPage: true });
+  assert.match(await p.textContent('.panelbox:has(.hdr:text("How devices are joined"))'), /Entra joined.*2.*Hybrid joined.*1.*AD joined only.*1/s);
+  await p.click('.ov-row[data-ovintune="hybrid"]'); assert.deepEqual(await ids(), ['b']);
+  await overview(); await p.click('.ov-bar[data-ovintune="duplicates"]'); assert.deepEqual(await ids(), ['d']);
+  assert.equal(await p.locator('#grList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
+  await overview(); await p.click('.ov-bar[data-ovintune="managed"]'); assert.deepEqual(await ids(), ['a', 'b', 'd']);
+  assert.equal(await p.locator('#grList [data-intune="managed"]').count(), 1, 'an Overview-only filter shows while it filters');
+  await overview(); await p.click('.ov-row[data-ovos="Windows 10"]'); assert.deepEqual(await ids(), ['b']);
+  assert.match(await p.textContent('#osList'), /Windows 10/);
+  await p.click('#osList [data-osfam]'); assert.equal((await ids()).length, 7, 'the way out of the system filter');
+  assert.deepEqual(await p.evaluate(async () => { const { osFamily } = await import('/js/01-core.js');
+    return ['Windows 10.0.22631', 'Windows 10.0.19045', 'Microsoft Windows 11 Enterprise', 'Win 10 Pro', 'Windows Server 2019 Standard', 'Windows Server 2012 R2 Datacenter', 'macOS 14.5', 'iPadOS 17.1', 'Android 14', 'Ubuntu 22.04', ''].map(os => osFamily({ os })); }),
+    ['Windows 11', 'Windows 10', 'Windows 11', 'Windows 10', 'Windows Server 2019', 'Windows Server 2012 R2', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', '']);
 
   // Settings: the device Graph has that the inventory does not, added from there
   await p.click('#clearF');
   await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
   await p.waitForSelector('#guList');
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
-  if (process.env.NI_SHOTS){ await p.click('.wc-max'); await p.locator('.gu-box').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-unmatched.png') }); }
+  if (process.env.NI_SHOTS){ await p.click('.wc-max'); await p.locator('.gu-box:has(#guList)').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-unmatched.png') }); }
   assert.match(await p.textContent('#guList'), /iPhone Ana.*iOS 18\.1.*Apple iPhone 15.*F2LX.*Ana Muster/s);
   await p.check('[data-gu="m9"]'); await p.click('#guAdd');
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana'));
