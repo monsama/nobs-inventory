@@ -6,7 +6,7 @@ import { HttpError } from './errors.js';
    can change them without a restart. The service account's password is never stored there: it comes from the
    server's environment (NI_LDAP_SERVICE_PASSWORD, or NI_LDAP_SERVICE_PASSWORD_FILE for a secret file). The settings
    from the environment (NI_LDAP_URL and the rest) still work and are used when nothing is saved in the inventory. */
-const FIELDS = ['url', 'security', 'bindTemplate', 'searchBase', 'loginAttr', 'userFilter', 'group', 'adminGroup', 'serviceDn', 'computerBase', 'computerGroups'];
+const FIELDS = ['url', 'security', 'legacyTls', 'bindTemplate', 'searchBase', 'loginAttr', 'userFilter', 'group', 'adminGroup', 'serviceDn', 'computerBase', 'computerGroups'];
 /* How an ldap:// address is secured: StartTLS (encrypted from the first message on), or plain (unencrypted, chosen
    knowingly). An ldaps:// address is encrypted anyway. */
 export const SECURITY = ['', 'starttls', 'plain'];
@@ -72,6 +72,7 @@ export function ldapConfigOf(db, env) {
   if (!cfg.bindTemplate) cfg.bindTemplate = defaultBindTemplate(cfg.searchBase);
   if (!cfg.loginAttr) cfg.loginAttr = 'sAMAccountName';
   if (!SECURITY.includes(cfg.security)) cfg.security = '';
+  if (cfg.legacyTls !== 'on') cfg.legacyTls = '';
   /* The server's service password goes only to the directory the server names (NI_LDAP_URL), when it names one: an
      address changed in Settings does not get it. */
   const envPw = readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), envHost = ldapHostOf(env.NI_LDAP_URL || '');
