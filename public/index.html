@@ -378,8 +378,22 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-bar{display:grid;grid-template-columns:minmax(120px,38%) 1fr 48px;gap:10px;align-items:center;padding:5px 12px;border:0;background:none;color:var(--fg);height:auto;font:inherit;font-size:13px;cursor:pointer;text-align:left;border-radius:0}
 .ov-lbl{display:flex;gap:6px;align-items:center;min-width:0}.ov-lbl>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov-track{height:10px;border-radius:0 4px 4px 0;background:transparent}
-.ov-track>span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
+.ov-track>span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}.ov-track>span.bad{background:var(--danger-bg)}
 .ov-n{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg)}
+/* How devices are joined: one bar split by share, and a key row for each kind. Five fixed hues, the same in both themes. */
+.ov-split{display:flex;height:12px;margin:12px 12px 6px;border-radius:4px;overflow:hidden;gap:2px}
+.ov-split>span{min-width:3px}
+.j-entra{background:#2563eb}.j-hybrid{background:#0d9488}.j-adonly{background:#7c3aed}.j-registered{background:#d97706}.j-notjoined{background:var(--bd)}
+.ov-key{width:10px;height:10px;border-radius:3px;flex:none}
+.ov-row .ov-num{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.ov-row .ov-num small{font-weight:400}
+.ov-sub{padding:8px 12px 0}
+.ov-row>span:nth-child(2){flex:1;min-width:0}
+.ov-row>span:nth-child(2) small,.ov-row>span:nth-child(2) b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.ov-row .ov-num{flex:none;min-width:44px}.ov-row .ov-num small{display:block}
+.ov-wide .ov-bar{grid-template-columns:minmax(150px,48%) 1fr 40px}
+/* A header or group of the sidebar that does not apply is hidden, whatever its display. */
+#side [hidden]{display:none!important}
 @media (max-width:640px){.ov{padding:8px}.ov-cols{grid-template-columns:1fr}.ov-bar{grid-template-columns:minmax(90px,40%) 1fr 40px}}
 /* costs: contracts, licences */
 .sw-page{display:flex;flex-direction:column;gap:12px}
@@ -684,6 +698,7 @@ input.inherit::placeholder{color:var(--muted);font-style:italic;opacity:1}
 .sn-suggest .snrow{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
 .sn-suggest .snrow .mono{font-family:var(--mono)}
 .sn-suggest .snrow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.sn-suggest button{min-width:88px;justify-content:center;text-align:center;flex:none}
 .form input,.form select,.form textarea{width:100%}
 .form input[type=checkbox],.form input[type=radio]{width:auto}
 .form .ro{font-family:var(--mono);font-size:12px}
@@ -886,6 +901,8 @@ details.menu>summary::-webkit-details-marker{display:none}
     <div class="sidegroup" id="chkList"></div>
     <div class="hdr" id="grHdr" hidden>Entra &amp; Intune</div>
     <div class="sidegroup" id="grList" hidden></div>
+    <div class="hdr" id="osHdr" hidden>Operating system</div>
+    <div class="sidegroup" id="osList" hidden></div>
     <div class="hdr" id="adgHdr" hidden>AD group</div>
     <div class="sidegroup" id="adgList" hidden></div>
   </aside>
