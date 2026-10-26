@@ -8,7 +8,7 @@ import { loadState, saveState } from './state.js';
 import { setPassword, hasPassword, passwordProblem } from './auth.js';
 import { feedChanged, mergeFeed } from './feed.js';
 import { syncLansweeper, lansweeperConfigOf } from './lansweeper.js';
-import { graphConfigOf } from './graph.js';
+import { graphConfigOf, syncGraph } from './graph.js';
 import { autoBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { purgePasswords, sheetKeyOf } from './sheets.js';
@@ -47,9 +47,9 @@ export function runFeedFile(db, file, now = new Date()) {
   return counts;
 }
 
-/* Nightly at 06:00: the Lansweeper API when a token is set, otherwise the report file; then the directory users. */
-export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null } = {}, log = console.log) {
-  if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey) return null;
+/* Nightly at 06:00: the Lansweeper API when a token is set, otherwise the report file; then the directory users; then Microsoft Graph. */
+export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null } = {}, log = console.log) {
+  if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig) return null;
   let lastRun = '';
   return setInterval(async () => {
     const now = new Date();
@@ -70,6 +70,11 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
       const lc = ldapConfig ? ldapConfig() : null;
       if (lc) {
         try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
+      }
+      /* Microsoft Graph last, so the devices Lansweeper added tonight are matched. */
+      const gc = graphConfig ? graphConfig() : null;
+      if (gc) {
+        try { const c = await syncGraph(db, gc, now); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }
       }
     } catch (e) { log('nightly sync failed:', e.message); try { audit(db, null, 'Nightly sync failed: ' + e.message); } catch { /* the log is best effort */ } }
   }, 30_000);
@@ -93,7 +98,7 @@ export function start(env = process.env) {
   const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig, sheetKey });
+  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig, sheetKey, graphConfig: () => app.locals.graphConfig() });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }

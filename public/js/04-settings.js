@@ -1,5 +1,5 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL } from './01-core.js';
+import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
 import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
@@ -193,6 +193,18 @@ async function retypeModal(){
 /* Microsoft Graph: the join status, Intune enrolment and compliance of the devices, matched by serial number. Set up in
    four steps; the server makes the certificate and keeps its key, so no file is copied to the server. */
 const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
+/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
+function unmatchedHtml(edit){
+  const list = st.graphUnmatched || [];
+  if (!list.length) return '';
+  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Entra or Intune, not in the inventory</b><span class="cnt">${list.length}</span></div>
+    <p class="note" style="padding:4px 12px 8px">Found at the last sync, by neither serial number nor name. Often phones and tablets Lansweeper does not scan, or devices named differently. Added ones get their type from their system, and Graph keeps them up to date.</p>
+    <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="guList" style="min-width:0"><thead><tr><th><input type="checkbox" id="guAllBox" aria-label="Select all" ${edit ? '' : 'disabled'}></th><th>Name</th><th>System</th><th>Model</th><th>Serial</th><th>Primary user</th><th>Compliance</th><th>Last contact</th></tr></thead><tbody>
+      ${list.map(d => `<tr><td><input type="checkbox" data-gu="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${edit ? '' : 'disabled'}></td><td>${esc(d.name)}</td><td>${esc(d.os || d.platform || (d.join ? d.join : ''))}</td><td>${esc(d.model || '')}</td><td class="mono">${esc(d.serial || '')}</td><td>${esc(d.owner || '')}</td><td>${complianceChip(d.compliance)}</td><td>${esc(day(d.lastSync))}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="addrel" style="padding:8px 12px"><button id="guAdd" disabled>Add selected</button><button id="guAddAll" ${edit ? '' : 'disabled'}>Add all ${list.length}</button></div></div>`;
+}
 export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
@@ -250,7 +262,8 @@ export async function renderSetGraph(){
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div></li>
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
-    <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}</div>`;
+    <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
+    ${unmatchedHtml(edit)}</div>`;
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
@@ -277,8 +290,8 @@ export async function renderSetGraph(){
     btn.disabled = false;
     if (!x.ok) return say(x.j.error || 'The sync failed.', true);
     const c = x.j.counts;
-    say(`${c.devices} devices from Microsoft Graph: ${c.matched} matched, ${c.unmatched} not in the inventory, ${c.filled} values filled in`);
-    await reloadFromServer();
+    await reloadFromServer(); await renderSetGraph();
+    say(`${c.devices} devices in Entra and Intune: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.${c.unmatched ? ` ${c.unmatched} are not in the inventory: see the list below.` : ''}`);
   };
   root.querySelectorAll('[data-gcuse]').forEach(b => b.onclick = async () => {
     const x = await post(`api/graph/cert/${encodeURIComponent(b.dataset.gcuse)}/use`);
@@ -287,6 +300,22 @@ export async function renderSetGraph(){
   });
   /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
      certificate is created and uploaded. */
+  /* Devices Graph has that the inventory does not: add the ticked ones, or all. */
+  const addGraph = async ids => {
+    const x = await post('api/graph/add', {ids});
+    if (!x.ok){ toast(x.j.error || 'Not added.'); return; }
+    toast(`${x.j.added} ${x.j.added === 1 ? 'device' : 'devices'} added from Microsoft Graph`);
+    await reloadFromServer(); await renderSetGraph();
+  };
+  const gu = $('#guList');
+  if (gu){
+    const picked = () => [...gu.querySelectorAll('[data-gu]:checked')].map(c => c.dataset.gu);
+    const fit = () => { const n = picked().length; $('#guAdd').disabled = !n; $('#guAdd').textContent = n ? `Add ${n} selected` : 'Add selected'; };
+    gu.querySelectorAll('[data-gu]').forEach(c => c.onchange = fit);
+    $('#guAllBox').onchange = e => { gu.querySelectorAll('[data-gu]').forEach(c => { c.checked = e.target.checked; }); fit(); };
+    $('#guAdd').onclick = () => addGraph(picked());
+    $('#guAddAll').onclick = () => { if (confirm(`Add all ${(st.graphUnmatched || []).length} devices to the inventory?`)) addGraph('all'); };
+  }
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
     const t = b.dataset.gcdel, inUse = !!b.dataset.gcinuse;
     if (!confirm(`Delete certificate ${t}? Its private key is deleted from the server; this cannot be undone. Delete it in Entra as well (the app → Certificates & secrets → Certificates).`
