@@ -160,10 +160,15 @@ export function avCtl(o, id, edit){
   const items = avEntries(o);
   /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
   const live = lsLive() && feedLinked(o);
-  const label = x => live ? x : x.split(',')[0].trim();
-  return `<div class="avpick">${items.map((x, i) => `<span class="avitem"${live || label(x) === x ? '' : ` title="${esc(x)}"`}>${esc(label(x))}${edit ? `<button type="button" class="avx" data-avx="${i}" aria-label="Remove ${esc(x)}" title="Remove">×</button>` : ''}</span>`).join('')}
-    ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}`
-      : (items.length ? '' : '<span class="muted">None</span>')}</div>`;
+  /* Laid out like Attachments: one entry per product, its scan state as chips, a field to add another underneath. */
+  const STATE = { 'scanning on': ['ok', 'Scanning on'], 'scanning off': ['bad', 'Scanning off'], 'up to date': ['ok', 'Up to date'], 'out of date': ['warn', 'Out of date'] };
+  const entry = (x, i) => {
+    const [name, ...rest] = x.split(',').map(t => t.trim());
+    const chips = live ? rest.map(t => { const s = STATE[t.toLowerCase()]; return s ? `<span class="chip ${s[0]}">${s[1]}</span>` : `<span class="chip">${esc(t)}</span>`; }).join('') : '';
+    return `<div class="entry avitem"${!live && rest.length ? ` title="${esc(x)}"` : ''}><div class="entry-head"><b>${esc(name)}</b>${edit ? `<button type="button" class="icon ghost" data-avx="${i}" aria-label="Remove ${esc(name)}" title="Remove">×</button>` : ''}</div>${chips ? `<div class="av-state">${chips}</div>` : ''}</div>`;
+  };
+  return `<div class="entries-box avpick">${items.map(entry).join('') || `<p class="note">${edit ? 'No antivirus product yet.' : 'None'}</p>`}
+    ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}"><div class="addrel entry-add av-add">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}</div>` : ''}</div>`;
 }
 const AV_COMMON = ['Microsoft Defender Antivirus', 'Microsoft Defender for Endpoint', 'Cortex XDR', 'CrowdStrike Falcon', 'SentinelOne', 'Sophos Intercept X',
   'ESET Endpoint Security', 'Trend Micro Apex One', 'Bitdefender GravityZone', 'Kaspersky Endpoint Security', 'Symantec Endpoint Protection', 'Trellix Endpoint Security', 'WithSecure Elements'];
@@ -285,7 +290,8 @@ export function propRow(o, f, menu = ''){
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
-  const barsBelow = bars ? `<span></span>${bars}` : '';
+  /* The bars sit under the field and end where it ends: the From feed box and the menu keep their columns free. */
+  const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
   const nics = k === 'mac' ? nicsHtml(o) : '';
   return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
 }
@@ -302,14 +308,22 @@ export function nicsHtml(o){
    the space left. Returns '' when the text is not in that form. */
 export function diskBars(text, live = true){
   const num = v => +String(v).replace(/[^\d]/g, '');
-  const parts = String(text || '').split(';').map(x => /^\s*([A-Za-z]):?\s*([\d'’.,\s]+)\/([\d'’.,\s]+)\s*GB\s*$/.exec(x)).filter(Boolean);
+  /* Each drive: "C: 53/237 GB" (free/size), "D: optical" (a CD/DVD drive), or a bare "D:" when Lansweeper had no size. */
+  const parts = String(text || '').split(';').map(x => {
+    const m = /^\s*([A-Za-z]):?\s*([\d'’.,\s]+)\/([\d'’.,\s]+)\s*GB\s*$/.exec(x);
+    if (m) return {l: m[1].toUpperCase(), free: num(m[2]), size: num(m[3])};
+    const e = /^\s*([A-Za-z]):?\s*(optical)?\s*$/i.exec(x);
+    return e ? {l: e[1].toUpperCase(), optical: !!e[2], none: true} : null;
+  }).filter(Boolean).sort((a, b) => a.l.localeCompare(b.l));
   if (!parts.length) return '';
+  const noSize = p => p.optical ? 'Optical drive' : 'Optical drive or no media';
   /* Without a running sync the free space is out of date: only each drive's size is shown. */
-  if (!live) return `<div class="disks sizes">${parts.map(([, l, , c]) => `<span class="disk-size"><b>${l.toUpperCase()}:</b> ${num(c).toLocaleString()} GB</span>`).join('')}</div>`;
-  return `<div class="disks">${parts.map(([, l, f, c]) => {
-    const free = num(f), size = num(c), used = size ? Math.min(100, Math.max(0, Math.round((size - free) / size * 100))) : 0;
+  if (!live) return `<div class="disks sizes">${parts.map(p => `<span class="disk-size"><b>${p.l}:</b> ${p.none ? noSize(p) : p.size.toLocaleString() + ' GB'}</span>`).join('')}</div>`;
+  return `<div class="disks">${parts.map(p => {
+    if (p.none) return `<div class="disk none"><b>${p.l}:</b><span class="disk-t">${noSize(p)}</span></div>`;
+    const used = p.size ? Math.min(100, Math.max(0, Math.round((p.size - p.free) / p.size * 100))) : 0;
     const cls = used >= 90 ? ' bad' : used >= 80 ? ' warn' : '';
-    return `<div class="disk${cls}" title="${l.toUpperCase()}: ${used}% used, ${free} GB free of ${size} GB"><b>${l.toUpperCase()}:</b><span class="disk-bar" aria-hidden="true"><span style="width:${used}%"></span></span><span class="disk-t">${free.toLocaleString()} GB free of ${size.toLocaleString()} GB</span></div>`;
+    return `<div class="disk${cls}" title="${p.l}: ${used}% used, ${p.free} GB free of ${p.size} GB"><b>${p.l}:</b><span class="disk-bar" aria-hidden="true"><span style="width:${used}%"></span></span><span class="disk-t">${p.free.toLocaleString()} GB free of ${p.size.toLocaleString()} GB</span></div>`;
   }).join('')}</div>`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
