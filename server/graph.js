@@ -95,8 +95,9 @@ export async function graphAll(token, url, fetchImpl = fetch) {
 
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime';
 const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName';
-/* How a join type reads in the inventory. */
-export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Domain joined', Workplace: 'Registered' };
+/* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
+   from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
+export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
 const clean = v => String(v ?? '').trim();
 const gb = bytes => (Number(bytes) > 0 ? `${Math.round(Number(bytes) / 2 ** 30)} GB` : '');
 

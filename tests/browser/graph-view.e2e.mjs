@@ -22,8 +22,8 @@ saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
   graphUnmatched: [{ id: 'm9', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', platform: 'iOS', owner: 'Ana Muster', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent }],
   objs: [
     pc('a', 'PC-OK', { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' }),
-    pc('b', 'PC-BAD', { join: 'Entra joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' }),
-    pc('c', 'PC-NONE'),
+    pc('b', 'PC-BAD', { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' }),
+    { ...pc('c', 'PC-NONE'), inAd: true },
   ], rels: [], history: {} });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -42,13 +42,14 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
-  for (const t of ['Entra joined', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
+  for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
   if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=over 30 days ago');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Not compliant.*Not encrypted/s);
+  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
   await p.waitForSelector('text=Not found in Microsoft Entra or Intune');
+  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
@@ -57,6 +58,13 @@ try {
   await p.click('#grList [data-intune="missing"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c']);
   await p.click('#grList [data-intune="missing"]');
+  // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
+  assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['1', '1', '1']);
+  assert.equal(await p.locator('#grList [data-intune="registered"]').count(), 0, 'a kind that does not occur is not listed');
+  assert.match(await p.getAttribute('#grList [data-intune="hybrid"]', 'title'), /on-premises Active Directory and registered in Microsoft Entra/);
+  await p.click('#grList [data-intune="adonly"]');
+  assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c']);
+  await p.click('#grList [data-intune="adonly"]');
 
   // the Overview tiles open the list
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
