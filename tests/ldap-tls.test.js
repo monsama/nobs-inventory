@@ -162,3 +162,33 @@ test('a domain controller certificate with a 1024-bit key: refused, and the repo
     assert.ok(!/did not issue it/.test(r.text), 'the CA is the right one');
   } finally { server.close(); }
 });
+
+test('"Accept old certificates" lets a 1024-bit key through at security level 1, only when chosen, and still checks the CA', async () => {
+  const tlsMod = await import('node:tls');
+  const { LEGACY_CIPHERS } = await import('../server/ldap.js');
+  const server = tlsMod.createServer({ cert: fixture('dc-weak.crt'), key: fixture('dc-weak.key'), ciphers: 'DEFAULT@SECLEVEL=0' }, s => s.end());
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+  const tryTls = opts => new Promise(resolve => { const s = tlsMod.connect({ host: 'localhost', port, ...opts }, () => { s.end(); resolve('ok'); }); s.on('error', e => resolve(e.message)); });
+  try {
+    assert.match(await tryTls({ ca: caPem, ciphers: 'DEFAULT@SECLEVEL=2' }), /key too (weak|small)/, 'refused as the Node 26 image does');
+    assert.equal(await tryTls({ ca: caPem, ciphers: LEGACY_CIPHERS }), 'ok', 'accepted with old certificates allowed');
+    assert.match(await tryTls({ ca: fixture('other-ca.crt'), ciphers: LEGACY_CIPHERS }), /self[- ]signed|unable to (verify|get)/i, 'the CA is still checked');
+  } finally { server.close(); }
+  /* The option reaches the connection only when it is on, for ldaps:// and StartTLS. */
+  const seen = [];
+  const fake = opts => { seen.push(['connect', opts.tlsOptions && opts.tlsOptions.ciphers]); return { on() {}, unbind() {}, starttls(o, c, cb) { seen.push(['starttls', o.ciphers]); cb(null); }, bind(dn, pw, cb) { cb(null); }, search(b, o, cb) { cb(null, { on(ev, f) { if (ev === 'end') f(); } }); } }; };
+  const base = { searchBase: 'dc=test', serviceDn: 'cn=svc', servicePassword: 'x', group: 'G', loginAttr: 'sAMAccountName', createClient: fake };
+  await ldapListUsers({ ...base, url: 'ldaps://dc01.example.test' });
+  await ldapListUsers({ ...base, url: 'ldaps://dc01.example.test', legacyTls: 'on' });
+  await ldapListUsers({ ...base, url: 'ldap://dc01.example.test', security: 'starttls', legacyTls: 'on' });
+  assert.deepEqual(seen, [['connect', undefined], ['connect', LEGACY_CIPHERS], ['connect', undefined], ['starttls', LEGACY_CIPHERS]]);
+  /* Saved in Settings as 'on'; anything else is off. */
+  const srv = await startServer();
+  try {
+    saveState(srv.db, { ...loadState(srv.db), ldap: { url: 'ldaps://dc01.example.test', legacyTls: 'on' } });
+    assert.equal(ldapConfigOf(srv.db, {}).legacyTls, 'on');
+    saveState(srv.db, { ...loadState(srv.db), ldap: { url: 'ldaps://dc01.example.test', legacyTls: 'yes please' } });
+    assert.equal(ldapConfigOf(srv.db, {}).legacyTls, '');
+  } finally { await srv.close(); }
+});

@@ -24,6 +24,7 @@ const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
 /* Opens the connection. An ldaps:// address is encrypted from the start. An ldap:// address is upgraded with StartTLS
    when that is chosen, before anything else is sent; unencrypted it needs an explicit choice (in Settings, or
    NI_LDAP_ALLOW_PLAIN=1), since it sends the passwords readable. The certificate is checked against the server's name. */
+export const LEGACY_CIPHERS = 'DEFAULT@SECLEVEL=1';
 export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
 async function connect(config) {
   const plain = /^ldap:\/\//i.test(config.url);
@@ -31,15 +32,20 @@ async function connect(config) {
   if (plain && !startTls && !config.allowPlain) throw new Error(PLAIN_LDAP_ERROR);
   /* The CA added in Settings and the one named by NI_LDAP_CA, on top of the public ones Node trusts. */
   const ca = [config.caFile ? fs.readFileSync(config.caFile) : null, config.caPem || null].filter(Boolean);
-  const tls = ca.length ? { ca: [...tlsRootCertificates, ...ca] } : {};
+  const tlsOpts = {
+    ...(ca.length ? { ca: [...tlsRootCertificates, ...ca] } : {}),
+    /* Old certificates, only when chosen in Settings: RSA keys from 1024 bits (security level 1 instead of 2). The
+       certificate is still checked against the CA and the name; the connection stays encrypted. */
+    ...(config.legacyTls === 'on' ? { ciphers: LEGACY_CIPHERS } : {}),
+  };
   const opts = { url: config.url, timeout: 8000, connectTimeout: 8000 };
-  if (!plain && ca.length) opts.tlsOptions = tls;
+  if (!plain && Object.keys(tlsOpts).length) opts.tlsOptions = tlsOpts;
   const client = (config.createClient || ldap.createClient)(opts);
   // Connection errors also reach the pending bind or search callback; without this listener they would crash the server.
   client.on('error', () => {});
   if (startTls) {
     const host = new URL(config.url).hostname;
-    try { await new Promise((resolve, reject) => client.starttls({ ...tls, host, servername: host }, [], e => (e ? reject(e) : resolve()))); }
+    try { await new Promise((resolve, reject) => client.starttls({ ...tlsOpts, host, servername: host }, [], e => (e ? reject(e) : resolve()))); }
     catch (e) { close(client); throw e; }
   }
   return client;
@@ -156,7 +162,7 @@ export async function ldapCertReport(config, now = new Date()) {
   const key = leaf.publicKey.asymmetricKeyDetails || {}, type = leaf.publicKey.asymmetricKeyType;
   const bits = key.modulusLength || 0, weak = type === 'rsa' && bits > 0 && bits < 2048;
   const parts = [`The server presented the certificate of ${cnOf2(leaf.subject)}, issued by ${cnOf2(leaf.issuer)}, valid until ${day(leaf.validTo)}${bits ? `, with a ${bits}-bit ${String(type).toUpperCase()} key` : ''}.`];
-  if (weak) parts.push(`That key is too short: TLS today needs at least 2048 bits. Renew the domain controller's certificate with a 2048-bit key (in the certificate template, e.g. Kerberos Authentication: Cryptography → minimum key size 2048), then restart it or run certutil -pulse on it.`);
+  if (weak) parts.push(`That key is too short: TLS today needs at least 2048 bits. Renew the domain controller's certificate with a 2048-bit key (a template duplicated from Kerberos Authentication, minimum key size 2048).${config.legacyTls === 'on' ? '' : ' Until then, "Accept old certificates" in Settings lets the inventory connect.'}`);
   if (expired) parts.push(`It has expired: the domain controller needs a new one.`);
   if (!matches) parts.push(`It is made for ${names.join(', ') || cnOf2(leaf.subject)}, not for ${host}: use ${names.length > 1 ? "one of these names" : "that name"} in the server address.`);
   if (cas.length && !byAdded) parts.push(`The CA certificate in Settings (${cas.map(c => cnOf2(c.subject)).join(', ')}) did not issue it: add the certificate of ${cnOf2(chain[chain.length - 1].issuer)} instead.`);
@@ -168,7 +174,7 @@ export async function ldapCertReport(config, now = new Date()) {
    in the message (data 52e, 775, …). */
 const LDAP_HINTS = [
   [/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ETIMEDOUT|timed? ?out|connect/i, 'The directory server cannot be reached. Check the server address and port (ldaps:// uses 636, ldap:// 389) and that the firewall lets this server through.'],
-  [/key too (weak|small)/i, 'The domain controller\'s certificate has a key that is too short (TLS today needs at least 2048 bits): renew it with a 2048-bit key.'],
+  [/key too (weak|small)/i, 'The domain controller\'s certificate has a key that is too short (TLS today needs at least 2048 bits): renew it with a 2048-bit key. Until then, "Accept old certificates" in Settings lets the inventory connect.'],
   [/certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames/i, 'The directory server\'s certificate is not trusted, or does not match the address. Add the certificate of the CA that issued it under CA certificate in Settings (on Windows: the root CA certificate from AD Certificate Services, exported as .cer), and use the name the certificate is made for (dc01.example.ch, not an IP address).'],
   [/data 775/i, 'The service account is locked out.'],
   [/data 533/i, 'The service account is disabled.'],

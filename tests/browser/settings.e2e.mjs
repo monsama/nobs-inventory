@@ -50,6 +50,18 @@ try {
   page.once('dialog', d => d.accept());
   await page.click('#caRemove');
   await page.waitForSelector('#ldapCa:has-text("None: only certificates from public CAs")');
+  // old certificates: off by default, on only after confirming, with a warning shown while it is on
+  assert.equal(await page.isChecked('#lk_legacyTls'), false);
+  page.once('dialog', d => d.dismiss());
+  await page.click('#lk_legacyTls');
+  assert.equal(await page.isChecked('#lk_legacyTls'), false, 'cancelled: stays off');
+  page.once('dialog', d => d.accept());
+  await page.check('#lk_legacyTls');
+  await page.waitForSelector('#setLdap .chip.warn:text("On")');
+  assert.match(await page.textContent('#setLdap'), /Not recommended: a 1024-bit key is no longer considered safe/);
+  assert.equal(await page.evaluate(async () => (await import('/js/01-core.js')).st.ldap.legacyTls), 'on');
+  await page.uncheck('#lk_legacyTls');
+  await page.waitForFunction(() => !document.querySelector('#setLdap .chip.warn'));
   // the service account password: saved, never shown again, removable
   await page.waitForSelector('#lk_pw');
   await page.fill('#lk_pw', 'svc-secret'); await page.click('#lpSave');
