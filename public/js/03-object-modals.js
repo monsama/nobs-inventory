@@ -286,16 +286,7 @@ export function propRow(o, f, menu = ''){
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
   const barsBelow = bars ? `<span></span>${bars}` : '';
-  const lines = k === 'warranty' ? warrantyLinesHtml(o) : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${lines}${fieldNote(o, k)}`;
-}
-/* The manufacturer's warranty lines from Lansweeper, under Warranty ends: each service with its dates, ended ones dimmed. */
-export function warrantyLinesHtml(o, today = new Date()){
-  const list = Array.isArray(o.warrantyLines) ? o.warrantyLines : [];
-  if (!list.length) return '';
-  const day = today.toISOString().slice(0, 10);
-  return `<span></span><ul class="wlines" aria-label="Warranty lines">${list.map(l => { const over = l.end < day;
-    return `<li class="${over ? 'over' : ''}"><span class="wl-svc">${esc(l.service || 'Warranty')}</span><span class="wl-dates">${l.start ? esc(dayText(l.start)) + ' – ' : 'until '}${esc(dayText(l.end))}${over ? ' · ended' : ''}</span></li>`; }).join('')}</ul>`;
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}`;
 }
 /* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
    the space left. Returns '' when the text is not in that form. */
@@ -836,7 +827,6 @@ export function renderObj(o){
       $('#fmOk').onclick = () => {
         closeModal();
         el.value = '';
-        if (k === 'warranty') delete o.warrantyLines;
         if (fromFeed){ const box = el.closest('.ctlrow') && el.closest('.ctlrow').querySelector('[data-ovr]'); if (box) box.checked = false; }
         saveObj(true);
       };

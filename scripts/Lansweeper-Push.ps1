@@ -92,10 +92,6 @@ $script:Wanted = [ordered]@{
     tblQuickFixEngineering = @('AssetID', 'QFEID', 'InstalledOn')
     tblAntivirus   = @('AssetID', 'DisplayName', 'onAccessScanningEnabled', 'productUpToDate')
     web50repvCenterVmwareGuestNetworks = @('AssetID', 'Host')
-    # The manufacturer's warranty lines (base warranty, next business day, accidental damage…). Versions name the
-    # dates WarrantyStartDate/WarrantyEndDate or StartDate/EndDate, and some keep the asset on the lines themselves.
-    tblWarranty    = @('WarrantyId', 'AssetId')
-    tblWarrantydetails = @('WarrantyId', 'AssetId', 'ServiceType', 'ServiceDescription', 'WarrantyStartDate', 'WarrantyEndDate', 'StartDate', 'EndDate')
 }
 $script:Required = @{
     tblAssets      = @('AssetID', 'AssetName', 'Assettype')
@@ -422,24 +418,6 @@ function Get-SoftwareByAsset($conn) {
     return $map
 }
 
-# The query for the warranty lines, or nothing when this Lansweeper has no warranty tables. Each line's asset comes from
-# the line itself or from its warranty record; its dates from whichever pair of date columns the version has.
-function Get-WarrantySql {
-    $d = 'tblWarrantydetails'
-    if (-not (Test-Col $d 'WarrantyId') -and -not (Test-Col $d 'AssetId')) { return $null }
-    $start = if (Test-Col $d 'WarrantyStartDate') { 'd.[WarrantyStartDate]' } elseif (Test-Col $d 'StartDate') { 'd.[StartDate]' } else { 'NULL' }
-    $end = if (Test-Col $d 'WarrantyEndDate') { 'd.[WarrantyEndDate]' } elseif (Test-Col $d 'EndDate') { 'd.[EndDate]' } else { $null }
-    if (-not $end) { return $null }
-    $type = if (Test-Col $d 'ServiceType') { 'd.[ServiceType]' } else { 'NULL' }
-    $about = if (Test-Col $d 'ServiceDescription') { 'd.[ServiceDescription]' } else { 'NULL' }
-    $cols = "$type AS [ServiceType], $about AS [ServiceDescription], $start AS [StartDate], $end AS [EndDate]"
-    if (Test-Col $d 'AssetId') { return "SELECT d.[AssetId] AS [AssetID], $cols FROM [tblWarrantydetails] d WHERE $end IS NOT NULL" }
-    if ((Test-Col 'tblWarranty' 'WarrantyId') -and (Test-Col 'tblWarranty' 'AssetId')) {
-        return "SELECT w.[AssetId] AS [AssetID], $cols FROM [tblWarrantydetails] d JOIN [tblWarranty] w ON w.[WarrantyId] = d.[WarrantyId] WHERE $end IS NOT NULL"
-    }
-    return $null
-}
-
 # Firmware, last power event, disks, last update and antivirus per asset. Each part is left out when its table is missing.
 function Get-HealthByAsset($conn) {
     $health = @{}
@@ -474,21 +452,6 @@ function Get-HealthByAsset($conn) {
             if (-not $id -or -not ($date -is [datetime])) { continue }
             $e = Get-Entry $id
             if (-not $e.ContainsKey('patchDate') -or $date -gt $e['patchDate']) { $e['patchDate'] = $date; $e['patch'] = "$(ConvertTo-Text $rd['QFEID']) ($($date.ToString('yyyy-MM-dd')))" }
-        } } finally { $rd.Close() }
-    }
-    $w = Get-WarrantySql
-    if ($w) {
-        $r = $conn.CreateCommand(); $r.CommandText = $w; $r.CommandTimeout = 300
-        $rd = $r.ExecuteReader()
-        try { while ($rd.Read()) {
-            $id = ConvertTo-Text $rd['AssetID']; $end = Get-DateText $rd['EndDate']
-            if (-not $id -or -not $end) { continue }
-            $e = Get-Entry $id
-            if (-not $e.ContainsKey('warranties')) { $e['warranties'] = New-Object System.Collections.Generic.List[object] }
-            $service = Get-Clean $rd['ServiceType']; $about = Get-Clean $rd['ServiceDescription']
-            if (-not $service) { $service = $about } elseif ($about -and $about -ne $service) { $service = "$service ($about)" }
-            $line = [ordered]@{ service = $service; start = Get-DateText $rd['StartDate']; end = $end }
-            if (-not ($e['warranties'] | Where-Object { $_.service -eq $line.service -and $_.start -eq $line.start -and $_.end -eq $line.end })) { $e['warranties'].Add($line) }
         } } finally { $rd.Close() }
     }
     if (Test-Col 'tblAntivirus' 'DisplayName') {
@@ -783,8 +746,6 @@ function Get-LsRecords {
         foreach ($rec in $list) {
             $h = $health[$rec['ref']]
             foreach ($k in @('fw', 'boot', 'disk', 'patch', 'av')) { $rec[$k] = $(if ($h -and $h.ContainsKey($k)) { $h[$k] } else { '' }) }
-            # Sent only when this Lansweeper has warranty lines at all; then a device without lines sends an empty list.
-            if (Get-WarrantySql) { if ($h -and $h.ContainsKey('warranties')) { $rec['warranties'] = $h['warranties'].ToArray() } else { $rec['warranties'] = @() } }
         }
         $software = Get-SoftwareByAsset $conn
         if ($software) {

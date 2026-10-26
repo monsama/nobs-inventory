@@ -135,13 +135,6 @@ try {
   assert.deepEqual(await page.$$eval('.avpick .avitem', is => is.map(i => i.firstChild.textContent.trim())), ['Windows Defender', 'SentinelOne']);
   await page.evaluate(async () => { (await import('/js/01-core.js')).st.feedOn = true; });
 
-  // the manufacturer's warranty lines show under Warranty ends, an ended one marked
-  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').warrantyLines = [{ service: 'ProSupport (Next Business Day)', start: '2023-03-01', end: '2099-02-28' }, { service: 'Base Warranty', start: '2023-03-01', end: '2024-02-28' }]; (await import('/js/02-views.js')).openObj('o1'); });
-  await page.waitForSelector('.wlines li');
-  assert.deepEqual(await page.$$eval('.wlines li', ls => ls.map(l => l.textContent)), ['ProSupport (Next Business Day)01.03.2023 – 28.02.2099', 'Base Warranty01.03.2023 – 28.02.2024 · ended']);
-  if (shots) await page.locator('.obj .panelbox').first().screenshot({ path: path.join(shots, 'warranty-lines.png') });
-  await page.evaluate(async () => { delete (await import('/js/01-core.js')).byId('o1').warrantyLines; });
-
   // with no sync at all, what only a sync fills in is hidden: the last power event, the scan flag, the Lansweeper
   // column, and the Graph chip while Graph is not set up. The values are kept.
   const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);
