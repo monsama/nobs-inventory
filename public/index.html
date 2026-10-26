@@ -51,6 +51,8 @@ code{font-family:var(--mono)}
 .combo-list li{padding:5px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .combo-list li:hover,.combo-list li.active{background:var(--hover)}
 .combo-list li[aria-selected="true"]{font-weight:600}
+.combo-list li.off{cursor:default;color:var(--muted);font-style:italic}
+.combo-list li.off:hover{background:none}
 textarea{height:auto;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
@@ -70,7 +72,7 @@ table.locs td.site{color:var(--muted)}
 .locpanel>.note{margin:0;padding:0 12px 12px}
 @media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
-.ctlrow>:not(.pchk):not(.pchk-slot):not(.fmenu):not(.fm-slot):not([data-pick]){flex:1;min-width:0}
+.ctlrow>:not(.pchk):not(.pchk-slot):not(.fmenu):not(.fm-slot){flex:1;min-width:0}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
 details.fmenu{flex:none;width:26px}

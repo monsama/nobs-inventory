@@ -42,6 +42,22 @@ export const freeAddress = (subnet, used) => {
   }
   return null;
 };
+/* The free addresses of a subnet's ranges, in order, each with the range it is in; DHCP and reserved ranges are left
+   out. Only those starting with what was typed, and at most limit of them: a /16 has 65'000. */
+export const freeAddresses = (subnet, used, limit = 20, typed = '') => {
+  const out = [];
+  for (const r of (subnet.ranges || []).filter(x => !rangeKeptOut(x))) {
+    const a = ipInt(r.from), b = ipInt(r.to);
+    if (a === null || b === null) continue;
+    for (let x = a; x <= b && out.length < limit; x++) {
+      if (used.has(x)) continue;
+      const ip = intToIp(x);
+      if (!typed || ip.startsWith(typed)) out.push({ ip, range: r });
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+};
 /* The first and last address of a subnet, as numbers, or null when it is not a valid subnet. */
 export const subnetSpan = n => {
   const m = /^([\d.]+)\/(\d{1,2})$/.exec(String(n && n.cidr || ''));

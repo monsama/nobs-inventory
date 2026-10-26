@@ -817,7 +817,7 @@ const subnetEditorHtml = (n, key, hint = '') => `<div class="sn-edit" data-sub="
     </div>
     <div class="sn-sect"><div class="sn-sh">Ranges<button type="button" data-radd>Add range</button></div>
       <div class="sn-ranges">${(n.ranges || []).map(rangeRowHtml).join('')}</div>
-      <p class="note">"Pick from range" on a device takes the first free address of a Static range, or of one without a use; DHCP and Reserved ranges are left out.</p></div>
+      <p class="note">A device's IP address lists the free addresses of Static ranges and of ones without a use; DHCP and Reserved ranges are left out.</p></div>
     <div class="sn-sect"><div class="sn-sh">Device types that take an address here<span class="sn-tq"><button type="button" class="link" data-tall>All</button><button type="button" class="link" data-tnone>None</button></span></div>
       <div class="sn-typegrid">${Object.entries(TYPES).map(([k, t]) => `<label class="sn-type"><input type="checkbox" data-sty value="${k}" ${(n.types || []).includes(k) ? 'checked' : ''}>${tico(k, 'tico sm')}<span>${esc(t.label)}</span></label>`).join('')}</div></div>
     ${hint ? `<p class="note sn-hint">${hint}</p>` : ''}
