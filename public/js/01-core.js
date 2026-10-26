@@ -234,18 +234,36 @@ export const graphStale = (o, today = new Date()) => { const t = Date.parse(grap
 export const COMPLIANCE = { compliant: ['ok', 'Compliant'], noncompliant: ['bad', 'Not compliant'], inGracePeriod: ['warn', 'In grace period'], conflict: ['warn', 'Conflict'],
   error: ['bad', 'Error'], configManager: ['', 'Config Manager'], unknown: ['', 'Unknown'] };
 export const complianceChip = c => { const x = COMPLIANCE[c]; return c ? `<span class="chip ${x ? x[0] : ''}">${esc(x ? x[1] : c)}</span>` : ''; };
+/* How a device is joined: from Graph (Entra joined, hybrid joined, Entra registered), else from the LDAP sync's
+   computer accounts (joined to the on-premises AD only). Older syncs called hybrid "Domain joined". */
+export const JOIN_INFO = {
+  'Entra joined': 'Joined to Microsoft Entra only (cloud)',
+  'Hybrid joined': 'Joined to the on-premises Active Directory and registered in Microsoft Entra',
+  'Entra registered': 'Registered in Microsoft Entra, not joined: often a personal (BYOD) device',
+  'AD joined': 'Joined to the on-premises Active Directory only: not in Microsoft Entra',
+};
+export const joinOf = o => {
+  const j = o.graph && o.graph.join;
+  if (j) return j === 'Domain joined' ? 'Hybrid joined' : j === 'Registered' ? 'Entra registered' : j;
+  return o.inAd ? 'AD joined' : '';
+};
 /* The filters of the sidebar's Microsoft Graph group. Not in Entra or Intune counts only the types expected there. */
 export const GRAPH_FILTERS = {
   noncompliant: ['Not compliant', 'bad', o => !!o.graph && o.status !== 'retired' && ['noncompliant', 'error'].includes(o.graph.compliance)],
   unencrypted: ['Not encrypted', 'warn', o => !!o.graph && o.status !== 'retired' && o.graph.encrypted === 'no'],
   stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => !!o.graph && o.status !== 'retired' && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => !o.graph && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
+  /* By how the device is joined. */
+  entra: ['Entra joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra joined'],
+  hybrid: ['Hybrid joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Hybrid joined'],
+  adonly: ['AD joined only', 'join', o => o.status !== 'retired' && joinOf(o) === 'AD joined'],
+  registered: ['Entra registered', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra registered'],
 };
 /* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
   if (!SYNC.graph || !o.graph || (!o.graph.join && !o.graph.compliance)) return '';
   const c = COMPLIANCE[o.graph.compliance];
-  const text = [o.graph.join, c ? c[1] : o.graph.compliance].filter(Boolean).join(' · ');
+  const text = [joinOf(o), c ? c[1] : o.graph.compliance].filter(Boolean).join(' · ');
   return `<span class="chip ${c && c[0] === 'bad' ? 'bad' : c && c[0] === 'warn' ? 'warn' : 'ok'}" title="Microsoft Entra and Intune">${esc(text)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };

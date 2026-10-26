@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -25,7 +25,12 @@ export function renderSide(){
   /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
-  $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f]]) => `<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`).join('') : '';
+  /* The problems first; then how the devices are joined, each with what it means, and only the kinds that occur. */
+  $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f]]) => {
+    const n = cnt(f), join = c === 'join';
+    if (join && !n && st.intune !== k) return '';
+    return `${k === 'entra' ? '<div class="side-sub">Joined</div>' : ''}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] : l)}">${join ? '' : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
+  }).join('') : '';
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';

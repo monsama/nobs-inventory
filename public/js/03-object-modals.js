@@ -1,7 +1,7 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { JOIN_INFO, joinOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -420,13 +420,13 @@ export function graphPanel(o){
   if (!SYNC.graph) return '';
   const g = o.graph;
   if (!g) return GRAPH_TYPES.includes(o.type) && o.status !== 'retired'
-    ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.</p></div>` : '';
+    ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.${o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : ''}</p></div>` : '';
   const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
   const last = graphLast(o);
   const enc = g.encrypted === 'yes' ? '<span class="chip ok">Encrypted</span>' : g.encrypted === 'no' ? '<span class="chip warn">Not encrypted</span>' : '';
   return `<div class="panelbox"><div class="hdr">Entra &amp; Intune${g.added ? ' <span class="cnt">added from Graph</span>' : ''}</div>
     <dl class="lsbox">
-      ${row('Entra', esc(g.join || 'Not joined'))}
+      ${row('Joined', `<span title="${esc(JOIN_INFO[joinOf(o)] || '')}">${esc(joinOf(o) || 'Not joined')}</span>${JOIN_INFO[joinOf(o)] ? `<span class="muted"> · ${esc(JOIN_INFO[joinOf(o)])}</span>` : ''}`)}
       ${row('Intune', g.managed ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : 'Not managed')}
       ${row('Compliance', complianceChip(g.compliance))}
       ${row('Encryption', enc)}
