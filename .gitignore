@@ -6,3 +6,6 @@ feed/*
 secrets/*
 !secrets/README.txt
 backup/
+certificates/
+proxy/certificates/
+proxy/sites/*.caddy

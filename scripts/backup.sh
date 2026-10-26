@@ -30,8 +30,10 @@ docker exec "$APP" rm -f /data/backup-tmp.db
 echo "[INFO]  Settings and secrets ..."
 mkdir -p "$WORK/config"
 cp .env "$WORK/config/" 2>/dev/null || true
-cp Caddyfile docker-compose.yml "$WORK/config/"
-cp -a certificates "$WORK/certificates" 2>/dev/null || true
+cp docker-compose.yml "$WORK/config/"
+# The shared proxy: its Caddyfile, every service's site file and the certificate.
+cp -a proxy "$WORK/proxy" 2>/dev/null || true
+cp -a certificates "$WORK/certificates" 2>/dev/null || true   # installs before 0.9.26
 cp -a secrets "$WORK/secrets"
 # Without secrets/sheet_key the app keeps its key in the data volume: without it, the entry sheets, the Graph keys
 # and the saved LDAP password in the database cannot be opened.

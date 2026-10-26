@@ -1,0 +1,35 @@
+# The shared proxy. Certificates come from ./certificates (not from Let's Encrypt), so internal names work: one
+# certificate, nobs.crt with nobs.key, carries every name served here (inventory.example.ch, wiki.example.ch, ...).
+# Replace it with: sudo ./scripts/install-cert.sh <cert.pem> <key.pem>
+# Each service has a file in ./sites, for example:
+#   https://wiki.example.ch {
+#   	import tls_and_headers
+#   	reverse_proxy dokuwiki:8080
+#   }
+{
+	auto_https off
+	admin off
+}
+
+(tls_and_headers) {
+	tls /certs/nobs.crt /certs/nobs.key
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# Strict-Transport-Security "max-age=31536000"   (enable once the certificate is trusted)
+	}
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}
+
+import sites/*.caddy
+
+# A name no service answers to (an IP address, a typo).
+:443 {
+	tls /certs/nobs.crt /certs/nobs.key
+	respond "No service is set up for this name on this server." 404
+}
