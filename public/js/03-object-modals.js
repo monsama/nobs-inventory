@@ -26,7 +26,7 @@ export function rackNewModal(){
     if (!name){ $('#rnErr').textContent = 'Give the rack a name.'; $('#rnName').focus(); return; }
     if (objs.some(o => o.type === 'rack' && o.name.toLowerCase() === name.toLowerCase())){ $('#rnErr').textContent = `There is already a rack named ${name}.`; return; }
     if (!Number.isInteger(units) || units < 1 || units > 60){ $('#rnErr').textContent = 'The height is a number of U from 1 to 60.'; return; }
-    const o = O('rack', name, {model: $('#rnModel').value.trim() || '—', serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
+    const o = O('rack', name, {model: $('#rnModel').value.trim(), serial: $('#rnSerial').value.trim(), loc: $('#rnLoc').value, units});
     objs.push(o); hist(o, now(), 'Created manually by ' + who());
     st.rackId = o.id; st.tab = 'rack'; queueServerSave(); closeModal(); toast(name + ' added'); render();
   };
@@ -298,8 +298,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
-/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
-   ticked; untick it to edit the value here. */
+/* A field's ⋯ menu closes on a click elsewhere or Escape. */
 document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
@@ -321,6 +320,8 @@ export function fieldMenu(o, f, hiddenBy = ''){
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
   return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
 }
+/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
+   ticked; untick it to edit the value here. */
 export function propRow(o, f, menu = ''){
   const k = f[0];
   const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
@@ -685,15 +686,15 @@ export function renderObj(o){
     h.addEventListener('click', e => { if (!e.target.closest('button,input,select,a,label')) toggle(); });
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
-  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   /* A device with ports but no port count yet cannot have its port checked: say so, but let the connection be made. */
   const portHint = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     $('#arHint').textContent = to && hasPorts(to) && !(to.ports > 0) ? `${to.name} has no port count yet. Set its ports in its details, so the port can be checked.` : '';
   };
+  /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${TYPES[t.type].short})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
@@ -804,19 +805,21 @@ export function renderObj(o){
     o.accessories = o.accessories.filter((_, i) => i !== +b.dataset.delacc);
     hist(o, now(), `Attachment removed: ${a.name} by ${who()}`); queueServerSave(); render();
   });
+  /* Saves the device's fields. Returns false when it stopped (a wrong address, a blocked change): then nothing is
+     redrawn, so what was typed stays in the fields to be corrected. */
   const saveObj = (rerender = true) => {
     /* Addresses are checked before anything is saved; a bad one stays in its field so it can be corrected. */
     const addrs = [...$('#view').querySelectorAll('[data-k="ip"],[data-k="ip6"],[data-k="mac"]')];
     const checked = addrs.map(el => ({ el, c: checkAddress(el.dataset.k, el.value) }));
     const wrong = checked.find(x => !x.c.ok);
-    if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return; }
+    if (wrong){ toast(wrong.c.msg); wrong.el.focus(); return false; }
     /* A rack with devices in it stays a rack; and the ports cannot shrink below the connections that use them. */
     const typeEl = $('#view').querySelector('[data-k="type"]');
-    if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return; }
+    if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return false; }
     const pEl = $('#view').querySelector('[data-k="ports"]'), sEl = $('#view').querySelector('[data-k="sfp"]');
     if (pEl && sEl){
       const total = (+pEl.value || 0) + (+sEl.value || 0);
-      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return; }
+      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
     }
     checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
@@ -826,7 +829,7 @@ export function renderObj(o){
       if (top){ place = {ontop: top, rack: byId(top).rack}; }
       else if (rackId){
         const err = rackCheck(rackId, u, h, o.id);
-        if (err){ toast(err); return; }
+        if (err){ toast(err); return false; }
         place = {rack: rackId, u, h};
       } else place = {};
     }
@@ -868,7 +871,7 @@ export function renderObj(o){
     /* A device that is not in use is not kept in a rack: its units are freed, and devices on top of it come out too. */
     if (o.status === 'unused' && o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' as not in use by ' + who()); unplace(o); }
     /* A model typed here is kept in the list, so the other devices can choose it. */
-    if (o.model && !MODELS.includes(o.model)) MODELS.push(o.model);
+    if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
     hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
@@ -881,6 +884,7 @@ export function renderObj(o){
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '') + (warns.length ? '. Check: ' + warns.join('; ') : ''));
     queueServerSave();
     if (rerender) render(); else $('#saveBtn').disabled = true;
+    return true;
   };
   $('#saveBtn').onclick = () => saveObj();
   /* Typing over a value from Lansweeper keeps it: the field's From feed box is unticked, and the save keeps it as set here. */
@@ -946,7 +950,7 @@ export function renderObj(o){
   const avAdd = $('#view').querySelector('[data-combo="av"]'), avHid = $('#view').querySelector('input[type=hidden][data-k="av"]');
   if (avAdd && avHid){
     const cur = () => avHid.value.split(';').map(x => x.trim()).filter(Boolean);
-    const set = list => { avHid.value = list.join('; '); saveObj(false); render(); };
+    const set = list => { avHid.value = list.join('; '); if (saveObj(false)) render(); };
     const add = () => {
       const v = avAdd.value.trim().replace(/;/g, ',');
       if (!v) return;

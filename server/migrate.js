@@ -62,6 +62,9 @@ export function migrateState(s) {
   for (const t of Object.values(s.types || {})) for (const f of ['label', 'short']) {
     if (t && typeof t[f] === 'string' && (/[<>]/.test(t[f]) || t[f].length > 60)) { t[f] = t[f].replace(/[<>]/g, '').slice(0, 60); changed = true; }
   }
+  /* Before 0.9.28 a new object without a model was saved with '—' as its model, which then showed up in the model list. */
+  for (const o of s.objs || []) if (o && o.model === '—') { o.model = ''; changed = true; }
+  if (Array.isArray(s.models) && s.models.includes('—')) { s.models = s.models.filter(m => m !== '—'); changed = true; }
   /* Before 0.9.28 a person from Lansweeper had its login (Lansweeper's Username) as the name and no login. The login
      goes where it belongs; the name stays until Lansweeper or the directory gives the full one. */
   const logins = new Set((s.users || []).map(u => String(u.login || '').toLowerCase()).filter(Boolean));

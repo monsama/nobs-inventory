@@ -4,7 +4,8 @@
 PROXY_NET=nobs-proxy
 PROXY_DIR=proxy
 
-proxy_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+# A value of .env, without the quotes it may be written in (NI_HOST="inv.example.ch" as docker compose reads it).
+proxy_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/" || true; }
 proxy_wanted() { [ "$(proxy_env NI_PROXY)" != none ]; }
 proxy_compose() { docker compose -p nobs-proxy -f "$PROXY_DIR/docker-compose.yml" --env-file .env "$@"; }
 

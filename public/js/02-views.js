@@ -1,5 +1,5 @@
 import { money } from './09-costs.js';
-import { osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -154,10 +154,10 @@ const onTabClick = e => {
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
-  /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
-  /* Back to Cards from Ports shows the device the ports were of. */
+  /* Back to Cards from Ports opens the device the ports were of. */
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
-  /* From an open device, Relationships shows that device's relations. */
+  /* From an open device, Ports shows that device when it has ports (otherwise the one shown before), and Map is centred
+     on it. */
   if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; render(); }
 };
 $('#tabsbar').addEventListener('click', onTabClick);
@@ -189,6 +189,7 @@ export const CARD_FIELDS = {
   domain: ['Domain', o => esc(o.domain || '')],
   units: ['Height', o => o.units ? o.units + ' U' : ''],
   purpose: ['Purpose', o => esc(o.purpose || '')],
+  model: ['Model', o => esc(o.model || '')],
 };
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
@@ -215,7 +216,12 @@ export function cardLine(o, key, idx){
   return c ? [c[0], c[1](o, idx)] : ['', ''];
 }
 /* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
-export function cardHtml(o, idx){
+/* Whether the cards show AD, Entra and Intune (joinBadges). Kept in this browser: it is how this person likes to look. */
+export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
+let cardJoin = false;
+try { cardJoin = localStorage.getItem('ni-card-join') === '1'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+const showJoin = () => cardJoin && joinCardsAvailable();
+export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
@@ -223,7 +229,8 @@ export function cardHtml(o, idx){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
+    ${join ? joinBadges(o) : ''}
+    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 export function renderCardsBody(){
@@ -231,9 +238,12 @@ export function renderCardsBody(){
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
+    ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; render(); };
+  const cj = $('#cardJoin');
+  if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
     $('#view').innerHTML = objs.length
       ? (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
@@ -242,10 +252,12 @@ export function renderCardsBody(){
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     return;
   }
-  const idx = relIndex(), card = o => cardHtml(o, idx);
+  const idx = relIndex(), join = showJoin(), card = o => cardHtml(o, idx, join);
   if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
-  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
-  const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
+  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
+  /* The group of devices without a user or location comes last. */
+  const none = g => g === 'No user' || g === 'No location';
+  const groups = [...new Set(list.map(key))].sort((a, b) => none(a) ? 1 : none(b) ? -1 : a.localeCompare(b));
   st.groupsClosed ??= {};
   $('#view').innerHTML = groups.map(g => {
     const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
@@ -343,7 +355,17 @@ export function renderTable(){
   });
   $('#csvBtn').onclick = () => exportCsv(list);
   $('#csvImp').onclick = importCsvModal;
-  const bk = $('#bkLoc'); if (bk) bk.onchange = () => { if (!bk.value) return; st.bulk.forEach(id => { const o = byId(id); o.loc = bk.value; hist(o, now(), 'Moved to ' + bk.value + ' (bulk)'); }); toast(n + ' moved to ' + bk.value); renderTable(); render(); };
+  /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
+  const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
+    if (!bk.value) return;
+    st.bulk.forEach(id => {
+      const o = byId(id); if (!o || o.loc === bk.value) return;
+      if (feedLinked(o) || (o.graph && o.graph.added)) (o.ovr ??= {}).loc = false;
+      o.loc = bk.value; o.handAt = new Date().toISOString();
+      hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
+    });
+    toast(n + ' moved to ' + bk.value); renderTable(); render();
+  };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
@@ -422,7 +444,7 @@ export function importCsvModal(){
     const ok = parsed.filter(p => !p.errs.length).length;
     $('#csvPrev').innerHTML = `<div class="summary"><span class="chip ok">${ok} ready</span><span class="chip warn">${parsed.length - ok} with problems</span></div>
       <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Line</th><th>Name</th><th>Type</th><th>Location</th><th>Result</th></tr></thead><tbody>
-      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? TYPES[p.type].label : '—'}</td><td>${esc(p.loc)}</td><td>${p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>' : '<span class="chip ok">ok</span>'}</td></tr>`).join('')}
+      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? esc(TYPES[p.type].label) : '—'}</td><td>${esc(p.loc)}</td><td>${p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>' : '<span class="chip ok">ok</span>'}</td></tr>`).join('')}
       </tbody></table></div>`;
     $('#csvGo').disabled = ok === 0;
   };
@@ -689,7 +711,8 @@ export function renderMap(){
     MAP.L = mapLayout(MAP.nodes); $('#mapG').innerHTML = mapInner(MAP.L);
     mapHighlight(d.id);
   });
-  svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); });
+  /* A box moved by an admin is saved (the layout is shared); a viewer's moves stay on this page until it is reloaded. */
+  svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); else if (d && !d.pan && canEdit()) queueServerSave(); });
   svg.addEventListener('pointerleave', () => { if (!MAP.drag) mapHighlight(null); });
   svg.addEventListener('wheel', e => {
     e.preventDefault();
@@ -748,16 +771,16 @@ export function renderPorts(){
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; render(); };
   $('#portsOpen').onclick = () => openObj(sw.id);
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
-  const outPort = () => null; // a relation's port belongs to its far end, so every port here is an incoming one
+  /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
   const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);
   /* Each group has its own colour on the front panel, shown in the legend below it. A LAG group has dashed ports. */
   const groupColour = i => `hsl(${(i * 97) % 360} 60% 42%)`;
   /* A port in a linked LAG is in use by the device on the other end of the LAG. */
   const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
   const portBtn = p => {
-    const inc = onPort(p), up = outPort(p), lu = lagUse(p);
-    const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : lu ? lu.d : null;
-    const isUp = !!up || (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
+    const inc = onPort(p), lu = lagUse(p);
+    const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
+    const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
     const poe = dev && (dev.type === 'sip');
     const note = (sw.portNotes || {})[p];
     const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
@@ -813,7 +836,7 @@ export function renderPorts(){
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
       <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });

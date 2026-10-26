@@ -1,7 +1,7 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
 import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
-import { NOTICE_SOON_DAYS, contractStatus, yearlyCost } from './costs.js';
+import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { render } from './07-render-plans.js';
 import { resetFilters } from './02-views.js';
@@ -19,9 +19,8 @@ export function renderOverview(){
   const inUse = objs.filter(o => o.status === 'active');
   const wEnded = inUse.filter(o => warrantyState(o) === 'ended').length, wSoon = inUse.filter(o => warrantyState(o) === 'soon').length;
   const due = contractsDue(), over = licencesOver();
-  const running = COSTS.contracts.filter(c => contractStatus(c).state !== 'ended');
-  /* Running only: a contract or licence that has ended costs nothing any more. */
-  const year = running.reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => contractStatus(l).state !== 'ended').reduce((t, l) => t + yearlyCost(l), 0);
+  /* Running only: a contract or licence that has ended, or not started yet, costs nothing now. */
+  const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
   const value = inUse.reduce((t, o) => t + (typeof o.price === 'number' ? o.price : 0), 0), priced = inUse.filter(o => typeof o.price === 'number').length;
   const repair = objs.filter(o => o.status === 'repair').length, stock = objs.filter(o => o.status === 'stock').length;
   const nOld = LS_ON() ? live.filter(o => scanOld(o)).length : 0;
@@ -63,7 +62,8 @@ export function renderOverview(){
   $('#view').innerHTML = `<div class="ov">
     <div class="ov-kpis">
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock · ${compact(live.length - inUse.length - stock)} other`, 'data-ovs="active"')}
-      ${tile('Needs attention', compact(attention.reduce((t, a) => t + a[0], 0)), attention.length ? attention.map(a => a[2]).slice(0, 2).join(', ') : 'Nothing right now')}
+      ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
+      ${tile('Needs attention', compact(attention.length), attention.length ? (attention.length === 1 ? '1 topic: ' : `${attention.length} topics: `) + attention.map(a => a[2]).slice(0, 2).join(', ') + (attention.length > 2 ? '…' : '') : 'Nothing right now')}
       ${tile('Contracts and licences', year ? money(year) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"')}
       ${tile('Value of devices in use', priced ? money(value) : '—', priced ? `price known for ${compact(priced)} of ${compact(inUse.length)}` : 'Add prices on the devices')}
     </div>

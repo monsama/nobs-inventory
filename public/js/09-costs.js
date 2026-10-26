@@ -1,14 +1,23 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
-import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, yearlyCost } from './costs.js';
+import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render-plans.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
 export const money = v => typeof v === 'number' && isFinite(v) ? `${esc(COSTS.currency || 'CHF')} ${v.toLocaleString(undefined, { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}` : '';
-const num = v => { const t = String(v ?? '').trim().replace(/['’\s]/g, '').replace(',', '.'); return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100); };
+/* An amount as people type it: 1200, 1'200.50, 1 200,50, 1.200,50 or 1,200.50. With both marks the last one is the
+   decimal point; a comma alone is a thousands mark before groups of three (1,200) and a decimal comma otherwise (12,5). */
+export const num = v => {
+  let t = String(v ?? '').trim().replace(/['’\s]/g, '');
+  if (/[.,].*[.,]/.test(t) && t.includes('.') && t.includes(',')) t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (/^\d{1,3}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
+  else if (/^\d{1,3}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, '');
+  else t = t.replace(',', '.');
+  return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100);
+};
 const int = (v, max) => { const n = parseInt(v, 10); return isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
 
 /* ---------- contracts ---------- */
@@ -24,9 +33,10 @@ export function contractChip(c){
   }
   return s.state === 'soon' ? `<span class="chip warn">Ends ${esc(dayText(s.end))}</span>` : `<span class="chip kept">Runs to ${esc(dayText(s.end))}</span>`;
 }
-const ORDER = { late: 1, soon: 0, ok: 2, open: 3, ended: 4 };
+/* Contracts in the order they need someone: notice due soon, notice missed, running, open-ended, ended; then by date. */
+const ORDER = { soon: 0, late: 1, ok: 2, open: 3, ended: 4 };
 const sorted = list => [...list].map(c => ({ c, s: contractStatus(c) }))
-  .sort((a, b) => (a.s.state === 'soon' ? 0 : ORDER[a.s.state]) - (b.s.state === 'soon' ? 0 : ORDER[b.s.state]) || (a.s.noticeBy || a.s.end || '9').localeCompare(b.s.noticeBy || b.s.end || '9') || a.c.name.localeCompare(b.c.name));
+  .sort((a, b) => ORDER[a.s.state] - ORDER[b.s.state] || (a.s.noticeBy || a.s.end || '9').localeCompare(b.s.noticeBy || b.s.end || '9') || a.c.name.localeCompare(b.c.name));
 export const contractsDue = () => COSTS.contracts.filter(c => contractStatus(c).state === 'soon');
 export const contractsOf = o => COSTS.contracts.filter(c => (c.devices || []).includes(o.id));
 
@@ -48,7 +58,7 @@ export function renderContracts(){
   const hit = c => !q || [c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note].some(v => String(v || '').toLowerCase().includes(q))
     || (c.devices || []).some(id => (byId(id) || {}).name?.toLowerCase().includes(q));
   const rows = sorted(all.filter(hit));
-  const live = all.filter(c => contractStatus(c).state !== 'ended');
+  const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">

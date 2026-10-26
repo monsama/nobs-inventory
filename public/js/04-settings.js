@@ -47,7 +47,7 @@ export function renderLsToggle(){
   const src = $('#lsSource');
   if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
-/* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
+/* ---------- Lansweeper type names -> object types, and skipping devices named only by an IP address ---------- */
 /* Applies the mapping of one Lansweeper name (lower case) to the synced devices that carry it. Only that row is applied, so a type
    set by hand on another device is kept. Excluded and detached devices are left alone. Returns how many changed. */
 export function applyTypeMap(only){
@@ -219,7 +219,6 @@ export function bindScheduleRows(root){
     every.onchange = save; at.onchange = save;
   });
 }
-/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
   const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
@@ -230,6 +229,7 @@ export function graphSummary(c){
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
     c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : ''].filter(Boolean).join(' ');
 }
+/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 function unmatchedHtml(edit){
   const list = st.graphUnmatched || [];
   if (!list.length) return '';
@@ -347,8 +347,6 @@ export async function renderSetGraph(){
     if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
     toast('The server signs in with this certificate now'); await refreshGraph();
   });
-  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
-     certificate is created and uploaded. */
   /* Devices Graph has that the inventory does not: add the ticked ones, or all. */
   const addGraph = async ids => {
     const x = await post('api/graph/add', {ids});
@@ -365,6 +363,8 @@ export async function renderSetGraph(){
     $('#guAdd').onclick = () => addGraph(picked());
     $('#guAddAll').onclick = () => { if (confirm(`Add all ${(st.graphUnmatched || []).length} devices to the inventory?`)) addGraph('all'); };
   }
+  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
+     certificate is created and uploaded. */
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
     const t = b.dataset.gcdel, inUse = !!b.dataset.gcinuse;
     if (!confirm(`Delete certificate ${t}? Its private key is deleted from the server; this cannot be undone. Delete it in Entra as well (the app → Certificates & secrets → Certificates).`
@@ -470,7 +470,7 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = '.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
+export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|cardJoin|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
@@ -505,8 +505,6 @@ export function bindUser(o){
     enumerable: true, configurable: true
   });
 }
-/* Software on PCs and servers. */
-
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
 export const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
 export const TYPE_U = {server:2, switch:1, patch:1, storage:4, router:1, firewall:1, modem:1};
@@ -591,7 +589,8 @@ export function renderSetUsers(){
     if (name === was) return;
     if (USERS.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already a user.'); return; }
     u.name = name; delete u.first; delete u.last;
-    for (const o of objs) if (o.user === was){ o.user = name; hist(o, now(), `User ${was} renamed to ${name} by ${who()}`); }
+    /* The devices keep the person's id, so they show the new name by themselves; each gets a history line. */
+    for (const o of objs) if (o.uid === u.id) hist(o, now(), `User ${was} renamed to ${name} by ${who()}`);
     queueServerSave(); toast(`${was} is now ${name}`); renderSetUsers(); render();
   });
   root.querySelectorAll('[data-udept]').forEach(i => i.onchange = () => {
@@ -694,11 +693,11 @@ export function showDevicesOf(name){
   render();
 }
 
-/* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
-/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
+/* A log line's kind, by its words. Backups first ("restored" is not a sign-in), then sign-ins and accounts, then the
+   syncs; anything else is in All only. */
 export const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
 export async function renderSetLog(){
   const pane = $('#setLog');
@@ -731,7 +730,7 @@ export function backupPanel(edit){
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, and before an LDAP sync.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, the settings and the entry sheets (still sealed). Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
+    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, before an LDAP or Microsoft Graph sync (once a day for Graph), before devices are added from Graph and before the type rules are applied.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, the settings and the entry sheets (still sealed). Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
@@ -745,8 +744,11 @@ export function wireBackups(edit){
     msg('Backup taken'); loadBackups();
   };
   document.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+    const at = b.closest('tr')?.querySelector('[data-bat]')?.dataset.bat || '';
+    if (!confirm(`Delete the backup${at ? ' of ' + at : ''}? It cannot be brought back.`)) return;
     const r = await fetch('api/backups/' + b.dataset.bdel, {method: 'DELETE', credentials: 'same-origin'});
     if (r.ok){ msg('Backup deleted'); loadBackups(); }
+    else msg((await r.json().catch(() => ({}))).error || 'The backup was not deleted.');
   });
   document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
   const file = $('#bkFile');
@@ -776,6 +778,7 @@ export function restoreModal(label, run){
   };
   $('#rsWord').focus();
 }
+/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
@@ -803,8 +806,9 @@ export function factoryResetModal(){
     location.reload();
   };
 }
-/* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
-   account's password is not stored there: the server reads it from its environment. */
+/* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
+   service account's password is not in the inventory: it is saved here into the server's encrypted store (or set in
+   the server's environment) and never sent back to the page. ---------- */
 /* The same default as the server: the login at the domain the search base names. */
 const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
 /* The computers are looked for in the whole domain of the search base, unless a base is given. */
@@ -854,6 +858,8 @@ function bindCa(){
     if (r.ok){ toast('CA certificate removed'); await reloadFromServer(); renderSetLdap(); }
   };
 }
+/* LDAP: the directory settings, saved in the inventory (the service password encrypted on the server), the CA, a
+   test and a sync. */
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -1000,8 +1006,6 @@ export function passwordModal(u){
 }
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
-/* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
-/* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
 /* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
 const RANGE_USES = ['DHCP', 'Static', 'Reserved'];
 const rangeRowHtml = (r = {}) => {
@@ -1050,6 +1054,7 @@ const subnetItemHtml = (n, i, edit) => {
 };
 /* Which subnet is open in the editor: 'new', a position in the list, or none; and what a new one starts with. */
 let snEdit = null, snDraft = null;
+/* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
@@ -1072,8 +1077,6 @@ export function renderSetSubnets(){
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
   });
-  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
-     of address (DHCP, static) from the lowest to the highest address seen. */
   /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
   const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],
     types: (n.types || []).map(t => t.type).filter(t => TYPES[t]), ranges: (n.seen || []).map(x => ({from: x.from, to: x.to, use: x.use}))});
@@ -1095,6 +1098,8 @@ export function renderSetSubnets(){
     toast(`Added ${added.length} ${added.length === 1 ? 'subnet' : 'subnets'}${trimmed.length ? `; ${trimmed.join(', ')}` : ''}${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Check their ranges against your DHCP server.`);
     renderSetSubnets();
   };
+  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
+     of address (DHCP, static) from the lowest to the highest address seen. */
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
     const n = suggested[+b.dataset.snuse];
     const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
@@ -1127,6 +1132,7 @@ export function renderSetSubnets(){
     snEdit = null; snDraft = null; queueServerSave(); renderSetSubnets();
   };
 }
+/* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 export function renderSetVlans(){
   const cnt = $('#vlCnt'); if (cnt) cnt.textContent = VLANS.length;
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
@@ -1269,7 +1275,6 @@ export function renameLoc(old, value){
   if (st.loc === old) st.loc = name;
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
-/* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in and no object has it. */
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
 export const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 export const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
@@ -1366,7 +1371,8 @@ export function renderBuiltinFields(box, type){
   /* Fields Lansweeper fills in on devices of this type that the type does not have (firmware on a printer): listed too,
      so they can be renamed, moved and hidden here like the rest. */
   const extras = LS_ON() ? Object.keys(FIELD_LABEL).filter(k => !seen.has(k) && ofType.some(o => o.feed && o[k] !== undefined && o[k] !== '')).map(k => [k, FIELD_LABEL[k], fieldKind(k), false, true]) : [];
-  /* In the order the page shows them before any is moved: the type's fields, its own ones, then Lansweeper's extras. */
+  /* In the order the page shows them before any is moved: the type's fields, its own ones, then Lansweeper's extras.
+     Each is [key, label, kind, own (a field added to this type), extra (Lansweeper's, the type does not have it)]. */
   const all = [...builtins, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true]), ...extras];
   /* Rows whose Shown tick is not the whole story. */
   const NOTES = { boot: 'Only while Lansweeper is on' };
@@ -1419,6 +1425,8 @@ export function renderBuiltinFields(box, type){
 }
 /* A type's name as the server keeps it: plain text of up to 60 characters. */
 const typeName = v => String(v || '').replace(/[<>]/g, '').trim().slice(0, 60);
+/* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in, no
+   object has it, and no type rule or Lansweeper type name leads to it. */
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
@@ -1460,7 +1468,15 @@ export function renderSetTypes(){
     Object.assign(TYPES[f.dataset.up], {svgInner: clean.inner, svgView: clean.view, icon: 'custom'});
     toast('Icon uploaded for ' + TYPES[f.dataset.up].label); renderSetTypes(); render();
   });
-  root.querySelectorAll('[data-td]').forEach(b => b.onclick = () => { const k = b.dataset.td; toast(TYPES[k].label + ' deleted'); delete TYPES[k]; renderSetTypes(); render(); });
+  /* A type a type rule or a Lansweeper type name still leads to stays: the server would refuse every later save. */
+  root.querySelectorAll('[data-td]').forEach(b => b.onclick = () => {
+    const k = b.dataset.td;
+    const rule = (Array.isArray(st.typeRules) ? st.typeRules : []).findIndex(r => r && r.to === k);
+    const named = Object.keys(st.typeMap || {}).find(n => st.typeMap[n] === k);
+    if (rule >= 0){ toast(`${TYPES[k].label} is used by type rule ${rule + 1} (Settings → Feed). Change that rule first.`); return; }
+    if (named){ toast(`${TYPES[k].label} is the type for the Lansweeper type name “${named}” (Settings → Feed). Change that first.`); return; }
+    toast(TYPES[k].label + ' deleted'); delete TYPES[k]; renderSetTypes(); render();
+  });
   $('#ntAdd').onclick = () => {
     const name = typeName($('#ntName').value);
     if (!name){ toast('Give the new type a name first.'); return; }
@@ -1483,8 +1499,7 @@ export async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
   if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
 }
-/* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
-/* A date for people: "22 Oct 2026, 18:03". */
+/* A date for people: "22.10.2026 18:03", '—' when there is none. */
 export const pushDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){

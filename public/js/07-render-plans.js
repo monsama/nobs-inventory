@@ -70,7 +70,7 @@ export const planPosOf = (plan, o) => {
   if (o.planPos) return o.planPos.plan === plan.id ? o.planPos : null;
   /* A device taken off this plan stays off until it is placed again. */
   if (o.planOff === plan.id || (plan.off || []).includes(o.id)) return null;
-  const a = plan.site ? (plan.areas || []).find(a => areaLoc(plan, a) === o.loc) : null;
+  const a = plan.site ? (plan.areas || []).find(a => areaLocName(plan, a) === o.loc) : null;
   return a ? {plan: plan.id, x: round1(a.x + a.w / 2), y: round1(a.y + a.h / 2), auto: true} : null;
 };
 /* A device that goes with another one on a plan: a monitor or accessory attached to a device, or a device mounted in a
@@ -106,12 +106,14 @@ const shiftRects = (rects, dx, dy) => {
   const k = Math.max(-b.x, Math.min(100 - b.x - b.w, dx)), j = Math.max(-b.y, Math.min(100 - b.y - b.h, dy));
   return {dx: k, dy: j, rects: rects.map(r => ({...r, x: r.x + k, y: r.y + j}))};
 };
-/* An area is a location: "Site / Area". It is added to the locations the first time it is used. */
+/* An area is a location: "Site / Area". An area that was given an existing room keeps that room; otherwise the room is
+   named after the area. Reading the name changes nothing, so drawing a plan never brings back a deleted room. */
+export const areaLocName = (plan, area) => area.room && LOCS.includes(area.room) ? area.room : `${plan.site} / ${area.name}`;
+/* The area's location, added to the locations (and its site to the sites) when a device is placed in the area or the
+   area is drawn. */
 export function areaLoc(plan, area){
   if (!SITES.includes(plan.site)) SITES.push(plan.site);
-  /* An area that was given an existing room keeps that room; otherwise the room is named after the area. */
-  if (area.room && LOCS.includes(area.room)) return area.room;
-  const v = `${plan.site} / ${area.name}`;
+  const v = areaLocName(plan, area);
   if (!LOCS.includes(v)) LOCS.push(v);
   return v;
 }
@@ -377,7 +379,6 @@ export function addPartsToArea(plan){
   Object.assign(area, {rects, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
   queueServerSave(); toast('Area changed'); renderPlans();
 }
-/* Removing an area asks first. Devices placed by hand stay where they are; devices shown only because of its location leave the plan. */
 /* Takes every device off this plan. Only the plan changes: the devices keep their locations and history in the inventory. */
 export function clearPlanModal(plan){
   const n = planDevices(plan).length;
@@ -541,8 +542,8 @@ export function render(){
   applyRole();
   saveData();
 }
-/* Everything is kept in this browser (not on a server yet), so a reload keeps the work. */
-/* The inventory as one object. The server stores it. */
+/* The connection to the server: what it offers (LDAP, Lansweeper, Graph), the revision of each record this page has,
+   and the state of the save in progress. Every change is sent to it; nothing is kept only in this browser. */
 export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};
 /* Lansweeper is late when nothing came for two days: the push normally runs every night. */
 export const SYNC_LATE_DAYS = 2;
@@ -743,13 +744,14 @@ export function dropMissingTabs(){
   if (gone(st.tab)) st.tab = 'table';
 }
 /* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
-   are unsaved changes, a dialog is open, or someone is typing. */
+   are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
+   (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
 export async function checkForChanges(){
   if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
-  if (puts.length || dels.length){ if (SERVER.save === 'offline') sendChanges(); return; }
+  if ((puts.length || dels.length) && canEdit()){ if (SERVER.save === 'offline') sendChanges(); return; }
   let r;
   try { r = await fetch('api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
   if (!r.ok) return;
@@ -792,10 +794,8 @@ export function applyState(d){
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   objs.forEach(bindUser);
 }
-/* Reset: in this browser it forgets the saved copy. On the server it clears the devices, relations and history
-   for everyone, and keeps users, locations, types and the saved settings. The admin's button needs a second click. */
-/* Clears the devices, relations and history on the server for everyone. Users, locations, types and settings stay. */
-/* Clearing deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
+/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay.
+   It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
@@ -940,7 +940,8 @@ export async function loadMySessions(){
   box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
   if ($('#acEndOthers')) $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
 }
-/* Your own account: name and department, and the password. Directory users keep their name and password in the directory. */
+/* Your own account: name and department, and the password. Directory users keep their name, department and password in
+   the directory, so for them it only shows them (and the signed-in browsers). */
 export function accountModal(){
   const u = me(), ldap = u.source === 'ldap';
   const parts = (u.name || '').split(' ');
@@ -949,9 +950,9 @@ export function accountModal(){
       <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '—')}${ldap ? ' · directory' : ''}</div>
       <label for="acFirst">First name</label><input id="acFirst" value="${esc(u.first ?? parts[0] ?? '')}" ${ldap ? 'disabled' : ''}>
       <label for="acLast">Last name</label><input id="acLast" value="${esc(u.last ?? parts.slice(1).join(' '))}" ${ldap ? 'disabled' : ''}>
-      <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}">
+      <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}" ${ldap ? 'disabled' : ''}>
     </div>
-    ${ldap ? '<p class="note">Your name and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
+    ${ldap ? '<p class="note">Your name, department and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
     <div class="form" style="padding:0">
       <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
       <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
@@ -960,7 +961,7 @@ export function accountModal(){
     <div class="hdr" style="margin:14px -14px 8px">Signed-in browsers</div>
     <div id="acSessions"><p class="note">Loading…</p></div>
     <p class="note" id="acErr"></p></div>
-    <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary">Save</button></div>`, 'sm');
+    <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary" ${ldap ? 'hidden' : ''}>Save</button></div>`, 'sm');
   loadMySessions();
   const fail = msg => { $('#acErr').textContent = msg; };
   $('#acClose').onclick = closeModal;
