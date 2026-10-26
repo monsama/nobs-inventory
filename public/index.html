@@ -77,6 +77,12 @@ details.fmenu{flex:none;width:26px}
 details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
 .ctlrow:hover>details.fmenu>summary,details.fmenu>summary:focus-visible,details.fmenu[open]>summary{border-color:var(--bd);background:var(--btn);color:var(--fg)}
 details.fmenu .menubox{min-width:210px;top:30px}
+/* Warranty lines under Warranty ends: one line per service, its dates on the right. */
+.wlines{list-style:none;margin:2px 0 4px;padding:0;display:flex;flex-direction:column;gap:2px;font-size:12px;min-width:0}
+.wlines li{display:flex;gap:10px;justify-content:space-between;padding:3px 8px;border-radius:var(--r-s);background:var(--panel2)}
+.wlines .wl-svc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wlines .wl-dates{flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wlines li.over{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--bd2)}
 label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}

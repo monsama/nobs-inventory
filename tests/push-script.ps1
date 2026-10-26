@@ -60,6 +60,22 @@ $av = New-Table @('AssetID','DisplayName','onAccessScanningEnabled','productUpTo
 $h = Get-HealthByAsset (New-Conn $av)
 Check 'antivirus: both products' $h['7']['av'] 'Windows Defender, scanning on, up to date; Cortex XDR, scanning on, up to date'
 Check 'antivirus: one product' $h['8']['av'] 'Sophos, scanning OFF, up to date'
+
+# Every warranty line of a device is kept (base warranty, next business day…), each once; a line without an end is not.
+$script:Cols = @{ tblWarrantydetails = @{ assetid = 'AssetId'; servicetype = 'ServiceType'; servicedescription = 'ServiceDescription'; warrantystartdate = 'WarrantyStartDate'; warrantyenddate = 'WarrantyEndDate' } }
+Check 'warranty: query by the line asset' ((Get-WarrantySql) -match 'd\.\[WarrantyEndDate\] AS \[EndDate\]') 'True'
+$wl = New-Table @('AssetID','ServiceType','ServiceDescription','StartDate','EndDate') @(
+  @('7', 'Base Warranty', '', '2023-03-01', '2026-02-28'), @('7', 'ProSupport', 'Next Business Day', '2023-03-01', '2028-02-28'),
+  @('7', 'ProSupport', 'Next Business Day', '2023-03-01', '2028-02-28'), @('8', 'Base', '', '2024-01-01', ''))
+$h = Get-HealthByAsset (New-Conn $wl)
+Check 'warranty: two lines' $h['7']['warranties'].Count 2
+Check 'warranty: service with description' $h['7']['warranties'][1].service 'ProSupport (Next Business Day)'
+Check 'warranty: end' $h['7']['warranties'][1].end '2028-02-28'
+Check 'warranty: no end, no line' $h.ContainsKey('8') 'False'
+$script:Cols = @{ tblWarrantydetails = @{ warrantyid = 'WarrantyId'; startdate = 'StartDate'; enddate = 'EndDate' }; tblWarranty = @{ warrantyid = 'WarrantyId'; assetid = 'AssetId' } }
+Check 'warranty: query through tblWarranty' ((Get-WarrantySql) -match 'JOIN \[tblWarranty\]') 'True'
+$script:Cols = @{}
+Check 'warranty: no tables, no query' ([string](Get-WarrantySql)) ''
 $script:Cols = $saveCols
 
 # What the push leaves out is counted in Lansweeper and said in the log.

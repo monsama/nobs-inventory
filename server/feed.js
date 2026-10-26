@@ -72,8 +72,22 @@ export function recordsFromJson(list) {
       name: String(x && x.name != null ? x.name : '').trim().slice(0, 200),
       version: String(x && x.version != null ? x.version : '').trim().slice(0, 100)
     })).filter(x => x.name) : null;
+    /* The manufacturer's warranty lines: null when the push did not send them, so the lines already kept stay. */
+    r.warranties = Array.isArray(raw && raw.warranties) ? raw.warranties.slice(0, 30).map(x => ({
+      service: String(x && x.service != null ? x.service : '').trim().slice(0, 200),
+      start: String(x && x.start != null ? x.start : '').trim().slice(0, 40),
+      end: String(x && x.end != null ? x.end : '').trim().slice(0, 40)
+    })) : null;
     return r;
   });
+}
+/* The warranty lines with valid dates, latest end first, and the end of cover: the latest end of any line, or the single
+   warranty date when it is later (or there are no lines). */
+export function warrantyCover(single, lines) {
+  const list = (Array.isArray(lines) ? lines : []).map(l => ({ service: l.service || '', start: dayOf(l.start), end: dayOf(l.end) }))
+    .filter(l => l.end).sort((a, b) => b.end.localeCompare(a.end));
+  const ends = [single, ...list.map(l => l.end)].filter(Boolean).sort();
+  return { lines: list, end: ends.length ? ends[ends.length - 1] : '' };
 }
 
 /* A date as YYYY-MM-DD, from what Lansweeper writes (2027-03-31, 2027-03-31T00:00:00, 31.03.2027); anything else is no date. */
@@ -200,6 +214,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
     for (const k of ['purchased', 'warranty', 'scanned']) r[k] = dayOf(r[k]);
+    if (Array.isArray(r.warranties)) { const c = warrantyCover(r.warranty, r.warranties); r.warranties = c.lines; r.warranty = c.end; }
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;
   };
@@ -231,7 +246,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...(r.scanned ? { scanned: r.scanned } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
-        ...(r.user ? { user: r.user } : {})
+        ...(r.user ? { user: r.user } : {}),
+        ...(r.warranties && r.warranties.length ? { warrantyLines: r.warranties } : {})
       };
       s.objs.push(obj);
       pairs.push({ r, obj });
@@ -258,6 +274,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
         found[k] = incoming; changed = true;
       }
+    }
+    /* The warranty lines go with the warranty end: kept from Lansweeper while it fills in the warranty. */
+    const wOwned = s.feedOn !== false && (found.ovr && 'warranty' in found.ovr ? found.ovr.warranty : !!policy.warranty);
+    if (wOwned && Array.isArray(r.warranties) && JSON.stringify(r.warranties) !== JSON.stringify(found.warrantyLines || [])) {
+      if (r.warranties.length) found.warrantyLines = r.warranties; else delete found.warrantyLines;
+      changed = true;
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);

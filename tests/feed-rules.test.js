@@ -117,3 +117,29 @@ test('every antivirus product and drive is kept, past 200 characters', () => {
   assert.equal(r.disk, disk);
   assert.equal(r.model.length, 200, 'other fields stay short');
 });
+
+test('warranty lines: the end of cover is the latest line, the lines are kept, and a warranty kept by hand stays', () => {
+  const s = base({ objs: [
+    { id: 'a', type: 'pc', name: 'PC-A', serial: 'A1', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'a', seen: 'x' }, warranty: '2026-02-28' },
+    { id: 'b', type: 'pc', name: 'PC-B', serial: 'B1', status: 'active', ovr: { warranty: false }, feed: { sys: 'Lansweeper', ref: 'b', seen: 'x' }, warranty: '2025-01-01' },
+  ], rels: [], policy: { warranty: true } });
+  const lines = [{ service: 'Base Warranty', start: '2023-03-01', end: '2026-02-28' }, { service: 'ProSupport (Next Business Day)', start: '2023-03-01', end: '2028-02-28T00:00:00' }, { service: 'No end', start: '2023-03-01', end: '' }];
+  mergeRecords(s, recordsFromJson([
+    { name: 'PC-A', serial: 'A1', ref: 'a', warranty: '2026-02-28', warranties: lines },
+    { name: 'PC-B', serial: 'B1', ref: 'b', warranty: '', warranties: lines },
+    { name: 'PC-C', serial: 'C1', ref: 'c', warranties: lines },
+  ]), now);
+  const a = s.objs.find(o => o.id === 'a'), b = s.objs.find(o => o.id === 'b'), c = s.objs.find(o => o.name === 'PC-C');
+  assert.equal(a.warranty, '2028-02-28', 'the longest cover counts');
+  assert.deepEqual(a.warrantyLines.map(l => l.end), ['2028-02-28', '2026-02-28'], 'latest first, a line without an end left out');
+  assert.equal(b.warranty, '2025-01-01', 'a warranty kept by hand stays');
+  assert.equal(b.warrantyLines, undefined);
+  assert.equal(c.warranty, '2028-02-28', 'a new device gets the end of cover');
+  assert.equal(c.warrantyLines.length, 2);
+  // a push without lines keeps them; a push with an empty list clears them
+  mergeRecords(s, recordsFromJson([{ name: 'PC-A', serial: 'A1', ref: 'a', warranty: '2028-02-28' }]), now);
+  assert.equal(a.warrantyLines.length, 2);
+  mergeRecords(s, recordsFromJson([{ name: 'PC-A', serial: 'A1', ref: 'a', warranty: '2026-02-28', warranties: [] }]), now);
+  assert.equal(a.warrantyLines, undefined);
+  checkState(s);
+});
