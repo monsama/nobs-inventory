@@ -57,7 +57,9 @@ Backups contain the database, certificates, `.env`, the Compose and Caddy files 
 
 ## Microsoft Graph (Entra and Intune)
 
-Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number. It only reads. Set it up in four steps, all shown in the app:
+Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number, else by name. It only reads. The join types are Entra joined, Hybrid joined (Graph's ServerAd) and Entra registered; a device with a computer account in AD (read by the LDAP sync) that Entra does not have shows as AD joined only.
+
+When Entra lists one device more than once (an old record after a reinstall, or a hybrid-joined PC that is also Entra registered), the current record is used: one heard of in the last 30 days, then the one Intune manages, then joined before registered. The others are listed on the device and under the sidebar filter *Duplicates in Entra*, to be deleted in Entra. A record whose serial number or name fits two devices of the inventory is put on neither and listed under *Name or serial used twice*. A device Entra no longer has is marked as gone and counts as not in Entra. Set it up in four steps, all shown in the app:
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
 2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.

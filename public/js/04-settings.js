@@ -218,6 +218,16 @@ export function bindScheduleRows(root){
   });
 }
 /* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
+/* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
+export function graphSummary(c){
+  const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
+  const devices = c.devices ?? c.records;
+  return [`${c.records ?? devices} records in Entra and Intune for ${devices} devices: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.`,
+    c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
+    c.unmatched ? `${c.unmatched} not in the inventory: see the list below.` : '',
+    c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
+    c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : ''].filter(Boolean).join(' ');
+}
 function unmatchedHtml(edit){
   const list = st.graphUnmatched || [];
   if (!list.length) return '';
@@ -225,9 +235,20 @@ function unmatchedHtml(edit){
   return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Entra or Intune, not in the inventory</b><span class="cnt">${list.length}</span></div>
     <p class="note" style="padding:4px 12px 8px">Found at the last sync, by neither serial number nor name. Often phones and tablets Lansweeper does not scan, or devices named differently. Added ones get their type from their system, and Graph keeps them up to date.</p>
     <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="guList" style="min-width:0"><thead><tr><th><input type="checkbox" id="guAllBox" aria-label="Select all" ${edit ? '' : 'disabled'}></th><th>Name</th><th>System</th><th>Model</th><th>Serial</th><th>Primary user</th><th>Compliance</th><th>Last contact</th></tr></thead><tbody>
-      ${list.map(d => `<tr><td><input type="checkbox" data-gu="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${edit ? '' : 'disabled'}></td><td>${esc(d.name)}</td><td>${esc(d.os || d.platform || (d.join ? d.join : ''))}</td><td>${esc(d.model || '')}</td><td class="mono">${esc(d.serial || '')}</td><td>${esc(d.owner || '')}</td><td>${complianceChip(d.compliance)}</td><td>${esc(day(d.lastSync))}</td></tr>`).join('')}
+      ${list.map(d => `<tr><td><input type="checkbox" data-gu="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${edit ? '' : 'disabled'}></td><td>${esc(d.name)}${d.others ? ` <span class="chip warn" title="Entra lists this device ${d.others + 1} times; the current record is shown">×${d.others + 1}</span>` : ''}</td><td>${esc(d.os || d.platform || (d.join ? d.join : ''))}</td><td>${esc(d.model || '')}</td><td class="mono">${esc(d.serial || '')}</td><td>${esc(d.owner || '')}</td><td>${complianceChip(d.compliance)}</td><td>${esc(day(d.lastSync))}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="addrel" style="padding:8px 12px"><button id="guAdd" disabled>Add selected</button><button id="guAddAll" ${edit ? '' : 'disabled'}>Add all ${list.length}</button></div></div>`;
+}
+/* Graph records that fit more than one device here, by serial number or name: put on none of them, listed to be fixed. */
+function ambiguousHtml(){
+  const list = st.graphAmbiguous || [];
+  if (!list.length) return '';
+  const dev = id => { const o = byId(id); return o ? `<button class="link" data-open="${esc(id)}" title="Open ${esc(o.name)}">${esc(o.code)} ${esc(o.name)}</button>` : ''; };
+  return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>Fits more than one device here</b><span class="cnt">${list.length}</span></div>
+    <p class="note" style="padding:4px 12px 8px">Graph has these devices, but their serial number or name is used by more than one device in the inventory, so Graph put them on none. Give the devices distinct names or serial numbers, or retire the extra one, then sync again.</p>
+    <div style="overflow:auto;max-height:240px;border-top:1px solid var(--bd2)"><table class="grid mini" id="gaList" style="min-width:0"><thead><tr><th>In Graph</th><th>Same</th><th>Devices here</th></tr></thead><tbody>
+      ${list.map(a => `<tr><td>${esc(a.name)}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}</td><td>${a.by === 'serial' ? 'serial number' : 'name'}</td><td>${a.devices.map(dev).filter(Boolean).join(', ')}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
 }
 export async function renderSetGraph(){
   const root = $('#setGraph');
@@ -288,7 +309,7 @@ export async function renderSetGraph(){
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
-    ${unmatchedHtml(edit)}</div>`;
+    ${unmatchedHtml(edit)}${ambiguousHtml()}</div>`;
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
@@ -317,7 +338,7 @@ export async function renderSetGraph(){
     const c = x.j.counts;
     await reloadFromServer(); await renderSetGraph();
     /* The pane was drawn again: the message goes to its new line. */
-    const m2 = $('#graphMsg'); if (m2) m2.textContent = (`${c.devices} devices in Entra and Intune: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.${c.unmatched ? ` ${c.unmatched} are not in the inventory: see the list below.` : ''}`);
+    const m2 = $('#graphMsg'); if (m2) m2.textContent = graphSummary(c);
   };
   root.querySelectorAll('[data-gcuse]').forEach(b => b.onclick = async () => {
     const x = await post(`api/graph/cert/${encodeURIComponent(b.dataset.gcuse)}/use`);
