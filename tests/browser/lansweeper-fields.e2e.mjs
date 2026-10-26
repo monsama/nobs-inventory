@@ -147,6 +147,17 @@ try {
   await page.waitForFunction(() => /10\.50\.0\.7 is also used by/.test(document.querySelector('#toast').textContent));
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').ip = '10.10.20.5'; delete c.byId('o2').nics; });
 
+  // AD groups from the directory: chips on the device; one opens the table filtered to that group, cleared from the sidebar
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').adGroups = ['GPO-Kiosk', 'SW-Office365']; c.byId('o2').adGroups = ['SW-Office365']; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.waitForSelector('[data-adg]');
+  assert.deepEqual(await page.$$eval('[data-adg]', b => b.map(x => x.textContent)), ['GPO-Kiosk', 'SW-Office365']);
+  await page.click('[data-adg="GPO-Kiosk"]');
+  await page.waitForSelector('#adgList [data-adgroup]');
+  assert.deepEqual(await page.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['o1']);
+  await page.click('#adgList [data-adgroup]');
+  assert.equal(await page.isHidden('#adgList'), true);
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); delete c.byId('o1').adGroups; delete c.byId('o2').adGroups; });
+
   // with no sync at all, what only a sync fills in is hidden: the last power event, the scan flag, the Lansweeper
   // column, and the Graph chip while Graph is not set up. The values are kept.
   const offView = async lsOn => page.evaluate(async on => { const c = await import('/js/01-core.js'); c.st.useLansweeper = on; c.byId('o1').boot = 'Shutdown 01.10.2026'; c.byId('o1').graph = { join: 'Entra joined', compliance: 'compliant' }; (await import('/js/02-views.js')).openObj('o1'); }, lsOn);

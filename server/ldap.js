@@ -113,6 +113,25 @@ const LDAP_HINTS = [
 ];
 export const ldapHint = message => (LDAP_HINTS.find(([re]) => re.test(String(message || ''))) || [])[1] || null;
 
+/* Where the computer accounts are: the base set in Settings, else the whole domain the user search base is in (its DC= parts),
+   since computers usually sit outside the users' OU. */
+export const computerBaseOf = config => {
+  if (config.computerBase) return config.computerBase;
+  const dcs = String(config.searchBase || '').split(',').map(x => x.trim()).filter(x => /^DC=/i.test(x));
+  return dcs.length ? dcs.join(',') : config.searchBase;
+};
+/* The computer accounts with the groups each is a direct member of, by group name. */
+export async function ldapListComputers(config) {
+  if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
+  const client = connect(config);
+  try {
+    await bind(client, config.serviceDn, config.servicePassword);
+    const list = await ldapSearch(client, computerBaseOf(config), '(objectClass=computer)');
+    return list.map(e => ({ name: e.attrs.cn?.[0] || '', dns: e.attrs.dnshostname?.[0] || '', groups: [...new Set((e.attrs.memberof ?? []).map(cnOf))].sort((a, b) => a.localeCompare(b)) }))
+      .filter(c => c.name);
+  } finally { close(client); }
+}
+
 export async function ldapListUsers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   const client = connect(config);
