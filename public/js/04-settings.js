@@ -1,6 +1,6 @@
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { COMPANY, dayText, daysSince, SYNC } from './01-core.js';
-import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL } from './01-core.js';
+import { collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS } from './01-core.js';
 import { subnetProblem } from './net.js';
@@ -366,7 +366,7 @@ export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = 'button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+export const RO_NAV = '.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
 export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
@@ -1104,27 +1104,13 @@ export function renderSetTypeFields(){
   const type = st.fieldType && TYPES[st.fieldType] ? st.fieldType : Object.keys(TYPES)[0];
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
-  const tl = esc(TYPES[type].label), nOf = objs.filter(o => o.type === type).length;
+  const nOf = objs.filter(o => o.type === type).length;
   box.innerHTML = `<div class="panelbox tf-box"><div class="hdr">Per type</div>
-    <div class="tf-pick"><label for="tfType">Settings for</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'} of this type</span></div>
-    <p class="note">The fields of this type on its object page, its own fields and the four lines of its card.</p>
+    <div class="tf-pick"><label for="tfType">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'}</span></div>
     <div id="tfBuiltin"></div>
-    <div class="tf-sub"><div class="tf-sh">Own fields of ${tl}</div>
-    <p class="note tf-note">Filled in by hand on every ${tl}. Removing a field hides its values; they come back if it is added again.</p>
-    <div class="lrows">${list.length ? list.map((f, i) => `<div class="lrow"><input data-tfl="${i}" maxlength="40" value="${esc(f.label)}" aria-label="Name of field ${esc(f.label)}"><span class="mono muted">${f.kind}</span><span></span><button data-tfd="${i}" aria-label="Remove field ${esc(f.label)}">Remove</button></div>`).join('') : '<p class="note lempty">No fields for this type yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tfLabel" maxlength="40" placeholder="Field name, e.g. Asset tag" aria-label="Field name"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div></div>
+    <div class="lpanel-add tf-add"><input id="tfLabel" maxlength="40" placeholder="Add a field of your own, e.g. Asset tag" aria-label="Name of a new field"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div>
     <div id="tfCard"></div></div>`;
   $('#tfType').onchange = e => { st.fieldType = e.target.value; renderSetTypeFields(); };
-  /* A field's name can be changed; its key stays, so the values already entered are kept. */
-  box.querySelectorAll('[data-tfl]').forEach(i => i.onchange = () => {
-    const name = i.value.trim(), f = list[+i.dataset.tfl];
-    if (!name){ i.value = f.label; toast('A field needs a name.'); return; }
-    f.label = name; queueServerSave(); toast('Field renamed'); renderSetTypeFields(); render();
-  });
-  box.querySelectorAll('[data-tfd]').forEach(b => b.onclick = () => {
-    list.splice(+b.dataset.tfd, 1); if (!list.length) delete TYPE_FIELDS[type];
-    queueServerSave(); toast('Field removed'); renderSetTypeFields(); render();
-  });
   const add = () => {
     const label = $('#tfLabel').value.trim(), key = fieldKey(label);
     if (!label){ toast('Give the field a name.'); return; }
@@ -1150,37 +1136,64 @@ export function renderCardLines(box, type){
   box.querySelectorAll('[data-cl]').forEach(sel => sel.onchange = () => { const next = [...cur]; next[+sel.dataset.cl] = sel.value; save(next); });
   $('#clReset').onclick = () => save(null);
 }
-/* The built-in fields of a type, as the object page shows them: renamed, hidden or moved, without changing what they store. */
+/* Every field of a type in one list, in the order its object page shows them: the built-in ones and the type's own.
+   Click a name to rename it, untick Shown to hide it (its values are kept), move it with the arrows. Name, type, status
+   and location are always shown; a field of the type's own can be removed. */
+const ALWAYS_SHOWN = ['name', 'type', 'status', 'loc'];
 export function renderBuiltinFields(box, type){
-  const lay = FIELD_LAYOUT[type] || {};
-  /* The same fields the type's object page has; Ports and Port naming for a type that can be given ports. */
+  const lay = FIELD_LAYOUT[type] || {}, own = TYPE_FIELDS[type] || [];
   const base = typeFieldsOf(type);
   if (canAddPorts(type)) base.push(['ports', 'Ports', 'mono'], ['pfx', 'Port naming', 'mono']);
   const seen = new Set(), builtins = base.filter(f => !seen.has(f[0]) && seen.add(f[0]));
-  const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
-  const ordered = [...builtins].sort((a, b) => at(a) - at(b));
-  const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
-  const put = (patch) => { const next = {order: ordered.map(f => f[0]), hidden: [...(lay.hidden || [])], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch}; save(next); };
-  /* How many objects of the type have a value in the field: where the field is used. */
   const ofType = objs.filter(o => o.type === type);
-  const filled = k => ofType.filter(o => { const v = o[k]; return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
-  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">Fields on the ${esc(TYPES[type].label)} page<span class="muted">Filled in</span></div>
-    <p class="note tf-note">Rename a field, hide it for ${esc(TYPES[type].label)} (its values are kept), or move it up or down. Filled in counts the ${esc(TYPES[type].label)} objects that have a value.</p>
-    <div class="lrows">${ordered.map((f, i) => {
-      const hidden = (lay.hidden || []).includes(f[0]), n = filled(f[0]);
-      return `<div class="lrow fl"><input data-flab="${esc(f[0])}" maxlength="40" value="${esc((lay.labels || {})[f[0]] || f[1])}" aria-label="Name of field ${esc(f[1])}" title="Stored as ${esc(f[0])}"><span class="fl-use ${n ? '' : 'muted'}">${ofType.length ? `${n} of ${ofType.length}` : '—'}</span>
-        <label class="pchk" style="width:auto"><input type="checkbox" data-fhide="${esc(f[0])}" ${hidden ? '' : 'checked'}> Shown</label>
-        <span class="fl-move"><button data-fup="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-fdown="${i}" aria-label="Move down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span></div>`;
-    }).join('')}</div></div>`);
+  /* Fields Lansweeper fills in on devices of this type that the type does not have (firmware on a printer): listed too,
+     so they can be renamed, moved and hidden here like the rest. */
+  const extras = LS_ON() ? Object.keys(FIELD_LABEL).filter(k => !seen.has(k) && ofType.some(o => o.feed && o[k] !== undefined && o[k] !== '')).map(k => [k, FIELD_LABEL[k], fieldKind(k), false, true]) : [];
+  const all = [...builtins, ...extras, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true])];
+  /* Rows whose Shown tick is not the whole story. */
+  const NOTES = { boot: 'Only while Lansweeper is on' };
+  if (canAddPorts(type)) Object.assign(NOTES, { ports: 'Only on devices with ports', pfx: 'Only on devices with ports' });
+  const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 + all.indexOf(f) : i; };
+  const ordered = [...all].sort((a, b) => at(a) - at(b));
+  const save = next => { FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
+  const put = patch => save({order: ordered.map(f => f[0]), hidden: [...hiddenOf(type)], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch});
+  const valueOf = (o, k) => k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
+  const filled = k => ofType.filter(o => { const v = valueOf(o, k); return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
+  const tl = esc(TYPES[type].label);
+  box.innerHTML = `<p class="note tf-note">The fields a ${tl} page shows, top to bottom. Click a name to rename it. Hidden fields keep their values.</p>
+    <div class="tf-list"><div class="tf-row tf-head" aria-hidden="true"><span></span><span>Field</span><span></span><span class="fl-use">Filled in</span><span>On the page</span><span></span></div>${ordered.map((f, i) => {
+      const k = f[0], mine = !!f[3], hidden = hiddenOf(type).includes(k), fixed = ALWAYS_SHOWN.includes(k), n = filled(k);
+      const name = mine ? f[1] : ((lay.labels || {})[k] || f[1]);
+      return `<div class="tf-row${hidden ? ' off' : ''}">
+        <span class="fl-move"><button class="icon ghost" data-fup="${i}" aria-label="Move ${esc(name)} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon ghost" data-fdown="${i}" aria-label="Move ${esc(name)} down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span>
+        <input class="tf-name" data-flab="${esc(k)}" maxlength="40" value="${esc(name)}" aria-label="Name of field ${esc(f[1])}" title="${mine ? 'A field of your own' : 'Built in: ' + esc(f[1])}">
+        <span class="tf-tag">${mine ? `<span class="chip">Own · ${esc(f[2] || 'text')}</span>` : f[4] ? '<span class="chip" title="This type does not have it; Lansweeper fills it in on some devices">From Lansweeper</span>' : NOTES[k] ? `<span class="muted tf-note-k">${NOTES[k]}</span>` : ''}</span>
+        <span class="fl-use ${n ? '' : 'muted'}" title="${n} of ${ofType.length} ${tl} objects have a value">${ofType.length ? `${n} of ${ofType.length}` : ''}</span>
+        ${fixed ? '<span class="muted tf-fixed">Always shown</span>' : `<label class="pchk tf-shown"><input type="checkbox" data-fhide="${esc(k)}" ${hidden ? '' : 'checked'}> Shown</label>`}
+        ${mine ? `<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${esc(name)}" title="Remove this field (its values are kept)">×</button>` : '<span></span>'}
+      </div>`;
+    }).join('')}</div>`;
   box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
-    const k = i.dataset.flab, name = i.value.trim(), labels = {...(lay.labels || {})};
-    if (!name || name === ordered.find(f => f[0] === k)[1]) delete labels[k]; else labels[k] = name;
+    const k = i.dataset.flab, name = i.value.trim(), f = ordered.find(x => x[0] === k);
+    if (f[3]){
+      if (!name){ i.value = f[1]; toast('A field needs a name.'); return; }
+      own.find(x => 'custom.' + x.key === k).label = name; queueServerSave(); toast('Field renamed'); render(); renderSetTypeFields(); return;
+    }
+    const labels = {...(lay.labels || {})};
+    if (!name || name === f[1]) delete labels[k]; else labels[k] = name;
     put({labels});
   });
   box.querySelectorAll('[data-fhide]').forEach(c => c.onchange = () => {
-    const k = c.dataset.fhide, hidden = (lay.hidden || []).filter(x => x !== k);
+    const k = c.dataset.fhide, hidden = hiddenOf(type).filter(x => x !== k);
     if (!c.checked) hidden.push(k);
     put({hidden});
+  });
+  box.querySelectorAll('[data-tfd]').forEach(b => b.onclick = () => {
+    const f = own[+b.dataset.tfd]; if (!f) return;
+    own.splice(+b.dataset.tfd, 1); if (!own.length) delete TYPE_FIELDS[type];
+    const k = 'custom.' + f.key;
+    put({hidden: hiddenOf(type).filter(x => x !== k), order: ordered.map(x => x[0]).filter(x => x !== k)});
+    toast('Field removed');
   });
   const move = (i, to) => { if (to < 0 || to >= ordered.length) return; const o = ordered.map(f => f[0]); [o[i], o[to]] = [o[to], o[i]]; put({order: o}); };
   box.querySelectorAll('[data-fup]').forEach(b => b.onclick = () => move(+b.dataset.fup, +b.dataset.fup - 1));

@@ -82,6 +82,10 @@ export const TYPE_FIELDS = {};
 export const DOMAINS = [];
 /* The layout of the built-in fields per type: { type: { order: [keys], hidden: [keys], labels: { key: name } } }. */
 export const FIELD_LAYOUT = {};
+/* Fields a type starts with hidden, until its layout is changed in Settings: a phone's address changes with every Wi-Fi
+   it joins, so of the network fields only its MAC address is shown. */
+export const DEFAULT_HIDDEN = Object.fromEntries(['android', 'ios', 'mobile'].map(t => [t, ['ip', 'subnet', 'dhcp', 'gateway', 'dns', 'ip6']]));
+export const hiddenOf = type => { const lay = FIELD_LAYOUT[type] || {}; return Array.isArray(lay.hidden) ? lay.hidden : (DEFAULT_HIDDEN[type] || []); };
 /* "8 · Users"; a VLAN named only after its number ("VLAN 8") is just "8", so it never reads "VLAN 8 · VLAN 8". */
 export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return !v ? String(vid) : new RegExp(`^(vlan\\s*)?${v.vid}$`, 'i').test(String(v.name).trim()) ? String(v.vid) : `${v.vid} · ${v.name}`; };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */

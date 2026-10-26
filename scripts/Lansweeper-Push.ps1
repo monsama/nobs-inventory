@@ -77,6 +77,8 @@ $script:Wanted = [ordered]@{
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
+    # The full name of a Windows (Microsoft Windows 10 Pro) and its version; tsysOS only has a short one (Win 10).
+    tblOperatingsystem = @('AssetID', 'Caption', 'Version')
     tblNetwork     = @('AssetID', 'DNSHostname', 'DNSDomain', 'IPAddress', 'IPSubnet', 'DefaultIPGateway', 'DNSServerSearchOrder', 'DHCPEnabled', 'IPEnabled', 'MACAddress', 'Caption', 'Description')
     tblComputersystem = @('AssetID', 'Domainrole')
     tblSystemEnclosure = @('AssetID', 'ChassisTypes')
@@ -593,6 +595,16 @@ function Get-AdapterByAsset($conn) {
     return $map
 }
 
+# The operating system as Windows names it, without "Microsoft" in front, with its version: Windows 10 Pro (10.0.19045).
+# Lansweeper's short name (Win 10) when it has no full one, as for a device it reached without Windows.
+function Get-OsText($caption, $version, $short) {
+    $name = (Get-Clean $caption) -replace '^\s*Microsoft\s+', '' -replace '\s+', ' '
+    if (-not $name) { return Get-Clean $short }
+    $v = Get-Clean $version
+    if ($v -and $name -notmatch [regex]::Escape($v)) { return "$name ($v)" }
+    return $name
+}
+
 # The adapter that carries the asset's address, or else the first one with a gateway.
 function Select-Adapter($nics, [string]$ip) {
     if (-not $nics) { return $null }
@@ -681,6 +693,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate'), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate'),
             (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole'), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes'), (Get-SelectItem 'tblADusers' 'ad' 'Department'),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname'),
+            (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption'), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version'),
             (Get-SelectItem 'tblNetwork' 'n' 'DNSHostname'), (Get-SelectItem 'tblNetwork' 'n' 'DNSDomain')
         ) -join ', '
 
@@ -702,6 +715,10 @@ function Get-LsRecords {
             $joins += 'LEFT JOIN (SELECT [Username], [Userdomain], MAX([Department]) AS [Department] FROM [tblADusers] GROUP BY [Username], [Userdomain]) ad ON ad.[Username] = a.[Username] AND ad.[Userdomain] = a.[Userdomain] '
         }
         if ((Test-Col 'tsysOS' 'OScode') -and (Test-Col 'tblAssets' 'OScode')) { $joins += 'LEFT JOIN [tsysOS] os ON os.[OScode] = a.[OScode] ' }
+        if ((Test-Col 'tblOperatingsystem' 'AssetID') -and (Test-Col 'tblOperatingsystem' 'Caption')) {
+            $osVer = if (Test-Col 'tblOperatingsystem' 'Version') { ', MAX([Version]) AS [Version]' } else { '' }
+            $joins += "LEFT JOIN (SELECT [AssetID], MAX([Caption]) AS [Caption]$osVer FROM [tblOperatingsystem] GROUP BY [AssetID]) ox ON ox.[AssetID] = a.[AssetID] "
+        }
 
         $where = @('1=1')
         if (Test-Col 'tblAssetCustom' 'State') { $where += 'c.[State] = 1' }
@@ -729,7 +746,7 @@ function Get-LsRecords {
                     serial = Get-Clean $reader['c__Serialnumber']
                     ip = ConvertTo-FirstIPv4 $reader['a__IPAddress']
                     mac = $(if ($mac.Length -eq 12) { (($mac -split '(..)' | Where-Object { $_ }) -join ':').ToLowerInvariant() } else { '' })
-                    os = Get-Clean $reader['os__OSname']
+                    os = Get-OsText $reader['ox__Caption'] $reader['ox__Version'] $reader['os__OSname']
                     model = (@((Get-Clean $reader['c__Manufacturer']), (Get-Clean $reader['c__Model'])) | Where-Object { $_ }) -join ' '
                     location = (@((Get-Clean $reader['c__Building']), (Get-Clean $reader['c__Location'])) | Where-Object { $_ }) -join ' / '
                     assetType = Get-AssetTypeText $reader
