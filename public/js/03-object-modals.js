@@ -1,7 +1,7 @@
 import { bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddress, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -83,7 +83,7 @@ export function renderRack(){
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Purpose'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
   net:[['ip','IP address','mono'],['subnet','Subnet','subnet'],['dhcp','Address from','dhcp'],['gateway','Gateway','mono'],['dns','DNS servers','mono'],['ip6','IPv6 address','mono'],['mac','MAC address','mono']],
-  pc:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], notebook:[['os','Operating system'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
+  pc:[['os','Operating system'],['cpu','CPU'],['ram','Memory'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], notebook:[['os','Operating system'],['cpu','CPU'],['ram','Memory'],['domain','Domain','domain'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus']], server:[['kind','Kind','kind'],['os','Operating system'],['domain','Domain','domain'],['cpu','CPU'],['ram','Memory'],['fw','Firmware'],['boot','Last power event'],['disk','Disks'],['av','Antivirus'],['ports','Ports','mono'],['pfx','Port naming','mono']],
   sip:[['ext','Extension','mono'],['fw','Firmware','mono']], mobile:[['os','Operating system']], android:[['os','Operating system']], ios:[['os','Operating system']], rack:[['units','Height (U)','mono']],
   switch:[['os','Firmware'],['ports','Copper ports','mono'],['sfp','SFP ports','mono'],['pfx','Port naming','mono']],
   router:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']], firewall:[['os','Firmware'],['ports','Ports','mono'],['pfx','Port naming','mono']],
@@ -539,14 +539,15 @@ export function renderObj(o){
   /* The layout of the type, from Settings: a built-in field can be renamed, hidden, and put in another place. Hidden fields keep their values. */
   const lay = FIELD_LAYOUT[o.type] || {};
   const at = f => { const i = (lay.order || []).indexOf(f[0]); return i < 0 ? 1e6 : i; };
+  /* Fields Lansweeper fills in that the type does not have join the list, so they can be renamed, moved and hidden too. */
+  fields.push(...extraFields(o, fields));
   fields = fields
     .map(f => (lay.labels && lay.labels[f[0]] ? [f[0], lay.labels[f[0]], f[2]] : f))
     .sort((a, b) => at(a) - at(b));
-  fields.push(...extraFields(o, fields));
   fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
   /* A field hidden on this device, or on every device of the type (from the ⋯ menu or Settings). Its value is kept,
      and "Show hidden fields" brings the hidden ones back for a moment, each with its own way to show it again. */
-  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : (lay.hidden || []).includes(f[0]) ? 'type' : '';
+  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : hiddenOf(o.type).includes(f[0]) ? 'type' : '';
   const nHidden = fields.filter(hiddenBy).length;
   if (!nHidden && st.showHidden === o.id) st.showHidden = null;
   const reveal = nHidden > 0 && st.showHidden === o.id;
@@ -841,7 +842,7 @@ export function renderObj(o){
       toast(act === 'hide' ? `${name} is hidden on ${o.name}. Its value is kept.` : `${name} is shown again on ${o.name}`); render(); return;
     }
     if (act === 'hidetype' || act === 'showtype'){
-      const lay = FIELD_LAYOUT[o.type] || {}, h = (lay.hidden || []).filter(x => x !== k); if (act === 'hidetype') h.push(k);
+      const lay = FIELD_LAYOUT[o.type] || {}, h = hiddenOf(o.type).filter(x => x !== k); if (act === 'hidetype') h.push(k);
       FIELD_LAYOUT[o.type] = {...lay, hidden: h};
       toast(act === 'hidetype' ? `${name} is hidden on every ${t}. The values are kept; Show hidden fields brings it back.` : `${name} is shown again on every ${t}`); render(); return;
     }
@@ -925,10 +926,52 @@ export function modal(html, cls=''){
   const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
   $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">${html}</div></div>`;
   if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
+  if (!/locked/.test(cls)) addWindowControls($('#mdl'));
+  renderTray();
   bindPolicy($('#mdl'));
   fullTextTooltips($('#mdl'));
-  const first = $('#mdl').querySelector('input, select, textarea, button'); if (first) first.focus();
+  const first = [...$('#mdl').querySelectorAll('input, select, textarea, button')].find(el => !el.closest('.wctl')); if (first) first.focus();
   applyRole();
+}
+/* Minimize, maximize and close in a dialog's top right corner, as in NOBS SQL Editor. A minimized dialog keeps what was
+   typed in it and waits as a chip at the bottom right; opening another dialog takes its place. A sign-in dialog has none. */
+const WSVG = p => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+function addWindowControls(m){
+  const head = m.querySelector('.mh'), box = m.querySelector('.box');
+  const strip = document.createElement('span'); strip.className = 'wctl';
+  strip.innerHTML = `<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button>`
+    + `<button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button>`
+    + `<button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
+  if (head) head.appendChild(strip); else box.insertBefore(strip, box.firstChild);
+  strip.querySelector('.wc-min').onclick = minimizeModal;
+  strip.querySelector('.wc-max').onclick = () => {
+    const on = box.classList.toggle('maxed'), b = strip.querySelector('.wc-max');
+    b.title = on ? 'Restore' : 'Maximize'; b.setAttribute('aria-label', b.title);
+    b.innerHTML = on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>');
+  };
+  strip.querySelector('.wc-close').onclick = closeModal;
+}
+export function minimizeModal(){
+  const m = $('#mdl'); if (!m) return;
+  m.classList.add('minimized');
+  const back = modalOpener; if (back && document.contains(back)) back.focus();
+  renderTray();
+}
+export function restoreModal(){
+  const m = $('#mdl'); if (!m) return;
+  m.classList.remove('minimized'); renderTray();
+  const first = m.querySelector('.mb input, .mb select, .mb textarea, .mb button, button'); if (first) first.focus();
+}
+/* The chip of a minimized dialog: its title restores it, the × closes it. */
+function renderTray(){
+  let tray = $('#mdlTray');
+  const m = $('#mdl.minimized');
+  if (!m){ if (tray) tray.remove(); return; }
+  if (!tray){ tray = document.createElement('div'); tray.id = 'mdlTray'; document.body.appendChild(tray); }
+  const title = m.querySelector('.box').getAttribute('aria-label') || 'Dialog';
+  tray.innerHTML = `<span class="tray-chip"><button type="button" class="tray-open" title="${esc(title)}: restore">${esc(title)}</button><button type="button" class="tray-x" title="Close" aria-label="Close ${esc(title)}">×</button></span>`;
+  tray.querySelector('.tray-open').onclick = restoreModal;
+  tray.querySelector('.tray-x').onclick = closeModal;
 }
 /* Closing a dialog gives the focus back to the control that opened it, so a keyboard user is not sent to the top of the page. */
 export let modalOpener = null;
@@ -936,10 +979,11 @@ export let modalOpener = null;
 export const closeModal = () => {
   const wasSettings = !!$('#modalHost #setPane');
   $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
+  renderTray();
   if (wasSettings) render();
 };
 document.addEventListener('keydown', e => {
-  if (!$('#mdl')) return;
+  if (!$('#mdl') || $('#mdl.minimized')) return;
   if (e.key === 'Escape' && $('#mdl .locked')) return;
   if (e.key === 'Escape' && !$('#mdl .locked')) closeModal();
   if (e.key !== 'Tab') return;

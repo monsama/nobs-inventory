@@ -56,6 +56,31 @@ try {
   await p.waitForSelector('#f_o2_fw');
   assert.equal((await p.textContent('label[for="f_o2_fw"]')).trim(), 'BIOS', 'the renamed field shows its new name');
   assert.equal(await p.locator('#f_o2_disk').count(), 0, 'the hidden field is not shown');
+  // A PC has CPU and Memory as its own fields; Per type notes the rows whose tick is not the whole story, lists a field
+  // Lansweeper fills in that the type does not have, and a phone starts with only its MAC address of the network fields.
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('o2');
+    o.cpu = 'Intel Core i5-8500'; o.feed = { sys: 'Lansweeper', ref: 'x' }; o.patch = 'KB5034441 (2026-10-01)';
+    c.objs.push({ id: 'ph1', code: 'INV-9301', type: 'android', name: 'Phone 1', status: 'active', loc: o.loc, ovr: {}, feed: null, ip: '10.9.9.9', mac: 'aa:bb:cc:dd:ee:ff' });
+    (await import('/js/02-views.js')).openObj('o2'); });
+  await p.waitForSelector('#f_o2_cpu');
+  assert.equal((await p.textContent('label[for="f_o2_cpu"]')).trim(), 'CPU', 'CPU is a PC field');
+  assert.equal(await p.locator('#f_o2_ram').count(), 1, 'and Memory');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('ph1'));
+  await p.waitForSelector('#f_ph1_mac');
+  assert.equal(await p.locator('#f_ph1_ip').count(), 0, 'a phone starts without its IP address');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]'); await p.waitForSelector('#tfType');
+  await p.selectOption('#tfType', 'pc');
+  const row = k => p.locator(`.tf-row:has([data-flab="${k}"])`);
+  assert.match(await row('boot').textContent(), /Only while Lansweeper is on/);
+  assert.match(await row('ports').textContent(), /Only on devices with ports/);
+  assert.match(await row('patch').textContent(), /From Lansweeper/, 'a field Lansweeper fills in is listed');
+  await p.selectOption('#tfType', 'android');
+  assert.equal(await p.isChecked('[data-fhide="ip"]'), false, 'phones: IP address unticked');
+  assert.equal(await p.isChecked('[data-fhide="mac"]'), true, 'phones: MAC address ticked');
+  await p.check('[data-fhide="ip"]');
+  await until(p, async () => { const l = (await import('/js/01-core.js')).FIELD_LAYOUT.android; return l && !l.hidden.includes('ip') && l.hidden.includes('gateway'); });
+  await p.click('#setClose');
+
   assert.deepEqual(errors, [], 'page errors');
   console.log('type fields: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); }

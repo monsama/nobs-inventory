@@ -69,7 +69,7 @@ try {
   assert.equal(await page.isVisible('#setModels .lrows'), true);
   // Per type: the type is chosen in the title, and the fields say how many objects of it have a value
   await page.selectOption('#tfType', 'pc');
-  assert.match(await page.textContent('.tf-box'), /Fields on the PC page.*Own fields of PC.*On the PC card/s);
+  assert.match(await page.textContent('.tf-box'), /The fields a PC page shows.*Add field.*On the PC card/s);
   assert.equal(await page.locator('.tf-box .sechdr').count(), 1);
   assert.equal(await page.locator('.tf-box').evaluate(e => e.classList.contains('collapsed')), false, 'choosing the type does not close the section');
   // each type lists the fields its own page has: a rack and a patch panel have no network fields, a PC has them and can get ports
