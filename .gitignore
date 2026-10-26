@@ -9,3 +9,9 @@ backup/
 certificates/
 proxy/certificates/
 proxy/sites/*.caddy
+# Scratch folders of local checks and reviews
+.opt-tmp/
+.gui-tmp/
+.review-tmp/
+.ctmp/
+.shots-tmp/

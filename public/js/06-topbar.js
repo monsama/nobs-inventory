@@ -22,8 +22,19 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-open
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
 export let TBL = {};
+const COL_DRAG = 'application/x-ni-column';
 try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch { TBL = {}; }
 export const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
+/* On an object's page the tab is the object's id, so each object opened keeps its own entry; they are small, and a
+   table that has other columns now starts over from its default order (applyTable). */
+/* A table that shows only its first rows (data-cut) is drawn again with all of them before a column is sorted or
+   filtered, so the sort and the filter see every row. focusFilter: the filter box to put the cursor back in. */
+function showAllRows(t, focusFilter = null){
+  if (!t.dataset.cut) return false;
+  st.tableAll = true; render();
+  if (focusFilter !== null){ const box = document.querySelectorAll('table.grid tr.fr th')[focusFilter]?.querySelector('input'); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  return true;
+}
 export function tableKey(t){
   const scope = t.closest('#mdl') || $('#view');
   return (t.closest('#mdl') ? 'modal' : 'view') + ':' + st.tab + ':' + [...scope.querySelectorAll('table.grid')].indexOf(t);
@@ -31,7 +42,12 @@ export function tableKey(t){
 export function applyTable(t){
   const s = TBL[tableKey(t)]; const head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
-  [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
+  /* A kept order that is not every column once (a damaged entry, or a table that has other columns now) starts over. */
+  const n = head.cells.length;
+  if (!Array.isArray(s.order) || s.order.length !== n || new Set(s.order).size !== n || !s.order.every(i => Number.isInteger(i) && i >= 0 && i < n)) s.order = [...Array(n).keys()];
+  if (!s.widths || typeof s.widths !== 'object') s.widths = {};
+  /* Cells are moved only when the columns are in another order than drawn: moving every cell of thousands of rows costs. */
+  if (s.order.some((c, i) => c !== i)) [...t.rows].forEach(r => { const cells = r._orig; if (cells && cells.length === s.order.length) s.order.forEach(i => r.appendChild(cells[i])); });
   /* A column is as wide as it was dragged to, or as its default (data-w). When every column has a width, the table is
      exactly as wide as its columns, so the box around it scrolls sideways instead of squeezing them. */
   const ws = [...head.cells].map(th => s.widths[th.dataset.ci] || +th.dataset.w || 0);
@@ -60,6 +76,8 @@ export function applyView(t){
   const heads = [...head.cells];
   const ciAt = heads.map(th => +th.dataset.ci);                 // visual position -> original column
   heads.forEach(th => th.dataset.sort = s.sort && +th.dataset.ci === s.sort.ci ? (s.sort.dir > 0 ? 'asc' : 'desc') : '');
+  /* The sort is announced too, not only drawn. */
+  heads.forEach(th => { if (th.dataset.sort) th.setAttribute('aria-sort', th.dataset.sort === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
   const rows = [...t.tBodies].flatMap(tb => [...tb.rows]);
   const at = (row, ci) => { const c = row.cells[ciAt.indexOf(ci)]; return c ? c.textContent.trim() : ''; };
   const filters = Object.entries(s.filters).filter(([, q]) => q);
@@ -97,7 +115,7 @@ export function setupTable(t){
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
       inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
-      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); applyView(t); });
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!showAllRows(t, i)) applyView(t); });
       c.appendChild(inp); fr.appendChild(c);
     });
     head.parentNode.appendChild(fr);
@@ -107,21 +125,26 @@ export function setupTable(t){
     th.draggable = true;
     const rz = document.createElement('span'); rz.className = 'rz'; th.appendChild(rz);
     rz.addEventListener('pointerdown', e => resizeStart(e, t, th));
-    th.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', th.dataset.ci); e.dataTransfer.effectAllowed = 'move'; });
-    th.addEventListener('click', e => {
-      if (e.target.classList.contains('rz')) return;
+    /* The column travels under its own type, so a tab or card dropped on a header is not taken for a column. */
+    th.addEventListener('dragstart', e => { e.dataTransfer.setData(COL_DRAG, th.dataset.ci); e.dataTransfer.effectAllowed = 'move'; });
+    const sortBy = () => {
       const cur = TBL[tableKey(t)], ci = +th.dataset.ci;
       cur.sort = cur.sort && cur.sort.ci === ci ? {ci, dir: -cur.sort.dir} : {ci, dir: 1};
-      saveTBL(); applyView(t);
-    });
-    th.addEventListener('dragover', e => { e.preventDefault(); th.classList.add('over'); });
+      saveTBL(); if (!showAllRows(t)) applyView(t);
+    };
+    th.addEventListener('click', e => { if (!e.target.classList.contains('rz')) sortBy(); });
+    /* Sorting works from the keyboard too: Tab to a column header, Enter or Space. */
+    th.tabIndex = 0;
+    th.addEventListener('keydown', e => { if (e.target === th && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); sortBy(); } });
+    th.addEventListener('dragover', e => { if (!e.dataTransfer.types.includes(COL_DRAG)) return; e.preventDefault(); th.classList.add('over'); });
     th.addEventListener('dragleave', () => th.classList.remove('over'));
     th.addEventListener('drop', e => {
       e.preventDefault(); th.classList.remove('over');
-      const from = +e.dataTransfer.getData('text/plain'), to = +th.dataset.ci;
+      const raw = e.dataTransfer.getData(COL_DRAG), from = +raw, to = +th.dataset.ci;
       const s2 = TBL[tableKey(t)];
-      if (from === to || !s2) return;
+      if (raw === '' || from === to || !s2) return;
       const fromPos = s2.order.indexOf(from), toPos = s2.order.indexOf(to);
+      if (fromPos < 0 || toPos < 0) return;
       s2.order.splice(fromPos, 1);
       const newTo = s2.order.indexOf(to);
       s2.order.splice(fromPos < toPos ? newTo + 1 : newTo, 0, from);
@@ -130,6 +153,16 @@ export function setupTable(t){
   });
   applyTable(t);
 }
-/* Any table drawn later, in the page or in a dialog, gets the same behaviour. */
-new MutationObserver(() => document.querySelectorAll('table.grid').forEach(setupTable)).observe(document.body, {childList: true, subtree: true});
+/* Any table drawn later, in the page or in a dialog, gets the same behaviour. Links that only act on a click (no
+   address), such as a table row's name, can be reached with Tab and used with Enter. */
+const keyboardReach = () => document.querySelectorAll('a.link:not([href]):not([tabindex])').forEach(el => {
+  el.tabIndex = 0;
+  if (el.tagName === 'A') el.setAttribute('role', 'link');
+});
+new MutationObserver(() => { document.querySelectorAll('table.grid').forEach(setupTable); keyboardReach(); }).observe(document.body, {childList: true, subtree: true});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.defaultPrevented) return;
+  const el = e.target;
+  if (el.matches && el.matches('a.link:not([href])')){ e.preventDefault(); el.click(); }
+});
 

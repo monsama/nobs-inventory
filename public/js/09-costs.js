@@ -1,14 +1,24 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
-import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, yearlyCost } from './costs.js';
+import { contactCompanies } from './11-contacts.js';
+import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { queueServerSave, render } from './07-render-plans.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
 export const money = v => typeof v === 'number' && isFinite(v) ? `${esc(COSTS.currency || 'CHF')} ${v.toLocaleString(undefined, { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}` : '';
-const num = v => { const t = String(v ?? '').trim().replace(/['’\s]/g, '').replace(',', '.'); return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100); };
+/* An amount as people type it: 1200, 1'200.50, 1 200,50, 1.200,50 or 1,200.50. With both marks the last one is the
+   decimal point; a comma alone is a thousands mark before groups of three (1,200) and a decimal comma otherwise (12,5). */
+export const num = v => {
+  let t = String(v ?? '').trim().replace(/['’\s]/g, '');
+  if (/[.,].*[.,]/.test(t) && t.includes('.') && t.includes(',')) t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (/^[1-9]\d{0,2}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
+  else if (/^[1-9]\d{0,2}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, '');
+  else t = t.replace(',', '.');
+  return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100);
+};
 const int = (v, max) => { const n = parseInt(v, 10); return isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
 
 /* ---------- contracts ---------- */
@@ -24,9 +34,10 @@ export function contractChip(c){
   }
   return s.state === 'soon' ? `<span class="chip warn">Ends ${esc(dayText(s.end))}</span>` : `<span class="chip kept">Runs to ${esc(dayText(s.end))}</span>`;
 }
-const ORDER = { late: 1, soon: 0, ok: 2, open: 3, ended: 4 };
+/* Contracts in the order they need someone: notice due soon, notice missed, running, open-ended, ended; then by date. */
+const ORDER = { soon: 0, late: 1, ok: 2, open: 3, ended: 4 };
 const sorted = list => [...list].map(c => ({ c, s: contractStatus(c) }))
-  .sort((a, b) => (a.s.state === 'soon' ? 0 : ORDER[a.s.state]) - (b.s.state === 'soon' ? 0 : ORDER[b.s.state]) || (a.s.noticeBy || a.s.end || '9').localeCompare(b.s.noticeBy || b.s.end || '9') || a.c.name.localeCompare(b.c.name));
+  .sort((a, b) => ORDER[a.s.state] - ORDER[b.s.state] || (a.s.noticeBy || a.s.end || '9').localeCompare(b.s.noticeBy || b.s.end || '9') || a.c.name.localeCompare(b.c.name));
 export const contractsDue = () => COSTS.contracts.filter(c => contractStatus(c).state === 'soon');
 export const contractsOf = o => COSTS.contracts.filter(c => (c.devices || []).includes(o.id));
 
@@ -48,12 +59,12 @@ export function renderContracts(){
   const hit = c => !q || [c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note].some(v => String(v || '').toLowerCase().includes(q))
     || (c.devices || []).some(id => (byId(id) || {}).name?.toLowerCase().includes(q));
   const rows = sorted(all.filter(hit));
-  const live = all.filter(c => contractStatus(c).state !== 'ended');
+  const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}${due ? ` · <b class="wty soon">${due} due within ${NOTICE_SOON_DAYS} days</b>` : ''}</span><div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
+    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
   $('#ctNew').onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
@@ -61,7 +72,7 @@ export function renderContracts(){
     $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;
     return;
   }
-  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
+  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
     ${rows.map(({ c }) => `<tr><td><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
@@ -82,7 +93,7 @@ export function contractModal(c, preset = []){
     <div class="mb"><div class="form" style="padding:0">
       <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${esc(cur.name)}" placeholder="e.g. Switch maintenance HPE">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
-      <label for="ctSupplier">Supplier</label><input id="ctSupplier" maxlength="120" value="${esc(cur.supplier || '')}">
+      <label for="ctSupplier">Supplier</label><input id="ctSupplier" maxlength="120" value="${esc(cur.supplier || '')}" list="ctSuppliers"><datalist id="ctSuppliers">${contactCompanies().map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
       <label for="ctStart">Starts</label><input id="ctStart" type="date" value="${esc(cur.start || '')}">
       <label for="ctEnd">Ends</label><input id="ctEnd" type="date" value="${esc(cur.end || '')}">

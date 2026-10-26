@@ -30,7 +30,7 @@ export const ICON = {
 };
 export const svg = (t, cls='i') => {
   const T = TYPES[t] || {};
-  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${T.svgView}">${T.svgInner}</svg>`;
+  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${VIEWBOX_RE.test(T.svgView || '') ? T.svgView : '0 0 24 24'}">${T.svgInner}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24">${ICON[T.icon] || ICON.other}</svg>`;
 };
 
@@ -61,13 +61,13 @@ export const TYPES = {
   rack:{label:'Rack', short:'Rack', color:'#475569', icon:'rack'},
   other:{label:'Other', short:'Other', color:'#5a6b7d', icon:'other'}
 };
-/* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 /* A copy of the built-in types, used when a server has none saved yet. */
 export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 /* Types that show a port grid in Ports: a switch, router, firewall or physical server. Patch panels have their own view. */
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
+/* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
 export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
@@ -156,7 +156,9 @@ export const KIND_HINTS = {
   attached:'A monitor or accessory attached to a PC, docking station or server.',
   hosted:'A virtual machine that runs on this physical server.'
 };
-export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx'], uplink:['switch','firewall','router'], hosted:['server']};
+/* The devices a relation of each kind can go to, in the Relations panel. Keep in step with LINK_OF in 05-new-object.js:
+   a phone can be plugged into a PC or notebook (its pass-through port) as well as into a switch. */
+export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx','pc','notebook'], uplink:['switch','firewall','router'], hosted:['server']};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -169,6 +171,9 @@ export const objs = [];
 export const MODELS = [];
 /* Contracts and licences (Settings keys contracts, licences) and the currency of every amount. Replaced as a whole when changed. */
 export const COSTS = {contracts: [], licences: [], currency: 'CHF'};
+/* The contacts: internal IT people and those at IT partners (public/js/contacts.js). A device names them by id. */
+export const CONTACTS = {list: []};
+export const contactOf = id => id ? CONTACTS.list.find(c => c.id === id) || null : null;
 /* The company the inventory belongs to (setting company): its name and logo (a PNG data URL) on entry sheets. */
 export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -204,9 +209,12 @@ export const HISTORY = {};
 export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift({t, msg}); if (h.length > 500) h.length = 500; };
 
 /* ---------- state ----------
+   What the page shows and remembers while it is open: the sidebar filters (type, loc, status, scanOld, q and the
+   others set from the sidebar or the Overview), the open tab and object tabs, the view settings of the Cards, Ports,
+   Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page (o.ovr). */
-export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts'], portsDevice:null, cardsGroup:'none', portsDevice:null, portNo:3,
+export const st = {type:null, loc:null, status:null, scanOld:false, q:'', tab:'cards', open:[], tabIds:['overview','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -299,6 +307,28 @@ export const graphChip = o => {
   const text = [joinOf(o), c ? c[1] : o.graph.compliance].filter(Boolean).join(' · ');
   return `<span class="chip ${c && c[0] === 'bad' ? 'bad' : c && c[0] === 'warn' ? 'warn' : 'ok'}" title="Microsoft Entra and Intune">${esc(text)}</span>`;
 };
+/* AD, Entra and Intune on the card of a computer or phone: three marks that read at a glance, each lit when the device
+   is there, with the details in its tooltip. Shown when Cards → "AD · Entra · Intune" is ticked; then they stand in for
+   the Graph chip. AD: a computer account (the LDAP sync's) or hybrid joined. Entra: joined, hybrid or registered.
+   Intune: managed, coloured by compliance. */
+export const JOIN_STATE = { 'Entra joined': ['en', 'joined'], 'Hybrid joined': ['hy', 'hybrid'], 'Entra registered': ['reg', 'registered'] };
+export const COMPLIANCE_SHORT = { compliant: 'compliant', noncompliant: 'not compliant', inGracePeriod: 'grace', conflict: 'conflict', error: 'error' };
+export const joinBadges = o => {
+  if (!GRAPH_TYPES.includes(o.type)) return '';
+  /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
+  const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
+  const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && g.managed);
+  const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
+  const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
+  const tips = [
+    ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
+    en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
+    it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? 'Microsoft Intune: in Entra, not managed' : 'Microsoft Intune: not managed',
+  ];
+  return `<div class="jbar" role="img" aria-label="${esc(tips.join('. '))}">
+    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}
+  </div>`;
+};
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
@@ -307,9 +337,13 @@ export const feedLinked = o => !!o.feed && !o.excluded && !o.detached;
 export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
+/* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
+export const VIEWBOX_RE = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/;
+export const COLOR_RE = /^#[0-9a-f]{3,8}$/i;
 export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const tcol = t => TYPES[t]?.color || '#888';
+/* A type's colour goes into a style attribute: only a hex colour is used. */
+export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
 export const pad2 = n => String(n).padStart(2, '0');
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
@@ -332,7 +366,14 @@ export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => 
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
 });
 export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
-export function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2800); }
+/* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
+   hidden), so a screen reader hears each new text. The same message again is changed by an invisible character, so
+   it is read again too. */
+export function toast(msg){
+  const t = $('#toast');
+  t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
+  t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 2800);
+}
 /* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
 export const releaseRetiredPort = (to, port) => {
   const holders = rels.filter(r => r.to === to.id && String(r.port) === String(port));
@@ -359,11 +400,13 @@ export const isUplink = k => k === 'uplink';
 /* A monitor or other peripheral on a PC: not a path to the network, so it is listed and drawn apart. */
 export const isAttached = k => k === 'attached';
 
+/* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
+   passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
-    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || [])].some(v => v && String(v).toLowerCase().includes(q))));
+  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
+    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */

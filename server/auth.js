@@ -6,7 +6,7 @@ const TOUCH_EVERY_MS = 60e3; /* how often a session's last use is written: not o
 const MAX_SESSIONS = 5;   /* per user: a sign-in from another browser does not end this one */
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 
-/* The rule for a new password: at least 10 characters, not one of the most common passwords, and not the login name.
+/* The rule for a new password: at least PASSWORD_MIN (12) characters, not one of the most common passwords, and not the login name.
    Passwords set before this rule stay as they are until they are changed. */
 export const PASSWORD_MIN = 12;
 const COMMON = ['password', 'password1', 'password123', '12345678', '123456789', '1234567890', 'qwertyuiop', 'qwerty123', 'iloveyou', 'letmein123', 'welcome123', 'admin123', 'adminadmin', 'changeme', 'changeme1', 'inventory1', 'nobsinventory'];

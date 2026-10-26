@@ -69,11 +69,13 @@ export function newObjModal(pre={}){
     if (upId && !$('#nPort').hidden && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();
       const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
+      /* As in Link…: a numbered port must be one the device has, or it would be counted but never shown. */
+      if (typeof val === 'number' && t.ports > 0 && (val < 1 || val > (t.ports || 0) + (t.sfp || 0))){ toast(`${t.name} has ports 1 to ${(t.ports || 0) + (t.sfp || 0)}.`); return; }
       releaseRetiredPort(t, val);
       if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ toast(`${val} on ${t.name} is already taken.`); return; }
       if (lagOfPort(t, val)){ toast(`Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
     }
-    const o = O($('#nType').value, name, {model:$('#nModel').value || '—', serial:$('#nSerial').value, loc:$('#nLoc').value});
+    const o = O($('#nType').value, name, {model:$('#nModel').value.trim(), serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
     else if (PORTED.includes(o.type)) o.ports = o.type === 'server' ? 4 : 8;
     if (o.type === 'patch') o.ports = 24;

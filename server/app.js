@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
@@ -45,7 +45,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
     if (!saved) return c;
     /* The password saved here goes only to the directory server it was saved for. One saved before this was kept is
-       tied to the server it is first used with. */
+       tied to the server it is first used with: the first read of the settings (any caller, also /api/me) pins it. */
     const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost');
     if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host);
     else if (pinned && pinned !== host) return { ...c, passwordProblem: `The service password was saved for ${pinned}; the directory server is now ${host}. Save the password again for it.` };
@@ -140,15 +140,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
       const lc = cfgLdap();
-      /* The directory signs in its own users and new logins only. A local account with the same login is never taken
-         over by it: that would let a directory user sign in as, and demote, the local admin. */
-      if (!ok && ldapEnabled(lc) && (!user || user.source === 'ldap')) {
+      /* The directory signs in its own users, new logins and persons Lansweeper or Entra named by their login (who
+         become its users). A local account with the same login is never taken over by it: that would let a directory user sign in
+         as, and demote, the local admin. */
+      if (!ok && ldapEnabled(lc) && (!user || ['ldap', 'lansweeper', 'entra'].includes(user.source))) {
         let d;
         try { d = await ldapLogin(lc, login, password); }
-        catch (e) { console.error('directory:', e.message); throw new HttpError(503, 'The directory cannot be reached right now.'); }
+        /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
+        catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
           let isAdmin = !!d.admin;
-          if (!user) user = { id: 'ldap-' + login.toLowerCase(), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
+          const wasLansweeper = !!user && (user.source === 'lansweeper' || user.source === 'entra');
+          if (!user) user = { id: freeUserId(loadState(db).users, 'ldap-' + login.toLowerCase()), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
           /* The last active admin stays one, as in the sync: a renamed or emptied admin group must not lock everyone out. */
           if (!isAdmin && user.role === 'admin' && user.active !== false
             && !loadState(db).users.some(u => String(u.id) !== String(user.id) && u.role === 'admin' && u.active !== false)) {
@@ -156,7 +159,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
           }
           Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
-          if (user.active !== false) { saveUserDoc(user); bumpUser(user.id); }   /* a new revision, so a page holding the old record cannot save it back */
+          if (user.active !== false) {
+            saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
+            if (wasLansweeper) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(user.id);   /* the directory checks the password now */
+          }
           ok = true;
         } else if (d) { audit(db, null, 'sign in refused, not in group: ' + login); }
       }
@@ -184,8 +190,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const clean = v => String(v ?? '').trim().slice(0, 100);
       const first = clean(req.body?.first), last = clean(req.body?.last), dept = clean(req.body?.dept);
       if (!first && !last) throw new HttpError(400, 'Give a first or last name.');
-      if (u.source === 'ldap') { u.dept = dept; }   /* the directory keeps the name */
-      else Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept });
+      /* A directory user's name and department come from the directory (the next sync would undo them here). */
+      if (u.source !== 'ldap') Object.assign(u, { first, last, name: [first, last].filter(Boolean).join(' '), dept });
       saveUserDoc(u); bumpUser(u.id);
       audit(db, u.id, 'changed own details');
       res.json({ ok: true, me: me(u) });
@@ -226,10 +232,16 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   app.get('/api/state', requireUser, (req, res) => {
+    /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
+       page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}"`;
+    res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
+    if (req.get('if-none-match') === tag) return res.status(304).end();
     const s = loadState(db); delete s.empty;
-    if (req.user.role !== 'admin') {   /* directory settings and sign-in names are for admins */
-      delete s.ldap;
-      s.users = s.users.map(({ login, groups, ...u }) => u);
+    if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
+      for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
+      /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
+      s.users = s.users.map(({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u));
     }
     res.json(s);
   });
@@ -238,7 +250,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const incoming = req.body;
       if (!incoming || typeof incoming !== 'object') throw new HttpError(400, 'Send the inventory as JSON.');
-      const users = incoming.users || [];
+      const users = Array.isArray(incoming.users) ? incoming.users.filter(u => u && typeof u === 'object') : [];
       if (!users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
       if (!users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
       /* Settings only the server writes (connections, sync results, certificates) are kept as they are, whatever is sent,
@@ -330,7 +342,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   /* The nightly run reads the directory with the same settings and password. */
   app.locals.ldapConfig = cfgLdap;
-  /* Test connection: reads the users of the saved directory settings and says how many are in scope. */
   /* The CA certificate the directory server's certificate is checked against. Public, so it is kept with the settings. */
   app.post('/api/ldap/ca', requireUser, requireAdmin, (req, res, next) => {
     try {
@@ -346,6 +357,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try { const s = loadState(db); delete s.ldapCa; saveState(db, s); audit(db, req.user.id, 'directory CA certificate removed'); res.json({ ok: true }); }
     catch (e) { next(e); }
   });
+  /* Test connection: reads the users of the saved directory settings and says how many are in scope. */
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
@@ -407,7 +419,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const pair = g.tenant && g.clientId ? graphKeyPair(db, SHEET_KEY, g.thumbprint) : null;
     return pair ? { tenant: g.tenant, clientId: g.clientId, ...pair } : null;
   };
-  const cfgGraph = () => (graphConfig && graphConfig()) || graphFromApp();
+  /* How far the people from Entra go (Settings): the same whichever way the connection is set. */
+  const cfgGraph = () => { const c = (graphConfig && graphConfig()) || graphFromApp(); return c ? { ...c, people: graphSettings().people || 'match' } : null; };
   const graphSource = () => (graphConfig && graphConfig() ? 'server' : graphFromApp() ? 'app' : null);
   const editGraph = fn => { const s = loadState(db); s.graph = fn({ ...(s.graph || {}) }); const p = graphSettingsProblem(s.graph); if (p) throw new HttpError(400, p); saveState(db, s); };
 
@@ -418,13 +431,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let used = null;
     if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
     const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint, chosen: c.thumbprint === set.thumbprint, onServer: hasGraphKey(db, c.thumbprint) }));
-    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', ...(used || {}), certs });
+    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', ...(used || {}), certs });
   });
   /* The tenant and the app (client) id, from the app registration's Overview page in Entra. */
   app.post('/api/graph/settings', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {};
-      editGraph(g => ({ ...g, tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() }));
+      /* Each part is saved on its own: the IDs from step 1, how far people go from step 5. */
+      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}) }));
       audit(db, req.user.id, 'Microsoft Graph settings saved');
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -559,8 +573,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
 
-  /* Lansweeper pushes its assets from a script on its own server (scripts/Lansweeper-Push.ps1), with the token the
-     administrator set (NI_FEED_TOKEN). Without a token set, this route refuses every request. */
+  /* Lansweeper pushes its assets from a script on its own server (scripts/Lansweeper-Push.ps1), with the token made
+     in Settings → Feed (feed-token.js) or set by the administrator (NI_FEED_TOKEN). Without a token, this route
+     refuses every request. */
   app.post('/api/feed/push', (req, res, next) => {
     try {
       /* Wrong tokens count against the address, the same way wrong passwords do, so a token cannot be guessed by trying. */
@@ -600,7 +615,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ info: null });
     } catch (e) { next(e); }
   });
-  /* The push script, with this server's address already in it. */
   /* The SHA-1 thumbprint of the certificate the proxy presents for a host name, as Windows writes it ('' when it cannot
      be read). The push script pins it, so a certificate Windows does not trust (the self-signed one of a new install)
      works without a question; a trusted one is not affected by the pin. */
@@ -614,6 +628,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     sock.setTimeout(3000, () => { sock.destroy(); resolve(''); });
     sock.on('error', () => resolve(''));
   });
+  /* The push script, with this server's address and certificate thumbprint already in it. */
   app.get('/api/feed/push-script', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const text = fs.readFileSync(path.join(publicDir, '..', 'scripts', 'Lansweeper-Push.ps1'), 'utf8');
@@ -658,7 +673,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const row = db.prepare('SELECT data FROM backups WHERE id = ?').get(Number(req.params.id));
       if (!row) throw new HttpError(404, 'No such backup.');
       takeBackup(db, 'before a restore');
-      restoreBackup(db, JSON.parse(row.data));
+      restoreBackup(db, JSON.parse(row.data), SHEET_KEY);
       audit(db, req.user.id, 'restored backup ' + req.params.id);
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -668,7 +683,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let data;
       try { data = JSON.parse(typeof req.body === 'string' ? req.body : ''); } catch { throw new HttpError(400, 'This file is not a backup of NOBS Inventory.'); }
       takeBackup(db, 'before a restore from file');
-      restoreBackup(db, data);
+      restoreBackup(db, data, SHEET_KEY);
       audit(db, req.user.id, 'restored a backup from a file');
       res.json({ ok: true });
     } catch (e) { next(e); }

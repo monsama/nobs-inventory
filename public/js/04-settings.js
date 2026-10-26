@@ -3,7 +3,8 @@ import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from '.
 import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
 import { setSettingsOpener, collapsedPanels, rememberPanel, typeFieldsOf, canAddPorts, fieldKind, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { overlapProblem, subnetSpan, ipInt } from './net.js';
-import { SUBNETS } from './01-core.js';
+import { SUBNETS, VIEWBOX_RE, tcol } from './01-core.js';
+import { SVG_ATTRS, SVG_ELEMENTS } from './svg-rules.js';
 import { subnetProblem } from './net.js';
 import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
@@ -47,7 +48,7 @@ export function renderLsToggle(){
   const src = $('#lsSource');
   if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
-/* Lansweeper type names -> object types, and skipping devices named only by an IP address. */
+/* ---------- Lansweeper type names -> object types, and skipping devices named only by an IP address ---------- */
 /* Applies the mapping of one Lansweeper name (lower case) to the synced devices that carry it. Only that row is applied, so a type
    set by hand on another device is kept. Excluded and detached devices are left alone. Returns how many changed. */
 export function applyTypeMap(only){
@@ -219,7 +220,6 @@ export function bindScheduleRows(root){
     every.onchange = save; at.onchange = save;
   });
 }
-/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
   const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
@@ -228,8 +228,11 @@ export function graphSummary(c){
     c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
     c.unmatched ? `${c.unmatched} not in the inventory: see the list below.` : '',
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
-    c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : ''].filter(Boolean).join(' ');
+    c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',
+    c.people ? `People: ${c.people.inEntra} in Entra${c.people.added ? `, ${c.people.added} added` : ''}${c.people.bound ? `, ${c.people.bound} devices given their user` : ''}${c.people.gone ? `, ${c.people.gone} no longer in Entra` : ''}.` : '',
+    c.peopleError || ''].filter(Boolean).join(' ');
 }
+/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
 function unmatchedHtml(edit){
   const list = st.graphUnmatched || [];
   if (!list.length) return '';
@@ -298,12 +301,18 @@ export async function renderSetGraph(){
       <li><div class="gs-head"><b>Allow it to read devices</b></div>
         <ol class="gs-sub">
           <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
-          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>.</li>
+          <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For people from Entra (step 4) also <span class="mono">User.Read.All</span>.</li>
           <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
           <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
         </ol>
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
+      <li><div class="gs-head"><b>People from Entra</b> <span class="muted">(optional)</span></div>
+        <p class="note">Beside the devices, the sync can read Entra's people (members, no guests) and show in Settings → Users who is in the directory (LDAP), in Entra, or in both. It never changes a person from LDAP or added here, and for one from Lansweeper only fills in an empty name or department; LDAP takes over a person Entra added when the same login comes. Needs <span class="mono">User.Read.All</span>; without it the devices still sync.</p>
+        <div class="form" style="padding:8px 0 0"><label for="gPeople">People</label><select id="gPeople" ${edit ? '' : 'disabled'}>
+          <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
+          <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
+          <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
       <li><div class="gs-head">${done(g.configured)}<b>Test and sync</b></div>
         <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set below.</p>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div>
@@ -320,6 +329,10 @@ export async function renderSetGraph(){
     if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }
     toast('Microsoft Graph IDs saved'); await refreshGraph();
   };
+  $('#gPeople').onchange = async () => {
+    const x = await post('api/graph/settings', {people: $('#gPeople').value});
+    toast(x.ok ? 'Saved: people are read at the next sync' : (x.j.error || 'Not saved.'));
+  };
   $('#graphCert').onclick = async () => {
     const x = await post('api/graph/cert');
     if (!x.ok){ toast(x.j.error || 'The certificate could not be made.'); return; }
@@ -330,7 +343,7 @@ export async function renderSetGraph(){
     const x = await post('api/graph/test');
     if (!x.ok) return say(x.j.error || 'The test failed.', true);
     if (x.j.missing.length) return say('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
-    say('Signed in and read both lists. Ready to sync.');
+    say(x.j.users ? 'Signed in and read the devices and the people. Ready to sync.' : 'Signed in and read both device lists. Ready to sync.');
   };
   $('#graphSync').onclick = async () => {
     const btn = $('#graphSync'); btn.disabled = true; say('Syncing…');
@@ -347,8 +360,6 @@ export async function renderSetGraph(){
     if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
     toast('The server signs in with this certificate now'); await refreshGraph();
   });
-  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
-     certificate is created and uploaded. */
   /* Devices Graph has that the inventory does not: add the ticked ones, or all. */
   const addGraph = async ids => {
     const x = await post('api/graph/add', {ids});
@@ -365,6 +376,8 @@ export async function renderSetGraph(){
     $('#guAdd').onclick = () => addGraph(picked());
     $('#guAddAll').onclick = () => { if (confirm(`Add all ${(st.graphUnmatched || []).length} devices to the inventory?`)) addGraph('all'); };
   }
+  /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
+     certificate is created and uploaded. */
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {
     const t = b.dataset.gcdel, inUse = !!b.dataset.gcinuse;
     if (!confirm(`Delete certificate ${t}? Its private key is deleted from the server; this cannot be undone. Delete it in Entra as well (the app → Certificates & secrets → Certificates).`
@@ -470,7 +483,7 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = '.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
+export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|cardJoin|cnQ|cnKind|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
@@ -485,10 +498,22 @@ export function applyRole(){
 }
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 /* source: 'lansweeper' for a person first named as a device's user by the feed; they are kept like one added by hand. */
+/* A person picked or typed by hand (or a CSV import) names them; Lansweeper names a device's user by login. The exact
+   name is looked for first, so a typed "Anna" stays Anna; then the login. */
 export function ensureUser(name, source = 'manual'){
-  let u = USERS.find(x => x.name === name);
+  const low = String(name).toLowerCase();
+  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low);
   if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
+}
+/* The person with an id, through a lookup of their place in USERS: every device's .user reads it, so going through all
+   people each time added up. A place that holds someone else (the list changed) rebuilds the lookup. */
+let personAt = new Map();
+export function personById(id){
+  if (!id) return null;
+  let u = USERS[personAt.get(id)];
+  if (!u || u.id !== id){ personAt = new Map(USERS.map((x, i) => [x.id, i])); u = USERS[personAt.get(id)]; }
+  return u && u.id === id ? u : null;
 }
 /* A device keeps the id of its user; .user reads the name from that record, so renaming a user moves the devices with it. */
 export function bindUser(o){
@@ -498,13 +523,11 @@ export function bindUser(o){
   delete o.user;
   if (!o.uid) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
   Object.defineProperty(o, 'user', {
-    get(){ if (this.hotdesk) return 'Hot desk'; const u = USERS.find(x => x.id === this.uid); return u ? u.name : ''; },
+    get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
     enumerable: true, configurable: true
   });
 }
-/* Software on PCs and servers. */
-
 /* Rack placement. A device either takes U slots (rack, u, h) or sits on top of another device in the same rack (ontop). */
 export const RACKABLE = ['server','switch','patch','storage','router','firewall','modem'];
 export const TYPE_U = {server:2, switch:1, patch:1, storage:4, router:1, firewall:1, modem:1};
@@ -552,27 +575,46 @@ export function mountModal(){
   };
 }
 
+/* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
+const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
+/* Where a person comes from, and whether Entra knows them too: one chip each, with the details in the tooltip. */
+export function sourceChips(u){
+  const src = ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
+  const from = {ldap: ['LDAP', 'From the directory (LDAP sync)'], lansweeper: ['Lansweeper', "Named as a device's user by Lansweeper"], entra: ['Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['Manual', 'Added here']}[src];
+  const e = u.entra;
+  const entra = !e || u.source === 'entra' && !e.gone && e.enabled !== false ? ''
+    : e.gone ? `<span class="chip kept usrc" title="Was in Microsoft Entra until ${esc(e.gone)}">Entra: gone</span>`
+    : `<span class="chip ${e.enabled === false ? 'warn' : 'kept'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : '<span class="sdot entra" aria-hidden="true"></span>Entra'}</span>`;
+  return `<span class="chip kept usrc" title="${esc(from[1])}"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}`;
+}
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
   for (const o of objs){ const n = o.user; if (n) devCount.set(n, (devCount.get(n) || 0) + 1); }
   const devicesOfUser = name => devCount.get(name) || 0;
-  const rows = USERS.map((u, i) => `<tr>
-      ${u.source === 'ldap' ? `<td title="From LDAP: changed in the directory">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
-      ${u.source === 'ldap' ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
-      <td>${u.source === 'ldap' ? '<span class="chip info usrc">LDAP</span>' : u.source === 'lansweeper' ? '<span class="chip info usrc" title="Named as a device\'s user by Lansweeper">Lansweeper</span>' : '<span class="chip kept usrc">Manual</span>'}</td>
+  /* Where each person is known: in the directory (LDAP), in Entra, in both, or in neither. The filter shows one group. */
+  const inLdap = u => u.source === 'ldap', inEntra = u => !!(u.entra && !u.entra.gone);
+  const DIRS = {both: ['LDAP and Entra', u => inLdap(u) && inEntra(u)], ldap: ['LDAP only', u => inLdap(u) && !inEntra(u)], entra: ['Entra only', u => !inLdap(u) && inEntra(u)], none: ['Neither', u => !inLdap(u) && !inEntra(u)]};
+  const dirOn = USERS.some(inLdap) || USERS.some(u => u.entra);
+  if (!dirOn || !DIRS[st.userDir]) st.userDir = '';
+  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => !st.userDir || DIRS[st.userDir][1](u)).map(([u, i]) => `<tr>
+      ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
+      ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
+      <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
       <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
-  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active</span></div>
-    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated.</p>
+  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
+    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → LDAP &amp; Graph → People).</p>
+    ${dirOn ? `<div class="addrel"><label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select></div>` : ''}
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
+  const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
@@ -589,7 +631,8 @@ export function renderSetUsers(){
     if (name === was) return;
     if (USERS.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())){ i.value = was; toast(name + ' is already a user.'); return; }
     u.name = name; delete u.first; delete u.last;
-    for (const o of objs) if (o.user === was){ o.user = name; hist(o, now(), `User ${was} renamed to ${name} by ${who()}`); }
+    /* The devices keep the person's id, so they show the new name by themselves; each gets a history line. */
+    for (const o of objs) if (o.uid === u.id) hist(o, now(), `User ${was} renamed to ${name} by ${who()}`);
     queueServerSave(); toast(`${was} is now ${name}`); renderSetUsers(); render();
   });
   root.querySelectorAll('[data-udept]').forEach(i => i.onchange = () => {
@@ -692,11 +735,11 @@ export function showDevicesOf(name){
   render();
 }
 
-/* LDAP: the directory settings live on the server (NI_LDAP_* variables). Here the status and a sync. */
-/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
+/* A log line's kind, by its words. Backups first ("restored" is not a sign-in), then sign-ins and accounts, then the
+   syncs; anything else is in All only. */
 export const logKind = e => /backup|restor/i.test(e.action) ? 'backup' : /sign in|password|login|user|removed by/i.test(e.action) ? 'access' : /sync|push|import|feed|ldap/i.test(e.action) ? 'sync' : 'other';
 export async function renderSetLog(){
   const pane = $('#setLog');
@@ -729,7 +772,7 @@ export function backupPanel(edit){
   const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
     <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, and before an LDAP sync.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, the settings and the entry sheets (still sealed). Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
+    <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken before every Lansweeper sync, push and import, before an LDAP or Microsoft Graph sync (once a day for Graph), before devices are added from Graph and before the type rules are applied.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, the settings and the entry sheets (still sealed). Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}, ${(list.reduce((a, b) => a + (b.bytes || 0), 0) / 1048576).toFixed(1)} MB in total. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n">Devices</th><th class="n hide-n">Size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
@@ -743,8 +786,11 @@ export function wireBackups(edit){
     msg('Backup taken'); loadBackups();
   };
   document.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+    const at = b.closest('tr')?.querySelector('[data-bat]')?.dataset.bat || '';
+    if (!confirm(`Delete the backup${at ? ' of ' + at : ''}? It cannot be brought back.`)) return;
     const r = await fetch('api/backups/' + b.dataset.bdel, {method: 'DELETE', credentials: 'same-origin'});
     if (r.ok){ msg('Backup deleted'); loadBackups(); }
+    else msg((await r.json().catch(() => ({}))).error || 'The backup was not deleted.');
   });
   document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
   const file = $('#bkFile');
@@ -774,6 +820,7 @@ export function restoreModal(label, run){
   };
   $('#rsWord').focus();
 }
+/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
@@ -801,8 +848,9 @@ export function factoryResetModal(){
     location.reload();
   };
 }
-/* LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The service
-   account's password is not stored there: the server reads it from its environment. */
+/* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
+   service account's password is not in the inventory: it is saved here into the server's encrypted store (or set in
+   the server's environment) and never sent back to the page. ---------- */
 /* The same default as the server: the login at the domain the search base names. */
 const bindDefault = base => { const dcs = [...String(base || '').matchAll(/(?:^|,)\s*DC\s*=\s*([^,]+)/gi)].map(m => m[1].trim()); return dcs.length ? `{login}@${dcs.join('.')}` : '{login}@example.ch'; };
 /* The computers are looked for in the whole domain of the search base, unless a base is given. */
@@ -852,6 +900,8 @@ function bindCa(){
     if (r.ok){ toast('CA certificate removed'); await reloadFromServer(); renderSetLdap(); }
   };
 }
+/* LDAP: the directory settings, saved in the inventory (the service password encrypted on the server), the CA, a
+   test and a sync. */
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = canEdit();
@@ -973,12 +1023,17 @@ export function sanitizeSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   const root = doc.documentElement;
   if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
-  const OK_EL = ['svg','g','path','circle','ellipse','rect','line','polyline','polygon','title','defs','desc'];
-  const OK_AT = ['d','x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','width','height','points','fill','fill-rule','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','opacity','transform','id'];
+  const OK_EL = SVG_ELEMENTS, OK_AT = SVG_ATTRS;
   root.querySelectorAll('*').forEach(n => { if (n !== root && !OK_EL.includes(n.localName)) n.remove(); });
+  /* Comments (an icon set's licence line) are dropped too: the server keeps shapes only. */
+  const notes = doc.createTreeWalker(root, NodeFilter.SHOW_COMMENT), drop = [];
+  while (notes.nextNode()) drop.push(notes.currentNode);
+  drop.forEach(n => n.remove());
   root.querySelectorAll('*').forEach(n => [...n.attributes].forEach(a => { if (!OK_AT.includes(a.name.toLowerCase())) n.removeAttribute(a.name); }));
   const ser = new XMLSerializer();
-  return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: root.getAttribute('viewBox') || '0 0 24 24'};
+  /* The viewBox goes into an attribute: only numbers are kept, anything else gets the usual box. */
+  const view = (root.getAttribute('viewBox') || '').trim();
+  return {inner: [...root.childNodes].map(n => ser.serializeToString(n)).join(''), view: VIEWBOX_RE.test(view) ? view : '0 0 24 24'};
 }
 export function passwordModal(u){
   modal(`<div class="mh">Password for ${esc(u.name)}</div>
@@ -996,8 +1051,6 @@ export function passwordModal(u){
 }
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
-/* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
-/* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
 /* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
 const RANGE_USES = ['DHCP', 'Static', 'Reserved'];
 const rangeRowHtml = (r = {}) => {
@@ -1046,6 +1099,7 @@ const subnetItemHtml = (n, i, edit) => {
 };
 /* Which subnet is open in the editor: 'new', a position in the list, or none; and what a new one starts with. */
 let snEdit = null, snDraft = null;
+/* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
@@ -1068,8 +1122,6 @@ export function renderSetSubnets(){
     for (const o of objs) if (o.subnet === gone.cidr){ delete o.subnet; hist(o, now(), `Subnet ${gone.name} (${gone.cidr}) deleted by ${who()}`); }
     SUBNETS.splice(+b.dataset.sx, 1); queueServerSave(); toast('Subnet deleted'); renderSetSubnets();
   });
-  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
-     of address (DHCP, static) from the lowest to the highest address seen. */
   /* A suggestion as a subnet: name, gateway, DNS, the types seen there and a range per kind of address seen. */
   const fromSuggestion = n => ({name: n.name || n.cidr, cidr: n.cidr, vid: null, gateway: n.gateway || '', dns: n.dns || [],
     types: (n.types || []).map(t => t.type).filter(t => TYPES[t]), ranges: (n.seen || []).map(x => ({from: x.from, to: x.to, use: x.use}))});
@@ -1091,6 +1143,8 @@ export function renderSetSubnets(){
     toast(`Added ${added.length} ${added.length === 1 ? 'subnet' : 'subnets'}${trimmed.length ? `; ${trimmed.join(', ')}` : ''}${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}. Check their ranges against your DHCP server.`);
     renderSetSubnets();
   };
+  /* Use: the editor filled in with what Lansweeper saw: name, gateway, DNS, the device types there, and a range per kind
+     of address (DHCP, static) from the lowest to the highest address seen. */
   root.querySelectorAll('[data-snuse]').forEach(b => b.onclick = () => {
     const n = suggested[+b.dataset.snuse];
     const types = (n.types || []).map(t => t.type).filter(t => TYPES[t]);
@@ -1123,6 +1177,7 @@ export function renderSetSubnets(){
     snEdit = null; snDraft = null; queueServerSave(); renderSetSubnets();
   };
 }
+/* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 export function renderSetVlans(){
   const cnt = $('#vlCnt'); if (cnt) cnt.textContent = VLANS.length;
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
@@ -1213,7 +1268,7 @@ export function renderSetLocs(){
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Used by</span><span></span></div>
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
-      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" class="primary" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
+      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
   </div>`;
   const root = $('#setLocs');
@@ -1265,27 +1320,8 @@ export function renameLoc(old, value){
   if (st.loc === old) st.loc = name;
   toast('Renamed to ' + name); renderSetLocs(); render();
 }
-/* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in and no object has it. */
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
-export const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-export const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
-export function validIPv6(v){
-  if (v.length > 45 || !/^[0-9a-f:.]+$/i.test(v)) return false;
-  if (v.includes('.')){ const i = v.lastIndexOf(':'); if (i < 0 || !IPV4_RE.test(v.slice(i + 1))) return false; v = v.slice(0, i + 1) + '0:0'; }
-  const parts = v.split('::'); if (parts.length > 2) return false;
-  const groups = x => (x === '' ? [] : x.split(':'));
-  const all = [...groups(parts[0]), ...(parts.length === 2 ? groups(parts[1]) : [])];
-  if (!all.every(g => /^[0-9a-f]{1,4}$/i.test(g))) return false;
-  return parts.length === 2 ? all.length <= 7 : all.length === 8;
-}
-export function checkAddress(k, raw){
-  const v = String(raw ?? '').trim();
-  if (!v) return {ok: true, value: ''};
-  if (k === 'ip') return IPV4_RE.test(v) ? {ok: true, value: v} : {ok: false, msg: `"${v}" is not an IPv4 address, such as 10.10.0.12.`};
-  if (k === 'ip6') return validIPv6(v) ? {ok: true, value: v.toLowerCase()} : {ok: false, msg: `"${v}" is not an IPv6 address, such as 2001:db8::12.`};
-  if (k === 'mac') return MAC_RE.test(v) ? {ok: true, value: v.toLowerCase().replace(/-/g, ':')} : {ok: false, msg: `"${v}" is not a MAC address, such as 70:b3:17:4a:00:01.`};
-  return {ok: true, value: v};
-}
+export { IPV4_RE, MAC_RE, validIPv6, checkAddress } from './addr.js';
 /* Readable names for the icons, for the dropdown. */
 export const ICON_LABEL = { plc: 'PLC / Controller', tablet: 'Tablet', pc: 'Computer', laptop: 'Laptop', server: 'Server', sip: 'VoIP phone', mobile: 'Mobile device', rack: 'Rack',
   monitor: 'Monitor', switch: 'Switch', router: 'Router', firewall: 'Firewall', modem: 'Modem', patch: 'Patch panel',
@@ -1295,9 +1331,9 @@ export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] 
 /* A dropdown that shows the icon and its name, for the object type's icon. */
 export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
-  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${t.svgView}">${t.svgInner}</svg>` : iconSvg(n);
+  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${t.svgInner}</svg>` : iconSvg(n);
   return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><span class="icondd-caret">▾</span></button>
-    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon...<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
+    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
 export function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
 document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });
@@ -1362,7 +1398,8 @@ export function renderBuiltinFields(box, type){
   /* Fields Lansweeper fills in on devices of this type that the type does not have (firmware on a printer): listed too,
      so they can be renamed, moved and hidden here like the rest. */
   const extras = LS_ON() ? Object.keys(FIELD_LABEL).filter(k => !seen.has(k) && ofType.some(o => o.feed && o[k] !== undefined && o[k] !== '')).map(k => [k, FIELD_LABEL[k], fieldKind(k), false, true]) : [];
-  /* In the order the page shows them before any is moved: the type's fields, its own ones, then Lansweeper's extras. */
+  /* In the order the page shows them before any is moved: the type's fields, its own ones, then Lansweeper's extras.
+     Each is [key, label, kind, own (a field added to this type), extra (Lansweeper's, the type does not have it)]. */
   const all = [...builtins, ...own.map(f => ['custom.' + f.key, f.label, f.kind, true]), ...extras];
   /* Rows whose Shown tick is not the whole story. */
   const NOTES = { boot: 'Only while Lansweeper is on' };
@@ -1415,12 +1452,14 @@ export function renderBuiltinFields(box, type){
 }
 /* A type's name as the server keeps it: plain text of up to 60 characters. */
 const typeName = v => String(v || '').replace(/[<>]/g, '').trim().slice(0, 60);
+/* Object types: rename, recolour, change the icon, add new ones. A type can be deleted only when it is not built in, no
+   object has it, and no type rule or Lansweeper type name leads to it. */
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
     const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} objects` : '';
     return `<tr>
-      <td style="width:1%"><input type="color" value="${t.color}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
+      <td style="width:1%"><input type="color" value="${esc(tcol(k))}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
       <td><input data-ts="${k}" value="${esc(t.short)}" aria-label="Short name"></td>
       <td>${iconChoice(k, t)}</td>
@@ -1456,7 +1495,15 @@ export function renderSetTypes(){
     Object.assign(TYPES[f.dataset.up], {svgInner: clean.inner, svgView: clean.view, icon: 'custom'});
     toast('Icon uploaded for ' + TYPES[f.dataset.up].label); renderSetTypes(); render();
   });
-  root.querySelectorAll('[data-td]').forEach(b => b.onclick = () => { const k = b.dataset.td; toast(TYPES[k].label + ' deleted'); delete TYPES[k]; renderSetTypes(); render(); });
+  /* A type a type rule or a Lansweeper type name still leads to stays: the server would refuse every later save. */
+  root.querySelectorAll('[data-td]').forEach(b => b.onclick = () => {
+    const k = b.dataset.td;
+    const rule = (Array.isArray(st.typeRules) ? st.typeRules : []).findIndex(r => r && r.to === k);
+    const named = Object.keys(st.typeMap || {}).find(n => st.typeMap[n] === k);
+    if (rule >= 0){ toast(`${TYPES[k].label} is used by type rule ${rule + 1} (Settings → Feed). Change that rule first.`); return; }
+    if (named){ toast(`${TYPES[k].label} is the type for the Lansweeper type name “${named}” (Settings → Feed). Change that first.`); return; }
+    toast(TYPES[k].label + ' deleted'); delete TYPES[k]; renderSetTypes(); render();
+  });
   $('#ntAdd').onclick = () => {
     const name = typeName($('#ntName').value);
     if (!name){ toast('Give the new type a name first.'); return; }
@@ -1479,8 +1526,7 @@ export async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
   if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
 }
-/* Days since a stamp written by the server ("dd.mm.yyyy hh:mm"). */
-/* A date for people: "22 Oct 2026, 18:03". */
+/* A date for people: "22.10.2026 18:03", '—' when there is none. */
 export const pushDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){

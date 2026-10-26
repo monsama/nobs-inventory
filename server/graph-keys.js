@@ -31,5 +31,6 @@ export function graphSettingsProblem(g) {
   if (g.tenant && !(GUID.test(g.tenant) || /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(g.tenant))) return 'The directory (tenant) ID is a GUID such as 1b2c3d4e-…, or a domain such as contoso.onmicrosoft.com.';
   if (g.clientId && !GUID.test(g.clientId)) return 'The application (client) ID is a GUID such as 1b2c3d4e-5f60-….';
   if (g.thumbprint && !/^[0-9A-F]{40}$/.test(g.thumbprint)) return 'The certificate is named by its thumbprint.';
+  if (g.people !== undefined && !['off', 'match', 'add'].includes(g.people)) return 'People from Entra are off, matched, or matched and added.';
   return null;
 }

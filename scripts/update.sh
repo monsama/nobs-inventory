@@ -17,7 +17,8 @@ TARGET="${1:-}"
 # What a release archive contains (see .github/workflows/release.yml). These are the files an archive update replaces.
 CODE="deploy-nobs.sh scripts Dockerfile docker-compose.yml proxy/docker-compose.yml proxy/Caddyfile proxy/sites/README.md .env.example package.json package-lock.json server public VERSION README.md"
 
-get_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+# A value of .env, without the quotes it may be written in, as docker compose reads it.
+get_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | sed -E "s/^([\"'])(.*)\\1$/\\2/" || true; }
 set_env() {
   if grep -q "^$1=" .env; then sed -i "s#^$1=.*#$1=$2#" .env; else echo "$1=$2" >> .env; fi
 }

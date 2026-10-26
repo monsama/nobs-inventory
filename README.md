@@ -84,13 +84,21 @@ Backups contain the database, `.env`, the Compose file, the proxy (`proxy/`: its
 - Sync schedule: each sync (Lansweeper API or report file, LDAP directory, Microsoft Graph) has its own interval and start time next to its Sync now button in Settings — off, every 1–12 hours, or daily. Defaults: Lansweeper and LDAP daily at 06:00, Microsoft Graph every 4 hours from 06:00. Syncs due at the same minute run in that order.
 - Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs daily at 06:00 by default, or from Settings → LDAP sync. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; viewers read and filter but cannot save or import. The server enforces this, not only the page.
-- Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session lasts 12 hours.
+- Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session ends after 12 hours, or after 2 hours without use.
 
 ## Microsoft Graph (Entra and Intune)
 
 Settings → LDAP & Graph reads each device's Entra join status, Intune enrolment and compliance, matched by serial number, else by name. It only reads. The join types are Entra joined, Hybrid joined (Graph's ServerAd) and Entra registered; a device with a computer account in AD (read by the LDAP sync) that Entra does not have shows as AD joined only.
 
 When Entra lists one device more than once (an old record after a reinstall, or a hybrid-joined PC that is also Entra registered), the current record is used: one heard of in the last 30 days, then the one Intune manages, then joined before registered. The others are listed on the device and under the sidebar filter *Duplicates in Entra*, to be deleted in Entra. A record whose serial number or name fits two devices of the inventory is put on neither and listed under *Name or serial used twice*. A device Entra no longer has is marked as gone and counts as not in Entra. Set it up in four steps, all shown in the app:
+
+**People from Entra** (optional, step 4 in Settings → LDAP & Graph; needs `User.Read.All`, Application, with admin consent): the sync also reads Entra's members (no guests).
+- *Mark the people who are in Entra* (the default) notes on each person whose login is an Entra user's on-premises login or user principal name that Entra knows them. Settings → Users then shows, per person, LDAP, Entra, both or neither, and can show only one of these groups.
+- *…and add the primary users of the devices* also adds the people Intune names as a device's primary user who are nobody here yet (source Entra), and gives them their devices. Their name, department and active state follow Entra.
+- A person from LDAP or added by hand is never changed by Entra; one from Lansweeper only gets an empty name or department filled in. The LDAP sync and a directory sign-in take over a person Entra added, as one from Lansweeper.
+- Without the permission the devices sync as before, and the sync says why people were not read.
+
+On the Cards tab, tick **AD · Entra · Intune** to see on each computer and phone whether it has a computer account in Active Directory (from the LDAP sync, or hybrid joined), how it is in Microsoft Entra ID (formerly Azure AD: joined, hybrid or registered) and whether Intune manages it, coloured by compliance. The choice is kept in the browser. It is offered once Graph is set up or the LDAP sync has found computer accounts.
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
 2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.
@@ -105,6 +113,12 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 - **Device costs**: each device has Price, Supplier and Invoice no. under Properties. The Table can show them (Columns menu) and the CSV export includes them, with the purchase and warranty dates.
 - **Contracts** tab: maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
 - **Licences** (Software tab): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
+
+## Contacts and responsibles
+
+The **Contacts** tab holds the people who look after the devices: your own IT staff (internal) and the people at your IT partners (external: a service provider, a maker's support), each with role, e-mail, phone, mobile and a note (support hours, how to open a ticket). Internal people come first, then each partner company. E-mail and phone numbers are links, so they open the mail program or dial on a phone. An internal contact can be linked to one of the users.
+
+Each device names one **internal** and one **external responsible**, on its page under Responsible, or for many devices at once in the table (select them, then Responsible…). The table has a Responsible column (under Columns), and Responsible can be a card line (Settings → Object types). A contact's "Responsible for n devices" opens those devices in the table. Deleting a contact takes it off its devices, with a line in their history. Contracts suggest the partner companies as suppliers. Contacts are in the backups.
 
 ## Device types from Lansweeper
 
@@ -141,6 +155,7 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
   - purchase date and warranty end. Warranties that end within 90 days, or have ended, are marked and can be filtered in the sidebar;
   - the Windows role (workstation, server, domain controller), which decides PC or server for a new device;
   - the department of the logged-on user, from the Active Directory users Lansweeper scans.
+- The user Lansweeper reports on a device is a login (its `Username`). A person it names is added under Settings → Users with that login and, from the Active Directory users Lansweeper scans, the full name and department; devices show the full name. Persons from before 0.9.28, whose name was the login, get it as their login on the first start. When the LDAP sync or a directory sign-in brings the same login, the directory takes over that person (same record, so their devices stay assigned); a local account with that login is never taken over.
 
 ## Updating
 

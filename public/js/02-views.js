@@ -1,9 +1,12 @@
 import { money } from './09-costs.js';
-import { osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { parseCsv } from './csv.js';
+import { respText, setResponsible } from './11-contacts.js';
+import { CONTACT_KINDS, contactLabel } from './contacts.js';
+import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render-plans.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
-import { USERS, bindUser, canEdit, checkAddress, devicesOf, rackOf, showDevicesOf } from './04-settings.js';
+import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, modal } from './03-object-modals.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
@@ -42,6 +45,10 @@ export function renderSide(){
   /* An operating system picked on the Overview: shown here while it filters, with a way out. */
   $('#osHdr').hidden = $('#osList').hidden = !st.osFam;
   $('#osList').innerHTML = st.osFam ? `<button class="item sel" data-osfam="" title="Show all devices again"><span class="lbl">${esc(st.osFam)}</span><span class="cnt">${cnt(o => osFamily(o) === st.osFam)}</span><span aria-hidden="true">×</span></button>` : '';
+  /* A contact's devices, opened from Contacts: shown here while it filters, with a way out. */
+  const rc = contactOf(st.resp);
+  $('#respHdr').hidden = $('#respList').hidden = !rc;
+  $('#respList').innerHTML = rc ? `<button class="item sel" data-resp="" title="Show all devices again"><span class="lbl">${esc(rc.name)}</span><span class="cnt">${cnt(o => o.respIn === rc.id || o.respEx === rc.id)}</span><span aria-hidden="true">×</span></button>` : '';
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
@@ -58,6 +65,7 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('adgroup' in b.dataset) st.adGroup = null;
+  if ('resp' in b.dataset) st.resp = null;
   if ('osfam' in b.dataset) st.osFam = null;
   if ('intune' in b.dataset) st.intune = st.intune === b.dataset.intune ? null : b.dataset.intune;
   if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards';
@@ -66,7 +74,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = null; st.scanOld = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = null; st.scanOld = st.live = false; st.q = '';
   const s = $('#search'); if (s) s.value = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
@@ -75,7 +83,7 @@ $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {overview:'Overview', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts'};
+export const FIXED_TABS = {overview:'Overview', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts'};
 export function renderTabs(){
   const ids = st.tabIds.filter(id => FIXED_TABS[id] || st.open.includes(id));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
@@ -154,10 +162,10 @@ const onTabClick = e => {
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
   const t = e.target.closest('[data-tab]');
-  /* From a device's card, Ports shows that device when it has ports; otherwise the first one. */
-  /* Back to Cards from Ports shows the device the ports were of. */
+  /* Back to Cards from Ports opens the device the ports were of. */
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
-  /* From an open device, Relationships shows that device's relations. */
+  /* From an open device, Ports shows that device when it has ports (otherwise the one shown before), and Map is centred
+     on it. */
   if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; render(); }
 };
 $('#tabsbar').addEventListener('click', onTabClick);
@@ -189,6 +197,8 @@ export const CARD_FIELDS = {
   domain: ['Domain', o => esc(o.domain || '')],
   units: ['Height', o => o.units ? o.units + ' U' : ''],
   purpose: ['Purpose', o => esc(o.purpose || '')],
+  model: ['Model', o => esc(o.model || '')],
+  resp: ['Responsible', o => esc(respText(o))],
 };
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
@@ -215,7 +225,12 @@ export function cardLine(o, key, idx){
   return c ? [c[0], c[1](o, idx)] : ['', ''];
 }
 /* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
-export function cardHtml(o, idx){
+/* Whether the cards show AD, Entra and Intune (joinBadges). Kept in this browser: it is how this person likes to look. */
+export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
+let cardJoin = false;
+try { cardJoin = localStorage.getItem('ni-card-join') === '1'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+const showJoin = () => cardJoin && joinCardsAvailable();
+export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
@@ -223,17 +238,23 @@ export function cardHtml(o, idx){
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
-    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
+    ${join ? joinBadges(o) : ''}
+    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
+/* How many cards or table rows are drawn before "Show all". */
+export const SHOW_FIRST = 500;
 export function renderCardsBody(){
-  const list = filtered();
+  let list = filtered();
   $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
+    ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; render(); };
+  const cj = $('#cardJoin');
+  if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
     $('#view').innerHTML = objs.length
       ? (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
@@ -242,15 +263,23 @@ export function renderCardsBody(){
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     return;
   }
-  const idx = relIndex(), card = o => cardHtml(o, idx);
-  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>`; return; }
-  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc;
-  const groups = [...new Set(list.map(key))].sort((a, b) => a === 'No user' ? 1 : b === 'No user' ? -1 : a.localeCompare(b));
+  const idx = relIndex(), join = showJoin(), card = o => cardHtml(o, idx, join);
+  /* Thousands of cards take long to draw: the first ones are drawn, the rest on request. A search or a filter narrows it. */
+  const cut = !st.cardsAll && list.length > SHOW_FIRST + 100;
+  const more = cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length}. Search or filter to narrow them down.</span><button id="cardsAll">Show all ${list.length}</button></div>` : '';
+  const bindMore = () => { const b = $('#cardsAll'); if (b) b.onclick = () => { st.cardsAll = true; renderCards(); }; };
+  if (cut) list = list.slice(0, SHOW_FIRST);
+  if (st.cardsGroup === 'none'){ $('#view').innerHTML = `<div id="cards">${list.map(card).join('')}</div>${more}`; bindMore(); return; }
+  const key = st.cardsGroup === 'type' ? o => TYPES[o.type].label : st.cardsGroup === 'user' ? o => o.user || 'No user' : o => o.loc || 'No location';
+  /* The group of devices without a user or location comes last. */
+  const none = g => g === 'No user' || g === 'No location';
+  const groups = [...new Set(list.map(key))].sort((a, b) => none(a) ? 1 : none(b) ? -1 : a.localeCompare(b));
   st.groupsClosed ??= {};
   $('#view').innerHTML = groups.map(g => {
     const closed = !!st.groupsClosed[st.cardsGroup + ':' + g], items = list.filter(o => key(o) === g);
     return `<section class="grp${closed ? ' collapsed' : ''}"><div class="hdr sechdr grphdr" role="button" tabindex="0" aria-expanded="${!closed}" data-grp="${esc(g)}" style="position:sticky;top:0;z-index:2">${esc(g)} <span class="muted">${items.length}</span></div><div id="cards">${items.map(card).join('')}</div></section>`;
-  }).join('');
+  }).join('') + more;
+  bindMore();
   $('#view').querySelectorAll('.grphdr').forEach(h => {
     const toggle = () => { const k = st.cardsGroup + ':' + h.dataset.grp; st.groupsClosed[k] = !st.groupsClosed[k]; renderCards(); };
     h.addEventListener('click', toggle);
@@ -269,7 +298,10 @@ export function addSearchHits(){
   const people = USERS.filter(u => [u.name, u.login, u.dept].some(v => v && v.toLowerCase().includes(q)));
   const locs = LOCS.filter(l => l.toLowerCase().includes(q));
   if (!people.length && !locs.length) return;
-  $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${devicesOf(u.name)} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
+  /* Counted in one pass over the devices: a search that matches many people must not go through them once per person. */
+  const count = new Map();
+  for (const o of objs) if (o.user) count.set(o.user, (count.get(o.user) || 0) + 1);
+  $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${count.get(u.name) || 0} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
   $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
   $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; render(); });
 }
@@ -278,7 +310,8 @@ export function addSearchHits(){
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
-  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><b>${esc(o.name)}</b>${markHtml(o)}</td>`},
+  /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
   {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].short)}</span></td>`},
   {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
@@ -294,22 +327,23 @@ export const TABLE_COLS = [
   {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
+  {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off. */
 export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '2');
+      localStorage.setItem('ni-cols-v', '3');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
@@ -330,7 +364,7 @@ export function renderTable(){
   st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted">${list.length} rows</span><span class="tbsep"></span>
-    ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select><button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
+    ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
@@ -340,16 +374,42 @@ export function renderTable(){
   });
   $('#csvBtn').onclick = () => exportCsv(list);
   $('#csvImp').onclick = importCsvModal;
-  const bk = $('#bkLoc'); if (bk) bk.onchange = () => { if (!bk.value) return; st.bulk.forEach(id => { const o = byId(id); o.loc = bk.value; hist(o, now(), 'Moved to ' + bk.value + ' (bulk)'); }); toast(n + ' moved to ' + bk.value); renderTable(); render(); };
+  /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
+  const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
+    if (!bk.value) return;
+    let moved = 0;
+    st.bulk.forEach(id => {
+      const o = byId(id); if (!o || o.loc === bk.value) return;
+      moved++;
+      if (feedLinked(o) || (o.graph && o.graph.added)) (o.ovr ??= {}).loc = false;
+      o.loc = bk.value; o.handAt = new Date().toISOString();
+      hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
+    });
+    toast(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`); renderTable(); render();
+  };
   const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
+  /* Internal or external responsible for every selected device; each device that changes gets a history line. */
+  const br = $('#bkResp'); if (br) br.onchange = () => {
+    const [kind, id] = br.value.split(':'); if (!kind) return;
+    let changed = 0;
+    st.bulk.forEach(x => { const o = byId(x); if (o && setResponsible(o, kind, id)) changed++; });
+    toast(`${CONTACT_KINDS[kind]} responsible ${id ? 'set' : 'removed'} on ${changed} ${changed === 1 ? 'device' : 'devices'}`); renderTable(); render();
+  };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
   const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
-  $('#view').innerHTML = `<div class="gridwrap"><table class="grid"><thead><tr>
+  /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. A column that is sorted or
+     filtered needs every row, so then all are drawn (06-topbar.js draws them all before it sorts or filters). */
+  const tv = TBL['view:table:0'] || {};
+  const narrowed = !!tv.sort || Object.values(tv.filters || {}).some(v => String(v || '').trim());
+  const cut = !st.tableAll && !narrowed && list.length > SHOW_FIRST + 100;
+  const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
+  $('#view').innerHTML = `<div class="gridwrap"><table class="grid"${cut ? ' data-cut="1"' : ''}><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${list.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
-    </tbody></table></div>`;
+    ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
+    </tbody></table>${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search, filter or sort a column to see the others.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
+  const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
@@ -360,20 +420,8 @@ export function renderTable(){
   all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };
 }
 
-/* CSV: a plain comma or semicolon file, first row is the header. */
-export function parseCsv(text){
-  const rows = []; let row = [], cell = '', q = false;
-  for (let i = 0; i < text.length; i++){
-    const c = text[i];
-    if (q){ if (c === '"'){ if (text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
-    else if (c === '"') q = true;
-    else if (c === ',' || c === ';'){ row.push(cell); cell = ''; }
-    else if (c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; }
-    else if (c !== '\r') cell += c;
-  }
-  if (cell || row.length){ row.push(cell); rows.push(row); }
-  return rows.filter(r => r.some(x => x.trim()));
-}
+/* CSV: a plain comma or semicolon file, first row is the header (public/js/csv.js decides which). */
+export { parseCsv };
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
 export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
 export function exportCsv(list){
@@ -419,7 +467,7 @@ export function importCsvModal(){
     const ok = parsed.filter(p => !p.errs.length).length;
     $('#csvPrev').innerHTML = `<div class="summary"><span class="chip ok">${ok} ready</span><span class="chip warn">${parsed.length - ok} with problems</span></div>
       <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Line</th><th>Name</th><th>Type</th><th>Location</th><th>Result</th></tr></thead><tbody>
-      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? TYPES[p.type].label : '—'}</td><td>${esc(p.loc)}</td><td>${p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>' : '<span class="chip ok">ok</span>'}</td></tr>`).join('')}
+      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? esc(TYPES[p.type].label) : '—'}</td><td>${esc(p.loc)}</td><td>${p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>' : '<span class="chip ok">ok</span>'}</td></tr>`).join('')}
       </tbody></table></div>`;
     $('#csvGo').disabled = ok === 0;
   };
@@ -637,16 +685,16 @@ export function renderMap(){
     rels.filter(r => (ids.has(r.from) || ids.has(r.to)) && (st.mapAttached || !isAttached(r.kind))).forEach(r => { ids.add(r.from); ids.add(r.to); });
     nodes = objs.filter(o => ids.has(o.id));
   }
-  const withRelations = objs.filter(o => o === focus || rels.some(r => r.from === o.id || r.to === o.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
+  const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
-    <label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
+    <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
+    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
-    <input id="mapFind" type="search" placeholder="Find object…" style="width:200px" value="${esc(st.mapFind)}" aria-label="Find object">
-    <button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><div class="grow"></div>
-    <button id="mapExport">Export SVG</button>`;
+    <input id="mapFind" type="search" placeholder="Find object…" style="width:160px" value="${esc(st.mapFind)}" aria-label="Find object">
+    <div class="grow"></div><span class="tbgroup"><button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
@@ -686,7 +734,8 @@ export function renderMap(){
     MAP.L = mapLayout(MAP.nodes); $('#mapG').innerHTML = mapInner(MAP.L);
     mapHighlight(d.id);
   });
-  svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); });
+  /* A box moved by an admin is saved (the layout is shared); a viewer's moves stay on this page until it is reloaded. */
+  svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); else if (d && !d.pan && canEdit()) queueServerSave(); });
   svg.addEventListener('pointerleave', () => { if (!MAP.drag) mapHighlight(null); });
   svg.addEventListener('wheel', e => {
     e.preventDefault();
@@ -745,16 +794,16 @@ export function renderPorts(){
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; render(); };
   $('#portsOpen').onclick = () => openObj(sw.id);
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
-  const outPort = () => null; // a relation's port belongs to its far end, so every port here is an incoming one
+  /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
   const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);
   /* Each group has its own colour on the front panel, shown in the legend below it. A LAG group has dashed ports. */
   const groupColour = i => `hsl(${(i * 97) % 360} 60% 42%)`;
   /* A port in a linked LAG is in use by the device on the other end of the LAG. */
   const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
   const portBtn = p => {
-    const inc = onPort(p), up = outPort(p), lu = lagUse(p);
-    const dev = inc[0] ? byId(inc[0].from) : up ? byId(up.to) : lu ? lu.d : null;
-    const isUp = !!up || (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
+    const inc = onPort(p), lu = lagUse(p);
+    const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
+    const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
     const poe = dev && (dev.type === 'sip');
     const note = (sw.portNotes || {})[p];
     const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
@@ -810,7 +859,7 @@ export function renderPorts(){
       <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
       <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });
