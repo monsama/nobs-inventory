@@ -601,13 +601,13 @@ function Select-Adapter($nics, [string]$ip) {
     return $null
 }
 
-# Adapters that are not a second network of the device: virtual switches, VPN and tunnel adapters, loopback, Bluetooth.
-$script:VirtualNic = 'hyper-v|vethernet|virtual|vmware|virtualbox|vpn|tap-|tap adapter|wan miniport|loopback|bluetooth|teredo|isatap|6to4|wireguard|tailscale|zerotier|anyconnect|fortinet|globalprotect|pangp|juniper|wi-fi direct|docker|npcap'
 # The device's other adapters: every one with an IPv4 address except the main one and the virtual ones, each address once.
 function Get-OtherAdapters($nics, $main, [string]$ip = '') {
+    # Adapters that are not a second network of the device: virtual switches, VPN and tunnel adapters, loopback, Bluetooth.
+    $virtual = 'hyper-v|vethernet|virtual|vmware|virtualbox|vpn|tap-|tap adapter|wan miniport|loopback|bluetooth|teredo|isatap|6to4|wireguard|tailscale|zerotier|anyconnect|fortinet|globalprotect|pangp|juniper|wi-fi direct|docker|npcap'
     $out = New-Object System.Collections.Generic.List[object]
     foreach ($n in @($nics)) {
-        if (-not $n -or ($main -and $n['ip'] -eq $main['ip']) -or ($ip -and $n['ip'] -eq $ip) -or ($n['ip'] -like '169.254.*') -or ($n['name'] -match $script:VirtualNic)) { continue }
+        if (-not $n -or ($main -and $n['ip'] -eq $main['ip']) -or ($ip -and $n['ip'] -eq $ip) -or ($n['ip'] -like '169.254.*') -or ($n['name'] -match $virtual)) { continue }
         if ($out | Where-Object { $_.ip -eq $n['ip'] }) { continue }
         $out.Add([ordered]@{ name = $n['name']; ip = $n['ip']; mac = $n['mac']; mask = $n['mask']; gateway = $n['gateway']; dhcp = $n['dhcp'] })
     }
