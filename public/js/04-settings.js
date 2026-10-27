@@ -93,14 +93,12 @@ export async function renderSetAbout(){
       GNU General Public License for details.
     </div>
     <div class="hdr" style="margin:14px -14px 8px">Links</div>
-    <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:12px;line-height:1.7;overflow-wrap:anywhere">
-      <span class="muted">Website</span><span>https://monsama.ch</span>
-      <span class="muted">Source</span><span>https://github.com/monsama/nobs-inventory</span>
-      <span class="muted">License</span><span>https://www.gnu.org/licenses/gpl-3.0.html</span>
+    <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:13px;line-height:1.7;overflow-wrap:anywhere">
+      ${[['Website', 'https://monsama.ch'], ['Source', 'https://github.com/monsama/nobs-inventory'], ['License', 'https://www.gnu.org/licenses/gpl-3.0.html']].map(([k, u]) => `<span class="muted">${k}</span><a class="link" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`).join('')}
     </div>
     <div style="margin-top:12px"><a class="btnlike" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="If NOBS Inventory saves you some time"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/></svg>Buy me a coffee</a></div>
     <div class="hdr" style="margin:14px -14px 8px">Third party</div>
-    <div class="muted" style="font-size:11px;line-height:1.6">
+    <div class="muted" style="font-size:13px;line-height:1.6">
       Built with Node.js, Express and ldapjs. Each keeps its own licence.
     </div>
   </div>`;
