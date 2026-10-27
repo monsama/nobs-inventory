@@ -99,7 +99,19 @@ try {
   assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
   await page.waitForSelector('.lsbox');
-  assert.match(await page.textContent('.lsbox'), /Last scanned.*Check by hand.*has not scanned it for over three months/s);
+  assert.match(await page.textContent('.lsbox'), /Status\s*Check by hand.*Last scanned.*has not scanned it for over three months/s);
+  // one Lansweeper tries to scan but never has (known only from AD) is flagged too, past a week's grace; the page says
+  // which day is whose: Lansweeper's last attempt and first find, this app's receipt and when it was linked
+  await page.evaluate(async () => {
+    const c = await import('/js/01-core.js'), day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+    c.byId('o1').feed = { sys: 'Lansweeper', ref: '1', seen: '25.10.2026 19:59', linked: '20.06.2026 08:00', tried: day(1), firstSeen: day(140) };
+    (await import('/js/02-views.js')).openObj('o1');
+  });
+  await page.waitForSelector('.lsbox');
+  const box = await page.textContent('.lsbox');
+  assert.match(box, /Status\s*Never scanned\s*Last scanned\s*never.*tries to scan it but never has/s);
+  assert.match(box, /Last scan attempt.*In Lansweeper since.*Received\s*25\.10\.2026 19:59.*Linked\s*20\.06\.2026 08:00/s);
+  assert.equal(await page.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('o1'); o.feed.firstSeen = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10); return c.scanOld(o); }), false, 'one found only two days ago gets its grace');
 
   // disks as one bar per drive: how full it is and the space left; red from 90 % used
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').disk = "C: 20/237 GB; D: 1'812/1'863 GB"; (await import('/js/02-views.js')).openObj('o1'); });

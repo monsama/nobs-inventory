@@ -4,7 +4,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { stampTime, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -207,17 +207,24 @@ export function ipClash(o, ip){
   if (!other) return null;
   const link = `<a class="link" data-open="${esc(other.id)}">${esc(other.name)}</a>`;
   const macOf = x => [x.mac, ...(x.nics || []).map(n => n.mac)].filter(Boolean).map(m => String(m).toLowerCase().replace(/-/g, ':'));
-  const same = o.serial && other.serial && o.serial.toLowerCase() === other.serial.toLowerCase() ? 'serial number'
+  /* Serial numbers a maker leaves unset ("To be filled by O.E.M.", "Default string") are shared by many machines. */
+  const realSerial = v => { const t = String(v || '').trim(); return t.length >= 4 && !/^(to be filled|default string|system serial|chassis serial|not specified|not applicable|none|n\/?a|o\.?e\.?m|0+$|1234567)/i.test(t); };
+  const same = realSerial(o.serial) && realSerial(other.serial) && o.serial.trim().toLowerCase() === other.serial.trim().toLowerCase() ? 'serial number'
     : macOf(o).some(m => macOf(other).includes(m)) ? 'MAC address' : '';
   if (same) return { level: 'warn', other, text: `${other.name} has this address and the same ${same}: probably this device recorded twice`,
     html: `${link} has this address and the same ${same}: probably this device recorded twice (renamed, or from two sources). Retire or delete the older record.` };
   const sub = subnetFor({ ...o, ip, subnet: '' }), n = ipInt(ip);
   const inDhcpRange = !!sub && (sub.ranges || []).some(r => /^dhcp$/i.test(String(r.use || '').trim()) && n !== null && n >= ipInt(r.from) && n <= ipInt(r.to));
   const otherDhcp = other.dhcp === 'dhcp' || (other.nics || []).some(x => x.ip === ip && x.dhcp === 'dhcp');
-  if (o.dhcp === 'dhcp' || otherDhcp || inDhcpRange) {
-    const seen = x => stampTime(x.feed && x.feed.seen) || Date.parse(graphLast(x)) || 0;
+  /* This device on DHCP alone does not make it one: an address outside the subnet's DHCP ranges that another device
+     holds as static is a real clash. Without known ranges it cannot be told, so it is a note. */
+  const rangesKnown = !!sub && (sub.ranges || []).some(r => /^dhcp$/i.test(String(r.use || '').trim()));
+  if (otherDhcp || inDhcpRange || (o.dhcp === 'dhcp' && !rangesKnown)) {
+    /* Each device's own last scan (Lansweeper's scan day, else its last Intune check-in), not this app's sync run,
+       which is the same for every device it receives. */
+    const seen = x => Date.parse((x.feed && x.feed.scanned) || '') || Date.parse(graphLast(x)) || 0;
     const a = seen(o), b = seen(other);
-    const when = b && a ? (b < a ? `the record of ${link} is older (last seen ${esc(dateText(b))}), so the address has most likely moved here` : `${link} was seen with it more recently (${esc(dateText(b))})`) : `${link} has it too`;
+    const when = !a || !b || a === b ? `${link} has it too` : b < a ? `the record of ${link} is older (last scanned ${esc(dateText(b))}), so the address has most likely moved here` : `${link} was scanned with it more recently (${esc(dateText(b))})`;
     return { level: 'info', other, text: `${ip} is a DHCP address also recorded on ${other.name}`, html: `A DHCP address, also recorded on another device: ${when}. It is put right by the next scan of either device.` };
   }
   return { level: 'warn', other, text: `${ip} is also used by ${other.name}`, html: `In use by ${link}.` };
@@ -422,14 +429,30 @@ export function extraFields(o, fields){
   if (!o.feed || !LS_ON()) return [];
   return Object.keys(FIELD_LABEL).filter(k => o[k] !== undefined && !fields.some(f => f[0] === k)).map(k => [k, FIELD_LABEL[k], fieldKind(k)]);
 }
+/* The days of a device in Lansweeper and here, each saying whose it is: Lansweeper's last scan that worked, the last one it
+   tried and when it found the device; this app's last receipt of it from Lansweeper, and when the device came here. */
+function lsDates(o){
+  const f = o.feed, row = (k, v, tip = '') => `<dt>${k}</dt><dd style="font-family:inherit"${tip ? ` title="${esc(tip)}"` : ''}>${v}</dd>`;
+  const first = (HISTORY[o.id] || []).at(-1), added = f.created || (first && /^(Created|Added)\b/.test(first.msg) ? first.t : '');
+  const never = neverScanned(o);
+  return [
+    row('Last scanned', f.scanned ? esc(dayText(f.scanned)) + (scanOld(o) ? `<p class="fieldnote warn">Lansweeper has not scanned it for over three months: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : '')
+      : f.tried ? `<span class="muted">never</span>${never ? `<p class="fieldnote warn">Lansweeper tries to scan it but never has: its details are only what Active Directory knows. Check it by hand, or why Lansweeper cannot reach or log on to it (its Scan issues tab).</p>` : ''}` : '<span class="muted">not sent by this push script</span>',
+      'When a Lansweeper scan of this device last worked'),
+    f.tried && f.tried !== f.scanned ? row('Last scan attempt', esc(dayText(f.tried)), 'When Lansweeper last tried to scan it, whether or not that worked') : '',
+    f.firstSeen ? row('In Lansweeper since', esc(dayText(f.firstSeen)), 'When Lansweeper first found it') : '',
+    row('Received', esc(f.seen || 'not yet'), 'When this app last received it from Lansweeper (the push script or an import). It says nothing about a scan.'),
+    added ? row('Added here', esc(added), 'When this device was added to NOBS Inventory') : '',
+    f.linked ? row('Linked', esc(f.linked), 'When this device was first matched to its Lansweeper asset') : '',
+  ].join('');
+}
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 export function feedPanel(o){
   if (!LS_ON()) return '';
   const s = syncOf(o);
   const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="cnt">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
-  const dl = (extra = '') => `<dl class="lsbox"><dt>Status</dt><dd>${syncChip(o)}</dd>
-    ${o.feed ? `<dt>Last seen</dt><dd style="font-family:inherit">${esc(o.feed.seen || 'not yet')}</dd>` : ''}
-    ${o.feed && o.feed.scanned ? `<dt>Last scanned</dt><dd style="font-family:inherit">${esc(dayText(o.feed.scanned))}${scanOld(o) ? ` ${scanChip(o)}<p class="fieldnote warn">Lansweeper has not scanned it for over three months: it may be gone, or Lansweeper cannot log on to it. Check it by hand, then retire it or fix the scan in Lansweeper.</p>` : ''}</dd>` : ''}
+  const dl = (extra = '') => `<dl class="lsbox"><dt>Status</dt><dd>${scanOld(o) ? scanChip(o) : syncChip(o)}</dd>
+    ${o.feed ? lsDates(o) : ''}
     <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd>${extra}</dl>`;
   if (!o.feed){
     const note = o.detached ? 'Detached: the sync leaves this object alone and its fields are yours. Attach it to let the sync fill it in again.'

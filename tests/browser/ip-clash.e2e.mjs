@@ -16,9 +16,9 @@ const dev = (id, name, ip, more = {}) => ({ id, code: 'INV-' + id, type: 'notebo
 saveState(db, { ...loadState(db),
   subnets: [{ name: 'Clients', cidr: '172.21.103.0/24', vid: null, gateway: '172.21.103.1', dns: ['172.21.103.2'], ranges: [{ from: '172.21.103.50', to: '172.21.103.200', use: 'DHCP' }], types: [] }],
   objs: [
-    dev('a', 'ACMENB32', '172.21.103.60', { mac: 'AA-BB-CC-00-11-22', feed: { seen: '20.10.2026 08:00' } }),
-    dev('b', 'ACMENB29', '172.21.103.70', { mac: 'aa:bb:cc:00:11:22', feed: { seen: '01.09.2026 08:00' } }),
-    dev('c', 'ACMENB10', '172.21.103.80', { feed: { seen: '01.08.2026 08:00' } }),
+    dev('a', 'ACMENB32', '172.21.103.60', { mac: 'AA-BB-CC-00-11-22', feed: { sys: 'Lansweeper', ref: '1', seen: '27.10.2026 08:00', scanned: '2026-10-20' } }),
+    dev('b', 'ACMENB29', '172.21.103.70', { mac: 'aa:bb:cc:00:11:22', feed: { sys: 'Lansweeper', ref: '2', seen: '27.10.2026 08:00', scanned: '2026-09-01' } }),
+    dev('c', 'ACMENB10', '172.21.103.80', { feed: { sys: 'Lansweeper', ref: '3', seen: '27.10.2026 08:00', scanned: '2026-08-01' } }),
     dev('d', 'PRINTER-1', '172.21.103.10', { dhcp: 'static' }),
   ], rels: [], history: {} });
 
@@ -51,7 +51,7 @@ try {
   assert.match(n.cls, /warn/); assert.match(n.text, /ACMENB29 has this address and the same MAC address: probably this device recorded twice/);
   // a DHCP address the other device was seen with earlier: it has moved here
   n = await note('172.21.103.80');
-  assert.match(n.cls, /info/); assert.match(n.text, /DHCP address[\s\S]*record of ACMENB10 is older \(last seen 01\.08\.2026\)/);
+  assert.match(n.cls, /info/); assert.match(n.text, /DHCP address[\s\S]*record of ACMENB10 is older \(last scanned 01\.08\.2026\)/);
   // a static address outside the DHCP range on a static device: a real clash
   n = await note('172.21.103.10');
   assert.match(n.cls, /warn/); assert.equal(n.text, 'In use by PRINTER-1.');
