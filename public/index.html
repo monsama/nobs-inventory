@@ -61,7 +61,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start}
 /* A count in a title bar, the same everywhere: muted, normal case. */
-.hdr .cnt{font-weight:500;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
+.hdr .cnt{font-weight:500;font-size:12px;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
 .locpanel{min-width:0}
 table.locs{width:100%;table-layout:fixed}
 table.locs th,table.locs td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
@@ -986,6 +986,12 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .card{border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
 .card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .card .cf{background:transparent}
+/* Section headers: no grey bar; the panel's own background, a plain title and a thin line under it. Panels keep their
+   titles in normal case; the sidebar's group names stay small capitals, as quiet labels. */
+.hdr{background:transparent;border-bottom-color:var(--bd2);color:var(--fg)}
+.panelbox>.hdr,.panelbox .panelbox>.hdr,.cn-group>.hdr,#setPane .panelbox>.hdr{background:transparent;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600}
+.sechdr::before{color:var(--muted);font-size:11px}
+.sechdr:hover{background:var(--hover)}
 </style>
 </head>
 <body>
