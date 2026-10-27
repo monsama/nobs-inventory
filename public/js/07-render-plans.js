@@ -17,6 +17,7 @@ export let planMode = 'view';
 export let planPlace = null;
 export let planDraw = null;
 export let planDrag = null;
+let pinClicked = false;   /* a pin was just opened or dropped by the pointer: its click event does nothing more */
 let planListDrag = null, listDragDone = false;   /* a device dragged from the list; a drag is not also a click */
 /* The rack pin under a point of the screen that a device can be mounted in, or null. */
 function rackPinAt(cx, cy, o){
@@ -89,7 +90,7 @@ export function planLayout(plan){
   return planDevices(plan).map(o => {
     const pos = planPosOf(plan, o);
     const a = pos.auto ? (plan.areas || []).find(x => areaLocName(plan, x) === o.loc) : null;
-    return {o, x: pos.x, y: pos.y, auto: !!pos.auto, box: a ? areaRects(a).reduce((b, q) => q.w * q.h > b.w * b.h ? q : b) : null};
+    return {o, x: pos.x, y: pos.y, auto: !!pos.auto, area: a ? a.id : null, box: a ? areaRects(a).reduce((b, q) => q.w * q.h > b.w * b.h ? q : b) : null};
   });
 }
 export const planDevices = plan => {
@@ -204,6 +205,9 @@ export function renderPlans(){
       placeDevice(plan, planPlace, round1(x), round1(y));
     }
   };
+  /* A pin opens its device from the keyboard (Enter), and for someone who may only look; a pointer that may edit opens
+     it on release instead (07: pointerup), so a drag does not also open it. */
+  c.querySelectorAll('[data-pin]').forEach(p => p.onclick = e => { if (pinClicked || e.target.closest('[data-unpin]')) return; openObj(p.dataset.pin); });
   c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]') || !canEdit()) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
   /* × takes the device off the plan. Its place on the plan is cleared; the device itself stays in the inventory. */
   c.querySelectorAll('[data-unpin]').forEach(x => {
@@ -220,7 +224,7 @@ export function renderPlans(){
     };
   });
   /* Pins that cover each other are grouped; a device dragged out of a group's list is moved like one from the side list. */
-  groupPins(c, (id, e, label, onMove) => { listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
+  groupPins(c, (id, e, label, onMove) => { if (!canEdit()) return; listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
@@ -229,8 +233,10 @@ export function renderPlans(){
     e.stopPropagation();
     const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
     /* Where the pins are drawn now (an area's own devices spread over it), so each keeps its place in the moved area. */
-    const pins = [...c.querySelectorAll('.pl-pin')].map(el => ({id: el.dataset.pin, x: parseFloat(el.dataset.homeX || el.style.left), y: parseFloat(el.dataset.homeY || el.style.top)}))
-      .filter(p => rects.some(q => inRect(q, p.x, p.y)));
+    /* An area's own devices (by room) go with it; one shown for another area's room stays, wherever it is drawn. */
+    const pins = [...c.querySelectorAll('.pl-pin')].filter(el => !el.dataset.parea || el.dataset.parea === area.id)
+      .map(el => ({id: el.dataset.pin, x: parseFloat(el.dataset.homeX || el.style.left), y: parseFloat(el.dataset.homeY || el.style.top), own: el.dataset.parea === area.id}))
+      .filter(p => p.own || rects.some(q => inRect(q, p.x, p.y)));
     planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
 }
@@ -274,10 +280,10 @@ export function planCanvas(plan){
   const src = planImgSrc(plan), layout = planLayout(plan);
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
-    ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
+    ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
+    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${layout.map(({o, box, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${pos.y < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -382,6 +388,7 @@ document.addEventListener('pointerup', e => {
       }
       renderPlans();
     } else openObj(d.id);
+    pinClicked = true; setTimeout(() => { pinClicked = false; }, 0);
   }
 });
 document.addEventListener('keydown', e => {

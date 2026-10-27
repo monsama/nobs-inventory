@@ -243,7 +243,7 @@ function ConvertTo-FirstIPv4($v) {
 
 # Lansweeper's own placeholders for "no value", which must not be sent as data
 function Test-Junk([string]$s) {
-    return ($s -eq '' -or $s -match '^(null|none|n/a|unknown|-|0+|f+|to be filled by o\.e\.m\.|default string|system serial number)$')
+    return ($s -eq '' -or $s -match '^(null|none|n/a|unknown|-|0+|f+|to be filled by o\.e\.m\.?|to be filled|default string|system serial number|chassis serial number|base board serial number|not specified|not applicable|not available)$')
 }
 function Get-Clean($v) { $s = ConvertTo-Text $v; if (Test-Junk $s.ToLowerInvariant()) { return '' } return $s }
 

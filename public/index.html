@@ -1024,6 +1024,35 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .pl-pin.auto{opacity:1}
 .pl-pin:hover,.pl-pin:focus-visible{z-index:5}
 .settabs{background:transparent}
+/* Status chips side by side are one width, the widest one's, so a row of them reads as a set. */
+.chip-row{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;flex:none;margin:0}
+.chip-row>.chip{justify-content:center;min-width:84px}
+.chip-row.av-state{display:inline-grid;margin-top:0}
+.avpick .entry.avitem{background:var(--panel);border-color:var(--bd2);padding:6px 6px 6px 10px}
+.avpick .entry-head{flex-wrap:nowrap}
+@media (max-width:760px){.avpick .entry-head{flex-wrap:wrap}}
+/* Floor plan polish: names stay above groups; a plan without a picture keeps its shape when zoomed; while a group is
+   fanned out the other pins step back; a hovered pin's card is above everything; the picture is dimmed in dark. */
+.pl-area-tag{z-index:7}
+.pl-canvas.noimg{min-height:0;aspect-ratio:16/10}
+.pl-noimg{top:50%;bottom:auto;transform:translateY(-50%)}
+.pl-canvas.fanning .pl-pin:not(.fanned),.pl-canvas.fanning .pl-group:not(.open){opacity:.3}
+.pl-fanring{background:color-mix(in srgb,var(--bg) 85%,transparent);border-color:var(--bd)}
+.pl-pin:hover,.pl-pin:focus-visible{z-index:24}
+.pl-code{font-weight:500}
+.pl-glist{width:290px;mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.pl-ghead{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+.pl-ghead .muted{font-weight:400;font-size:11px}
+:root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pl-canvas>img{filter:brightness(.82) contrast(1.05)}}
+/* Remove buttons on a page are neutral until pointed at; red stays for the dialog that confirms them. */
+button.danger-text{color:var(--fg);border-color:var(--bd)}
+button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
+.lsbox{grid-template-columns:max-content minmax(0,1fr)}
+.jb.no{border-style:solid;border-color:var(--bd2)}
+.jb.unk{border-style:solid;border-color:var(--bd2)}
+@media (max-width:760px){#verFoot{display:none!important}}
+@media (hover:none){.sechdr:hover{background:inherit}}
 /* In the Lansweeper panel the status chip shows its whole text, in the page's font: the fixed width is for cards and rows. */
 .lsbox .chip.lsst{width:auto;max-width:100%;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif}
 /* On the device page a mark's state goes under its name when the three do not fit side by side, instead of being cut. */
