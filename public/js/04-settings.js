@@ -7,7 +7,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, resetSubnetEdit } from './settings-network.js';
 import { setSettingsOpener, collapsedPanels, rememberPanel, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
 import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
-import { clearConfirm, loadVersion, queueServerSave, render } from './07-render-plans.js';
+import { loadVersion, queueServerSave, render } from './07-render-plans.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
 export * from './settings-feed.js';
@@ -27,12 +27,10 @@ export function openSettings(){
   modal(`<div class="mh">Settings</div>
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf">${canEdit() ? '<button id="setReset" class="danger-text" style="margin-right:auto">Clear inventory…</button>' : '<span style="margin-right:auto"></span>'}<button id="setClose" class="primary">Done</button></div>`, 'settings');
+    <div class="mf"><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
   $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
-  const sr = $('#setReset');
-  if (sr) sr.onclick = () => clearConfirm();
   renderSetPane();
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).

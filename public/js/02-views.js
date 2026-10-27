@@ -3,7 +3,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, searchAll, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -80,6 +80,18 @@ export function resetFilters(){
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
+/* When the filters on the left (a type, a place, a status …) hide every object the search finds: says so and how many
+   it finds without them, with a button that keeps the search and drops those filters. '' when that is not the case. */
+export function hiddenHits(){
+  const all = searchAll(), q = st.q.trim();
+  if (!all.length) return '';
+  const within = [st.type && TYPES[st.type] ? TYPES[st.type].label : '', st.loc || '', st.status && STATUS[st.status] ? STATUS[st.status].label.toLowerCase() : ''].filter(Boolean).join(', ') || 'the filters on the left';
+  return `<div class="empty">Nothing matches “${esc(q)}” within ${esc(within)}. ${all.length === 1 ? `1 object outside ${st.type ? 'this type' : 'these filters'} does: <b>${esc(all[0].name)}</b>` : `${all.length} objects outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all objects</button></div>`;
+}
+export function bindHiddenHits(){
+  const b = $('#searchAllBtn');
+  if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; const s = $('#search'); if (s) s.value = q; view(); };
+}
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
@@ -261,10 +273,11 @@ export function renderCardsBody(){
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
     $('#view').innerHTML = objs.length
-      ? (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
+      ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
       : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : `<div class="empty">The inventory is empty. Add an object with New object, or connect a feed in Settings.</div>`);
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
+    bindHiddenHits();
     return;
   }
   const idx = relIndex(), join = showJoin(), card = o => cardHtml(o, idx, join);
@@ -433,8 +446,9 @@ export function renderTable(){
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
     ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
-    </tbody></table>${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
+    </tbody></table>${list.length ? '' : hiddenHits()}${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
+  bindHiddenHits();
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
@@ -728,9 +742,12 @@ export function renderMap(){
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
     $('#view').innerHTML = narrowed
-      ? `<div class="empty">None of the ${found.length} objects in the current filter has relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
+      ? (!found.length && hiddenHits()) || (found.length
+        ? `<div class="empty">None of the ${found.length} objects in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
+        : `<div class="empty">No object matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
       : '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
     const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
+    bindHiddenHits();
     bindMapToolbar();
     return;
   }

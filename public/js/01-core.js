@@ -422,11 +422,18 @@ export const isAttached = k => k === 'attached';
 
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
+/* Whether an object has the search text in one of the fields a search looks at. */
+const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q));
+/* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
+export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.intune || st.osFam || st.live || st.resp || st.adGroup);
+/* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
+   search for something that is there never ends in "nothing matches". */
+export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? objs.filter(o => matchesQ(o, q)) : []; };
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
   return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
-    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q))));
+    && matchesQ(o, q));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */

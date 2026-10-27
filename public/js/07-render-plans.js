@@ -65,6 +65,8 @@ export let planParts = [];
 export let planEditArea = null;
 let planAreaDrag = null;
 export let planZoom = 1;
+/* Ctrl + wheel steps not drawn yet (see renderPlans). */
+const planWheel = { dy: 0, at: null, raf: 0 };
 export const planById = id => PLANS.find(p => p.id === id);
 /* Where a device sits on a plan: its own place, or, for a device already in the location of an area, the centre of that area. */
 export const planPosOf = (plan, o) => {
@@ -152,7 +154,7 @@ export function renderPlans(){
         <button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
         <button id="plDel" class="danger-text">Delete plan</button>
-        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
+        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
@@ -177,8 +179,33 @@ export function renderPlans(){
   on('#plReplace', () => planModal(plan));
   on('#plEdit', () => planEditModal(plan));
   on('#plAreaEdit', () => { const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) areaEditModal(plan, a); });
-  const zoom = v => { planZoom = Math.max(0.5, Math.min(3, Math.round(v * 100) / 100)); renderPlans(); };
+  /* A zoom keeps one point of the plan where it is on the screen: the pointer for Ctrl + wheel (and a pinch on a
+     touchpad), the middle of the view for the buttons. The plan is drawn again at the new size, then scrolled back. */
+  const zoom = (v, at) => {
+    const next = Math.max(0.5, Math.min(3, Math.round(v * 1000) / 1000));
+    const stage = $('#plStage'), cv = $('#plCanvas');
+    if (next === planZoom) return;
+    if (!stage || !cv){ planZoom = next; renderPlans(); return; }
+    const sr = stage.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+    const px = at ? at.x : sr.left + sr.width / 2, py = at ? at.y : sr.top + sr.height / 2;
+    const fx = (px - cr.left) / cr.width, fy = (py - cr.top) / cr.height;
+    const keep = { left: stage.scrollLeft, top: stage.scrollTop };
+    planZoom = next; renderPlans();
+    const s2 = $('#plStage'), c2 = $('#plCanvas'); if (!s2 || !c2) return;
+    s2.scrollLeft = keep.left; s2.scrollTop = keep.top;
+    const r2 = c2.getBoundingClientRect();
+    s2.scrollLeft += r2.left + fx * r2.width - px; s2.scrollTop += r2.top + fy * r2.height - py;
+  };
   on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
+  /* Ctrl + wheel zooms at the pointer, as in a map or a picture viewer; the wheel alone still scrolls. Several wheel
+     steps in one frame are one zoom, so a fast wheel or a touchpad does not draw the plan many times over. */
+  const stage = $('#plStage');
+  if (stage) stage.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    planWheel.dy += e.deltaY * (e.deltaMode === 1 ? 33 : 1); planWheel.at = { x: e.clientX, y: e.clientY };
+    if (!planWheel.raf) planWheel.raf = requestAnimationFrame(() => { const f = Math.pow(1.0015, -planWheel.dy); planWheel.dy = 0; planWheel.raf = 0; zoom(planZoom * f, planWheel.at); });
+  }, { passive: false });
   on('#plDel', () => deletePlanModal(plan));
   if (!plan) return;
   renderPlanList(plan);
@@ -831,7 +858,7 @@ export function applyState(d){
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
@@ -859,6 +886,9 @@ export async function clearAll(){
     ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
     ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
   ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
+  /* A backup first, kept until someone deletes it: without one nothing is cleared. */
+  const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
+  if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
   const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }

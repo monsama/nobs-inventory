@@ -1,6 +1,6 @@
 /* Settings → Maintenance and Log: backups (taken, restored, deleted), the factory reset, and the log with its filters. */
 import { modal, closeModal } from './03-object-modals.js';
-import { queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render-plans.js';
+import { clearConfirm, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render-plans.js';
 import { pushDate } from './settings-feed.js';
 import { canEdit } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';
@@ -90,19 +90,22 @@ export function restoreModal(label, run){
   };
   $('#rsWord').focus();
 }
-/* Maintenance: the HTTPS certificate, the backups, and the factory reset. Only an admin can change anything, and the
-   reset asks for the typed word first. */
+/* Maintenance: the HTTPS certificate, the backups, clearing the inventory and the factory reset. Only an admin can change
+   anything; the two that delete ask for a typed word first, and sit together at the end, apart from everyday buttons. */
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
-  $('#setMaint').innerHTML = `${certPanel()}${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
+  $('#setMaint').innerHTML = `${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+    <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
+    <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
   if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
+  if (edit) $('#setReset').onclick = () => clearConfirm();
 }
 export function factoryResetModal(){
   modal(`<div class="mh">Factory reset?</div>

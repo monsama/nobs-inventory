@@ -52,12 +52,24 @@ export function renderSetModels(){
   const count = {};
   for (const o of objs) if (o.model) count[o.model] = (count[o.model] || 0) + 1;
   const names = modelNames();
+  /* The names Lansweeper sends that become each model (kept when a model is renamed), so a rename can be seen and undone. */
+  const map = st.modelMap || {}, from = {};
+  for (const [lsName, to] of Object.entries(map)) (from[to] ||= []).push(lsName);
+  const fromLine = m => from[m] && from[m].length ? `<div class="mdl-from"><span class="muted">From Lansweeper also as</span>${from[m].sort((a, b) => a.localeCompare(b)).map(n => `<span class="chip kept mdl-map">${esc(n)}${edit ? `<button class="icon ghost" data-mdmap="${esc(n)}" aria-label="Stop turning ${esc(n)} into ${esc(m)}" title="Stop: Lansweeper's name is kept as it is">×</button>` : ''}</span>`).join('')}</div>` : '';
+  const elsewhere = Object.keys(from).filter(m => !names.includes(m)).sort((a, b) => a.localeCompare(b));
   root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
-    <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it.</p>
-    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : '<span></span>'}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}</div>`;
+    <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it: shown under the model, and × stops it.</p>
+    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : '<span></span>'}${fromLine(m)}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}
+    ${elsewhere.map(m => `<div class="lrow mdl"><span><b>${esc(m)}</b> <span class="muted">(not in the list)</span></span><span></span><span></span>${fromLine(m)}</div>`).join('')}</div>`;
   if (!edit) return;
   root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
   root.querySelectorAll('[data-mdx]').forEach(b => b.onclick = () => removeModel(names[+b.dataset.mdx]));
+  root.querySelectorAll('[data-mdmap]').forEach(b => b.onclick = () => {
+    const n = b.dataset.mdmap, to = (st.modelMap || {})[n];
+    delete st.modelMap[n];
+    queueServerSave(); renderSetModels();
+    toast(`From the next sync, “${n}” from Lansweeper stays as it is (not ${to}).`);
+  });
 }
 export function removeModel(name){
   const k = MODELS.indexOf(name);
