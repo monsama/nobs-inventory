@@ -9,22 +9,22 @@
 <style>
 /* Layout: the NOBS editor frame - top bar, sidebar of filters, tab bar, toolbar, work area, status bar.
    Colours are the NOBS SQL Editor's own tokens, so both tools read as one family. */
-:root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:3px;--r-m:5px;--r-l:6px;
+:root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
- --bg:#fff;--fg:#1c1c1c;--panel:#eef0f3;--panel2:#e6e6e6;--bd:#ccc;--bd2:#e2e2e2;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
- --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#a3520a;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
+ --bg:#fff;--fg:#1b1d21;--panel:#f4f5f7;--panel2:#eaecef;--bd:#d6d9de;--bd2:#e7e9ec;--tile:#eef0f3;--oktext:#1d6b38;--badtext:#b42318;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
+ --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#8a4300;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
- --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
+ --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
- --bg:#1e1e1e;--fg:#e0e0e0;--panel:#2a2d31;--panel2:#333;--bd:#444;--bd2:#3a3a3a;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
- --gridh:#282828;--sub:#232a33;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#262626;--btn:#333;--in:#2a2a2a;--log:#141414;--logfg:#d4d4d4;
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
+ --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
@@ -329,6 +329,9 @@ svg.cu{fill:currentColor;stroke:none}
 .card .cf{white-space:nowrap}
 .card .cf .code{font-family:var(--mono);flex:none}
 .card .cf .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* The Lansweeper status (Synced, Check by hand, Stale…) is one width wherever it shows, so cards and rows line up;
+   a longer label ends in … and is whole in its tooltip. */
+.chip.lsst{display:inline-block;width:168px;max-width:100%;flex:none;box-sizing:border-box;text-align:center;line-height:16px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
 /* AD, Entra and Intune on a card: three equal marks above the footer. Lit in the colour of how the device is joined
    (the Overview's colours) or of its compliance; dashed and grey where the device is not there. */
 .jbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:6px 10px;border-top:1px solid var(--bd2)}
@@ -340,6 +343,8 @@ svg.cu{fill:currentColor;stroke:none}
 .jb.no i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
 .jb.no b,.jb.no small{color:var(--muted);font-weight:500}
 @media (max-width:760px){.jb small{font-size:10px}}
+/* The same marks on the device page, in its Properties: no card edge around them. */
+.jbar.jbar-page{flex:1;padding:0;border-top:0}
 .jb.ad{--c:#7c3aed}.jb.en{--c:#2563eb}.jb.hy{--c:#0d9488}.jb.reg{--c:#d97706}
 .jb.ok{--c:var(--ok)}.jb.warn{--c:var(--warnbtn)}.jb.bad{--c:var(--danger-bg)}.jb.nc{--c:#64748b}
 
@@ -348,6 +353,8 @@ svg.cu{fill:currentColor;stroke:none}
 table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
 table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+/* A chip in a cell is shortened with … like the text around it, not cut off; its tooltip has the whole of it. */
+table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;line-height:16px}
 #setUsers td>button{width:100%;padding:3px 6px}
 /* Microsoft Graph setup steps */
 .graph-steps{margin:0;padding:4px 12px 10px 34px;display:flex;flex-direction:column;gap:12px}
@@ -754,9 +761,10 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ctlrow:has(>.avpick)>.pchk,.ctlrow:has(>.avpick)>.fmenu{margin-top:8px}
 .form label:has(+ .ctlrow .avpick){align-self:start;padding-top:8px}
 /* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
-input.inherit::placeholder{color:var(--muted);font-style:italic;opacity:1}
+/* A value the device takes from its subnet (gateway, DNS): shown like a value, not like an empty field's hint. */
+input.inherit::placeholder{color:var(--fg);font-style:normal;opacity:.85}
 /* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
-.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)}
+.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)} .fieldnote.info{color:var(--muted)}
 .wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
 /* Subnets Lansweeper's adapters report that are not listed yet. */
 .sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
@@ -944,6 +952,40 @@ table.grid a.rowopen:hover{text-decoration:underline}
   table.grid tr.fr input{height:36px!important;font-size:14px}
   button.icon{min-width:40px}
 }
+
+/* Calm look: one accent colour; type colours only where they carry meaning (plans, the relationship map, rack units);
+   status as a soft tint with coloured text instead of a solid fill. */
+.tico{background:var(--tile);color:color-mix(in srgb,var(--tc,var(--muted)) 55%,var(--fg));box-shadow:inset 0 0 0 1px var(--bd2)}
+.tico svg{stroke:currentColor}
+.pl-pin .tico,.pl-rider .tico,.pl-item .tico,.lgtypes .tico{background:var(--tc);color:#fff;box-shadow:none}
+.chip{background:var(--panel2);border-color:transparent;font-weight:600;letter-spacing:.1px}
+.chip.ok{background:color-mix(in srgb,var(--okdot) 14%,transparent);border-color:color-mix(in srgb,var(--okdot) 28%,transparent);color:var(--oktext)}
+.chip.warn{background:color-mix(in srgb,var(--warn) 15%,transparent);border-color:color-mix(in srgb,var(--warn) 32%,transparent);color:var(--warntext)}
+.chip.bad{background:color-mix(in srgb,var(--danger) 14%,transparent);border-color:color-mix(in srgb,var(--danger) 32%,transparent);color:var(--badtext)}
+.chip.info{background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--linktext)}
+.chip.kept{background:transparent;border-color:var(--bd)}
+.item.sel{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--fg);box-shadow:inset 2px 0 0 var(--accent)}
+.item.sel .cnt{color:var(--linktext);opacity:1}
+.tab{background:transparent;border-color:transparent;color:var(--muted)}
+.tab:hover{background:var(--hover);color:var(--fg)}
+.tab.active{background:var(--panel2);color:var(--fg)}
+.tab.active::after{opacity:1;left:12px;right:12px;bottom:2px}
+.tab.objtab{background:transparent;border-color:var(--bd2)}
+.tab.objtab.active{background:var(--panel2)}
+.tsw{opacity:.75}
+.jb.ad,.jb.en,.jb.hy,.jb.reg{--c:var(--accent)}
+.jb{border-left-width:1px;background:color-mix(in srgb,var(--c) 7%,transparent)}
+.jb.on i{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 22%,transparent)}
+/* One line each: the dot, the name, and the state after it. */
+.jb{display:flex;align-items:center;gap:5px;padding:3px 7px;height:22px;box-sizing:border-box}
+.jb b{flex:none}.jb i{flex:none}
+.jb small{grid-column:auto;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis}
+/* On a card only the dot and the name; the state is in the tooltip and on the device page. */
+.card .jb small{display:none}
+.card .jb{justify-content:center}
+.card{border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
+.card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.card .cf{background:transparent}
 </style>
 </head>
 <body>

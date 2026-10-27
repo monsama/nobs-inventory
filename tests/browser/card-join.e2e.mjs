@@ -36,8 +36,13 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
 
-  // off by default; ticked, the computers get the three marks and the printer none
-  assert.equal(await page.locator('.jbar').count(), 0);
+  // on by default: the computers get the three marks and the printer none; unticked they go, and the choice is kept
+  assert.ok(await page.isChecked('#cardJoin'));
+  assert.equal(await page.locator('.card .jbar').count(), 4);
+  await page.uncheck('#cardJoin');
+  assert.equal(await page.locator('.card .jbar').count(), 0);
+  await page.reload(); await page.waitForSelector('.card');
+  assert.equal(await page.isChecked('#cardJoin'), false, 'turned off is kept');
   // without Microsoft Graph set up, what Graph said before is not shown: only AD
   await page.check('#cardJoin');
   assert.deepEqual(await page.locator('.card:has(.nm:text-is("NB-CLOUD")) .jb small').allTextContents(), ['not joined', 'not joined', 'not managed']);
@@ -48,6 +53,12 @@ try {
   assert.deepEqual(await marks('NB-CLOUD'), ['no:not joined', 'on en:joined', 'on bad:not compliant']);
   assert.deepEqual(await marks('NB-ADONLY'), ['on ad:joined', 'no:not joined', 'no:not managed']);
   assert.match(await page.getAttribute('.card:has(.nm:text-is("NB-CLOUD")) .jbar', 'aria-label'), /Entra ID \(Azure AD\): Entra joined.*Intune: managed, not compliant/);
+  // the device page shows the same marks in its properties
+  await page.click('.card:has(.nm:text-is("NB-CLOUD"))');
+  await page.waitForSelector('.jbar-page');
+  assert.deepEqual(await page.locator('.jbar-page .jb small').allTextContents(), ['not joined', 'joined', 'not compliant']);
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); (await import('/js/02-views.js')).closeObjTab(c.objs.find(o => o.name === 'NB-CLOUD').id); });
+  await page.waitForSelector('.card');
   // the choice is kept in this browser
   await page.reload(); await page.waitForSelector('.card');
   assert.ok(await page.isChecked('#cardJoin'), 'the choice is kept');

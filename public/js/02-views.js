@@ -230,8 +230,9 @@ export function cardLine(o, key, idx){
 /* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
 /* Whether the cards show AD, Entra and Intune (joinBadges). Kept in this browser: it is how this person likes to look. */
 export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
-let cardJoin = false;
-try { cardJoin = localStorage.getItem('ni-card-join') === '1'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+/* On unless this person turned it off: a computer's place in AD, Entra and Intune is what one looks for first. */
+let cardJoin = true;
+try { cardJoin = localStorage.getItem('ni-card-join') !== '0'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 const showJoin = () => cardJoin && joinCardsAvailable();
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
@@ -333,7 +334,7 @@ export const TABLE_COLS = [
   {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
-  {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
+  {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off. */
 export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
