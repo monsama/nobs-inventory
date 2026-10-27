@@ -3,7 +3,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, searchAll, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, searchAll, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -21,9 +21,16 @@ export function renderSide(){
   const cnt = f => objs.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
+  /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
+     picked stays. "All objects" is marked only when nothing at all narrows the list. */
+  const byType = objs.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
+  const typeBtn = ([k, v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${byType[k] || 0}</span></button>`;
+  const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   $('#typeList').innerHTML =
-    `<button class="item ${!st.type?'sel':''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
-    Object.entries(TYPES).map(([k,v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.type===k)}</span></button>`).join('');
+    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
+    shown.map(typeBtn).join('') +
+    (folded ? `<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
+      : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? '<button class="side-more" data-alltypes="0">Fewer types</button>' : '');
   const sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])];
   $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>` +
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`).join('')).join('');
@@ -57,6 +64,8 @@ export function renderSide(){
   $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
 $('#side').addEventListener('click', e => {
+  const more = e.target.closest('[data-alltypes]');
+  if (more){ st.sideAllTypes = more.dataset.alltypes === '1'; renderSide(); return; }
   const b = e.target.closest('.item'); if (!b) return;
   /* A type clicked again goes back to all types. */
   if ('type' in b.dataset) st.type = b.dataset.type && st.type !== b.dataset.type ? b.dataset.type : null;
@@ -183,7 +192,14 @@ const onTabClick = e => {
 };
 $('#tabsbar').addEventListener('click', onTabClick);
 $('#objbar').addEventListener('click', onTabClick);
-export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0; }
+export function openObj(id){
+  if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); }
+  st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0;
+  /* The focus was on what opened it (a card, a row, the search), which is gone now: it goes to the device's name, so Tab
+     carries on in the device instead of from the top of the page. A field focused on purpose keeps it. */
+  const a = document.activeElement;
+  if (!a || a === document.body || !document.contains(a) || a.id === 'search') { const t = $('#objTitle'); if (t) t.focus({ preventScroll: true }); }
+}
 
 /* ---------- cards ---------- */
 /* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
@@ -847,7 +863,12 @@ export function renderPorts(){
     const b = $('#portsNew'); if (b) b.onclick = () => newObjModal({type: 'switch'});
     return;
   }
-  const sw = byId(st.portsDevice) || devs[0];
+  /* Without a device picked (or come from), the one used last in this browser, else the first switch: the ports people
+     look at most, not whichever device comes first. */
+  let last = null; try { last = localStorage.getItem('ni-ports-device'); } catch { /* not kept */ }
+  const first = ['switch', 'patch', 'router', 'firewall'].map(t => devs.find(o => o.type === t)).find(Boolean);
+  const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
+  try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
   $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;

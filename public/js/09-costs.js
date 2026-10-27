@@ -3,7 +3,9 @@
 import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
 import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
-import { closeModal, modal } from './03-object-modals.js';
+import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
+/* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
+COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render-plans.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -29,7 +31,8 @@ export function contractChip(c){
   if (s.state === 'ended') return `<span class="chip bad">Ended ${esc(dayText(s.end))}</span>`;
   if (c.renew > 0){
     if (s.state === 'soon') return `<span class="chip warn" title="Renews by itself on ${esc(dayText(s.end))} unless notice is given">Give notice by ${esc(dayText(s.noticeBy))}</span>`;
-    if (s.state === 'late') return `<span class="chip kept" title="The notice date, ${esc(dayText(s.noticeBy))}, has passed">Renews ${esc(dayText(s.end))}</span>`;
+    /* Too late to give notice for this term: it renews for another term, which is worth a look, not a calm grey. */
+    if (s.state === 'late') return `<span class="chip warn" title="The notice date, ${esc(dayText(s.noticeBy))}, has passed: it renews on ${esc(dayText(s.end))} for ${c.renew} more month${c.renew === 1 ? '' : 's'}">Notice passed · renews ${esc(dayText(s.end))}</span>`;
     return `<span class="chip kept" title="${c.notice > 0 ? 'Notice by ' + esc(dayText(s.noticeBy)) : 'No notice period'}">Renews ${esc(dayText(s.end))}</span>`;
   }
   return s.state === 'soon' ? `<span class="chip warn">Ends ${esc(dayText(s.end))}</span>` : `<span class="chip kept">Runs to ${esc(dayText(s.end))}</span>`;
@@ -39,6 +42,10 @@ const ORDER = { soon: 0, late: 1, ok: 2, open: 3, ended: 4 };
 const sorted = list => [...list].map(c => ({ c, s: contractStatus(c) }))
   .sort((a, b) => ORDER[a.s.state] - ORDER[b.s.state] || (a.s.noticeBy || a.s.end || '9').localeCompare(b.s.noticeBy || b.s.end || '9') || a.c.name.localeCompare(b.c.name));
 export const contractsDue = () => COSTS.contracts.filter(c => contractStatus(c).state === 'soon');
+/* Contracts whose notice date for this term has passed: they renew whatever is done now. */
+export const contractsLate = () => COSTS.contracts.filter(c => contractStatus(c).state === 'late');
+/* The date notice must be given by, in the table: '' when it does not renew or needs none. */
+const noticeCell = c => { const s = contractStatus(c); if (!(c.renew > 0) || !s.noticeBy || s.state === 'open') return ''; return `<span class="${s.state === 'late' || s.state === 'soon' ? 'wty soon' : ''}">${esc(dayText(s.noticeBy))}</span>`; };
 export const contractsOf = o => COSTS.contracts.filter(c => (c.devices || []).includes(o.id));
 
 /* What all contracts cost this year and the next two, with this year by kind. */
@@ -60,12 +67,14 @@ export function renderContracts(){
   const all = COSTS.contracts;
   const hit = c => !q || [c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note].some(v => String(v || '').toLowerCase().includes(q))
     || (c.devices || []).some(id => (byId(id) || {}).name?.toLowerCase().includes(q));
-  const rows = sorted(all.filter(hit));
+  /* "Only due": the contracts that need someone now, notice due soon or already passed. */
+  const needs = c => ['soon', 'late'].includes(contractStatus(c).state);
+  const rows = sorted(all.filter(c => hit(c) && (!st.ctDue || needs(c))));
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
-  const due = contractsDue().length;
+  const due = contractsDue().length, late = contractsLate().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
-    <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}${due ? ` · <b class="wty soon">${due} due within ${NOTICE_SOON_DAYS} days</b>` : ''}</span><div class="grow"></div>
+    <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
     ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
   $('#ctNew').onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
@@ -75,14 +84,15 @@ export function renderContracts(){
     return;
   }
   $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
-      <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
+      <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
     ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
-      <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${contractChip(c)}</td>
+      <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
       <td class="num"><button data-contract="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">Edit</button></td></tr>`).join('')
-      || `<tr><td colspan="7" class="muted" style="padding:14px">Nothing matches “${esc(st.ctQ)}”.</td></tr>`}
-    </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="2"></td></tr></tfoot>` : ''}</table></div>`;
+      || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.ctQ)}”.`}</td></tr>`}
+    </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
+  const db = $('#ctDueBtn'); if (db) db.onclick = () => { st.ctDue = !st.ctDue; renderContracts(); };
 }
 
 /* Making or changing a contract. The devices it covers are picked from a list that can be searched. */
@@ -95,7 +105,7 @@ export function contractModal(c, preset = []){
     <div class="mb"><div class="form" style="padding:0">
       <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${esc(cur.name)}" placeholder="e.g. Switch maintenance HPE">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
-      <label for="ctSupplier">Supplier</label><input id="ctSupplier" maxlength="120" value="${esc(cur.supplier || '')}" list="ctSuppliers"><datalist id="ctSuppliers">${contactCompanies().map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+      <label for="ctSupplier">Supplier</label>${comboHtml(`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${esc(cur.supplier || '')}" placeholder="Type or pick a company">`, 'ctSupplier')}
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
       <label for="ctStart">Starts</label><input id="ctStart" type="date" value="${esc(cur.start || '')}">
       <label for="ctEnd">Ends</label><input id="ctEnd" type="date" value="${esc(cur.end || '')}">
@@ -111,12 +121,17 @@ export function contractModal(c, preset = []){
     const q = $('#ctDevQ').value.trim().toLowerCase();
     const mine = objs.filter(o => picked.has(o.id));
     const more = q ? objs.filter(o => !picked.has(o.id) && [o.name, o.code, o.serial, o.model, o.user].some(v => String(v || '').toLowerCase().includes(q))).slice(0, 60) : [];
-    $('#ctDevs').innerHTML = [...mine, ...more].map(o => `<label class="pchk">${tico(o.type, 'tico sm')}<input type="checkbox" data-ctdev="${esc(o.id)}" ${picked.has(o.id) ? 'checked' : ''}> <b>${esc(o.name)}</b> <span class="muted">${esc([o.code, o.model].filter(Boolean).join(' · '))}</span></label>`).join('')
+    /* The matches can all be taken at once; the count of devices covered stays in view. */
+    const bar = q && more.length ? `<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
+    $('#ctDevs').innerHTML = bar + [...mine, ...more].map(o => `<label class="pchk">${tico(o.type, 'tico sm')}<input type="checkbox" data-ctdev="${esc(o.id)}" ${picked.has(o.id) ? 'checked' : ''}> <b>${esc(o.name)}</b> <span class="muted">${esc([o.code, o.model].filter(Boolean).join(' · '))}</span></label>`).join('')
       || `<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
     $('#ctDevs').querySelectorAll('[data-ctdev]').forEach(x => x.onchange = () => { if (x.checked) picked.add(x.dataset.ctdev); else picked.delete(x.dataset.ctdev); });
+    const all = $('#ctAddAll'); if (all) all.onclick = () => { more.forEach(o => picked.add(o.id)); $('#ctDevQ').value = ''; devs(); $('#ctDevQ').focus(); };
   };
   devs();
   $('#ctDevQ').oninput = devs;
+  /* Enter in the device search takes what it found (not Save): the one match, or all of them. */
+  $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all) all.click(); });
   $('#ctCancel').onclick = closeModal;
   if (!isNew) $('#ctDel').onclick = () => {
     if (!confirm(`Delete the contract ${cur.name}? The devices stay.`)) return;
