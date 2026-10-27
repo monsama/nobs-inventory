@@ -37,7 +37,6 @@ const TIPS = [
   ['#mapReset', 'Forget where boxes were moved, and lay the map out again'],
   ['#mapExport', 'Download the map as an SVG picture'],
   ['#portsOpen', 'Open the page of this device'],
-  ['#psSave', 'Save the number of ports and how they are named'],
   ['#pgAdd', 'Group ports, such as uplinks, or several ports bundled as one link (LAG)'],
   ['#rkNew', 'Create a new rack'],
   ['#rkOpen', 'Open the page of this rack'],

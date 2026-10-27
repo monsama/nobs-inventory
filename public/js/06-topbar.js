@@ -16,7 +16,8 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
-$('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; view(); });
+/* On the floor plan, the search marks the devices it finds there; elsewhere it shows them in the cards. */
+$('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map','plans'].includes(st.tab)) st.tab = 'cards'; view(); });
 /* Enter in the search: the one object it finds opens; with several, the first result takes the focus, so the arrow keys
    and Tab go on from there instead of through the whole sidebar. */
 $('#search').addEventListener('keydown', e => {
@@ -24,7 +25,7 @@ $('#search').addEventListener('keydown', e => {
   e.preventDefault();
   const hits = filtered();
   if (hits.length === 1){ openObj(hits[0].id); return; }
-  const first = $('#view').querySelector('.card[data-open], a.rowopen[data-open], .mnode');
+  const first = $('#view').querySelector('.card[data-open], a.rowopen[data-open], .mnode, .pl-pin.hit:not(.grouped), .pl-group.hit');
   if (first) first.focus();
 });
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */

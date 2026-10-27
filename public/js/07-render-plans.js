@@ -1,11 +1,11 @@
-import { CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
+import { restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
-import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
+import { FIXED_TABS, openObj, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { leaveSettings, closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
@@ -310,7 +310,7 @@ export function planCanvas(plan){
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -323,11 +323,30 @@ export function renderPlanList(plan){
     && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
-export function placeDevice(plan, o, x, y){
+export function placeDevice(plan, o, x, y, sure = false){
+  /* A device at another site would move there: that is asked first, not done quietly. */
+  const a = areaAt(plan, x, y), to = a && plan.site ? areaLocName(plan, a) : '', fromSite = String(o.loc || '').split(' / ')[0];
+  if (!sure && to && fromSite && plan.site && fromSite !== plan.site){
+    modal(`<div class="mh">Move ${esc(o.name)} to ${esc(plan.site)}?</div><div class="mb"><p class="note">${esc(o.name)} is in <b>${esc(o.loc)}</b>. Placing it in the area ${esc(a.name)} of this plan sets its location to <b>${esc(to)}</b>.</p></div>
+      <div class="mf"><button id="pmCancel">Cancel</button><button id="pmOk" class="primary">Move to ${esc(plan.site)}</button></div>`, 'sm');
+    $('#pmCancel').onclick = () => { closeModal(); planPlace = null; renderPlans(); };
+    $('#pmOk').onclick = () => { closeModal(); placeDevice(plan, o, x, y, true); };
+    return;
+  }
+  const was = snapshot([o]), wasLoc = o.loc;
   o.planPos = {plan: plan.id, x, y}; delete o.planOff; plan.off = (plan.off || []).filter(id => id !== o.id);
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
+  /* The pin just placed is marked for a moment and kept out of a group, so it can be seen where it went. */
+  st.planFlash = o.id;
   planPlace = null; queueServerSave(); renderPlans();
+  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
+}
+/* From a device's page: its floor plan, with the device marked and in view. */
+export function showOnPlan(o){
+  if (!o.planPos || !planById(o.planPos.plan)) return;
+  planSel = o.planPos.plan; planMode = 'view'; planPlace = null;
+  st.planFlash = o.id; st.tab = 'plans'; render({ save: false });
 }
 export function drawPreview(){
   const c = $('#plCanvas'); if (!c || !planDraw) return;
@@ -590,6 +609,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
   else renderObj(byId(st.tab));
+  renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();
   $('#stObjs').textContent = objs.length + ' objects';

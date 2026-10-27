@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
+import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { view } from './07-render-plans.js';
@@ -63,7 +63,8 @@ export function renderOverview(){
   const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span><div class="grow"></div>`;
+  /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
+  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div>`;
   $('#view').innerHTML = `<div class="ov">
     <div class="ov-kpis">
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock · ${compact(live.length - inUse.length - stock)} other`, 'data-ovs="active"')}

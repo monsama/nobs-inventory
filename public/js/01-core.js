@@ -394,6 +394,29 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
   t.onclick = () => t.classList.add('off');
   t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), kind === 'err' ? 8000 : 2800);
 }
+/* A message with Undo: for a change made to many devices at once, or one hard to set back by hand (retire, a bulk move,
+   a room renamed). Undo is offered for 10 seconds; the page that made the change says what undoing does. */
+export function toastUndo(msg, undo){
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
+  t.classList.remove('err', 'off');
+  t.onclick = e => {
+    t.classList.add('off'); clearTimeout(toast.h);
+    if (e.target.closest('.t-undo')){ undo(); toast('Undone'); }
+  };
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
+}
+/* The devices as they are now, to put back on Undo: every field, so what the change touched is set back and nothing else. */
+export const snapshot = list => list.filter(Boolean).map(o => [o, JSON.parse(JSON.stringify(o))]);
+export function restoreSnapshot(snap, why = 'Undone'){
+  for (const [o, was] of snap){
+    /* The user is read from uid (and hotdesk); writing its name back would look the person up again, or make one. */
+    const rest = { ...was }; delete rest.user;
+    for (const k of Object.keys(o)) if (k !== 'user' && !(k in rest)) delete o[k];
+    Object.assign(o, rest);
+    hist(o, now(), why);
+  }
+}
 /* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
 export const releaseRetiredPort = (to, port) => {
   const holders = rels.filter(r => r.to === to.id && String(r.port) === String(port));

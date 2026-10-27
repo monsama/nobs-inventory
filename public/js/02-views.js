@@ -3,7 +3,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, searchAll, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
@@ -89,6 +89,37 @@ export function resetFilters(){
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
+/* The filters in force, as chips over the list (Cards, Table, Relationships): what each is, and × to take it off, so a
+   short list is never a mystery. Nothing is shown when nothing narrows the list. */
+export function renderFilterBar(){
+  const bar = $('#fbar'); if (!bar) return;
+  const list = ['cards', 'table', 'map'].includes(st.tab);
+  const rc = contactOf(st.resp);
+  const chips = !list ? [] : [
+    st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
+    st.loc && ['loc', 'Location', st.loc],
+    st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
+    st.live && ['live', '', 'Not retired'],
+    st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
+    st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
+    st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
+    st.osFam && ['osFam', 'OS', st.osFam],
+    rc && ['resp', 'Responsible', rc.name],
+    st.adGroup && ['adGroup', 'AD group', st.adGroup],
+    st.q.trim() && ['q', 'Search', '“' + st.q.trim() + '”'],
+  ].filter(Boolean);
+  bar.hidden = !chips.length;
+  bar.innerHTML = chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '';
+}
+$('#fbar').addEventListener('click', e => {
+  const b = e.target.closest('[data-fx]'); if (!b) return;
+  const k = b.dataset.fx;
+  if (k === 'all') resetFilters();
+  else if (k === 'q'){ st.q = ''; const s = $('#search'); if (s) s.value = ''; }
+  else if (k === 'scanOld' || k === 'live') st[k] = false;
+  else st[k] = null;
+  view();
+});
 /* When the filters on the left (a type, a place, a status …) hide every object the search finds: says so and how many
    it finds without them, with a button that keeps the search and drops those filters. '' when that is not the case. */
 export function hiddenHits(){
@@ -188,7 +219,7 @@ const onTabClick = e => {
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
   /* From an open device, Ports shows that device when it has ports (otherwise the one shown before), and Map is centred
      on it. */
-  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; view(); }
+  if (t){ st.planFlash = null; if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; view(); }
 };
 $('#tabsbar').addEventListener('click', onTabClick);
 $('#objbar').addEventListener('click', onTabClick);
@@ -411,6 +442,7 @@ export function renderTable(){
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
     if (!bk.value) return;
+    const snap = snapshot([...st.bulk].map(byId));
     let moved = 0;
     st.bulk.forEach(id => {
       const o = byId(id); if (!o || o.loc === bk.value) return;
@@ -419,15 +451,16 @@ export function renderTable(){
       o.loc = bk.value; o.handAt = new Date().toISOString();
       hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
     });
-    toast(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`); renderTable(); render();
+    toastUndo(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
   };
-  const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toast(n + ' set to ' + STATUS[bs.value].label); renderTable(); render(); };
+  const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; const snap = snapshot([...st.bulk].map(byId)); st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toastUndo(n + ' set to ' + STATUS[bs.value].label, () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
   const br = $('#bkResp'); if (br) br.onchange = () => {
     const [kind, id] = br.value.split(':'); if (!kind) return;
     let changed = 0;
+    const snap = snapshot([...st.bulk].map(byId));
     st.bulk.forEach(x => { const o = byId(x); if (o && setResponsible(o, kind, id)) changed++; });
-    toast(`${CONTACT_KINDS[kind]} responsible ${id ? 'set' : 'removed'} on ${changed} ${changed === 1 ? 'device' : 'devices'}`); renderTable(); render();
+    toastUndo(`${CONTACT_KINDS[kind]} responsible ${id ? 'set' : 'removed'} on ${changed} ${changed === 1 ? 'device' : 'devices'}`, () => { restoreSnapshot(snap, 'Responsible change undone'); render(); }); renderTable(); render();
   };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
@@ -925,7 +958,7 @@ export function renderPorts(){
         <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:180px">
         <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${esc(sw.pfx || '')}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
       </div>
-      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span><button id="psSave" class="primary">Save ports</button></div>
+      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span></div>
     </div>
     ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
     <div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
@@ -972,12 +1005,16 @@ export function renderPorts(){
     sw.portGroups = groups0.map(g => g === editing ? next : g);
     st.pgEdit = null; queueServerSave(); toast('Port group saved'); render();
   };
-  const ps = $('#psSave'); if (ps) ps.onclick = () => {
+  /* The port setup saves when a field is left, like every other field; a count that would drop a used port is refused
+     and said beside the fields. */
+  const savePorts = () => {
     const ports = $('#psPorts').value === '' ? NaN : +$('#psPorts').value, sfp = $('#psSfp').value === '' ? NaN : +$('#psSfp').value, pfx = $('#psPfx').value.trim();
+    if (ports === sw.ports && sfp === (sw.sfp || 0) && pfx === (sw.pfx || '')) return;
     const err = portSetupError(sw, ports, sfp);
-    if (err){ $('#psMsg').textContent = err; toast(err); return; }
+    if (err){ $('#psMsg').textContent = err; $('#psMsg').classList.add('err'); return; }
     Object.assign(sw, {ports, sfp, pfx}); queueServerSave(); toast('Ports saved'); render();
   };
+  ['#psPorts', '#psSfp', '#psPfx'].forEach(id => { const el = $(id); if (el) el.onchange = savePorts; });
   const pn = $('#pnDesc'); if (pn) pn.onchange = () => {
     const v = pn.value.trim(); sw.portNotes = {...(sw.portNotes || {})};
     if (v) sw.portNotes[st.portNo] = v; else delete sw.portNotes[st.portNo];
