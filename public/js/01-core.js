@@ -1,3 +1,4 @@
+import { pad2, stamp, stampTime } from './dates.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -180,7 +181,7 @@ export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
 export const SYNC = {run: '', time: 0, graph: false};
-export const stampTime = s => { const m = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(s || ''); return m ? new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0; };
+export { stampTime };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
   for (const o of objs){ const s = o.feed && o.feed.seen, t = stampTime(s); if (t > SYNC.time){ SYNC.time = t; SYNC.run = s; } }
@@ -345,7 +346,7 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
 export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
-export const pad2 = n => String(n).padStart(2, '0');
+export { pad2 };
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
 export const pfxOf = o => o.pfx ?? '';
 export const portLabel = (target, p) => {
@@ -365,7 +366,7 @@ export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => 
   const other = byId(out ? r.to : r.from);
   return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
 });
-export const now = () => { const d = new Date(); return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+export const now = () => stamp(new Date());
 /* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
    hidden), so a screen reader hears each new text. The same message again is changed by an invisible character, so
    it is read again too. */
@@ -406,7 +407,7 @@ export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
   return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
-    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name].some(v => v && String(v).toLowerCase().includes(q))));
+    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q))));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */
@@ -420,7 +421,5 @@ export function pathUp(o){
   return chain;
 }
 
-export function daysSince(stamp){
-  const m = /^(\d\d)\.(\d\d)\.(\d{4}) (\d\d):(\d\d)$/.exec(stamp || '');
-  return m ? (Date.now() - new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5])) / 864e5 : 0;
-}
+/* Days since a stamp ("dd.mm.yyyy hh:mm"); 0 when it is not one. */
+export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t) / 864e5 : 0; }

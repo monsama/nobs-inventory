@@ -1,7 +1,7 @@
 import { $, st } from './01-core.js';
 import { newObjModal, linkObjModal } from './05-new-object.js';
 import { me, openSettings } from './04-settings.js';
-import { accountModal, loginModal, render, signOut } from './07-render-plans.js';
+import { accountModal, loginModal, signOut, view } from './07-render-plans.js';
 import { openObj } from './02-views.js';
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
@@ -16,8 +16,9 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
-$('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; render(); });
-document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]')) openObj(t.dataset.open); });
+$('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; view(); });
+/* A link inside a row or card (a device's web interface) opens itself, not the device. */
+document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]') && !e.target.closest('a[href]')) openObj(t.dataset.open); });
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
@@ -27,12 +28,17 @@ try { TBL = JSON.parse(localStorage.getItem('ni-cols') || '{}'); } catch { TBL =
 export const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.stringify(TBL)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ } };
 /* On an object's page the tab is the object's id, so each object opened keeps its own entry; they are small, and a
    table that has other columns now starts over from its default order (applyTable). */
-/* A table that shows only its first rows (data-cut) is drawn again with all of them before a column is sorted or
-   filtered, so the sort and the filter see every row. focusFilter: the filter box to put the cursor back in. */
-function showAllRows(t, focusFilter = null){
-  if (!t.dataset.cut) return false;
-  st.tableAll = true; render();
-  if (focusFilter !== null){ const box = document.querySelectorAll('table.grid tr.fr th')[focusFilter]?.querySelector('input'); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+/* A table that sorts and filters its data before drawing (data-data) is drawn again when a column is sorted or
+   filtered, so the sort and the filter see every row, also those not drawn. focusFilter: the filter box to put the
+   cursor back in. */
+function redrawFromData(t, focusFilter = null, focusHeader = null){
+  if (!t.dataset.data) return false;
+  view();
+  /* The new table gets its filter row now, not when the page notices it, so the cursor can go back into its box. */
+  document.querySelectorAll('table.grid').forEach(setupTable);
+  /* Found by the column it filters, not by its place: moved columns put the boxes in another order. */
+  if (focusFilter !== null){ const box = document.querySelector(`table.grid tr.fr input[data-fci="${focusFilter}"]`); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  else if (focusHeader !== null){ const th = document.querySelector(`table.grid thead tr:first-child th[data-ci="${focusHeader}"]`); if (th) th.focus(); }
   return true;
 }
 export function tableKey(t){
@@ -78,6 +84,8 @@ export function applyView(t){
   heads.forEach(th => th.dataset.sort = s.sort && +th.dataset.ci === s.sort.ci ? (s.sort.dir > 0 ? 'asc' : 'desc') : '');
   /* The sort is announced too, not only drawn. */
   heads.forEach(th => { if (th.dataset.sort) th.setAttribute('aria-sort', th.dataset.sort === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort'); });
+  /* A table drawn already sorted and filtered (data-data: the device table) is left as drawn. */
+  if (t.dataset.data) return;
   const rows = [...t.tBodies].flatMap(tb => [...tb.rows]);
   const at = (row, ci) => { const c = row.cells[ciAt.indexOf(ci)]; return c ? c.textContent.trim() : ''; };
   const filters = Object.entries(s.filters).filter(([, q]) => q);
@@ -114,8 +122,8 @@ export function setupTable(t){
       const c = document.createElement('th');
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
-      inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
-      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!showAllRows(t, i)) applyView(t); });
+      inp.placeholder = 'filter'; inp.dataset.fci = i; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
+      inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); });
       c.appendChild(inp); fr.appendChild(c);
     });
     head.parentNode.appendChild(fr);
@@ -130,7 +138,7 @@ export function setupTable(t){
     const sortBy = () => {
       const cur = TBL[tableKey(t)], ci = +th.dataset.ci;
       cur.sort = cur.sort && cur.sort.ci === ci ? {ci, dir: -cur.sort.dir} : {ci, dir: 1};
-      saveTBL(); if (!showAllRows(t)) applyView(t);
+      saveTBL(); if (!redrawFromData(t, null, ci)) applyView(t);
     };
     th.addEventListener('click', e => { if (!e.target.classList.contains('rz')) sortBy(); });
     /* Sorting works from the keyboard too: Tab to a column header, Enter or Space. */

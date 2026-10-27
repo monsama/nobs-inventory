@@ -2,9 +2,10 @@ import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
+import { linkHref, linkKind } from './links.js';
 import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
-import { SERVER, queueServerSave, render } from './07-render-plans.js';
-import { TBL, saveTBL } from './06-topbar.js';
+import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
+import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, modal } from './03-object-modals.js';
@@ -70,7 +71,7 @@ $('#side').addEventListener('click', e => {
   if ('intune' in b.dataset) st.intune = st.intune === b.dataset.intune ? null : b.dataset.intune;
   if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards';
   document.body.classList.remove('side-open');
-  render();
+  view();
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
@@ -78,7 +79,7 @@ export function resetFilters(){
   const s = $('#search'); if (s) s.value = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
-$('#clearF').onclick = () => { resetFilters(); render(); };
+$('#clearF').onclick = () => { resetFilters(); view(); };
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
 /* ---------- tabs ---------- */
@@ -103,7 +104,7 @@ export function renderTabs(){
     el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('dragover'); });
     el.addEventListener('dragleave', () => el.classList.remove('dragover'));
     el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('dragover'); const src = e.dataTransfer.getData('text/plain'); if (src && src !== id) reorderTabs(src, id); });
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); st.tab = id; render(); } });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); st.tab = id; view(); } });
     el.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('auxclick', e => { if (e.button === 1 && st.open.includes(id)) closeObjTab(id); });
     if (st.open.includes(id)) el.addEventListener('contextmenu', e => showTabMenu(e, id));
@@ -116,19 +117,19 @@ export function reorderTabs(src, tgt){
   arr.splice(a, 1);
   const nb = arr.indexOf(tgt);
   arr.splice(a < b ? nb + 1 : nb, 0, src);
-  render();
+  view();
 }
 export function closeObjTab(id){
   st.open = st.open.filter(x => x !== id); st.tabIds = st.tabIds.filter(x => x !== id);
   if (st.tab === id) st.tab = 'cards';
-  render();
+  view();
 }
 /* Closes every open object tab except `keep` (or all of them when keep is null). The views stay open. */
 export function closeObjTabs(keep){
   st.open = st.open.filter(x => x === keep);
   st.tabIds = st.tabIds.filter(x => FIXED_TABS[x] || x === keep);
   if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || 'cards';
-  render();
+  view();
 }
 export let tabMenu = null;
 export function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
@@ -166,11 +167,11 @@ const onTabClick = e => {
   if (t && t.dataset.tab === 'cards' && st.tab === 'net' && byId(st.portsDevice)){ openObj(st.portsDevice); return; }
   /* From an open device, Ports shows that device when it has ports (otherwise the one shown before), and Map is centred
      on it. */
-  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; render(); }
+  if (t){ if (t.dataset.tab === 'net' && byId(st.tab) && hasPorts(byId(st.tab))) st.portsDevice = st.tab; if (t.dataset.tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = t.dataset.tab; view(); }
 };
 $('#tabsbar').addEventListener('click', onTabClick);
 $('#objbar').addEventListener('click', onTabClick);
-export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; render(); const v = $('#view'); if (v) v.scrollTop = 0; }
+export function openObj(id){ if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); } st.tab = id; view(); const v = $('#view'); if (v) v.scrollTop = 0; }
 
 /* ---------- cards ---------- */
 /* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
@@ -199,6 +200,8 @@ export const CARD_FIELDS = {
   purpose: ['Purpose', o => esc(o.purpose || '')],
   model: ['Model', o => esc(o.model || '')],
   resp: ['Responsible', o => esc(respText(o))],
+  /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
+  urls: ['Links', o => esc((o.urls || []).map(l => l.label || linkKind(l.url)).join(' · '))],
 };
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
@@ -252,7 +255,7 @@ export function renderCardsBody(){
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
   $('#grp').value = st.cardsGroup;
-  $('#grp').onchange = e => { st.cardsGroup = e.target.value; render(); };
+  $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
@@ -303,7 +306,7 @@ export function addSearchHits(){
   for (const o of objs) if (o.user) count.set(o.user, (count.get(o.user) || 0) + 1);
   $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${count.get(u.name) || 0} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
   $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
-  $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; render(); });
+  $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; view(); });
 }
 
 /* ---------- table ---------- */
@@ -327,6 +330,7 @@ export const TABLE_COLS = [
   {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
+  {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
@@ -334,16 +338,16 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off. */
 export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '3');
+      localStorage.setItem('ni-cols-v', '4');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
@@ -358,12 +362,12 @@ export function columnsMenu(){
 }
 
 export function renderTable(){
-  const list = filtered();
+  let list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk ??= new Set();
   st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = `<span class="muted">${list.length} rows</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
     ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
@@ -398,23 +402,33 @@ export function renderTable(){
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   const idx = relIndex();   /* one index of the relations for all rows */
   const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
-  /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. A column that is sorted or
-     filtered needs every row, so then all are drawn (06-topbar.js draws them all before it sorts or filters). */
+  /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
+     the table showed it. Column 0 is the tick box; column k is shown[k - 1]. */
   const tv = TBL['view:table:0'] || {};
-  const narrowed = !!tv.sort || Object.values(tv.filters || {}).some(v => String(v || '').trim());
-  const cut = !st.tableAll && !narrowed && list.length > SHOW_FIRST + 100;
+  const textOf = html => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
+  const colOf = ci => shown[ci - 1];
+  for (const [ci, q] of Object.entries(tv.filters || {})) {
+    const c = colOf(+ci), want = String(q || '').trim().toLowerCase();
+    if (c && want) list = list.filter(o => textOf(c.cell(o, idx)).toLowerCase().includes(want));
+  }
+  const sc = tv.sort && colOf(tv.sort.ci);
+  if (sc) { const key = new Map(list.map(o => [o, textOf(sc.cell(o, idx))])); list = [...list].sort((a, b) => tv.sort.dir * cmpCells(key.get(a), key.get(b))); }
+  /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. */
+  $('#tblCount').textContent = list.length + ' rows';
+  const cut = !st.tableAll && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
-  $('#view').innerHTML = `<div class="gridwrap"><table class="grid"${cut ? ' data-cut="1"' : ''}><thead><tr>
+  $('#view').innerHTML = `<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
     ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
-    </tbody></table>${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search, filter or sort a column to see the others.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
+    </tbody></table>${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
   /* Only the rows shown: a row hidden by a column filter is not selected. */
-  const rowIds = () => [...$('#view').querySelectorAll('tbody tr')].filter(r => r.style.display !== 'none' && r.querySelector('[data-sel]')).map(r => r.querySelector('[data-sel]').dataset.sel);
+  /* Every device the filters leave, also those past the first 500 rows not drawn. */
+  const rowIds = () => list.map(o => o.id);
   all.checked = rowIds().length > 0 && rowIds().every(id => st.bulk.has(id));
   /* Ticking it selects every row shown; ticking it again, when they are all selected, clears them. */
   all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };
@@ -666,9 +680,9 @@ export function mapExportSvg(){
 
 /* The toolbar controls that redraw the map; bound also when the map is empty, so it can be switched back. */
 function bindMapToolbar(){
-  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; render(); };
-  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; render(); };
-  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; render(); };
+  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; view(); };
+  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; view(); };
+  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; view(); };
   $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; const svg = $('#mapSvg'); if (svg) svg.classList.toggle('labels', st.mapLabels); };
 }
 export function renderMap(){
@@ -715,7 +729,7 @@ export function renderMap(){
   /* A right click on a box shows only its relations (the same as Relations of in the toolbar). */
   svg.addEventListener('contextmenu', e => {
     const n = e.target.closest('.mnode'); if (!n) return;
-    e.preventDefault(); st.mapFocus = n.dataset.id; MAP.found = null; render();
+    e.preventDefault(); st.mapFocus = n.dataset.id; MAP.found = null; view();
   });
   svg.addEventListener('pointerdown', e => {
     const n = e.target.closest('.mnode');
@@ -791,7 +805,7 @@ export function renderPorts(){
   $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
-  $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; render(); };
+  $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; view(); };
   $('#portsOpen').onclick = () => openObj(sw.id);
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
   /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
@@ -862,7 +876,7 @@ export function renderPorts(){
       ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
         <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div></div>`;
-  $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; render(); });
+  $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; view(); });
   const total = (sw.ports || 0) + (sw.sfp || 0);
   $('#view').querySelectorAll('[data-delgroup]').forEach(b => b.onclick = () => {
     const g = groups0[+b.dataset.delgroup];

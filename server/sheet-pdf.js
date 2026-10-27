@@ -1,9 +1,10 @@
 /* An entry sheet as a PDF (A4), laid out like the printed sheet: the company's logo and name, the person, the initial
    password while the kept sheet has it, the devices handed out, a note and the signature lines. */
+import { dateText } from '../public/js/dates.js';
 import PDFDocument from 'pdfkit';
 
 const M = 50, W = 595.28 - 2 * M;   /* A4 width, margins */
-const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
+const day = dateText;
 
 /* The NOBS mark, drawn: a rounded square with the three faces of a box. Used when no company logo is set. */
 function nobsMark(doc, x, y, s) {

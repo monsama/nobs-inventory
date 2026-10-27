@@ -1,3 +1,4 @@
+import { dateText } from '../public/js/dates.js';
 import ldap from 'ldapjs';
 import fs from 'node:fs';
 import { HttpError } from './errors.js';
@@ -124,7 +125,7 @@ export async function ldapLogin(config, login, password) {
 /* The directory server's certificate, read without trusting it, to say why it is not trusted: who it is for, who issued
    it, until when, and whether the CA added in Settings issued it. So nobody has to run openssl on the server. */
 const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];
-const day = t => { const d = new Date(t); return isNaN(d) ? String(t) : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
+const day = t => t ? dateText(t) || String(t) : '';
 export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
 async function peerChain(config) {
   const u = new URL(config.url), host = u.hostname.replace(/^\[|\]$/g, ''), servername = isIP(host) ? undefined : host;
