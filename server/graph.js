@@ -283,14 +283,12 @@ export function applyGraph(s, records, now = new Date()) {
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
-    /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is kept
-       up to date in full. */
-    if (s.fillGraph !== false) for (const [k, label] of Object.entries(FILL)) {
-      if (!r[k] || ovr[k] === false) continue;
-      /* A value Graph gave before its fills were noted, still what Graph says, and not Lansweeper's: noted as Graph's now. */
-      if (o[k] === r[k]) { if (!(o.src && o.src[k]) && !lsOwns(s, o, k)) (o.src ??= {})[k] = 'graph'; continue; }
-      /* Once Lansweeper has the device, Graph only fills gaps: Lansweeper's next push decides the rest. */
-      if (o.feed && o[k]) continue;
+    /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is Graph's
+       and kept up to date in full, whatever the setting. */
+    if (s.fillGraph !== false || owns) for (const [k, label] of Object.entries(FILL)) {
+      if (!r[k] || ovr[k] === false || o[k] === r[k]) continue;
+      /* A field Lansweeper fills in is left to it once it has a value: its next push decides. */
+      if (lsOwns(s, o, k) && o[k]) continue;
       if (owns && o[k] && !(o.src && o.src[k])) (o.src ??= {})[k] = 'graph';
       if (fillField(s, o, k, r[k], 'graph', at, label)) counts.filled++;
     }
