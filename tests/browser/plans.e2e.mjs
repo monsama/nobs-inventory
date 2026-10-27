@@ -59,6 +59,8 @@ try {
   assert.ok(saved.objs.find(o => o.name === 'PC-PLAN').planPos, 'the device is placed on the plan');
   /* the × on the pin takes the device off the plan without starting a drag */
   const pinBefore = await page.locator('.pl-pin:has-text("PC-PLAN")').boundingBox();
+  // × shows on the pin under the pointer
+  await page.hover('.pl-pin:has-text("PC-PLAN")');
   await page.click('.pl-pin:has-text("PC-PLAN") [data-unpin]');
   await page.waitForSelector('.pl-pin:has-text("PC-PLAN")', { state: 'detached' });
   await page.waitForTimeout(600);

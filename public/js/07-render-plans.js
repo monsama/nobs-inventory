@@ -8,6 +8,7 @@ import { renderOverview } from './10-overview.js';
 import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { leaveSettings, closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
+import { closeGroup, groupPins } from './13-plan-groups.js';
 /* ---------- render ---------- */
 /* ---------- floor plans ---------- */
 /* An image per site or room, areas drawn on it, and devices placed by position (in percent of the image). */
@@ -81,6 +82,16 @@ export const planHostOf = o => {
   const h = att ? byId(att.to) : o.rack ? byId(o.rack) : null;
   return h && h.status !== 'retired' && h !== o ? h : null;
 };
+/* Where each device on the plan is drawn. One placed by hand is where it was put. One shown because it is in an area's
+   room carries the area's largest rectangle (box), so the page can spread those over the area in a grid by the pixels
+   the plan has (13-plan-groups.js) instead of stacking them in its middle. */
+export function planLayout(plan){
+  return planDevices(plan).map(o => {
+    const pos = planPosOf(plan, o);
+    const a = pos.auto ? (plan.areas || []).find(x => areaLocName(plan, x) === o.loc) : null;
+    return {o, x: pos.x, y: pos.y, auto: !!pos.auto, box: a ? areaRects(a).reduce((b, q) => q.w * q.h > b.w * b.h ? q : b) : null};
+  });
+}
 export const planDevices = plan => {
   const on = objs.filter(o => planPosOf(plan, o)), ids = new Set(on.map(o => o.id));
   return on.filter(o => { const h = planHostOf(o); return !(h && ids.has(h.id)); });
@@ -183,6 +194,8 @@ export function renderPlans(){
   const c = $('#plCanvas');
   c.onpointerdown = e => {
     if (e.target.closest('.pl-pin,.pl-x') || e.button !== 0) return;
+    /* A click beside an open group only closes it. */
+    if (closeGroup()) return;
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
     if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
@@ -206,6 +219,8 @@ export function renderPlans(){
       renderPlans();
     };
   });
+  /* Pins that cover each other are grouped; a device dragged out of a group's list is moved like one from the side list. */
+  groupPins(c, (id, e, label, onMove) => { listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
@@ -213,7 +228,9 @@ export function renderPlans(){
     const area = plan.areas.find(a => a.id === el.dataset.areaDrag); if (!area) return;
     e.stopPropagation();
     const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
-    const pins = planDevices(plan).map(o => ({o, pos: planPosOf(plan, o)})).filter(({pos}) => rects.some(q => inRect(q, pos.x, pos.y))).map(({o, pos}) => ({id: o.id, x: pos.x, y: pos.y}));
+    /* Where the pins are drawn now (an area's own devices spread over it), so each keeps its place in the moved area. */
+    const pins = [...c.querySelectorAll('.pl-pin')].map(el => ({id: el.dataset.pin, x: parseFloat(el.dataset.homeX || el.style.left), y: parseFloat(el.dataset.homeY || el.style.top)}))
+      .filter(p => rects.some(q => inRect(q, p.x, p.y)));
     planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
 }
@@ -241,9 +258,9 @@ export function areaShape(rects, cls = '', attrs = ''){
   return `<svg class="pl-area${cls}" ${attrs} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="pl-area-fill" d="${fill}"/><path class="pl-area-edge" d="${edge}"/></svg>`;
 }
 /* The name of an area and its ×, placed at the top left of the area. */
-export function areaTag(a, removable){
+export function areaTag(a, removable, count = 0){
   const r = areaRects(a)[0];
-  return `<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
+  return `<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${count ? `<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
@@ -254,13 +271,13 @@ function ridersHtml(o){
 }
 export function planCanvas(plan){
   const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
-  const src = planImgSrc(plan);
+  const src = planImgSrc(plan), layout = planLayout(plan);
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area')).join('')}
+    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${planDevices(plan).map(o => { const pos = planPosOf(plan, o); return `<button class="pl-pin${pos.auto ? ' auto' : ''}${pos.y < 35 ? ' below' : ''}" data-pin="${o.id}" style="left:${pos.x}%;top:${pos.y}%;background:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${layout.map(({o, box, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${pos.y < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -291,7 +308,7 @@ document.addEventListener('pointermove', e => {
   if (planListDrag){
     const d = planListDrag;
     if (!d.moved && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 5){
-      d.moved = true;
+      d.moved = true; if (d.onMove) d.onMove();
       d.ghost = document.createElement('div'); d.ghost.className = 'pl-ghost'; d.ghost.textContent = d.label; document.body.appendChild(d.ghost);
       document.body.classList.add('pl-dragging');
     }

@@ -37,7 +37,7 @@ try {
   const box = await p.locator('#plCanvas').boundingBox();
   const at = (x, y) => [box.x + box.width * x / 100, box.y + box.height * y / 100];
   // Drag the area from its top rectangle by 10 % across and 5 % down.
-  const [sx, sy] = at(20, 15), [ex, ey] = at(30, 20);
+  const [sx, sy] = at(29, 11), [ex, ey] = at(39, 16);   // a corner the area's own devices, spread over it, leave free
   await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(ex, ey, { steps: 6 }); await p.mouse.up();
   await until(p, async () => { const a = (await import('/js/07-render-plans.js')).planById('pl1').areas[0]; return Math.abs(a.rects[0].x - 20) < 0.3; });
   const plan = await p.evaluate(async () => (await import('/js/07-render-plans.js')).planById('pl1'));
@@ -71,7 +71,9 @@ try {
   const o3 = await p.evaluate(async () => (await import('/js/01-core.js')).byId('o3'));
   assert.deepEqual([o3.planPos.plan, Math.round(o3.planPos.x), Math.round(o3.planPos.y)], ['pl1', 37, 23], 'placed where dropped');
   assert.equal(o3.loc, 'Zürich HQ / Hall', 'the device is in the area\'s room');
-  assert.ok(await p.isVisible('[data-pin=o3]'), 'the device shows on the plan');
+  // on the plan as its own pin, or in the group of pins it lands among
+  assert.ok(await p.isVisible('[data-pin=o3]') || (await p.locator('.pl-group').evaluateAll(gs => gs.map(g => g.getAttribute('aria-label')))).some(l => l.split(/: |, /).includes(o3.name)), 'the device shows on the plan');
+  assert.equal(await p.locator('[data-pin=o3]').count(), 1);
   // A clicked area takes more rectangles: Add rectangle draws one, Done widens the area to take it.
   const [cx, cy] = at(25, 17);
   await p.mouse.move(cx, cy); await p.mouse.down(); await p.mouse.up();
