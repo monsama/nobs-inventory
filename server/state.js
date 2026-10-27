@@ -208,6 +208,13 @@ function checkStateRules(s, size = true) {
     }
   }
   if (!Array.isArray(s.objs) || !Array.isArray(s.rels) || !Array.isArray(s.users) || !Array.isArray(s.locs)) bad('The inventory must list objects, relations, users and locations.');
+  /* Locations and sites are names the page splits and shows: an entry that is not one would leave it blank for everyone. */
+  for (const [list, what] of [[s.locs, 'location'], [s.sites, 'site']]) {
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) bad(`The ${what}s must be a list.`);
+    for (const v of list) if (typeof v !== 'string' || !v.trim() || v.length > 200) bad(`Every ${what} is a name of up to 200 characters.`);
+  }
+  if (s.typeMap !== undefined && s.typeMap !== null && (typeof s.typeMap !== 'object' || Array.isArray(s.typeMap) || Object.values(s.typeMap).some(v => typeof v !== 'string'))) bad('The Lansweeper type mappings are names of types.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
   /* A type's name is shown as text everywhere; angle brackets have no place in it. */
