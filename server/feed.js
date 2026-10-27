@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { HttpError } from './errors.js';
+import { KNOWN_TYPES } from './state.js';
 
 /* Lansweeper merge rules, shared by the file import and the API sync.
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
@@ -209,7 +210,8 @@ export function modelFor(s, name) {
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
-  if (own && s.typeMap[own]) return s.typeMap[own];
+  /* A mapping to a type that is not there (deleted since) is passed over: the rules decide, instead of the whole push failing. */
+  if (own && s.typeMap[own] && (KNOWN_TYPES.includes(s.typeMap[own]) || (s.types || {})[s.typeMap[own]])) return s.typeMap[own];
   const byRules = typeByRules(s.typeRules, { type: text, model, name: devName, chassis }).type;
   /* Windows says whether it is a workstation, a server or a domain controller, which is surer than the type's name:
      it moves a computer between PC and server. A virtual machine stays one. */

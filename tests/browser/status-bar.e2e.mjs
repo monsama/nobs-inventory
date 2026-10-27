@@ -54,7 +54,7 @@ try {
   await p.route('**/api/changes', r => r.abort());
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2b'; await (await import('/js/07-render-plans.js')).flushSave(); });
   assert.equal(await text('#stSave'), 'Server not reachable');
-  assert.equal(await p.$eval('#stSave .dot', e => e.classList.contains('bad')), true);
+  assert.equal(await p.$eval('#stSave .bad', e => e.classList.contains('chip')), true, 'a red chip, not just a dot');
   await p.unroute('**/api/changes');
   await p.evaluate(async () => { document.activeElement && document.activeElement.blur(); await (await import('/js/07-render-plans.js')).checkForChanges(); });
   await until(p, async () => document.querySelector('#stSave').textContent.trim() === 'All changes saved');

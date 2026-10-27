@@ -10,7 +10,7 @@ import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
-import { autoBackup, takeBackup, restoreBackup } from './backup.js';
+import { autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph, addGraphDevices } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
@@ -32,6 +32,7 @@ const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.js
 export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 } }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
+  setBackupSheetKey(SHEET_KEY);
   initSheets(db);
   initGraphKeys(db);
   const cfgLs = () => (lansweeperConfig ? lansweeperConfig() : lansweeper);
@@ -101,7 +102,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false ? u : null; };
   const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
-  const saveUserDoc = u => db.prepare("INSERT INTO docs (kind, id, data) VALUES ('user', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(u.id, JSON.stringify(u));
+  /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
+     make every later save fail the check that logins are distinct. */
+  const saveUserDoc = u => {
+    const lc = String(u.login || '').toLowerCase();
+    const twin = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id <> ?").all(u.id).some(r => String(JSON.parse(r.data).login || '').toLowerCase() === lc);
+    if (lc && twin) throw new HttpError(409, 'Another account already has this login.');
+    db.prepare("INSERT INTO docs (kind, id, data) VALUES ('user', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(u.id, JSON.stringify(u));
+  };
 
   const requireUser = (req, res, next) => {
     const u = currentUser(req);
@@ -131,11 +139,15 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.');
       }
       if (!login || !password || password.length > 256) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
-      let user = null;   /* only the user records are read; a sign-in does not load the whole inventory */
-      for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'user'").all()) {
-        const u = JSON.parse(r.data);
-        if (u.login && u.login.toLowerCase() === login.toLowerCase()) { user = u; break; }
-      }
+      /* Only the user records are read; a sign-in does not load the whole inventory. */
+      const findUser = () => {
+        for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'user'").all()) {
+          const u = JSON.parse(r.data);
+          if (u.login && u.login.toLowerCase() === login.toLowerCase()) return u;
+        }
+        return null;
+      };
+      let user = findUser();
       let ok = false;
       if (user) ok = checkLocalPassword(db, user.id, password);
       else checkLocalPassword(db, 'none', password);   /* same work for an unknown login */
@@ -149,6 +161,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
         catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
+          /* Read again after waiting on the directory: a second sign-in of the same login may have created the account
+             meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
+             its role. Nothing below waits, so no other request comes between this read and the save. */
+          user = findUser();
+          if (user && !['ldap', 'lansweeper', 'entra'].includes(user.source)) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
           let isAdmin = !!d.admin;
           const wasLansweeper = !!user && (user.source === 'lansweeper' || user.source === 'entra');
           if (!user) user = { id: freeUserId(loadState(db).users, 'ldap-' + login.toLowerCase()), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
@@ -537,6 +554,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
   app.get('/api/sheets/:id', requireUser, requireAdmin, (req, res, next) => {
+    res.set('Cache-Control', 'no-store');   /* the answer may hold the password: no browser or proxy keeps it */
     try { purgePasswords(db, SHEET_KEY); const s = getSheet(db, SHEET_KEY, req.params.id); audit(db, req.user.id, `entry sheet ${s.id} opened`); res.json(s); } catch (e) { next(e); }
   });
   /* The sheet as a PDF, with the company's name and logo. It holds the password while the kept sheet does. */
@@ -589,7 +607,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
       const s = loadState(db);
       const counts = mergeRecords(s, recordsFromJson(records), new Date(), cleanIpLocations(req.body.ipLocations));
-      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push'); saveState(db, s); }
+      if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push', { hourly: true }); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'feed push failed: ' + e.message); next(e); }

@@ -621,10 +621,20 @@ export function retireModal(o){
   $('#rtOk').onclick = () => { if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); } o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); closeModal(); toast(o.name + ' is retired. It stays in the inventory for the record.'); render(); };
 }
 export function purgeModal(o){
+  /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
+  const fromLs = !!o.feed && !o.excluded && o.feed.sys === 'Lansweeper';
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
-    <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p></div>
-    <div class="mf"><button id="pgCancel">Cancel</button><button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
+    <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
+    ${fromLs ? '<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>' : ''}</div>
+    <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? '<button id="pgExcl" class="primary">Retire and exclude</button>' : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
+  const ex = $('#pgExcl');
+  if (ex) ex.onclick = () => {
+    if (o.rack) unplace(o);
+    o.status = 'retired'; o.excluded = true;
+    hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who());
+    closeModal(); toast(`${o.name} is retired and excluded: Lansweeper will not add it again`); render();
+  };
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }
 export function deleteObject(id){
