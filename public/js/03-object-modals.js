@@ -716,7 +716,8 @@ export function retireModal(o){
   $('#rtCancel').onclick = closeModal;
   $('#rtOk').onclick = () => {
     /* All of it can be undone at once: the device, the relations taken away and the contracts it was on. */
-    const was = snapshot([o]), relsWas = [...rels], ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
+    /* The devices on top of it are taken out of the rack with it, so they are put back too. */
+    const was = snapshot([o, ...objs.filter(x => x.ontop === o.id)]), relsWas = [...rels], ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
     if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); }
     const done = ties.filter(([k]) => $(`[data-rt="${k}"]`).checked);
     done.forEach(([, , run]) => run());
@@ -726,8 +727,9 @@ export function retireModal(o){
     closeModal();
     toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
       restoreSnapshot(was, 'Retirement undone by ' + who());
-      rels.splice(0, rels.length, ...relsWas);
-      ctsWas.forEach(([c, d]) => { c.devices = d; });
+      /* Only the relations and contract entries the retirement took away come back: anything added since stays. */
+      for (const r of relsWas) if (!rels.includes(r)) rels.push(r);
+      ctsWas.forEach(([c, d]) => { c.devices = [...new Set([...(c.devices || []), ...d])]; });
       render();
     });
     render();
@@ -1037,7 +1039,7 @@ export function renderObj(o){
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
-      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){

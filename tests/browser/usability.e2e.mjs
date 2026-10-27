@@ -160,6 +160,16 @@ try {
   // and the server has it as it is now
   await until(p, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).objs.find(o => o.id === 'nb1').status === 'active');
 
+  // an Undo offered before a reload from the server is refused: its records are no longer the page's
+  await core(async () => { const c = await import('/js/01-core.js'); c.toastUndo('Test change', () => { window.__undone = true; }); });
+  await core(async () => (await import('/js/07-render-plans.js')).reloadFromServer());
+  await p.click('#toast .t-undo');
+  assert.match(await p.textContent('#toast'), /reloaded since, so this can no longer be undone/);
+  assert.equal(await core(() => !!window.__undone), false);
+  // an amount above what the server takes is refused on the page, not by every save after it
+  assert.equal(await core(async () => (await import('/js/09-costs.js')).num('2000000000') === undefined), true);
+  assert.equal(await core(async () => (await import('/js/09-costs.js')).num('1\'200.50')), 1200.5);
+
   assert.deepEqual(errors, []);
   console.log('usability: all checks passed');
 } finally { await browser.close(); server.close(); }

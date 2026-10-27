@@ -401,13 +401,18 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
 }
 /* A message with Undo: for a change made to many devices at once, or one hard to set back by hand (retire, a bulk move,
    a room renamed). Undo is offered for 10 seconds; the page that made the change says what undoing does. */
+/* A reload from the server replaces every record (applyState counts them in epoch): an Undo offered before it would write
+   into records that are no longer the page's, so it is refused instead. */
+export const UNDO = { epoch: 0 };
 export function toastUndo(msg, undo){
-  const t = $('#toast');
+  const t = $('#toast'), epoch = UNDO.epoch;
   t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
     t.classList.add('off'); clearTimeout(toast.h);
-    if (e.target.closest('.t-undo')){ undo(); toast('Undone'); }
+    if (!e.target.closest('.t-undo')) return;
+    if (UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
+    undo(); toast('Undone');
   };
   clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
 }
