@@ -8,7 +8,7 @@ import { setPassword, passwordProblem, checkLocalPassword, createSession, sessio
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
-import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
+import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { BEFORE_CLEAR, autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
@@ -396,7 +396,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
      With ids: those of them change, after a backup. A type set by hand is never changed, nor a device that is not from
      Lansweeper or is retired. */
   /* Set by hand: marked so when changed on the device page, or an earlier change by a person is in its history. */
-  const typeSetByHand = (s, o) => (o.ovr && o.ovr.type === false) || (s.history[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
   const retypes = s => s.objs.filter(o => o.feed && o.feed.sys === 'Lansweeper' && o.status !== 'retired' && o.type !== 'rack' && !typeSetByHand(s, o))
     .map(o => ({ o, to: typeFor(s, o.feed.assetType, o.model, o.feed.role, o.name, o.feed.chassis) }))
     .filter(x => x.to !== x.o.type && (KNOWN_TYPES.includes(x.to) || (s.types || {})[x.to]));

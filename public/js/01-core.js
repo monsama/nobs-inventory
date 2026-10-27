@@ -299,7 +299,8 @@ export const GRAPH_FILTERS = {
    ("Win 2019", "Win 2012 R2"): a Windows with a year is a server. */
 export const osFamily = o => {
   const v = String(o.os || '').trim(), l = v.toLowerCase();
-  if (!v) return '';
+  /* No system reported, or one not known: the name or model may still say (FortiGate_40F, argoesxi21, walkerhs-iphone). */
+  if (!v || !knownOs(l)) return osByName(o) || (v ? 'Other' : '');
   const server = l.match(/windows\s*server\s*(\d{4})?(\s*r2)?/) || l.match(/\b(?:win(?:dows)?|server)\s*(200[3-9]|20[1-3]\d)(\s*r2)?\b/);
   if (server) return 'Windows Server' + (server[1] ? ' ' + server[1] + (server[2] ? ' R2' : '') : '');
   const build = l.match(/windows\s*10\.0\.(\d+)/);
@@ -309,13 +310,31 @@ export const osFamily = o => {
   if (adBuild) return +adBuild[1] >= 22000 ? 'Windows 11' : 'Windows 10';
   const win = l.match(/win(?:dows)?\s*(11|10|8\.1|8|7)\b/);
   if (win) return 'Windows ' + win[1];
-  if (/mac\s*os|macos|os x/.test(l)) return 'macOS';
-  if (/ipados|ios/.test(l)) return 'iOS / iPadOS';
+  return osText(l) || 'Other';
+};
+/* The families a system's own text names, after Windows (above). Cisco's IOS is not Apple's iOS. */
+const osText = l => {
+  if (/cisco|\bios[\s-]?x[er]\b/.test(l)) return 'Cisco IOS';
+  if (/mac\s*os|macos|\bos x\b/.test(l)) return 'macOS';
+  if (/ipados|\bios\b|iphone os/.test(l)) return 'iOS / iPadOS';
   if (/android/.test(l)) return 'Android';
+  if (/fortios|fortigate/.test(l)) return 'FortiOS';
   if (/esxi|vmware/.test(l)) return 'VMware ESXi';
+  if (/hyper-v server/.test(l)) return 'Hyper-V Server';
+  if (/proxmox/.test(l)) return 'Proxmox VE';
+  if (/xenserver|xcp-ng|citrix hypervisor/.test(l)) return 'Citrix Hypervisor';
   if (/linux|ubuntu|debian|red hat|rhel|centos|suse|fedora/.test(l)) return 'Linux';
   if (/windows/.test(l)) return 'Windows (other)';
-  return 'Other';
+  return '';
+};
+const knownOs = l => /win|server/.test(l) || !!osText(l);
+/* From the device's name and model, when its system says nothing: the few names that tell the system for sure. */
+const osByName = o => {
+  const t = `${o.name || ''} ${o.model || ''}`.toLowerCase();
+  if (/forti(gate|wifi|os)|\bfgt[-_\d]/.test(t)) return 'FortiOS';
+  if (/esxi|vmware esx/.test(t)) return 'VMware ESXi';
+  if (/iphone|ipad|ipod/.test(t)) return 'iOS / iPadOS';
+  return '';
 };
 /* Systems the maker no longer updates. */
 export const OS_ENDED = ['Windows 10', 'Windows 8.1', 'Windows 8', 'Windows 7', 'Windows Server 2003', 'Windows Server 2008', 'Windows Server 2008 R2', 'Windows Server 2012', 'Windows Server 2012 R2'];

@@ -10,6 +10,16 @@ import { DEFAULT_TYPE_RULES, ruleMatches, typeByRules } from '../public/js/type-
 test('the shipped rules tell notebooks, cameras, controllers and switches from what Lansweeper calls them', () => {
   const t = (type, model, name = '', chassis = '', role = '') => typeFor({}, type, model, role, name, chassis);
   assert.equal(t('Windows', 'HP EliteDesk 800 G9', '', 'desktop', 'workstation'), 'pc');
+  // firewalls, hypervisor hosts and iPhones by their name or model, whatever Lansweeper's type says
+  assert.equal(t('Web', 'Fortinet, Inc. FortiGate 40F', 'FortiGate_40F_Argolite'), 'firewall');
+  assert.equal(t('', 'FortiSwitch 108F', 'FSW-01'), 'switch', 'a Fortinet switch stays a switch');
+  assert.equal(t('', 'FortiAP 231F', 'AP-01'), 'accesspoint');
+  assert.equal(t('', 'VMware, Inc.', 'VMware 172.21.103.100'), 'server', 'a hypervisor host is a server');
+  assert.equal(t('', 'Wistron', 'argoesxi21.argo.intern'), 'server');
+  assert.equal(t('Windows', 'VMware Virtual Platform', 'srv-app01'), 'vm', 'its virtual machines stay VMs');
+  assert.equal(t('VMware Guest', '', 'vm-x'), 'vm');
+  assert.equal(t('', 'Wistron Infocomm', 'walkerhs-iphone'), 'ios');
+  assert.equal(t('', 'Avaya Inc', 'Avaya Inc 172.21.103.112'), 'sip');
   assert.equal(t('Windows', 'HP EliteBook 840 G10', '', '', 'workstation'), 'notebook', 'by the model');
   assert.equal(t('Windows', 'Some OEM board', '', 'notebook', 'workstation'), 'notebook', 'by the chassis');
   assert.equal(t('Windows', 'Dell Latitude 5440', '', 'laptop', 'server'), 'server', 'Windows says server: a server');
@@ -87,4 +97,14 @@ test('Apply to existing devices: a preview first, then only the ticked ones chan
     // a change by the rules does not count as set by hand: the next preview may change it again
     assert.ok(!(await srv.call('POST', '/api/feed/retype', { cookie: a.cookie, body: {} })).json.changes.some(x => x.id === '1'));
   } finally { await srv.close(); }
+});
+
+test('a push gives a device still filed as Other the type the rules now find, unless a person chose it', async () => {
+  const { mergeRecords } = await import('../server/feed.js');
+  const dev = (id, name, model, extra = {}) => ({ id, code: 'INV-' + id, type: 'other', name, model, status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: id, assetType: 'WebServer' }, ...extra });
+  const s = { objs: [dev('a', 'FortiGate_40F', 'Fortinet FortiGate 40F'), dev('b', 'ILOX01', 'HP iLO 5'), dev('c', 'Redirect to Login', 'nginx'),
+    dev('d', 'ILOX02', 'HP iLO 5', { ovr: { type: false } }), { ...dev('e', 'ARGONB29', 'HP EliteBook 840'), type: 'pc' }], rels: [], users: [], locs: [], types: {}, history: {}, policy: {} };
+  mergeRecords(s, ['a', 'b', 'c', 'd', 'e'].map(id => { const o = s.objs.find(x => x.id === id); return { name: o.name, model: o.model, ref: id, assetType: 'WebServer' }; }), new Date('2026-10-27T10:00:00Z'));
+  assert.deepEqual(s.objs.map(o => o.type), ['firewall', 'bmc', 'other', 'other', 'pc']);
+  assert.match(s.history.a[0].msg, /Type changed from other to firewall by the type rules/);
 });
