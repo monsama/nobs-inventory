@@ -1,3 +1,4 @@
+import { dateText, dateTimeText } from './dates.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { EVERY_HOURS, SCHEDULE_JOBS, nextRun, scheduleOf, scheduleText } from './schedule.js';
 import { COMPANY, dayText, daysSince, SYNC, hiddenOf, FIELD_LABEL, complianceChip } from './01-core.js';
@@ -6,7 +7,7 @@ import { overlapProblem, subnetSpan, ipInt } from './net.js';
 import { SUBNETS, VIEWBOX_RE, tcol } from './01-core.js';
 import { SVG_ATTRS, SVG_ELEMENTS } from './svg-rules.js';
 import { subnetProblem } from './net.js';
-import { pad2, tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { tico, $, BUILTIN, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, ICON, LOCS, LS_ON, PLANS, PW_MIN, SITES, TYPE_FIELDS, TYPES, VLANS, fullTextTooltips, rels, byId, esc, hist, iconSvg, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
 import { SERVER, clearConfirm, flushSave, loadVersion, queueServerSave, reloadFromServer, render } from './07-render-plans.js';
 import { CARD_FIELDS, cardLines } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -236,7 +237,7 @@ export function graphSummary(c){
 function unmatchedHtml(edit){
   const list = st.graphUnmatched || [];
   if (!list.length) return '';
-  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  const day = dateText;
   return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Entra or Intune, not in the inventory</b><span class="cnt">${list.length}</span></div>
     <p class="note" style="padding:4px 12px 8px">Found at the last sync, by neither serial number nor name. Often phones and tablets Lansweeper does not scan, or devices named differently. Added ones get their type from their system, and Graph keeps them up to date.</p>
     <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="guList" style="min-width:0"><thead><tr><th><input type="checkbox" id="guAllBox" aria-label="Select all" ${edit ? '' : 'disabled'}></th><th>Name</th><th>System</th><th>Model</th><th>Serial</th><th>Primary user</th><th>Compliance</th><th>Last contact</th></tr></thead><tbody>
@@ -873,7 +874,7 @@ export const ldapUrlFor = (url, security) => {
 /* The CA certificate the directory server's certificate is checked against, when a company CA issued it. */
 function caHtml(edit){
   const ca = st.ldapCa;
-  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  const day = dateText;
   const pick = `<label class="btnlike ${edit ? '' : 'disabled'}" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
   if (!ca) return `<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
   return `<span style="flex:1;min-width:0">${ca.certs.map(c => `<span class="chip ok" style="flex:none">${esc(c.name)}</span> <span class="muted">until ${esc(day(c.expires))}</span>`).join(' ')}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
@@ -993,7 +994,7 @@ async function loadLdapPassword(replace = false){
   const r = await fetch('api/ldap/password', {credentials: 'same-origin'}).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => ({})) : {};
   if (!$('#ldapPw')) return;
-  const day = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}` : ''; };
+  const day = dateText;
   if (j.source === 'server'){ box.innerHTML = '<span class="muted">Set on the server (NI_LDAP_SERVICE_PASSWORD), which takes precedence</span>'; return; }
   if (j.source === 'app' && !replace){
     box.innerHTML = `<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${esc(day(j.setAt))}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
@@ -1527,7 +1528,7 @@ export async function loadPushInfo(){
   if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
 }
 /* A date for people: "22.10.2026 18:03", '—' when there is none. */
-export const pushDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
+export const pushDate = dateTimeText;
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){
   const c = pushLast ? pushLast.counts : null;

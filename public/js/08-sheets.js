@@ -2,6 +2,7 @@
    account, printed and signed. IT sets that password in AD with "User must change password at next logon"; the app
    never writes to AD. The server keeps each sheet encrypted, so it can be printed again; the password goes from the
    kept sheet once it is marked as changed, and at the latest after a set number of days. */
+import { dateText } from './dates.js';
 import { $, COMPANY, esc, objs, toast } from './01-core.js';
 import { closeModal, modal } from './03-object-modals.js';
 import { flushSave } from './07-render-plans.js';
@@ -13,7 +14,7 @@ const call = async (method, url, body) => {
   return j;
 };
 /* A day as the rest of the app writes it, 25.10.2026, as on the PDF. */
-const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
+const day = dateText;
 
 /* The look of a printed sheet. Used for printing from the page and in the downloaded file, so both are the same. */
 const SHEET_CSS = `.sheet{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;background:#fff;max-width:720px;margin:0 auto;padding:8px 4px}
