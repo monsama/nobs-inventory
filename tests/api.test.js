@@ -622,6 +622,16 @@ test('the day Lansweeper last scanned a device is kept with it, and is not count
   assert.equal(s.objs[0].feed.scanned, '2026-10-25', 'a day that is not one is ignored');
 });
 
+test('a maker\'s placeholder serial is no serial: two machines that share one stay two devices', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const { isPlaceholderSerial } = await import('../public/js/serials.js');
+  for (const v of ['To be filled by O.E.M.', 'Default string', 'System Serial Number', 'Chassis Serial Number', 'Not Specified', '0000000', 'N/A', '']) assert.equal(isPlaceholderSerial(v), true, v);
+  for (const v of ['NA1B2C3', 'OEM12345', 'NONE-7731', 'PF3X9K2L', '5CG1234XYZ']) assert.equal(isPlaceholderSerial(v), false, v);
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0 };
+  mergeRecords(s, recordsFromJson([{ name: 'PC-A', ref: 'a', serial: 'To be filled by O.E.M.' }, { name: 'PC-B', ref: 'b', serial: 'To be filled by O.E.M.' }]));
+  assert.deepEqual(s.objs.map(o => [o.name, o.serial || '']), [['PC-A', ''], ['PC-B', '']]);
+});
+
 test('Lansweeper\'s last scan attempt and first-found day are kept, and a device matched later says when it was linked', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'ACMEDB05', serial: 'X5', status: 'active', ovr: {}, feed: null }], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 1 };

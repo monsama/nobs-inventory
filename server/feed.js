@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isPlaceholderSerial } from '../public/js/serials.js';
 import { HttpError } from './errors.js';
 
 /* Lansweeper merge rules, shared by the file import and the API sync.
@@ -240,6 +241,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
     for (const k of ['purchased', 'warranty', 'scanned', 'tried', 'firstSeen']) r[k] = dayOf(r[k]);
+    /* A maker's placeholder serial ("To be filled by O.E.M.") is shared by many machines: it is no serial at all, so two
+       of them are never folded into one device by it. */
+    if (isPlaceholderSerial(r.serial)) r.serial = '';
     if (Array.isArray(r.nics)) r.nics = cleanNics(r.nics, r.ip);
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;

@@ -126,8 +126,10 @@ const daysAgo = (day, today) => (today - new Date(day + 'T00:00:00')) / 86400000
 /* A device Lansweeper tries to scan but has never scanned (it only knows it from Active Directory, or cannot log on):
    none of its details come from a scan. A week's grace for one it found only just now. */
 export const NEVER_SCANNED_GRACE_DAYS = 7;
+/* The day the grace counts from: when Lansweeper found it, or, from a Lansweeper that does not say, when it came here. */
+const foundDay = f => isDay(f.firstSeen) ? f.firstSeen : (() => { const t = stampTime(f.linked || f.created); return t ? new Date(t).toISOString().slice(0, 10) : ''; })();
 export const neverScanned = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && !o.feed.scanned && isDay(o.feed.tried)
-  && !(isDay(o.feed.firstSeen) && daysAgo(o.feed.firstSeen, today) <= NEVER_SCANNED_GRACE_DAYS));
+  && !(foundDay(o.feed) && daysAgo(foundDay(o.feed), today) <= NEVER_SCANNED_GRACE_DAYS));
 export const scanOld = (o, today = new Date()) => neverScanned(o, today) || !!(lsLive() && o.feed && !o.excluded && !o.detached && isDay(o.feed.scanned)
   && daysAgo(o.feed.scanned, today) > SCAN_OLD_DAYS);
 export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)

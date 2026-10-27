@@ -28,6 +28,7 @@ export function closeGroup(){
   open.pins.forEach(p => { p.classList.remove('fanned'); p.classList.add('grouped'); p.style.left = p.dataset.homeX; p.style.top = p.dataset.homeY; });
   if (open.list) open.list.remove();
   if (open.ring) open.ring.remove();
+  open.marker.closest('.pl-canvas')?.classList.remove('fanning');
   open.marker.classList.remove('open'); open.marker.setAttribute('aria-expanded', 'false');
   if (open.marker.dataset.homeX){ open.marker.style.left = open.marker.dataset.homeX; open.marker.style.top = open.marker.dataset.homeY; }
   open = null;
@@ -36,7 +37,8 @@ export function closeGroup(){
 
 function regroup(c, startDrag){
   if (!c.isConnected) { observer && observer.disconnect(); return; }
-  open = null;
+  /* An open group goes back first, so its pins are at their own places again before anything is measured or kept. */
+  closeGroup();
   c.querySelectorAll('.pl-group,.pl-glist,.pl-fanring').forEach(el => el.remove());
   const pins = [...c.querySelectorAll('.pl-pin')];
   pins.forEach(p => { p.classList.remove('grouped', 'fanned'); delete p.dataset.homeX; delete p.dataset.homeY; });
@@ -56,15 +58,21 @@ function regroup(c, startDrag){
     if (idx.length < 2) continue;
     const members = idx.map(i => pins[i]), devs = members.map(p => byId(p.dataset.pin)).filter(Boolean);
     /* The marker sits where its pins are on average, in the canvas's own percentages, so it moves with zoom. */
-    const x = idx.reduce((s, i) => s + (boxes[i].left + boxes[i].width / 2 - cr.left), 0) / idx.length / cr.width * 100;
-    const y = idx.reduce((s, i) => s + (boxes[i].top + boxes[i].height / 2 - cr.top), 0) / idx.length / cr.height * 100;
+    let gx = idx.reduce((s, i) => s + (boxes[i].left + boxes[i].width / 2 - cr.left), 0) / idx.length / cr.width * 100;
+    let gy = idx.reduce((s, i) => s + (boxes[i].top + boxes[i].height / 2 - cr.top), 0) / idx.length / cr.height * 100;
     members.forEach(p => { p.dataset.homeX = p.style.left; p.dataset.homeY = p.style.top; p.classList.add('grouped'); });
+    /* A group of one area's own devices sits in the middle of the area, under its name, not on it. */
+    const boxes1 = new Set(members.map(p => p.dataset.box || ''));
+    if (boxes1.size === 1 && members[0].dataset.box) {
+      const [bx, by, bw, bh] = members[0].dataset.box.split(',').map(Number), tag = 30 / cr.height * 100;
+      gx = bx + bw / 2; gy = Math.max(by + bh / 2, by + Math.min(bh, tag + 14 / cr.height * 100));
+    }
     const kinds = [...new Set(devs.map(o => o.type))];
     const names = devs.map(o => o.name).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const m = document.createElement('button');
     m.type = 'button';
     m.className = 'pl-group' + (devs.some(needsAttention) ? ' attn' : '') + (hits && devs.some(o => hits.has(o.id)) ? ' hit' : '');
-    m.style.left = x + '%'; m.style.top = y + '%'; m.dataset.homeX = m.style.left; m.dataset.homeY = m.style.top;
+    m.style.left = gx + '%'; m.style.top = gy + '%'; m.dataset.homeX = m.style.left; m.dataset.homeY = m.style.top;
     m.setAttribute('aria-expanded', 'false');
     m.setAttribute('aria-label', `${devs.length} devices: ${names.join(', ')}`);
     m.title = names.slice(0, 12).join('\n') + (names.length > 12 ? `\nand ${names.length - 12} more` : '') + '\n\nClick to show them. Zoom in to see them apart.';
@@ -120,7 +128,7 @@ function fan(c, m, members){
     p.style.top = (cy + Math.sin(a) * ry) / cr.height * 100 + '%';
     p.classList.remove('grouped'); p.classList.add('fanned');
   });
-  m.classList.add('open'); m.setAttribute('aria-expanded', 'true');
+  m.classList.add('open'); m.setAttribute('aria-expanded', 'true'); c.classList.add('fanning');
   open = { marker: m, pins: members, ring };
   members[0].focus({ preventScroll: true });
 }
@@ -132,7 +140,7 @@ function list(c, m, members, devs, startDrag){
   box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', `${devs.length} devices`);
   box.style.left = m.style.left; box.style.top = m.style.top;
   const sorted = [...devs].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  box.innerHTML = `<div class="pl-ghead">${devs.length} devices here <span class="muted">· click to open, drag to move</span></div>
+  box.innerHTML = `<div class="pl-ghead">${devs.length} devices here<span class="muted">Click to open, drag to move</span></div>
     ${sorted.map(o => `<button type="button" class="pl-grow${needsAttention(o) ? ' attn' : ''}" data-gopen="${esc(o.id)}">${tico(o.type, 'tico sm')}<span class="pl-gn">${esc(o.name)}</span><span class="muted mono">${esc(o.code || '')}</span><span class="muted">${esc(TYPES[o.type] ? TYPES[o.type].short : '')}</span></button>`).join('')}`;
   let dragged = false;
   box.onpointerdown = e => {
@@ -156,4 +164,4 @@ function list(c, m, members, devs, startDrag){
   const first = box.querySelector('[data-gopen]'); if (first) first.focus({ preventScroll: true });
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && open){ const m = open.marker; closeGroup(); m.focus({ preventScroll: true }); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && open && !document.getElementById('mdl')){ const m = open.marker; closeGroup(); m.focus({ preventScroll: true }); } });
