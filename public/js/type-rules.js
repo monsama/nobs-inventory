@@ -24,11 +24,26 @@ export const DEFAULT_TYPE_RULES = [
   r('model', 'bmc, baseboard management controller, ipmi, imm, imm2', 'bmc'),
   r('type', 'bmc, ipmi, imm, out-of-band, out of band management', 'bmc'),
   r('any', 'homeserver, facilityserver, feller, knx, gira, loxone, novar, hmi, operator panel, touch panel', 'plc'),
+  /* Fortinet makes switches and access points too: those first, then FortiGate and the other firewalls by name or model. */
+  r('any', 'fortiswitch', 'switch'),
+  r('any', 'fortiap', 'accesspoint'),
+  r('any', 'fortigate, fortiwifi, fortios, fgt-, fgt_, palo alto, sonicwall, watchguard, firebox, sophos xg, sophos utm, sophos firewall, opnsense, pfsense, check point, meraki mx, usg flex, zywall', 'firewall'),
+  /* An iPhone or iPad by its name (jdoe-iphone), whatever Lansweeper calls it. */
+  r('any', 'iphone, ipad, ipod', 'ios'),
+  /* Avaya's network devices are mostly its IP desk phones. */
+  r('any', 'avaya', 'sip'),
   r('any', 'omnipcx, oxo connect, oxo0, smartnode, patton electronics, mx-one, telefonbau, tas telefon', 'pbx'),
   r('any', 'gs105, gs108, gs110, gs116, gs305, gs308, gs316, gs324, gs724, gs728, gs752, procurve, catalyst, scalance x, unifi switch, usw-, aruba cx, 8320-, 8325-, 8360-, 6100-, 6200f, 6300f, 6300m, 6400-, 2530-, 2540-, 2930f, 2930m, 5406r, 5412r', 'switch'),
   /* The model a hypervisor reports for its virtual machines. */
   r('model', 'vmware virtual platform, vmware7,1, vmware20,1, virtual machine, virtualbox, kvm, qemu, hvm domu, standard pc (q35, standard pc (i440fx', 'vm'),
+  r('type', 'vmware guest, virtual machine', 'vm'),
+  /* A hypervisor host is a physical server: ESXi, Hyper-V Server, Proxmox and the like, by name, model or type. Its
+     virtual machines were taken by the rules just above. */
+  r('any', 'esxi, vmware esx, vsphere, vcenter, hyper-v server, proxmox, xenserver, xcp-ng, nutanix, hypervisor, vmware', 'server'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),
+  /* Naming schemes: NB for a notebook and PC for a desktop, followed by a number (acmenb35, ACMEPC11, ZH-PC-0151). */
+  r('name', 'nb, notebook, laptop', 'notebook'),
+  r('name', 'pc, desktop, workstation', 'pc'),
   r('model', 'latitude, thinkpad, elitebook, probook, zbook, macbook, surface laptop, surface book, surface pro, ideapad, vivobook, zenbook, travelmate, toughbook, lifebook, notebook, laptop', 'notebook'),
   /* Lansweeper's type names. */
   r('type', 'virtual machine, vm', 'vm'),
@@ -52,13 +67,19 @@ export const DEFAULT_TYPE_RULES = [
 ];
 
 /* The words of a rule, lower case. A word of three letters or less matches as a whole word only (pc, vm, ios, nvr), so
-   "pc" does not match "pcd" or "spcs"; longer words match anywhere. */
+   "pc" does not match "pcd" or "spcs"; longer words match anywhere. In a device's name a short word also counts
+   when a number follows it, as naming schemes write it: acmenb35, acmepc11, srvvm02. */
 const wordsOf = text => String(text || '').toLowerCase().split(',').map(w => w.trim()).filter(Boolean);
 const hits = (hay, w) => w.length > 3 ? hay.includes(w) : new RegExp(`(^|[^a-z0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(hay);
+const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* The letters just before it are a site or company prefix (acme, zh) or nothing: one letter alone makes another word
+   (ipc2 is an IP camera, not a PC), and so does a prefix ending in i (camipc). */
+const hitsInName = (hay, w) => hits(hay, w) || (w.length <= 3 && /^[a-z]+$/.test(w) &&
+  [...hay.matchAll(new RegExp(`(?:^|[^a-z])([a-z]*)${esc(w)}\\d+(?=[^a-z0-9]|$)`, 'g'))].some(m => m[1].length !== 1 && !m[1].endsWith('i')));
 export function ruleMatches(rule, dev) {
   const text = rule.field === 'any' ? [dev.type, dev.model, dev.name].join(' ') : dev[rule.field];
   const hay = String(text || '').toLowerCase();
-  return !!hay && wordsOf(rule.words).some(w => hits(hay, w));
+  return !!hay && wordsOf(rule.words).some(w => (rule.field === 'name' ? hitsInName : hits)(hay, w));
 }
 /* The type the rules give a device ({type, model, name, chassis}), and the rule that gave it (null: none matched). */
 export function typeByRules(rules, dev) {

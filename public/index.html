@@ -1253,6 +1253,20 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
 .imp-table .imp-why{color:var(--badtext)!important}
 .imp-table td:last-child{white-space:normal}
 @media (max-width:760px){.imp-pick{grid-template-columns:minmax(0,1fr)}.imp-kind select{width:100%}}
+/* Directory and sync marks, quiet: the box stays neutral and a small dot carries the state, in its colour. The words
+   say the rest, so the colours are not needed to tell them apart. */
+.jb,.jb.on{border:1px solid var(--bd2);background:transparent}
+.jb.on{background:var(--panel2)}
+.jb.on i{box-shadow:none}
+.jb.on b{color:var(--fg);font-weight:600}
+.jb.on small{color:var(--muted);font-weight:500}
+.jb.no,.jb.unk{background:transparent;opacity:1}
+.jb.no b,.jb.unk b{color:var(--muted);font-weight:500}
+.chip.lsst{background:transparent;border-color:var(--bd2);color:var(--fg);font-weight:500}
+.chip.lsst::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;vertical-align:1px;background:var(--muted)}
+.chip.lsst.ok::before{background:var(--okdot)}
+.chip.lsst.warn::before{background:var(--warn)}
+.chip.lsst.bad::before{background:var(--danger)}
 </style>
 </head>
 <body>

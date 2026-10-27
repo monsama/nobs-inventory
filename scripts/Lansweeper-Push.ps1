@@ -769,7 +769,9 @@ function Get-LsRecords {
                 $rec['software'] = $items.ToArray()
             }
         }
-        foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
+        # The monitors go as records of their own; counted apart, so the log adds up with Lansweeper's assets.
+        $script:MonitorCount = 0
+        foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }
@@ -890,7 +892,8 @@ try {
 
     Write-PushLog 'Reading Lansweeper ...'
     $records = Get-LsRecords
-    Write-PushLog "$($records.Count) active asset(s) with a name"
+    $assets = $records.Count - [int]$script:MonitorCount
+    Write-PushLog ("$assets active asset(s) with a name" + $(if ($script:MonitorCount) { " and $($script:MonitorCount) monitor(s) on them: $($records.Count) records" } else { '' }))
     $leftOut = Format-LeftOut $script:LeftOut
     if ($leftOut) { Write-PushLog $leftOut }
 
@@ -905,6 +908,8 @@ try {
     catch {
         # A certificate Windows does not trust (a self-signed one, say): when someone is there, offer to trust it and send again.
         $msg = "$($_.Exception.Message) $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message })"
+        # A refused token (401): say what to do, not just the web error. The stored token no longer matches the one in NOBS.
+        if ((Get-HttpStatus $_) -eq 401) { throw 'NOBS refused the stored feed token (401): it was replaced or removed in NOBS (Settings -> Feed), or NOBS was reset. Create a token there and run .\Lansweeper-Push.ps1 -SetCredential to store it.' }
         if (-not ($script:Interactive -and -not $Config.NobsCertThumbprint -and $msg -match 'trust|certificate|SSL|TLS|Zertifikat')) { throw }
         if (-not (Confirm-TrustCertificate)) { throw }
         $totals = Send-Records $records $token

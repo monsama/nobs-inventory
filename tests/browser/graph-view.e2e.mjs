@@ -102,8 +102,12 @@ try {
   assert.match(await p.textContent('#osList'), /Windows 10/);
   await p.click('#osList [data-osfam]'); assert.equal((await ids()).length, 7, 'the way out of the system filter');
   assert.deepEqual(await p.evaluate(async () => { const { osFamily } = await import('/js/01-core.js');
-    return ['Windows 10.0.22631', 'Windows 10.0.19045', 'Microsoft Windows 11 Enterprise', 'Win 10 Pro', 'Windows Server 2019 Standard', 'Windows Server 2012 R2 Datacenter', 'macOS 14.5', 'iPadOS 17.1', 'Android 14', 'Ubuntu 22.04', 'Win 2019', 'Win 2012 R2', 'Windows 2016 Standard', 'Windows 2000', 'VMware ESXi 8.0', 'Windows 10 Enterprise (10.0.22631)', 'Windows 10 Pro (10.0.19045)', ''].map(os => osFamily({ os })); }),
-    ['Windows 11', 'Windows 10', 'Windows 11', 'Windows 10', 'Windows Server 2019', 'Windows Server 2012 R2', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', 'Windows Server 2019', 'Windows Server 2012 R2', 'Windows Server 2016', 'Windows (other)', 'VMware ESXi', 'Windows 11', 'Windows 10', '']);
+    return ['Windows 10.0.22631', 'Windows 10.0.19045', 'Microsoft Windows 11 Enterprise', 'Win 10 Pro', 'Windows Server 2019 Standard', 'Windows Server 2012 R2 Datacenter', 'macOS 14.5', 'iPadOS 17.1', 'Android 14', 'Ubuntu 22.04', 'Win 2019', 'Win 2012 R2', 'Windows 2016 Standard', 'Windows 2000', 'VMware ESXi 8.0', 'Windows 10 Enterprise (10.0.22631)', 'Windows 10 Pro (10.0.19045)', 'Cisco IOS XE 17.9', 'FortiOS v7.2.8', ''].map(os => osFamily({ os })); }),
+    ['Windows 11', 'Windows 10', 'Windows 11', 'Windows 10', 'Windows Server 2019', 'Windows Server 2012 R2', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', 'Windows Server 2019', 'Windows Server 2012 R2', 'Windows Server 2016', 'Windows (other)', 'VMware ESXi', 'Windows 11', 'Windows 10', 'Cisco IOS', 'FortiOS', '']);
+  // no system, or one not known: the name or model may say it
+  assert.deepEqual(await p.evaluate(async () => { const { osFamily } = await import('/js/01-core.js');
+    return [{ name: 'FortiGate_40F_Office' }, { name: 'acmeesxi21.corp.local' }, { name: 'jdoe-iphone' }, { name: 'PRN-01', os: 'Weird OS 2' }, { name: 'PRN-02' }].map(osFamily); }),
+    ['FortiOS', 'VMware ESXi', 'iOS / iPadOS', 'Other', '']);
 
   // Settings: the device Graph has that the inventory does not, added from there
   await p.click('#clearF');
