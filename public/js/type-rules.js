@@ -24,10 +24,22 @@ export const DEFAULT_TYPE_RULES = [
   r('model', 'bmc, baseboard management controller, ipmi, imm, imm2', 'bmc'),
   r('type', 'bmc, ipmi, imm, out-of-band, out of band management', 'bmc'),
   r('any', 'homeserver, facilityserver, feller, knx, gira, loxone, novar, hmi, operator panel, touch panel', 'plc'),
+  /* Fortinet makes switches and access points too: those first, then FortiGate and the other firewalls by name or model. */
+  r('any', 'fortiswitch', 'switch'),
+  r('any', 'fortiap', 'accesspoint'),
+  r('any', 'fortigate, fortiwifi, fortios, fgt-, fgt_, palo alto, sonicwall, watchguard, firebox, sophos xg, sophos utm, sophos firewall, opnsense, pfsense, check point, meraki mx, usg flex, zywall', 'firewall'),
+  /* An iPhone or iPad by its name (jdoe-iphone), whatever Lansweeper calls it. */
+  r('any', 'iphone, ipad, ipod', 'ios'),
+  /* Avaya's network devices are mostly its IP desk phones. */
+  r('any', 'avaya', 'sip'),
   r('any', 'omnipcx, oxo connect, oxo0, smartnode, patton electronics, mx-one, telefonbau, tas telefon', 'pbx'),
   r('any', 'gs105, gs108, gs110, gs116, gs305, gs308, gs316, gs324, gs724, gs728, gs752, procurve, catalyst, scalance x, unifi switch, usw-, aruba cx, 8320-, 8325-, 8360-, 6100-, 6200f, 6300f, 6300m, 6400-, 2530-, 2540-, 2930f, 2930m, 5406r, 5412r', 'switch'),
   /* The model a hypervisor reports for its virtual machines. */
   r('model', 'vmware virtual platform, vmware7,1, vmware20,1, virtual machine, virtualbox, kvm, qemu, hvm domu, standard pc (q35, standard pc (i440fx', 'vm'),
+  r('type', 'vmware guest, virtual machine', 'vm'),
+  /* A hypervisor host is a physical server: ESXi, Hyper-V Server, Proxmox and the like, by name, model or type. Its
+     virtual machines were taken by the rules just above. */
+  r('any', 'esxi, vmware esx, vsphere, vcenter, hyper-v server, proxmox, xenserver, xcp-ng, nutanix, hypervisor, vmware', 'server'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),
   r('model', 'latitude, thinkpad, elitebook, probook, zbook, macbook, surface laptop, surface book, surface pro, ideapad, vivobook, zenbook, travelmate, toughbook, lifebook, notebook, laptop', 'notebook'),
   /* Lansweeper's type names. */
