@@ -339,7 +339,8 @@ document.addEventListener('keydown', e => {
 document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* A field's ⋯ menu closes on a click elsewhere or Escape. */
-document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
+/* An open menu (a field's, or More in a toolbar) closes on a click beside it. */
+document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
 export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
@@ -359,6 +360,12 @@ export function fieldMenu(o, f, hiddenBy = ''){
        NO_CLEAR.includes(k) ? '' : b('clear', 'Clear value…', empty ? 'disabled title="The field is empty"' : ''),
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
   return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
+}
+/* Over the two narrow columns at the right of Properties, for an object Lansweeper fills in: what the boxes are, so a row
+   without one reads as "not from Lansweeper", not as a gap. The text ends over the boxes. */
+function propHead(o, menu){
+  if (!(LS_ON() && feedLinked(o))) return '';
+  return `<span></span><div class="ctlrow prop-head" aria-hidden="true"><span></span><span class="pchk-slot ph-ls">From Lansweeper</span>${menu ? '<span class="fm-slot"></span>' : ''}</div>`;
 }
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
@@ -710,7 +717,7 @@ export function renderObj(o){
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${propHead(o, !!menuSlot)}${fields.map(row).join('')}
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}

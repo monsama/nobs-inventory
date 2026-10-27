@@ -73,6 +73,11 @@ try {
   await p.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2);
   await p.keyboard.down('Control'); await p.mouse.wheel(0, -100); await p.keyboard.up('Control');
   assert.ok(await mapZoom() > z0, 'the map did not zoom in');
+  // the – 100% + control shows the zoom, and its buttons zoom too
+  assert.equal((await p.textContent('#mapZoomReset')).trim(), Math.round(await mapZoom() * 100) + '%');
+  await p.click('#mapZoomReset'); assert.equal(await mapZoom(), 1);
+  await p.click('#mapZoomIn'); assert.equal((await p.textContent('#mapZoomReset')).trim(), '125%');
+  await p.click('#mapZoomOut'); assert.equal((await p.textContent('#mapZoomReset')).trim(), '100%');
 
   // PC picked on the left, a search for the switch: every view says it is there, of another type
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = 'pc'; c.st.q = '172.21.103.2'; document.querySelector('#search').value = c.st.q; });

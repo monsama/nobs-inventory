@@ -206,6 +206,8 @@ button[data-td]{min-width:92px}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
 .pchk-slot{display:inline-block;width:24px;flex:none}
+.prop-head{min-height:0}
+.prop-head .ph-ls{display:flex;justify-content:flex-end;white-space:nowrap;overflow:visible;font-size:11px;color:var(--muted);margin-right:-2px}
 .ctlrow .pchk.pchk-only{width:24px;justify-content:center}
 .ctlrow .pchk-only input{margin:0}
 table.types{table-layout:fixed;width:100%}
@@ -409,7 +411,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
-.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0;align-items:flex-start}
+.ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
 /* Under a long list drawn in part: how many are shown, and a way to show them all. */
 /* links on a device: the label opens it, the address below it; in the table a list of labels */
@@ -456,8 +458,8 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .resp-pick select{width:100%}
 .resp-pick .cn-ways{padding:0}
 @media (max-width:760px){.cn-ways,.cn-note{padding-left:10px;margin-left:10px}.cn-ways{margin-left:0}.resp-row>.k{width:80px}}
-.ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
-.ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
+/* A kind and its cost on one line, the cost on the right, in the fourth tile. */
+.ct-kind{display:flex;justify-content:space-between;gap:12px;width:100%;font-size:13px;line-height:1.6}
 .ct-sum-note{margin:0;padding:6px 12px 10px}
 table.contracts td:last-child,table.contracts th:last-child{width:1%;white-space:nowrap}
 button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
@@ -531,7 +533,6 @@ td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
-table.grid tr:nth-child(even) td{background:var(--even)}
 table.grid tbody tr{cursor:pointer}
 table.grid tbody tr:hover td{background:var(--hover)}
 /* Pinned columns (selection, code, name) stay on the left while a wide table scrolls; a shade marks their edge. */
@@ -544,7 +545,6 @@ table.grid[data-pinned] thead tr>:nth-child(-n+3){z-index:3}
 table.grid[data-pinned]{border-collapse:separate;border-spacing:0}
 table.grid tr>.selcol,table.grid[data-pinned] tbody tr>td:first-child{text-overflow:clip;padding-left:10px;padding-right:4px}
 table.grid[data-pinned] tbody tr>td:nth-child(-n+3){background:var(--bg)}
-table.grid[data-pinned] tbody tr:nth-child(even)>td:nth-child(-n+3){background:var(--even)}
 table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover)}
 table.grid[data-pinned="3"] tr>:nth-child(3),table.grid[data-pinned="2"] tr>:nth-child(2),table.grid[data-pinned="1"] tr>:nth-child(1){box-shadow:4px 0 6px -4px rgba(0,0,0,.35)}
 table.grid td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
@@ -563,7 +563,6 @@ table.grid th .rz:hover{background:var(--accent);opacity:.45}
 table.grid th[data-sort="asc"]::after{content:' \25B2';font-size:9px;color:var(--muted)}
 /* Software: a package opens in place to list its devices. */
 table.grid.sw{width:100%;min-width:0;table-layout:fixed}
-table.grid.sw tr:nth-child(even) td{background:none}
 table.grid.sw .sw-row{cursor:pointer}
 table.grid.sw .sw-row:hover td{background:var(--hover)}
 table.grid.sw .sw-row.open td{background:var(--panel);border-bottom-color:transparent}
