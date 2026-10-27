@@ -20,6 +20,7 @@ function startDirectory(people) {
     res.end(); return next();
   });
   dir.search('dc=test', (req, res, next) => {
+    dir.asked = req.attributes;   /* what the last search asked for */
     for (const [dn, p] of Object.entries(people)) if (req.filter.matches(p.attrs)) res.send({ dn, attributes: p.attrs });
     res.end(); return next();
   });
@@ -294,6 +295,7 @@ test('computer groups: the sync reads the computer accounts and gives each devic
   try {
     const list = await ldapListComputers(cfg(`ldap://127.0.0.1:${dir.address().port}`));
     assert.deepEqual(list.map(c => [c.name, c.groups]), [['ZH-PC-0151', ['GPO-Kiosk', 'SW-Office365']], ['ZH-PC-0152', []]], 'only computers, groups by name');
+    assert.ok(dir.asked.length && !dir.asked.includes('*') && !dir.asked.some(a => /admpwd|laps|fve/i.test(a)), 'named attributes only, no LAPS or BitLocker: ' + dir.asked.join(','));
     const s = { objs: [
       { id: 'a', name: 'zh-pc-0151', status: 'active' }, { id: 'b', name: 'ZH-PC-0152.test.ch', status: 'active', adGroups: ['Old'] },
       { id: 'c', name: 'SW-01', status: 'active' }, { id: 'd', name: 'ZH-PC-0151', status: 'retired' },

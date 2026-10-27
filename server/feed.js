@@ -7,6 +7,7 @@ import { KNOWN_TYPES } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
+import { dropFill } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
@@ -132,7 +133,8 @@ function applyDepartments(s, records) {
     if (p.source === 'lansweeper') {
       if (!p.login && isLogin && !byLogin.has(login)) { p.login = r.user; byLogin.set(login, p); n++; }
       if (r.userName && p.name !== r.userName.slice(0, 120) && low(p.name) === low(p.login || r.user)) { p.name = r.userName.slice(0, 120); n++; }
-      if (r.userDept && !p.dept) { p.dept = r.userDept.slice(0, 120); n++; }
+      /* Lansweeper's department goes before one Entra gave (deptFrom), never before one set in the directory or by hand. */
+      if (r.userDept && (!p.dept || (p.deptFrom === 'entra' && p.dept !== r.userDept.slice(0, 120)))) { p.dept = r.userDept.slice(0, 120); delete p.deptFrom; n++; }
     }
     for (const o of byUser.get(login) || []) if (!o.uid && !o.hotdesk && low(o.user) === login) { o.uid = p.id; o.user = p.name; n++; }
   }
@@ -306,8 +308,11 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     let changed = false;
     for (const k of FEED_FIELDS) {
       const incoming = r[k];
-      if (!incoming || found[k] === incoming) continue;
+      if (!incoming) continue;
       const owns = s.feedOn !== false && (found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
+      /* What Lansweeper sets is Lansweeper's: a directory's fill of it (fill.js) is forgotten. */
+      if (owns) dropFill(found, k);
+      if (found[k] === incoming) continue;
       if (owns){
         if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
         found[k] = incoming; changed = true;

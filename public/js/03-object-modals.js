@@ -449,6 +449,7 @@ export function diskBars(text, live = true){
   }).join('')}</div>`;
 }
 /* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
+const FILL_FROM = { graph: 'Intune', ad: 'Active Directory' };
 export function fieldNote(o, k){
   let t = '', cls = 'warn';
   if (k === 'gateway' && o.gateway){
@@ -456,6 +457,8 @@ export function fieldNote(o, k){
     if (sn && sn.gateway && sn.gateway !== o.gateway) t = `Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`;
   }
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') { t = 'The warranty has ended.'; cls = 'bad'; } else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
+  /* Filled in by a directory (the server's fill.js): it says which, until Lansweeper or a person sets the value. */
+  if (!t && o.src && o.src[k] && o[k]) return `<span></span><p class="fieldnote info" id="f_${o.id}_${k}_src">From ${esc(FILL_FROM[o.src[k]] || o.src[k])}: typing a value here keeps yours.</p>`;
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
 }
 /* The subnet a device is in: the one picked on it, or else the one its address falls in. */
@@ -534,10 +537,21 @@ export function graphPanel(o){
       ${row('Encryption', enc)}
       ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
       ${row('Operating system', esc(g.os || ''))}
+      ${row('Phone number', esc(g.phone || ''))}
+      ${row('IMEI', g.imei ? `<span class="mono">${esc(g.imei)}</span>` : '')}
+      ${row('Owned by', esc(g.ownership || ''))}
+      ${row('Free storage', esc(g.free || ''))}
       ${row(g.lastCheckIn ? 'Last check-in' : 'Last sign-in', last ? esc(graphTime(last)) + (graphStale(o) ? ` <span class="chip warn">over ${GRAPH_STALE_DAYS} days ago</span>` : '') : '')}
       ${row('Read', esc(g.seen || ''))}
     </dl>
-    <p class="note" style="padding:6px 12px 10px">From Microsoft Graph at the last sync. ${g.added ? 'Graph keeps this device up to date.' : 'It fills in fields this device does not have yet; it changes nothing in Entra or Intune.'}</p></div>`;
+    <p class="note" style="padding:6px 12px 10px">From Microsoft Graph at the last sync. ${g.added ? 'Graph keeps this device up to date.' : `It fills in fields this device does not have yet${st.fillGraph === false ? ' (turned off in Settings)' : ''}; it changes nothing in Entra or Intune.`}</p></div>`;
+}
+/* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
+export const AD_STALE_DAYS = 90;
+function adAccountHtml(ad){
+  const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
+  const logon = ad.logon ? `Last logon ${esc(ad.logon)}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
+  return `${logon}${ad.created ? ` <span class="muted">· created ${esc(ad.created)}</span>` : ''}`;
 }
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
@@ -702,7 +716,8 @@ export function retireModal(o){
   $('#rtCancel').onclick = closeModal;
   $('#rtOk').onclick = () => {
     /* All of it can be undone at once: the device, the relations taken away and the contracts it was on. */
-    const was = snapshot([o]), relsWas = [...rels], ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
+    /* The devices on top of it are taken out of the rack with it, so they are put back too. */
+    const was = snapshot([o, ...objs.filter(x => x.ontop === o.id)]), relsWas = [...rels], ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
     if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); }
     const done = ties.filter(([k]) => $(`[data-rt="${k}"]`).checked);
     done.forEach(([, , run]) => run());
@@ -712,8 +727,9 @@ export function retireModal(o){
     closeModal();
     toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
       restoreSnapshot(was, 'Retirement undone by ' + who());
-      rels.splice(0, rels.length, ...relsWas);
-      ctsWas.forEach(([c, d]) => { c.devices = d; });
+      /* Only the relations and contract entries the retirement took away come back: anything added since stays. */
+      for (const r of relsWas) if (!rels.includes(r)) rels.push(r);
+      ctsWas.forEach(([c, d]) => { c.devices = [...new Set([...(c.devices || []), ...d])]; });
       render();
     });
     render();
@@ -813,6 +829,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}</span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
@@ -1022,7 +1039,7 @@ export function renderObj(o){
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
-      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
@@ -1034,6 +1051,12 @@ export function renderObj(o){
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added from Graph. */
       if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
+      /* A value Intune or AD filled in, changed here: it is this page's now. Cleared, it stays empty: no sync fills it again. */
+      if (o.src && o.src[k] && String(o[k] ?? '') !== String(v ?? '')){
+        delete o.src[k]; if (!Object.keys(o.src).length) delete o.src;
+        const note = document.getElementById(`f_${o.id}_${k}_src`); if (note){ note.previousElementSibling?.remove(); note.remove(); }
+        if (String(v ?? '') === '') o.ovr = {...(o.ovr || {}), [k]: false};
+      }
       o[k] = v;
     });
     if (place){

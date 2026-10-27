@@ -7,6 +7,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
 import { checkAddress } from './validate.js';
+import { fillField, lsOwns } from './fill.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
 
@@ -105,11 +106,12 @@ export async function graphAll(token, url, fetchImpl = fetch) {
 }
 
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime';
-const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName';
+const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType';
 /* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
 const clean = v => String(v ?? '').trim();
+const OWNERSHIP = { company: 'Company', personal: 'Personal' };
 const gb = bytes => (Number(bytes) > 0 ? `${Math.round(Number(bytes) / 2 ** 30)} GB` : '');
 
 /* One record per device: the Intune view where there is one, otherwise the Entra view, matched by the Entra device id. */
@@ -127,7 +129,9 @@ export function toRecords(devices, managed) {
       owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
       platform: clean(m.operatingSystem), lastCheckIn: clean(m.lastSyncDateTime), lastSignIn: clean(d.approximateLastSignInDateTime),
       model: clean([m.manufacturer, m.model].filter(Boolean).join(' ')), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
-      ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes),
+      ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes), free: gb(m.freeStorageSpaceInBytes),
+      /* A phone's number and IMEI, and whether the company or the person owns it. */
+      imei: clean(m.imei).replace(/\s+/g, ''), phone: clean(m.phoneNumber), ownership: OWNERSHIP[m.managedDeviceOwnerType] || '',
     };
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
@@ -175,7 +179,12 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
       if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; p.active = u.accountEnabled !== false; }
-      else if (p.source === 'lansweeper') { if (name && low(p.name) === low(p.login)) p.name = name; if (dept && !p.dept) p.dept = dept; }
+      else {
+        if (p.source === 'lansweeper' && name && low(p.name) === low(p.login)) p.name = name;
+        /* Anyone else without a department (from the directory, Lansweeper or typed) gets Entra's, noted as Entra's, so it
+           follows Entra until another source or a person sets one. */
+        if (dept && (!p.dept || p.deptFrom === 'entra') && p.dept !== dept) { p.dept = dept; p.deptFrom = 'entra'; }
+      }
     } else if (p.entra && !p.entra.gone) { p.entra = { ...p.entra, gone: at }; counts.gone++; }
   }
   if (mode === 'add') {
@@ -204,9 +213,10 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
    last seen, as Graph reports them. Shown on the device; never edited there. */
 const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
-  ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}) });
-/* The fields Graph can give a device. */
-const FILL = ['os', 'model', 'mac', 'ram', 'disk'];
+  ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}),
+  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership'].map(k => [k, r[k]]).filter(([, v]) => v)) });
+/* The fields Graph can give a device, with their names for the history. */
+const FILL = { os: 'Operating system', model: 'Model', mac: 'MAC address', ram: 'Memory', disk: 'Disks' };
 /* When a record was last heard of: its last Intune check-in or Entra sign-in. */
 const activity = r => Math.max(Date.parse(r.lastCheckIn) || 0, Date.parse(r.lastSignIn) || 0, Date.parse(r.lastSync) || 0);
 const JOIN_RANK = { 'Entra joined': 2, 'Hybrid joined': 2, 'Entra registered': 1 };
@@ -273,10 +283,14 @@ export function applyGraph(s, records, now = new Date()) {
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
-    for (const k of FILL) {
-      /* A field set or cleared by hand (ovr false) is never filled, empty or not. */
-      if (!r[k] || o[k] === r[k] || ovr[k] === false) continue;
-      if (!o[k] || (owns && ovr[k] !== false)) { o[k] = r[k]; counts.filled++; }
+    /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is Graph's
+       and kept up to date in full, whatever the setting. */
+    if (s.fillGraph !== false || owns) for (const [k, label] of Object.entries(FILL)) {
+      if (!r[k] || ovr[k] === false || o[k] === r[k]) continue;
+      /* A field Lansweeper fills in is left to it once it has a value: its next push decides. */
+      if (lsOwns(s, o, k) && o[k]) continue;
+      if (owns && o[k] && !(o.src && o.src[k])) (o.src ??= {})[k] = 'graph';
+      if (fillField(s, o, k, r[k], 'graph', at, label)) counts.filled++;
     }
     /* Matched by name: the serial number Intune knows is taken over. */
     if (!o.serial && r.serial && ovr.serial !== false) { o.serial = r.serial; counts.filled++; }
