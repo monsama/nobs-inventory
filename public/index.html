@@ -32,6 +32,9 @@
 *{box-sizing:border-box}
 *{scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
+/* The grey example in an empty field is in the text font, also in a field for a technical value (name, IP, port):
+   empty fields look alike, and only what is typed there is in the monospace font. */
+input::placeholder,textarea::placeholder{font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif}
 body{display:flex;flex-direction:column;overflow:hidden}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
 input[type=file]{max-width:100%;min-width:0;font-size:12px}
