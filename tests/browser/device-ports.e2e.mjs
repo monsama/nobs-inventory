@@ -161,6 +161,20 @@ try {
   assert.match(await p.textContent('#net'), /2 of 28 ports in use/);
   assert.match(await p.textContent('#net'), /Part of the LAG Peer, linked to\s*LAG-A/);
   assert.equal(await p.locator('#assignBtn').count(), 0, 'a LAG member port offers no single plug-in');
+  // A free port: plug in a device the inventory has, with the switch and the port already chosen
+  await p.evaluate(async () => {
+    const core = await import('/js/01-core.js');
+    core.objs.push({ id: 'pc77', code: 'INV-9077', type: 'pc', name: 'PC-PLUG-ME', status: 'active', loc: core.objs[0].loc, ovr: {}, feed: null });
+    core.st.portNo = 3; (await import('/js/07-render-plans.js')).render();
+  });
+  await p.waitForSelector('#assignBtn');
+  await p.click('#assignBtn');
+  await p.waitForSelector('#lkObj');
+  assert.equal(await p.inputValue('#lkTo'), 'lagB'); assert.equal(await p.inputValue('#lkPort'), '3');
+  await p.selectOption('#lkObj', 'pc77');
+  assert.equal(await p.inputValue('#lkTo'), 'lagB', 'choosing the device keeps the switch'); assert.equal(await p.inputValue('#lkPort'), '3');
+  await p.click('#lkOk');
+  await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'pc77' && r.to === 'lagB' && r.port === 3));
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.portNo = null; core.st.tab = 'cards'; });
   // A port held by a retired device is taken over by a new connection; the retired device's connection is removed.
   await p.evaluate(async () => {

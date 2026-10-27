@@ -126,12 +126,15 @@ const linkOf = o => LINK_OF(o.type === 'server' && o.kind === 'vm' ? 'vm' : o.ty
 /* Link object: connect an object that already exists. How it is linked follows its type: a monitor is attached to a
    computer, a virtual machine runs on a server, anything else is plugged into a port. Its details are not changed. */
 export function linkObjModal(pre = {}){
-  const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o));
-  if (!list.length){ toast('There is nothing to link yet. Create an object first.'); return; }
+  /* From a free port (pre.to, pre.port): only what plugs into a port, and devices not plugged in anywhere yet first. */
+  const into = pre.to ? byId(pre.to) : null;
+  const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o))
+    .filter(o => !into || (o.id !== into.id && linkOf(o).port && linkOf(o).ok(into)));
+  if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create an object first.'); return; }
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
   modal(`<div class="mh">Link object</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => a.name.localeCompare(b.name)).map(o => `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
+      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
     </div><p class="note" id="lkNote">Only the link is added; the object's details stay as they are.</p></div>
@@ -150,6 +153,7 @@ export function linkObjModal(pre = {}){
   };
   fit();
   if (ctx && !obj && [...$('#lkTo').options].some(x => x.value === ctx.id)) $('#lkTo').value = ctx.id;
+  if (into){ $('#lkTo').value = into.id; if (pre.port != null) $('#lkPort').value = String(pre.port); }
   $('#lkTo').addEventListener('change', () => portNote('lkPort', ''));
   $('#lkPort').addEventListener('input', () => portNote('lkPort', ''));
   $('#lkObj').onchange = fit;
