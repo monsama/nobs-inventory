@@ -20,6 +20,14 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('VMware Guest', '', 'vm-x'), 'vm');
   assert.equal(t('', 'Wistron Infocomm', 'jdoe-iphone'), 'ios');
   assert.equal(t('', 'Avaya Inc', 'Avaya Inc 172.21.103.112'), 'sip');
+  // naming schemes: NB for a notebook, PC for a desktop, with a number after it
+  assert.equal(t('', 'Wistron InfoComm(Kunshan)Co.,Ltd.', 'ACMENB29.corp.local'), 'notebook');
+  assert.equal(t('', 'INVENTEC Corporation', 'acmenb35.corp.local'), 'notebook');
+  assert.equal(t('', 'Siemens AG', 'acmepc11.corp.local'), 'pc');
+  assert.equal(t('', '', 'ZH-PC-0151'), 'pc');
+  assert.equal(t('', '', 'ipc2-cam'), 'other', 'an IP camera named ipc is not a PC');
+  assert.equal(t('Windows', '', 'acmepc05', '', 'server'), 'server', 'Windows saying server still wins');
+  assert.equal(t('', '', 'acmepc07', 'laptop'), 'notebook', 'the chassis goes before the name');
   assert.equal(t('Windows', 'HP EliteBook 840 G10', '', '', 'workstation'), 'notebook', 'by the model');
   assert.equal(t('Windows', 'Some OEM board', '', 'notebook', 'workstation'), 'notebook', 'by the chassis');
   assert.equal(t('Windows', 'Dell Latitude 5440', '', 'laptop', 'server'), 'server', 'Windows says server: a server');

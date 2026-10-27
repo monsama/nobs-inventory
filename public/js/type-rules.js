@@ -41,6 +41,9 @@ export const DEFAULT_TYPE_RULES = [
      virtual machines were taken by the rules just above. */
   r('any', 'esxi, vmware esx, vsphere, vcenter, hyper-v server, proxmox, xenserver, xcp-ng, nutanix, hypervisor, vmware', 'server'),
   r('chassis', 'portable, laptop, notebook, sub notebook, convertible, detachable', 'notebook'),
+  /* Naming schemes: NB for a notebook and PC for a desktop, followed by a number (acmenb35, ACMEPC11, ZH-PC-0151). */
+  r('name', 'nb, notebook, laptop', 'notebook'),
+  r('name', 'pc, desktop, workstation', 'pc'),
   r('model', 'latitude, thinkpad, elitebook, probook, zbook, macbook, surface laptop, surface book, surface pro, ideapad, vivobook, zenbook, travelmate, toughbook, lifebook, notebook, laptop', 'notebook'),
   /* Lansweeper's type names. */
   r('type', 'virtual machine, vm', 'vm'),
@@ -64,13 +67,19 @@ export const DEFAULT_TYPE_RULES = [
 ];
 
 /* The words of a rule, lower case. A word of three letters or less matches as a whole word only (pc, vm, ios, nvr), so
-   "pc" does not match "pcd" or "spcs"; longer words match anywhere. */
+   "pc" does not match "pcd" or "spcs"; longer words match anywhere. In a device's name a short word also counts
+   when a number follows it, as naming schemes write it: acmenb35, acmepc11, srvvm02. */
 const wordsOf = text => String(text || '').toLowerCase().split(',').map(w => w.trim()).filter(Boolean);
 const hits = (hay, w) => w.length > 3 ? hay.includes(w) : new RegExp(`(^|[^a-z0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(hay);
+const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* The letters just before it are a site or company prefix (acme, zh) or nothing: one letter alone makes another word
+   (ipc2 is an IP camera, not a PC), and so does a prefix ending in i (camipc). */
+const hitsInName = (hay, w) => hits(hay, w) || (w.length <= 3 && /^[a-z]+$/.test(w) &&
+  [...hay.matchAll(new RegExp(`(?:^|[^a-z])([a-z]*)${esc(w)}\\d+(?=[^a-z0-9]|$)`, 'g'))].some(m => m[1].length !== 1 && !m[1].endsWith('i')));
 export function ruleMatches(rule, dev) {
   const text = rule.field === 'any' ? [dev.type, dev.model, dev.name].join(' ') : dev[rule.field];
   const hay = String(text || '').toLowerCase();
-  return !!hay && wordsOf(rule.words).some(w => hits(hay, w));
+  return !!hay && wordsOf(rule.words).some(w => (rule.field === 'name' ? hitsInName : hits)(hay, w));
 }
 /* The type the rules give a device ({type, model, name, chassis}), and the rule that gave it (null: none matched). */
 export function typeByRules(rules, dev) {

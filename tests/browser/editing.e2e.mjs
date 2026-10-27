@@ -52,7 +52,7 @@ try {
   // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
   await core(async () => { const c = await import('/js/01-core.js'); c.byId('s1').domain = 'corp.local'; c.byId('s2').domain = 'corp.local'; c.byId('p1').domain = 'lab.local';
     (await import('/js/04-settings.js')).renderSetDomains(); });
-  assert.match(await p.textContent('#setDomains .sn-suggest'), /acme\.intern\s*2 devices.*lab\.local\s*1 device/s);
+  assert.match(await p.textContent('#setDomains .sn-suggest'), /corp\.local\s*2 devices.*lab\.local\s*1 device/s);
   await p.click('[data-dmuse="0"]');
   await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.local'));
   assert.equal(await p.locator('#dmUseAll').count(), 0, 'Add all only with two or more left');
