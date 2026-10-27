@@ -43,7 +43,8 @@ input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(
 select{appearance:none;-webkit-appearance:none;padding:3px 26px 3px 6px;background:var(--in) var(--chev) no-repeat right 7px center/12px 12px;text-overflow:ellipsis}
 @supports (appearance:base-select){
   select,::picker(select){appearance:base-select}
-  select{display:inline-flex;align-items:center;white-space:nowrap;overflow:hidden}
+  select{align-items:center;white-space:nowrap;overflow:hidden}
+  select[hidden]{display:none}
   select::picker-icon{display:none}
   ::picker(select){margin:2px 0;padding:4px 0;max-height:260px;overflow:auto;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);box-shadow:var(--shadow);font-size:13px}
   select option{padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;min-height:0}
@@ -108,7 +109,8 @@ label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}
 .ctlrow .pchk{white-space:nowrap;flex:none}
-.plans{display:flex;flex-direction:column;min-height:0}
+/* The floor plan fills the view down to the status bar, like the relationship map. */
+.plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
 .pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
 .pl-bar select{min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
@@ -118,7 +120,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .pl-zoom button:first-child{border-radius:var(--r-s) 0 0 var(--r-s)}
 .pl-zoom button:last-child{border-radius:0 var(--r-s) var(--r-s) 0}
 .pl-zv{min-width:58px;font-variant-numeric:tabular-nums}
-.pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 190px);min-height:360px}
+.pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);flex:1;min-height:360px}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
@@ -169,7 +171,7 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-pin:active{cursor:grabbing}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
-@media (max-width:760px){.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
+@media (max-width:760px){.plans{position:static}.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
 .btnlike{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
 .btnlike:hover{filter:brightness(1.08)}
 a.btnlike{text-decoration:none;gap:6px}
@@ -212,6 +214,7 @@ table.types td input{width:100%;min-width:0;box-sizing:border-box}
 #setUsers td:has(> input),#setUsers td:has(> select){text-overflow:clip}
 table.types .icondd{display:flex;min-width:0;width:100%}
 table.types td.n,table.types th.n{text-align:right}
+table.types td:last-child,table.types th:last-child{padding-right:12px}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
@@ -220,7 +223,9 @@ table.types td.n,table.types th.n{text-align:right}
 .icondd-btn{width:100%}
 .icondd-btn svg,.icondd-item svg{width:18px;height:18px;flex:none}
 .icondd-btn span:nth-of-type(1){flex:1;text-align:left}
-.icondd-caret{color:var(--muted);font-size:11px}
+/* The same chevron as every dropdown, in the same place (7px from the right edge). */
+.icondd-btn .icondd-caret{color:var(--muted);width:12px;height:12px;margin-right:-2px}
+.icondd-btn{background:var(--in);border-color:var(--bd)}
 .icondd-list{position:fixed;z-index:30;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
 .icondd-list[hidden]{display:none}
 .icondd-item{width:100%;border:0;background:transparent;box-shadow:none}
@@ -390,7 +395,9 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sched-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:12px}
 .sched-row select{width:auto;min-width:170px}
 .sched-row input[type=time]{width:auto}
-.sched-l{font-weight:600}
+/* Like the labels of the form it sits in (a 170px column, then a 10px gap): the field starts where theirs do. */
+.sched-l{flex:none;width:172px;color:var(--muted);font-size:12px}
+@media (max-width:760px){.sched-l{width:100%}}
 .gu-box{border-top:1px solid var(--bd2)}
 #guList td{white-space:nowrap}
 .gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
@@ -512,10 +519,12 @@ button.link:hover{text-decoration:underline}
 .sheet-pw code{font-size:20px;letter-spacing:.08em;flex:1;min-width:0;overflow-wrap:anywhere}
 .form.sheet-form{grid-template-columns:170px minmax(0,1fr)}
 td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
-.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:#fff}
+/* Empty, it is a field like the others; with a logo, white, as the logo is printed on white paper. */
+.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:var(--in)}
+.company-logo:has(img){background:#fff}
 .company-logo img{max-width:170px;max-height:52px;object-fit:contain}
 /* The logo box is white in both themes (a logo is made for paper), so its placeholder text is a fixed grey. */
-.company-logo>.muted{color:#5b6470}
+.company-logo>.muted{color:var(--muted)}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
@@ -640,7 +649,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .tf-note-k{font-size:12px;white-space:nowrap}
 .tf-row .fl-move button{height:24px;width:26px;padding:0}
 .tf-add{border-top:1px solid var(--bd2)}
-#setPane .panelbox>.hdr+.note,#setPane .panelbox>.hdr+div>p.note:first-child,.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
+#setPane .panelbox>.hdr+.note:not(.lempty),#setPane .panelbox>.hdr+div>p.note:first-child:not(.lempty),.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}
@@ -756,6 +765,14 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
+.form label.btnlike{color:var(--fg);font-size:13px}
+/* The calendar and clock of date and time fields: as quiet as a dropdown's chevron. */
+input::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer}
+input::-webkit-calendar-picker-indicator:hover{opacity:.9}
+/* A field with a line of help under it: its label stays level with the field, not with the middle of field and help. */
+.form>label:has(+ div > .note),.form>label:has(+ div > p.note){align-self:start;padding-top:7px}
+/* A value shown in a form (not a field) reads like the text of the panel, on a row as high as a field. */
+.form>span{font-size:13px;line-height:18px;padding:5px 0}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
 /* Disks: a bar per drive, filled as far as the drive is used; orange from 80 %, red from 90 %. */
@@ -1021,7 +1038,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 40%,var(--bd));font-weight:600}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent)}
-.box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg)}
+.box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg);font-weight:600}
 button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);box-shadow:none;opacity:1}
 input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
@@ -1068,7 +1085,7 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 :root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pl-canvas>img{filter:brightness(.82) contrast(1.05)}}
 /* Remove buttons on a page are neutral until pointed at; red stays for the dialog that confirms them. */
-button.danger-text{color:var(--fg);border-color:var(--bd)}
+button.danger-text{color:var(--fg);border-color:var(--bd);font-weight:400}
 button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
 .lsbox{grid-template-columns:max-content minmax(0,1fr)}
 .jb.no{border-style:solid;border-color:var(--bd2)}

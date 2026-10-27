@@ -231,8 +231,7 @@ export function pushStatus(){
   const last = c ? `${pushDate(pushLast.at)}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}` : 'No push yet';
   const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
   const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
-  return `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Last push</label><span>${last}</span></div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Not seen</label><span>${stale}</span></div>`;
+  return `<label>Last push</label><span>${last}</span><label>Not seen</label><span>${stale}</span>`;
 }
 export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
@@ -251,8 +250,8 @@ export function renderSetFeed(){
       </ol>
       <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p>
     </div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span></div>
-    ${pushStatus()}
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span>
+    ${pushStatus()}</div>
     ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
     <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it on its first run.</p>` : ''}
     <div class="addrel" style="padding:10px 12px">
@@ -272,7 +271,7 @@ export function renderSetFeed(){
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
   <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="feedUp">Report</label><input id="feedUp" type="file" accept=".csv,text/csv" ${ro}></div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Report</label><div style="display:flex;gap:8px;align-items:center;min-width:0"><label class="btnlike ${edit ? '' : 'disabled'}">Choose CSV file…<input id="feedUp" type="file" accept=".csv,text/csv" hidden ${ro}></label><span class="muted" id="feedUpName">A Lansweeper report saved as CSV</span></div></div>
     <div class="note" style="padding:10px 12px">The server can also import this report by itself, on the Lansweeper schedule, from a file your administrator sets up.</div></div>`;
   /* One source at a time: show the script push or the API panel, never both. */
   if ($('#lsPushPanel')) $('#lsPushPanel').hidden = st.lsSource === 'api';
@@ -316,6 +315,7 @@ export function renderSetFeed(){
   };
   $('#feedUp').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
+    const nm = $('#feedUpName'); if (nm) nm.textContent = f.name;
     const r = await fetch('api/feed/import', {method: 'POST', headers: {'Content-Type': 'text/csv'}, credentials: 'same-origin', body: await f.text()});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The export could not be imported.'); return; }
