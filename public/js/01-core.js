@@ -295,11 +295,12 @@ export const GRAPH_FILTERS = {
   grace: ['In grace period', 'warn', o => inGraph(o) && o.graph.compliance === 'inGracePeriod', true, true],
 };
 /* The operating system of a device as a family: Windows 11, Windows 10, Windows Server 2022, macOS, iOS, Android, Linux.
-   Graph writes Windows by its build (10.0.22631): from build 22000 on it is Windows 11. */
+   Graph writes Windows by its build (10.0.22631): from build 22000 on it is Windows 11. Lansweeper shortens names
+   ("Win 2019", "Win 2012 R2"): a Windows with a year is a server. */
 export const osFamily = o => {
   const v = String(o.os || '').trim(), l = v.toLowerCase();
   if (!v) return '';
-  const server = l.match(/windows\s*server\s*(\d{4})?(\s*r2)?/);
+  const server = l.match(/windows\s*server\s*(\d{4})?(\s*r2)?/) || l.match(/\b(?:win(?:dows)?|server)\s*(200[3-9]|20[1-3]\d)(\s*r2)?\b/);
   if (server) return 'Windows Server' + (server[1] ? ' ' + server[1] + (server[2] ? ' R2' : '') : '');
   const build = l.match(/windows\s*10\.0\.(\d+)/);
   if (build) return +build[1] >= 22000 ? 'Windows 11' : 'Windows 10';
@@ -308,12 +309,13 @@ export const osFamily = o => {
   if (/mac\s*os|macos|os x/.test(l)) return 'macOS';
   if (/ipados|ios/.test(l)) return 'iOS / iPadOS';
   if (/android/.test(l)) return 'Android';
+  if (/esxi|vmware/.test(l)) return 'VMware ESXi';
   if (/linux|ubuntu|debian|red hat|rhel|centos|suse|fedora/.test(l)) return 'Linux';
   if (/windows/.test(l)) return 'Windows (other)';
   return 'Other';
 };
 /* Systems the maker no longer updates. */
-export const OS_ENDED = ['Windows 10', 'Windows 8.1', 'Windows 8', 'Windows 7', 'Windows Server 2008', 'Windows Server 2012', 'Windows Server 2012 R2'];
+export const OS_ENDED = ['Windows 10', 'Windows 8.1', 'Windows 8', 'Windows 7', 'Windows Server 2003', 'Windows Server 2008', 'Windows Server 2008 R2', 'Windows Server 2012', 'Windows Server 2012 R2'];
 /* The Microsoft Graph status of a device on its card: its join type and compliance. Red when it is not compliant. */
 export const graphChip = o => {
   if (!SYNC.graph || !o.graph || o.graph.gone || (!o.graph.join && !o.graph.compliance)) return '';

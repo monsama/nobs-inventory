@@ -12,7 +12,7 @@ const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 /* A list of bars, longest first, each a button that opens the list behind it. One hue: the length is the message. */
 const bars = (rows, attr) => {
   const max = Math.max(1, ...rows.map(r => r.n));
-  return `<div class="ov-bars">${rows.map(r => `<button class="ov-bar" ${attr}="${esc(r.key)}" title="${esc(r.label)}: ${r.n} devices${r.bad ? ` (${esc(r.bad)})` : ''}">
+  return `<div class="ov-bars">${rows.map(r => `<button class="ov-bar" ${attr}="${esc(r.key)}" title="${esc(r.label)}: ${r.n} devices${r.bad ? ` (${esc(r.bad)})` : ''}${r.hint ? `\n${esc(r.hint)}` : ''}">
     <span class="ov-lbl">${r.icon || ''}<span>${esc(r.label)}</span></span><span class="ov-track"><span ${r.bad ? 'class="bad" ' : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`).join('')}</div>`;
 };
 
@@ -29,6 +29,12 @@ export function renderOverview(){
   /* Operating systems, by family; those no longer updated also need attention. */
   const osRows = Object.entries(live.reduce((m, o) => { const f = osFamily(o); if (f) m[f] = (m[f] || 0) + 1; return m; }, {}))
     .map(([f, n]) => ({ key: f, label: f, n })).sort((a, b) => b.n - a.n);
+  /* "Other" says what it holds: the names written most often, so a system the families miss can be spotted. */
+  const other = osRows.find(r => r.key === 'Other');
+  if (other){
+    const names = Object.entries(live.reduce((m, o) => { if (osFamily(o) === 'Other'){ const k = String(o.os).trim(); m[k] = (m[k] || 0) + 1; } return m; }, {})).sort((a, b) => b[1] - a[1]);
+    other.hint = names.slice(0, 6).map(([k, n]) => `${k} (${n})`).join(', ') + (names.length > 6 ? ` and ${names.length - 6} more` : '');
+  }
   const withOs = osRows.reduce((t, r) => t + r.n, 0);
   const osEnded = osRows.filter(r => OS_ENDED.includes(r.key)).map(r => [r.key, r.n]);
   /* How the computers and phones are joined: Entra, hybrid, AD only, registered, or not at all. Shown once Graph is set
