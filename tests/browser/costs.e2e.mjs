@@ -14,10 +14,10 @@ bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const day = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 const sw = n => [{ name: 'Microsoft 365 Apps for enterprise - de-de', version: '16.0.' + n }];
 const s0 = loadState(db);
-saveState(db, { ...s0, locs: ['Willisau / Lager', 'Luzern / Büro'],
+saveState(db, { ...s0, locs: ['Bern / Lager', 'Luzern / Büro'],
   objs: [
-    { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', loc: 'Willisau / Lager', ports: 24, sfp: 4, ovr: {}, feed: null },
-    { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-1', status: 'active', loc: 'Willisau / Lager', software: sw(1), warranty: day(-5), ovr: {}, feed: null },
+    { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', loc: 'Bern / Lager', ports: 24, sfp: 4, ovr: {}, feed: null },
+    { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-1', status: 'active', loc: 'Bern / Lager', software: sw(1), warranty: day(-5), ovr: {}, feed: null },
     { id: 'o3', code: 'INV-0003', type: 'pc', name: 'PC-2', status: 'active', loc: 'Luzern / Büro', software: sw(2), price: 1290, ovr: {}, feed: null },
     { id: 'o4', code: 'INV-0004', type: 'pc', name: 'PC-3', status: 'repair', loc: 'Luzern / Büro', software: sw(3), ovr: {}, feed: null },
   ], rels: [], history: {} });

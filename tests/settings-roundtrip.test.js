@@ -58,8 +58,8 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
     users: [...s.users, { id: 'u-ls1', login: '', name: 'Anna Muster', dept: 'Logistik', role: 'viewer', groups: [], source: 'lansweeper', active: true }],
     fieldLayout: { pc: { card: ['ip', 'user', 'loc', 'warranty'] }, plc: { order: ['name', 'ip'], card: ['ip', 'custom.line', '', 'serial'] } },
     graphCerts: [{ thumbprint: 'ABCDEF0123456789ABCDEF0123456789ABCDEF01', created: '2026-10-25T13:00:00.000Z', expires: '2028-10-24T13:00:00.000Z', by: 'Administrator' }],
-    lsIpLocations: [{ name: 'Willisau Lager', from: '172.21.108.1', to: '172.21.108.254' }],
-    lsNets: [{ cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5'], name: 'Willisau Lager' }],
+    lsIpLocations: [{ name: 'Bern Lager', from: '172.21.108.1', to: '172.21.108.254' }],
+    lsNets: [{ cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5'], name: 'Bern Lager' }],
   });
   saveState(db, s);
   const id = takeBackup(db, 'test');
@@ -78,7 +78,7 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
 test('the company name and logo are kept; a logo that is not a PNG or JPEG is refused', async () => {
   const { checkState } = await import('../server/state.js');
   const base = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
-  checkState({ ...base, company: { name: 'Argolite AG', logo: 'data:image/png;base64,iVBORw0KGgo=' } });
+  checkState({ ...base, company: { name: 'Example AG', logo: 'data:image/png;base64,iVBORw0KGgo=' } });
   assert.throws(() => checkState({ ...base, company: { name: 'x', logo: 'data:image/svg+xml;base64,PHN2Zz4=' } }), /PNG or JPEG/);
   assert.throws(() => checkState({ ...base, company: { name: 'x'.repeat(81) } }), /80 characters/);
 });

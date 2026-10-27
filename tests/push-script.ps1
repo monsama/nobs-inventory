@@ -68,9 +68,9 @@ Check 'other adapters: from the adapter list' (Get-OtherAdapters $map['7'] $nic 
 Check 'other adapters: no adapters' (Get-OtherAdapters $map['nope'] $null '10.0.0.1').Count 0
 Check 'other adapters: one record' (Get-OtherAdapters $all[1] $null '').Count 1
 
-$locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @(@('Willisau Lager','172.21.108.1','172.21.108.254'), @('', '1.1.1.1', '1.1.1.2'))))
+$locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @(@('Bern Lager','172.21.108.1','172.21.108.254'), @('', '1.1.1.1', '1.1.1.2'))))
 Check 'ip locations read' $locs.Count 1
-Check 'ip location name' $locs[0].name 'Willisau Lager'
+Check 'ip location name' $locs[0].name 'Bern Lager'
 
 # Every antivirus product of a device is kept (Windows Defender next to another one), each once.
 $saveCols = $script:Cols

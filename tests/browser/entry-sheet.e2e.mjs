@@ -39,7 +39,7 @@ try {
   await page.waitForSelector('.card');
   await page.click('#setBtn'); await page.click('#setTabs [data-st=users]');
   // the company: its name and logo go on the sheets instead of NOBS Inventory; an SVG logo is kept as a PNG
-  await page.fill('#coName', 'Argolite AG'); await page.locator('#coName').press('Tab');
+  await page.fill('#coName', 'Example AG'); await page.locator('#coName').press('Tab');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';
   await page.setInputFiles('#coFile', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
   await page.waitForSelector('.company-logo img');
@@ -59,7 +59,7 @@ try {
   /* Printing starts after the sheet is shown (the logo is loaded first): wait for it. */
   await page.waitForFunction(() => !!window.__printed);
   const printed = await page.evaluate(() => window.__printed);
-  for (const t of [pw, 'Anna Muster', 'Logistik', 'amuster', 'SN-LAT-1', 'MON-001', 'Desk 4, first floor', 'signature', 'Argolite AG', 'data:image/png;base64,']) assert.ok(printed.includes(t), 'printed sheet lacks ' + t);
+  for (const t of [pw, 'Anna Muster', 'Logistik', 'amuster', 'SN-LAT-1', 'MON-001', 'Desk 4, first floor', 'signature', 'Example AG', 'data:image/png;base64,']) assert.ok(printed.includes(t), 'printed sheet lacks ' + t);
   assert.ok(!printed.includes('NOBS Inventory'), 'the company replaces NOBS Inventory on the sheet');
   assert.ok(!printed.includes('OTHER-PC'));
   assert.equal(await page.locator('[data-sprint]').count(), 1, 'the sheet is kept');
@@ -78,7 +78,7 @@ try {
   assert.match(dl.suggestedFilename(), /^entry-sheet-Anna-Muster-\d{4}-\d{2}-\d{2}\.pdf$/);
   assert.equal(raw.subarray(0, 5).toString(), '%PDF-');
   const file = pdfText(raw);
-  assert.ok(file.includes(pw) && file.includes('SN-MON-1') && file.includes('Argolite AG'), 'the PDF lacks the password, a serial or the company');
+  assert.ok(file.includes(pw) && file.includes('SN-MON-1') && file.includes('Example AG'), 'the PDF lacks the password, a serial or the company');
 
   // marked as changed: the password leaves the kept sheet, the rest stays
   await page.click('[data-schanged]');

@@ -50,11 +50,11 @@ try {
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
   // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
-  await core(async () => { const c = await import('/js/01-core.js'); c.byId('s1').domain = 'argo.intern'; c.byId('s2').domain = 'argo.intern'; c.byId('p1').domain = 'lab.local';
+  await core(async () => { const c = await import('/js/01-core.js'); c.byId('s1').domain = 'corp.local'; c.byId('s2').domain = 'corp.local'; c.byId('p1').domain = 'lab.local';
     (await import('/js/04-settings.js')).renderSetDomains(); });
-  assert.match(await p.textContent('#setDomains .sn-suggest'), /argo\.intern\s*2 devices.*lab\.local\s*1 device/s);
+  assert.match(await p.textContent('#setDomains .sn-suggest'), /corp\.local\s*2 devices.*lab\.local\s*1 device/s);
   await p.click('[data-dmuse="0"]');
-  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'argo.intern'));
+  await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.local'));
   assert.equal(await p.locator('#dmUseAll').count(), 0, 'Add all only with two or more left');
   await p.click('[data-dmuse="0"]');
   await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'lab.local'));

@@ -13,9 +13,9 @@ import assert from 'node:assert/strict';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-cert-e2e-'));
 /* A certificate as AD CS issues it, from a CA, for the long and the short name. */
 const ssl = (...a) => execFileSync('openssl', a, { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'] });
-ssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.crt', '-days', '3650', '-subj', '/CN=argo-ARGODC02-CA-1');
-ssl('req', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'inv.key', '-out', 'inv.csr', '-subj', '/CN=inventory.argolite.ch');
-fs.writeFileSync(path.join(dir, 'ext'), 'subjectAltName=DNS:inventory.argolite.ch,DNS:inventory\n');
+ssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.crt', '-days', '3650', '-subj', '/CN=corp-DC02-CA-1');
+ssl('req', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'inv.key', '-out', 'inv.csr', '-subj', '/CN=inventory.example.ch');
+fs.writeFileSync(path.join(dir, 'ext'), 'subjectAltName=DNS:inventory.example.ch,DNS:inventory\n');
 const issue = days => { ssl('x509', '-req', '-in', 'inv.csr', '-CA', 'ca.crt', '-CAkey', 'ca.key', '-CAcreateserial', '-out', `inv-${days}.crt`, '-days', String(days), '-extfile', 'ext'); return fs.readFileSync(path.join(dir, `inv-${days}.crt`)); };
 const key = fs.readFileSync(path.join(dir, 'inv.key'));
 const proxy = tls.createServer({ key, cert: issue(10) }, s => s.end());
@@ -45,8 +45,8 @@ try {
   await page.waitForSelector('#certPanel dl');
   const panel = await page.textContent('#certPanel');
   assert.match(panel, /Ends soon/);
-  assert.match(panel, /inventory\.argolite\.ch, inventory/);
-  assert.match(panel, /Issued by\s*argo-ARGODC02-CA-1/);
+  assert.match(panel, /inventory\.example\.ch, inventory/);
+  assert.match(panel, /Issued by\s*corp-DC02-CA-1/);
   assert.match(panel, /install-cert\.sh inventory/);
   assert.equal(await page.locator('[data-st="maintenance"].active').count(), 1, 'Maintenance is the tab shown');
   if (shots) await page.locator('#certPanel').screenshot({ path: path.join(shots, 'cert-panel.png') });

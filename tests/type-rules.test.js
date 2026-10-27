@@ -11,15 +11,23 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   const t = (type, model, name = '', chassis = '', role = '') => typeFor({}, type, model, role, name, chassis);
   assert.equal(t('Windows', 'HP EliteDesk 800 G9', '', 'desktop', 'workstation'), 'pc');
   // firewalls, hypervisor hosts and iPhones by their name or model, whatever Lansweeper's type says
-  assert.equal(t('Web', 'Fortinet, Inc. FortiGate 40F', 'FortiGate_40F_Argolite'), 'firewall');
+  assert.equal(t('Web', 'Fortinet, Inc. FortiGate 40F', 'FortiGate_40F_Office'), 'firewall');
   assert.equal(t('', 'FortiSwitch 108F', 'FSW-01'), 'switch', 'a Fortinet switch stays a switch');
   assert.equal(t('', 'FortiAP 231F', 'AP-01'), 'accesspoint');
   assert.equal(t('', 'VMware, Inc.', 'VMware 172.21.103.100'), 'server', 'a hypervisor host is a server');
-  assert.equal(t('', 'Wistron', 'argoesxi21.argo.intern'), 'server');
+  assert.equal(t('', 'Wistron', 'acmeesxi21.corp.local'), 'server');
   assert.equal(t('Windows', 'VMware Virtual Platform', 'srv-app01'), 'vm', 'its virtual machines stay VMs');
   assert.equal(t('VMware Guest', '', 'vm-x'), 'vm');
-  assert.equal(t('', 'Wistron Infocomm', 'walkerhs-iphone'), 'ios');
+  assert.equal(t('', 'Wistron Infocomm', 'jdoe-iphone'), 'ios');
   assert.equal(t('', 'Avaya Inc', 'Avaya Inc 172.21.103.112'), 'sip');
+  // naming schemes: NB for a notebook, PC for a desktop, with a number after it
+  assert.equal(t('', 'Wistron InfoComm(Kunshan)Co.,Ltd.', 'ACMENB29.corp.local'), 'notebook');
+  assert.equal(t('', 'INVENTEC Corporation', 'acmenb35.corp.local'), 'notebook');
+  assert.equal(t('', 'Siemens AG', 'acmepc11.corp.local'), 'pc');
+  assert.equal(t('', '', 'ZH-PC-0151'), 'pc');
+  assert.equal(t('', '', 'ipc2-cam'), 'other', 'an IP camera named ipc is not a PC');
+  assert.equal(t('Windows', '', 'acmepc05', '', 'server'), 'server', 'Windows saying server still wins');
+  assert.equal(t('', '', 'acmepc07', 'laptop'), 'notebook', 'the chassis goes before the name');
   assert.equal(t('Windows', 'HP EliteBook 840 G10', '', '', 'workstation'), 'notebook', 'by the model');
   assert.equal(t('Windows', 'Some OEM board', '', 'notebook', 'workstation'), 'notebook', 'by the chassis');
   assert.equal(t('Windows', 'Dell Latitude 5440', '', 'laptop', 'server'), 'server', 'Windows says server: a server');
@@ -34,11 +42,11 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-hmilton'), 'pc', 'hmi as a whole word only');
   assert.equal(t('Network device', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG', 'TAS TELEFONBAU A. SCHWABE GMBH & CO. KG'), 'pbx', 'a TAS phone system');
   assert.equal(t('Remote Access Controller', 'HPE iLO 5', 'srv01-ilo'), 'bmc', 'an iLO');
-  assert.equal(t('Windows', 'VMware, Inc. VMware Virtual Platform', 'argoapp01', '', 'server'), 'vm', 'a VMware guest is a VM, also with the server role');
-  assert.equal(t('Windows', 'Microsoft Corporation Virtual Machine', 'argohv-vm1', '', 'workstation'), 'vm', 'a Hyper-V guest');
+  assert.equal(t('Windows', 'VMware, Inc. VMware Virtual Platform', 'acmeapp01', '', 'server'), 'vm', 'a VMware guest is a VM, also with the server role');
+  assert.equal(t('Windows', 'Microsoft Corporation Virtual Machine', 'acmehv-vm1', '', 'workstation'), 'vm', 'a Hyper-V guest');
   assert.equal(t('Remote Access Controller', 'VMware, Inc. nginx', 'HPE SimpliVity OmniStack'), 'vm', 'the OmniStack controller is a VM, not an iLO');
   assert.equal(t('Network device', 'Dell iDRAC9', 'srv02-idrac'), 'bmc', 'an iDRAC');
-  assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'argoimm04.argo.intern'), 'bmc', 'an IBM IMM');
+  assert.equal(t('Network device', 'IBM IBM Integrated Management Module', 'acmeimm04.corp.local'), 'bmc', 'an IBM IMM');
   assert.equal(t('Windows', 'Dell OptiPlex 7010', 'pc-silo'), 'pc', 'ilo as a whole word only');
   assert.equal(t('Windows', 'HPE ProLiant DL380 Gen10', 'bmc-app01', '', 'server'), 'server', 'bmc in a name is not a BMC');
   assert.equal(t('Windows', 'HP EliteDesk 800 G9', 'imm-buchhaltung', 'desktop', 'workstation'), 'pc', 'imm in a name is not an IMM');
@@ -51,16 +59,16 @@ test('the shipped rules tell notebooks, cameras, controllers and switches from w
   assert.equal(t('VoIP', 'PATTON ELECTRONICS CO.', 'PATTON ELECTRONICS CO. 172.21.103.6'), 'pbx', 'a Patton VoIP gateway belongs to the phone system');
   assert.equal(t('Network device', 'Hewlett-Packard 8360-24XF2C v2 (JL722C)', 'core-sw'), 'switch', 'an Aruba CX 8360 is a switch');
   assert.equal(t('WebServer', '', '403 Forbidden'), 'other');
-  assert.equal(t('Windows', '', 'argopc11'), 'pc');
+  assert.equal(t('Windows', '', 'acmepc11'), 'pc');
   // a short word matches a whole word only
   assert.equal(ruleMatches({ field: 'type', words: 'pc' }, { type: 'Windows PC' }), true);
   assert.equal(ruleMatches({ field: 'type', words: 'pc' }, { type: 'Saia PCD' }), false);
 });
 
 test('an edited list decides instead of the shipped one; a rule switched off is skipped; a wrong list is refused', () => {
-  const rules = [{ field: 'name', words: 'argonb', to: 'notebook', on: true }, { field: 'name', words: 'argo', to: 'server', on: false }, ...DEFAULT_TYPE_RULES];
-  assert.equal(typeFor({ typeRules: rules }, 'Windows', 'INVENTEC Corporation', 'workstation', 'argonb35.argo.intern'), 'notebook');
-  assert.equal(typeFor({ typeRules: rules }, 'Windows', '', 'workstation', 'argopc11'), 'pc', 'the rule that is off is skipped');
+  const rules = [{ field: 'name', words: 'acmenb', to: 'notebook', on: true }, { field: 'name', words: 'acme', to: 'server', on: false }, ...DEFAULT_TYPE_RULES];
+  assert.equal(typeFor({ typeRules: rules }, 'Windows', 'INVENTEC Corporation', 'workstation', 'acmenb35.corp.local'), 'notebook');
+  assert.equal(typeFor({ typeRules: rules }, 'Windows', '', 'workstation', 'acmepc11'), 'pc', 'the rule that is off is skipped');
   assert.equal(typeByRules([], { type: 'Windows' }).type, 'other', 'no rules at all: other');
   const base = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
   checkState({ ...base, typeRules: rules });
@@ -103,7 +111,7 @@ test('a push gives a device still filed as Other the type the rules now find, un
   const { mergeRecords } = await import('../server/feed.js');
   const dev = (id, name, model, extra = {}) => ({ id, code: 'INV-' + id, type: 'other', name, model, status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: id, assetType: 'WebServer' }, ...extra });
   const s = { objs: [dev('a', 'FortiGate_40F', 'Fortinet FortiGate 40F'), dev('b', 'ILOX01', 'HP iLO 5'), dev('c', 'Redirect to Login', 'nginx'),
-    dev('d', 'ILOX02', 'HP iLO 5', { ovr: { type: false } }), { ...dev('e', 'ARGONB29', 'HP EliteBook 840'), type: 'pc' }], rels: [], users: [], locs: [], types: {}, history: {}, policy: {} };
+    dev('d', 'ILOX02', 'HP iLO 5', { ovr: { type: false } }), { ...dev('e', 'ACMENB29', 'HP EliteBook 840'), type: 'pc' }], rels: [], users: [], locs: [], types: {}, history: {}, policy: {} };
   mergeRecords(s, ['a', 'b', 'c', 'd', 'e'].map(id => { const o = s.objs.find(x => x.id === id); return { name: o.name, model: o.model, ref: id, assetType: 'WebServer' }; }), new Date('2026-10-27T10:00:00Z'));
   assert.deepEqual(s.objs.map(o => o.type), ['firewall', 'bmc', 'other', 'other', 'pc']);
   assert.match(s.history.a[0].msg, /Type changed from other to firewall by the type rules/);

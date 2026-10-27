@@ -634,15 +634,15 @@ test('a maker\'s placeholder serial is no serial: two machines that share one st
 
 test('Lansweeper\'s last scan attempt and first-found day are kept, and a device matched later says when it was linked', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
-  const s = { objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'ARGODB05', serial: 'X5', status: 'active', ovr: {}, feed: null }], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 1 };
+  const s = { objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'ACMEDB05', serial: 'X5', status: 'active', ovr: {}, feed: null }], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 1 };
   // never scanned: Lansweeper only tried, and it found the device in June
-  mergeRecords(s, recordsFromJson([{ name: 'ARGODB05', ref: '18238', serial: 'X5', tried: '2026-10-26 12:07:00', firstSeen: '2026-06-08 12:00:18' }]));
+  mergeRecords(s, recordsFromJson([{ name: 'ACMEDB05', ref: '18238', serial: 'X5', tried: '2026-10-26 12:07:00', firstSeen: '2026-06-08 12:00:18' }]));
   const f = s.objs[0].feed;
   assert.equal(f.tried, '2026-10-26'); assert.equal(f.firstSeen, '2026-06-08'); assert.equal(f.scanned, undefined);
   assert.match(f.linked, /^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/, 'the day it was matched');
   const linked = f.linked;
   // an older push script that sends none of the days keeps what is there, and the link day stays
-  mergeRecords(s, recordsFromJson([{ name: 'ARGODB05', ref: '18238', serial: 'X5' }]));
+  mergeRecords(s, recordsFromJson([{ name: 'ACMEDB05', ref: '18238', serial: 'X5' }]));
   assert.equal(s.objs[0].feed.tried, '2026-10-26'); assert.equal(s.objs[0].feed.linked, linked);
 });
 

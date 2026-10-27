@@ -29,7 +29,7 @@ const subnetFromEditor = ed => {
 /* The editor of one subnet, for a new one or one in the list. A note says what was filled in from Lansweeper. */
 const subnetEditorHtml = (n, key, hint = '') => `<div class="sn-edit" data-sub="${key}">
     <div class="sn-grid">
-      <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" placeholder="e.g. Office Willisau"></label>
+      <label>Name<input data-sn maxlength="60" value="${esc(n.name || '')}" placeholder="e.g. Office Bern"></label>
       <label>Subnet<input data-sc class="mono" placeholder="10.10.20.0/24" value="${esc(n.cidr || '')}"></label>
       <label>VLAN<select data-sv><option value="">None</option>${VLANS.map(v => `<option value="${v.vid}" ${v.vid === n.vid ? 'selected' : ''}>${v.vid} · ${esc(v.name)}</option>`).join('')}</select></label>
       <label>Gateway<input data-sg class="mono" placeholder="10.10.20.1" value="${esc(n.gateway || '')}"></label>

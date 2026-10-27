@@ -299,7 +299,7 @@ export const GRAPH_FILTERS = {
    ("Win 2019", "Win 2012 R2"): a Windows with a year is a server. */
 export const osFamily = o => {
   const v = String(o.os || '').trim(), l = v.toLowerCase();
-  /* No system reported, or one not known: the name or model may still say (FortiGate_40F, argoesxi21, walkerhs-iphone). */
+  /* No system reported, or one not known: the name or model may still say (FortiGate_40F, acmeesxi21, jdoe-iphone). */
   if (!v || !knownOs(l)) return osByName(o) || (v ? 'Other' : '');
   const server = l.match(/windows\s*server\s*(\d{4})?(\s*r2)?/) || l.match(/\b(?:win(?:dows)?|server)\s*(200[3-9]|20[1-3]\d)(\s*r2)?\b/);
   if (server) return 'Windows Server' + (server[1] ? ' ' + server[1] + (server[2] ? ' R2' : '') : '');
@@ -476,7 +476,7 @@ export const isAttached = k => k === 'attached';
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
 const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q));
-/* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Willisau". */
+/* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.intune || st.osFam || st.live || st.resp || st.adGroup);
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */

@@ -69,13 +69,13 @@ test('a sheet is made from the inventory, kept sealed, opened again, and its pas
     assert.deepEqual(list.sheets.map(s => [s.id, s.password]), [[id, 'kept']]);
     assert.equal((await srv.call('GET', '/api/sheets/' + id, { cookie: a.cookie })).json.sheet.password, sheet.password);
     // as a PDF, with the company's name: the password is on it while the kept sheet has it
-    const s0 = loadState(srv.db); saveState(srv.db, { ...s0, company: { name: 'Argolite AG', logo: '' } });
+    const s0 = loadState(srv.db); saveState(srv.db, { ...s0, company: { name: 'Example AG', logo: '' } });
     const pdfOf = async () => { const r = await fetch(srv.base + `/api/sheets/${id}/pdf`, { headers: { cookie: a.cookie } }); return { r, text: pdfText(Buffer.from(await r.arrayBuffer())) }; };
     let pdf = await pdfOf();
     assert.equal(pdf.r.status, 200);
     assert.equal(pdf.r.headers.get('content-type'), 'application/pdf');
     assert.match(pdf.r.headers.get('content-disposition'), /entry-sheet-Anna-Muster-\d{4}-\d{2}-\d{2}\.pdf/);
-    for (const t of [sheet.password, 'Anna Muster', 'Argolite AG', 'SN-1', 'MON-001', 'Start 1 November', 'Entry sheet']) assert.ok(pdf.text.includes(t), 'not on the PDF: ' + t);
+    for (const t of [sheet.password, 'Anna Muster', 'Example AG', 'SN-1', 'MON-001', 'Start 1 November', 'Entry sheet']) assert.ok(pdf.text.includes(t), 'not on the PDF: ' + t);
     assert.equal((await srv.call('POST', `/api/sheets/${id}/changed`, { cookie: a.cookie })).status, 200);
     const again = (await srv.call('GET', '/api/sheets/' + id, { cookie: a.cookie })).json;
     assert.equal(again.password, 'changed');

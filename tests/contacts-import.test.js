@@ -60,7 +60,7 @@ test('an import adds, updates, leaves alone, and says why a row is left out', ()
 });
 
 test('the export reads back as it is, and a cell that looks like a formula stays text', () => {
-  const list = [{ id: 'a', kind: 'internal', name: 'Anna Muster', company: 'Argolite', area: 'Firewall; VPN', email: 'anna@example.ch', phone: '+41 41 000 00 01', note: 'Line 1\nLine 2' },
+  const list = [{ id: 'a', kind: 'internal', name: 'Anna Muster', company: 'Example', area: 'Firewall; VPN', email: 'anna@example.ch', phone: '+41 41 000 00 01', note: 'Line 1\nLine 2' },
     { id: 'b', kind: 'external', name: '=HYPERLINK("x")', company: 'Evil AG' }];
   const csv = contactsCsv(list);
   assert.ok(csv.startsWith('﻿Name;Company;Area;'));

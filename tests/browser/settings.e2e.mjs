@@ -105,12 +105,12 @@ try {
   assert.match(await page.textContent('#setSubnets .sn-item'), /Office.*10\.10\.20\.0\/24.*Gateway 10\.10\.20\.1.*DHCP 10\.10\.20\.50–99.*For PC, Printer/s);
   // a subnet in the list can be edited: Edit opens it, Save keeps the change, Cancel drops it
   await page.click('[data-sedit="0"]'); await page.waitForSelector('.sn-edit[data-sub="0"]');
-  await page.fill('.sn-edit [data-sn]', 'Office Willisau'); await page.click('.sn-edit [data-tnone]');
+  await page.fill('.sn-edit [data-sn]', 'Office Bern'); await page.click('.sn-edit [data-tnone]');
   await page.click('.sn-edit [data-ssave]'); await page.waitForSelector('[data-sedit="0"]');
-  assert.equal((await saved()).name, 'Office Willisau');
+  assert.equal((await saved()).name, 'Office Bern');
   assert.deepEqual((await saved()).types, []);
   await page.click('[data-sedit="0"]'); await page.fill('.sn-edit [data-sn]', 'Not this'); await page.click('.sn-edit [data-scancel]');
-  assert.equal((await saved()).name, 'Office Willisau', 'Cancel keeps the subnet as it was');
+  assert.equal((await saved()).name, 'Office Bern', 'Cancel keeps the subnet as it was');
   // Settings sections open and close by their title and stay as they were left, also when the section draws itself again
   await page.click('#setTabs [data-st=types]'); await page.waitForSelector('#setModels .hdr.sechdr');
   await page.click('#setModels .hdr');

@@ -106,7 +106,7 @@ try {
     ['Windows 11', 'Windows 10', 'Windows 11', 'Windows 10', 'Windows Server 2019', 'Windows Server 2012 R2', 'macOS', 'iOS / iPadOS', 'Android', 'Linux', 'Windows Server 2019', 'Windows Server 2012 R2', 'Windows Server 2016', 'Windows (other)', 'VMware ESXi', 'Windows 11', 'Windows 10', 'Cisco IOS', 'FortiOS', '']);
   // no system, or one not known: the name or model may say it
   assert.deepEqual(await p.evaluate(async () => { const { osFamily } = await import('/js/01-core.js');
-    return [{ name: 'FortiGate_40F_Argolite' }, { name: 'argoesxi21.argo.intern' }, { name: 'walkerhs-iphone' }, { name: 'PRN-01', os: 'Weird OS 2' }, { name: 'PRN-02' }].map(osFamily); }),
+    return [{ name: 'FortiGate_40F_Office' }, { name: 'acmeesxi21.corp.local' }, { name: 'jdoe-iphone' }, { name: 'PRN-01', os: 'Weird OS 2' }, { name: 'PRN-02' }].map(osFamily); }),
     ['FortiOS', 'VMware ESXi', 'iOS / iPadOS', 'Other', '']);
 
   // Settings: the device Graph has that the inventory does not, added from there

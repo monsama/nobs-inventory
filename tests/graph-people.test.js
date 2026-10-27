@@ -8,8 +8,8 @@ import { checkState } from '../server/state.js';
 const NOW = new Date(2026, 9, 26, 10, 0);
 const entra = (id, upn, name, extra = {}) => ({ id, userPrincipalName: upn, displayName: name, accountEnabled: true, userType: 'Member', ...extra });
 const base = () => ({ objs: [
-    { id: 'o1', code: 'INV-0001', type: 'notebook', name: 'NB-1', status: 'active', ovr: {}, feed: null, graph: { owner: 'cloud@argo.ch', ownerName: 'Cloud Only' }, user: 'Cloud Only' },
-    { id: 'o2', code: 'INV-0002', type: 'notebook', name: 'NB-2', status: 'active', ovr: {}, feed: null, graph: { owner: 'anna@argo.ch', ownerName: 'Anna Muster' } },
+    { id: 'o1', code: 'INV-0001', type: 'notebook', name: 'NB-1', status: 'active', ovr: {}, feed: null, graph: { owner: 'cloud@example.ch', ownerName: 'Cloud Only' }, user: 'Cloud Only' },
+    { id: 'o2', code: 'INV-0002', type: 'notebook', name: 'NB-2', status: 'active', ovr: {}, feed: null, graph: { owner: 'anna@example.ch', ownerName: 'Anna Muster' } },
   ], rels: [], types: {}, history: {}, locs: [],
   users: [
     { id: 'ldap-anna', login: 'anna', name: 'Anna Muster', dept: 'IT', role: 'admin', source: 'ldap', active: true },
@@ -17,9 +17,9 @@ const base = () => ({ objs: [
     { id: 'm1', login: '', name: 'Hand Made', role: 'viewer', source: 'manual', active: true },
   ] });
 const USERS = [
-  entra('e1', 'anna@argo.ch', 'Anna M. (Entra)', { onPremisesSamAccountName: 'anna', onPremisesSyncEnabled: true, department: 'Other' }),
-  entra('e2', 'bea@argo.ch', 'Bea Beispiel', { onPremisesSamAccountName: 'bea', department: 'Einkauf' }),
-  entra('e3', 'cloud@argo.ch', 'Cloud Only', { department: 'Sales', accountEnabled: false }),
+  entra('e1', 'anna@example.ch', 'Anna M. (Entra)', { onPremisesSamAccountName: 'anna', onPremisesSyncEnabled: true, department: 'Other' }),
+  entra('e2', 'bea@example.ch', 'Bea Beispiel', { onPremisesSamAccountName: 'bea', department: 'Einkauf' }),
+  entra('e3', 'cloud@example.ch', 'Cloud Only', { department: 'Sales', accountEnabled: false }),
 ];
 
 test('match: people in Entra are noted, an LDAP person keeps what the directory says, a Lansweeper one gets its empty name and department', () => {
@@ -28,7 +28,7 @@ test('match: people in Entra are noted, an LDAP person keeps what the directory 
   assert.equal(c.inEntra, 2); assert.equal(c.added, 0);
   const [anna, bea, hand] = s.users;
   assert.deepEqual([anna.entra.id, anna.entra.synced, anna.name, anna.dept], ['e1', true, 'Anna Muster', 'IT']);
-  assert.deepEqual([bea.entra.upn, bea.name, bea.dept], ['bea@argo.ch', 'Bea Beispiel', 'Einkauf']);
+  assert.deepEqual([bea.entra.upn, bea.name, bea.dept], ['bea@example.ch', 'Bea Beispiel', 'Einkauf']);
   assert.equal(hand.entra, undefined, 'nobody without a login is matched');
   assert.equal(s.users.length, 3, 'nobody is added');
   checkState(s);
@@ -39,7 +39,7 @@ test('add: the primary user of a device becomes a person from Entra, and the dev
   const c = applyGraphPeople(s, USERS, 'add', NOW);
   assert.equal(c.added, 1);
   const p = s.users.find(u => u.source === 'entra');
-  assert.deepEqual([p.login, p.name, p.dept, p.active, p.role], ['cloud@argo.ch', 'Cloud Only', 'Sales', false, 'viewer']);
+  assert.deepEqual([p.login, p.name, p.dept, p.active, p.role], ['cloud@example.ch', 'Cloud Only', 'Sales', false, 'viewer']);
   assert.equal(s.objs[0].uid, p.id, 'the device names them');
   assert.equal(s.objs[1].uid, 'ldap-anna', 'the LDAP person gets the device Intune names them on');
   checkState(s);
@@ -73,7 +73,7 @@ test('without User.Read.All the devices still sync and the reason is given; with
   assert.deepEqual(denied.records, []);
   assert.equal(denied.users, null);
   assert.match(denied.peopleError, /User\.Read\.All/);
-  const ok = await fetchGraphAll(cfg, NOW, reply([...USERS, entra('g1', 'guest#EXT#@argo.ch', 'Guest', { userType: 'Guest' })]));
+  const ok = await fetchGraphAll(cfg, NOW, reply([...USERS, entra('g1', 'guest#EXT#@example.ch', 'Guest', { userType: 'Guest' })]));
   assert.deepEqual(ok.users.map(u => u.id), ['e1', 'e2', 'e3']);
   let asked = false;
   await fetchGraphAll({ ...cfg, people: 'off' }, NOW, async url => { if (url.includes('/users')) asked = true; return reply([])(url); });
