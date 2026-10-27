@@ -2,7 +2,7 @@
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { canEdit, who } from './04-settings.js';
-import { esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
+import { esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
@@ -263,6 +263,8 @@ export function renameSite(old, value){
   /* Plans and their areas follow the rename, so the devices stay on them. */
   PLANS.forEach(p => { if (p.site === old) p.site = name; (p.areas || []).forEach(a => { if (a.room) a.room = move(a.room); }); });
   if (st.loc) st.loc = move(st.loc);
+  const n = objs.filter(o => String(o.loc || '').startsWith(name)).length;
+  toastUndo(`Site renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => renameSite(name, old));
   renderSetLocs(); render();
 }
 export function renameLoc(old, value){
@@ -274,7 +276,9 @@ export function renameLoc(old, value){
   objs.forEach(o => { if (o.loc === old) o.loc = name; });
   PLANS.forEach(p => (p.areas || []).forEach(a => { if (a.room === old) a.room = name; }));
   if (st.loc === old) st.loc = name;
-  toast('Renamed to ' + name); renderSetLocs(); render();
+  /* Undo renames it back: the devices, plan areas and filter follow again. */
+  const n = objs.filter(o => o.loc === name).length;
+  toastUndo(`Renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => renameLoc(name, old)); renderSetLocs(); render();
 }
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
 export { IPV4_RE, MAC_RE, validIPv6, checkAddress } from './addr.js';
