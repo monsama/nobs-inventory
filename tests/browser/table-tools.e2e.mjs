@@ -53,6 +53,20 @@ try {
   assert.equal(await p.inputValue('thead tr.fr input[aria-label="Filter Name"]'), '', 'Clear filters left the column filter in place');
   assert.equal(await shown(), 7, 'the table did not show every row after Clear filters');
 
+  // A filter stays on its column when another column before it is hidden or shown again
+  await p.fill('thead tr.fr input[aria-label="Filter Name"]', 'ZH-PC');
+  await p.dispatchEvent('thead tr.fr input[aria-label="Filter Name"]', 'input'); await p.waitForTimeout(150);
+  const narrowed = await shown();
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); window.__hid = v.hiddenCols().slice(); v.setHiddenCols([...window.__hid, 'code']); (await import('/js/07-render-plans.js')).render(); });
+  await p.waitForTimeout(200);
+  assert.equal(await p.inputValue('thead tr.fr input[aria-label="Filter Name"]'), 'ZH-PC', 'the filter moved off its column');
+  assert.equal(await shown(), narrowed, 'the filter applies to another column now');
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(window.__hid); (await import('/js/07-render-plans.js')).render(); });
+  await p.waitForTimeout(200);
+  assert.equal(await p.inputValue('thead tr.fr input[aria-label="Filter Name"]'), 'ZH-PC');
+  assert.equal(await shown(), narrowed);
+  await p.click('#clearF'); await p.waitForTimeout(150);
+
   assert.deepEqual(errors, [], 'page errors');
   console.log('table tools: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

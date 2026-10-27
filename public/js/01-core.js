@@ -31,7 +31,9 @@ export const ICON = {
 };
 export const svg = (t, cls='i') => {
   const T = TYPES[t] || {};
-  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${VIEWBOX_RE.test(T.svgView || '') ? T.svgView : '0 0 24 24'}">${T.svgInner}</svg>`;
+  /* An uploaded icon drawn in white (made for a coloured tile) takes the text colour instead, so it shows on the light
+     tile of the calm look too. */
+  if (T.icon === 'custom' && T.svgInner) return `<svg class="${cls} cu" viewBox="${VIEWBOX_RE.test(T.svgView || '') ? T.svgView : '0 0 24 24'}">${T.svgInner.replace(/\b(fill|stroke)=(["'])\s*(#fff|#ffffff|white)\s*\2/gi, '$1="currentColor"')}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24">${ICON[T.icon] || ICON.other}</svg>`;
 };
 
@@ -119,9 +121,18 @@ export const warrantyState = (o, today = new Date()) => {
 /* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
    all the same, and flagged so someone checks it by hand. */
 export const SCAN_OLD_DAYS = 90;
-export const scanOld = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
-  && (today - new Date(o.feed.scanned + 'T00:00:00')) / 86400000 > SCAN_OLD_DAYS);
-export const scanChip = o => scanOld(o) ? `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
+const isDay = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+const daysAgo = (day, today) => (today - new Date(day + 'T00:00:00')) / 86400000;
+/* A device Lansweeper tries to scan but has never scanned (it only knows it from Active Directory, or cannot log on):
+   none of its details come from a scan. A week's grace for one it found only just now. */
+export const NEVER_SCANNED_GRACE_DAYS = 7;
+export const neverScanned = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && !o.feed.scanned && isDay(o.feed.tried)
+  && !(isDay(o.feed.firstSeen) && daysAgo(o.feed.firstSeen, today) <= NEVER_SCANNED_GRACE_DAYS));
+export const scanOld = (o, today = new Date()) => neverScanned(o, today) || !!(lsLive() && o.feed && !o.excluded && !o.detached && isDay(o.feed.scanned)
+  && daysAgo(o.feed.scanned, today) > SCAN_OLD_DAYS);
+export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
+  ? `<span class="chip warn lsst" title="Lansweeper has tried to scan it (last on ${dayText(o.feed.tried)}) but has never scanned it. Check by hand that it is there, and why Lansweeper cannot scan it.">Never scanned</span>`
+  : `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>`;
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
@@ -326,8 +337,11 @@ export const joinBadges = o => {
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
     it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? 'Microsoft Intune: in Entra, not managed' : 'Microsoft Intune: not managed',
   ];
+  /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
+  const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
+  if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
   return `<div class="jbar" role="img" aria-label="${esc(tips.join('. '))}">
-    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}
+    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}
   </div>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
