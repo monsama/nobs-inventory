@@ -14,7 +14,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-ux-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const o = (id, type, name, extra = {}) => ({ id, code: 'INV-' + id, type, name, status: 'active', loc: 'HQ / Hall', ovr: {}, feed: null, ...extra });
-const y = new Date().getFullYear(), pad = n => String(n).padStart(2, '0'), d = new Date(Date.now() + 20 * 864e5);
+const pad = n => String(n).padStart(2, '0'), d = new Date(Date.now() + 20 * 864e5);
 const s0 = loadState(db);
 saveState(db, { ...s0, locs: ['HQ / Hall', 'Branch / Office'], sites: ['HQ', 'Branch'],
   users: [...s0.users, { id: 'u-jdoe', login: '', name: 'Jane Doe', dept: 'Sales', role: 'viewer', groups: [], source: 'manual', active: true }],
@@ -72,7 +72,7 @@ try {
   await p.fill('#search', ''); await p.dispatchEvent('#search', 'input');
 
   // 8. Ports opens on the switch, not on the server that comes first
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = null; try { localStorage.removeItem('ni-ports-device'); } catch {} });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = null; try { localStorage.removeItem('ni-ports-device'); } catch { /* not kept */ } });
   await p.click('#tabsbar [data-tab=net]');
   assert.equal(await p.inputValue('#portsDevice'), 'sw1');
 
