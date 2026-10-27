@@ -1024,6 +1024,41 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .pl-pin.auto{opacity:1}
 .pl-pin:hover,.pl-pin:focus-visible{z-index:5}
 .settabs{background:transparent}
+/* Floor plan: pins that cover each other become a group marker; it fans them out, or lists them when there are many. */
+/* Plan pins as labels: neutral, the type's colour only in its icon; the area's own devices (placed by the app) lighter.
+   Remove (×) shows on the pin under the pointer or in focus. Area names are quiet labels in the corner. */
+.pl-pin{border-radius:var(--r-s);height:26px;padding:0 8px 0 3px;gap:6px;border:1px solid var(--bd);background:var(--bg);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.pl-pin .tico{width:20px;height:20px;border-radius:3px}
+.pl-pin:hover,.pl-pin:focus-visible{border-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.22);z-index:5}
+.pl-pin.auto{opacity:1;border-style:solid;border-color:var(--bd2);background:color-mix(in srgb,var(--bg) 88%,transparent);box-shadow:none;font-weight:500}
+.pl-rcount{background:var(--panel2);color:var(--muted)}
+.pl-unpin{width:0;margin-left:-6px;overflow:hidden;background:transparent;color:var(--muted);transition:width .1s}
+.pl-pin:hover .pl-unpin,.pl-pin:focus-visible .pl-unpin,.pl-pin:focus-within .pl-unpin{width:16px;margin-left:0}
+.pl-unpin:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
+.pl-area-fill{fill:color-mix(in srgb,var(--accent) 7%,transparent)}
+.pl-area-edge{stroke-width:1.5px}
+.pl-area-tag{background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--bd));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}
+.pl-area-tag .pl-acount{background:var(--panel2);color:var(--muted)}
+.pl-area-tag .pl-x{background:transparent;color:var(--muted);width:16px;height:16px}
+.pl-area-tag .pl-x:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
+.pl-pin.grouped{display:none}
+.pl-pin.fanned{z-index:22;transition:left .15s ease,top .15s ease}
+.pl-pin.hit,.pl-group.hit{box-shadow:0 0 0 3px var(--accent),0 2px 6px rgba(0,0,0,.3)}
+.pl-group{position:absolute;transform:translate(-50%,-50%);z-index:6;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 9px 0 10px;border-radius:var(--r-s);border:1px solid var(--bd);background:var(--panel);color:var(--fg);font:inherit;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
+.pl-group b{font-size:13px;margin-right:2px}
+.pl-group:hover,.pl-group.open{border-color:var(--accent)}
+.pl-group.open{z-index:21}
+.pl-group .tico{width:18px;height:18px}.pl-group .tico svg{width:11px;height:11px}
+.pl-gdot{width:8px;height:8px;border-radius:50%;background:var(--warn);margin-left:2px}
+.pl-fanring{position:absolute;transform:translate(-50%,-50%);z-index:20;border-radius:50%;border:1px dashed var(--bd);background:color-mix(in srgb,var(--bg) 70%,transparent);pointer-events:none}
+.pl-glist{position:absolute;z-index:23;transform:translate(-50%,18px);width:270px;max-height:300px;overflow:auto;display:flex;flex-direction:column;padding:4px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel);box-shadow:var(--shadow)}
+.pl-glist.up{transform:translate(-50%,calc(-100% - 18px))}
+.pl-ghead{padding:6px 8px;font-size:12px;font-weight:600}
+.pl-grow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:center;height:30px;padding:0 8px;border:0;background:transparent;text-align:left;cursor:grab;touch-action:none}
+.pl-grow:hover,.pl-grow:focus-visible{background:var(--hover)}
+.pl-grow .pl-gn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-grow.attn .pl-gn::after{content:'';display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--warn);vertical-align:middle}
+.pl-acount{margin-left:6px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,currentColor 18%,transparent);font-size:11px;font-weight:600}
 /* On a phone the status bar keeps the counts and the save state; the Lansweeper time does not fit beside them. */
 @media (max-width:640px){#stSync{display:none!important}}
 .card .cf .chip{max-width:60%}
