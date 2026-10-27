@@ -1,4 +1,4 @@
-import { restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
+import { UNDO, restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
@@ -333,14 +333,14 @@ export function placeDevice(plan, o, x, y, sure = false){
     $('#pmOk').onclick = () => { closeModal(); placeDevice(plan, o, x, y, true); };
     return;
   }
-  const was = snapshot([o]), wasLoc = o.loc;
+  const was = snapshot([o]), wasLoc = o.loc, offWas = plan.off ? [...plan.off] : null;
   o.planPos = {plan: plan.id, x, y}; delete o.planOff; plan.off = (plan.off || []).filter(id => id !== o.id);
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   /* The pin just placed is marked for a moment and kept out of a group, so it can be seen where it went. */
   st.planFlash = o.id;
   planPlace = null; queueServerSave(); renderPlans();
-  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
+  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); if (offWas) plan.off = offWas; else delete plan.off; queueServerSave(); renderPlans(); });
 }
 /* From a device's page: its floor plan, with the device marked and in view. */
 export function showOnPlan(o){
@@ -659,7 +659,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -792,6 +792,10 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   applyState(d);
   SERVER.revs = d.revs || {};
   setBaseline();
+  /* Settings changed here while it loaded (contracts, plans, locations …) go back on top too; the base stays the
+     server's, so they are saved. */
+  const sets = keep ? keep.puts.filter(c => c.kind === 'setting' && !skip.includes(c.key)) : [];
+  if (sets.length){ const mine = { ...d }; for (const c of sets) mine[c.id] = JSON.parse(c.json); applyState(mine); }
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
@@ -841,6 +845,7 @@ export async function checkForChanges(){
   if (changed) await reloadFromServer();
 }
 export function applyState(d){
+  UNDO.epoch++;
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
@@ -865,7 +870,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));

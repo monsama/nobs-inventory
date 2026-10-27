@@ -17,7 +17,7 @@ export function deviceLinksPanel(o){
       <input id="lnkEdLabel" value="${esc(l.label || '')}" placeholder="Label" maxlength="60" aria-label="Label of the link" style="width:170px">
       <input id="lnkEdUrl" value="${esc(l.url)}" maxlength="500" aria-label="Address of the link" style="flex:1;min-width:160px">
       <button id="lnkEdSave" class="primary">Save</button><button id="lnkEdCancel">Cancel</button></div>` : `<div class="relrow lnkrow"><span class="k"><span class="chip kept">${esc(linkKind(l.url))}</span></span>
-      <span class="t"><a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="Open ${esc(l.url)} in a new tab">${esc(l.label || l.url)}</a>${l.label ? `<span class="muted mono lnk-url">${esc(l.url)}</span>` : ''}</span>
+      <span class="t"><a class="lnk${l.label ? '' : ' lnk-addr'}" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="Open ${esc(l.url)} in a new tab">${esc(l.label || l.url)}</a>${l.label ? `<span class="muted mono lnk-url">${esc(l.url)}</span>` : ''}</span>
       <button class="icon ghost" data-lnkcopy="${i}" title="Copy the address" aria-label="Copy ${esc(l.url)}"><svg class="i" viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg></button>
       ${edit ? `<button class="icon ghost" data-lnkedit="${i}" title="Edit the link" aria-label="Edit ${esc(l.label || l.url)}"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg></button>` : ''}
       ${edit ? `<button class="icon ghost" data-lnkdel="${i}" title="Remove the link" aria-label="Remove ${esc(l.label || l.url)}">×</button>` : ''}</div>`).join('');

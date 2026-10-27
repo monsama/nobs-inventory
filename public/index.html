@@ -117,7 +117,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .ctlrow .pchk{white-space:nowrap;flex:none}
 /* The floor plan fills the view down to the status bar, like the relationship map. */
 .plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
-.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
+.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 8px;min-height:38px;box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
 .pl-bar select{min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
 .pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
@@ -437,7 +437,11 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .lnk-quick{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:1px dashed var(--bd);border-radius:13px;background:transparent;color:var(--linktext);font-family:var(--mono);font-size:12px;cursor:pointer}
 .lnk-quick:hover{border-style:solid;background:var(--hover)}
 .lnk-quick>span{font-weight:600;font-size:14px;line-height:1}
+.relrow.lnk-edit{flex-wrap:wrap}
 .relrow.lnk-edit input{height:28px;box-sizing:border-box}
+.relrow.lnk-edit #lnkEdUrl,.lnk-url,a.lnk.lnk-addr{font-family:var(--mono)}
+@media (max-width:760px){.relrow.lnk-edit input{flex:1 1 100%!important;width:auto!important}}
+.ad-acct .muted{white-space:nowrap}
 .relist .relrow.lnk-edit button{flex:none;width:auto;height:28px;padding:0 12px}
 .lnk-break{flex-basis:100%;height:0}
 .more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
@@ -831,6 +835,7 @@ input.inherit::placeholder{color:var(--fg);font-style:normal;opacity:.85}
 .sn-suggest .snrow .mono{font-family:var(--mono)}
 .sn-suggest .snrow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .sn-suggest button{min-width:88px;justify-content:center;text-align:center;flex:none}
+table.types td:last-child{padding-right:12px}
 .form input,.form select,.form textarea{width:100%}
 .form input[type=checkbox],.form input[type=radio]{width:auto}
 .form .ro{font-family:var(--mono);font-size:12px}
@@ -848,6 +853,8 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .relrow button:not(.link){height:22px;width:22px}
 .relrow .t .link{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.relrow .t:has(.rport) .link{flex:1 1 auto}   /* the port boxes line up, however long the name */
+#arTo{min-width:160px}
 .relrow .t>.muted{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Links have their own shade, readable on the page and on the tinted section bands in either theme. */
 a,a.link{color:var(--linktext)}
@@ -906,7 +913,7 @@ a.link:hover{text-decoration:underline}
 .lsbox .lsbox-check{width:auto;white-space:normal;gap:6px;margin:0}
 .lsbox .lsbox-check input{margin:0}
 .pchk{display:inline-flex;gap:6px;align-items:center;font-size:12px;white-space:normal;min-width:0}
-.pchk input{height:auto}
+.pchk input{height:auto;flex:none}   /* a long label wraps; the box keeps its size */
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px;padding:10px 12px}
 .trules td input:not([type=checkbox]),.trules td select{width:100%}
 .trules tr.off td{opacity:.55}
@@ -1007,7 +1014,9 @@ table.grid a.rowopen:hover{text-decoration:underline}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
 @media (pointer:coarse){
-  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item{min-height:40px}
+  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item,.toolbar details.menu>summary{min-height:40px}
+  .toolbar .tbsep{display:none}   /* a wrapped toolbar would leave a divider with nothing after it */
+  .form>.fieldnote{margin:-8px 0 6px}   /* a field's note stays with its field, not the next label */
   input:not([type=checkbox]):not([type=radio]),select{height:40px}
   /* The entries of an open list, too: the app's own (Model) and a dropdown's where the browser lets it be styled. */
   .combo-list li,select option{padding:11px 12px}

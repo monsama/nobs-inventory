@@ -205,6 +205,7 @@ export function renderSetDomains(){
 export const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
 export const siteOf = l => String(l || '').split(' / ')[0];
 export function renderSetLocs(){
+  if (!$('#setLocs')) return;   /* an Undo after Settings was closed: nothing here to draw */
   const siteRow = (x, i) => {
     const n = objs.filter(o => siteOf(o.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
     return `<div class="lrow"><input data-si="${i}" value="${esc(x)}" aria-label="Site name"><span class="n">${n}</span>
@@ -264,7 +265,7 @@ export function renameSite(old, value){
   PLANS.forEach(p => { if (p.site === old) p.site = name; (p.areas || []).forEach(a => { if (a.room) a.room = move(a.room); }); });
   if (st.loc) st.loc = move(st.loc);
   const n = objs.filter(o => String(o.loc || '').startsWith(name)).length;
-  toastUndo(`Site renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => renameSite(name, old));
+  toastUndo(`Site renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameSite(name, old); queueServerSave(); });
   renderSetLocs(); render();
 }
 export function renameLoc(old, value){
@@ -278,7 +279,7 @@ export function renameLoc(old, value){
   if (st.loc === old) st.loc = name;
   /* Undo renames it back: the devices, plan areas and filter follow again. */
   const n = objs.filter(o => o.loc === name).length;
-  toastUndo(`Renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => renameLoc(name, old)); renderSetLocs(); render();
+  toastUndo(`Renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameLoc(name, old); queueServerSave(); }); renderSetLocs(); render();
 }
 /* Address checks, the same rules as server/validate.js: an empty value is allowed. */
 export { IPV4_RE, MAC_RE, validIPv6, checkAddress } from './addr.js';
