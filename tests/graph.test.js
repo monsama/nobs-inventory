@@ -136,8 +136,8 @@ test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, 
   phone.model = 'iPhone 15 (blue)'; phone.ovr.model = false;
   applyGraph(s, [{ ...rec, os: 'iOS 18.2' }], NOW);
   assert.equal(phone.model, 'iPhone 15 (blue)'); assert.equal(phone.os, 'iOS 18.2');
-  // once Lansweeper has it, Graph only fills gaps
-  phone.feed = { sys: 'Lansweeper', ref: 'x' };
+  // once Lansweeper has it, and fills the OS in, Graph only fills gaps
+  phone.feed = { sys: 'Lansweeper', ref: 'x' }; s.policy = { os: true };
   applyGraph(s, [{ ...rec, os: 'iOS 19' }], NOW);
   assert.equal(phone.os, 'iOS 18.2'); assert.equal(phone.graph.added, undefined);
   // excluded: what Graph reports is updated, the fields are not

@@ -69,18 +69,25 @@ test('who wins: hand, then Lansweeper, then Graph, then AD', () => {
   // Lansweeper's value is Lansweeper's: the note goes
   mergeRecords(s, [{ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise (10.0.22631)', ref: '7' }], NOW);
   assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)'); assert.equal(o.src && o.src.os, undefined);
-  // and Graph only fills gaps on a device Lansweeper has
+  // and Graph only fills gaps on a field Lansweeper fills in
   applyGraph(s, [rec({ os: 'Windows 11 Enterprise 10.0.26100' })], NOW);
   assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)');
+  // a field Lansweeper does not fill in (policy off) on a linked device: Graph still replaces AD and refreshes its own
+  const s2 = { ...state([{ id: 'q', name: 'PC-1', serial: 'S1', status: 'active', feed: { sys: 'Lansweeper', ref: '8' } }]), policy: { os: false } };
+  applyComputers(s2, [{ name: 'PC-1', dns: '', groups: [], os: 'Windows 10 Enterprise (10.0.19045)', domain: '', logon: '', created: '' }], NOW);
+  applyGraph(s2, [rec()], NOW);
+  assert.equal(s2.objs[0].os, 'Windows 11 Enterprise 10.0.22631'); assert.equal(s2.objs[0].src.os, 'graph');
+  applyGraph(s2, [rec({ os: 'Windows 11 Enterprise 10.0.26100' })], NOW);
+  assert.equal(s2.objs[0].os, 'Windows 11 Enterprise 10.0.26100');
   // a value typed by hand: fillField leaves it
   const t = { id: 't', os: 'typed' };
   assert.equal(fillField(null, t, 'os', 'Windows 11', 'graph', 'now'), false);
 });
 
-test('Graph: values it gave before are noted as its own, phone details are kept, and Settings can turn filling off', () => {
+test('Graph: a value typed that matches it stays the page\'s, phone details are kept, and Settings can turn filling off', () => {
   const s = state([{ id: 'p', name: 'PC-1', serial: 'S1', status: 'active', model: 'HP EliteBook' }]);
   applyGraph(s, [rec()], NOW);
-  assert.equal(s.objs[0].src.model, 'graph', 'the same value as Graph has: noted as Graph\'s');
+  assert.equal(s.objs[0].src && s.objs[0].src.model, undefined, 'the same value as Graph has: not marked as Graph\'s');
   const records = toRecords([{ id: 'e1', deviceId: 'a9', displayName: 'iPhone Ana', trustType: 'Workplace' }],
     [{ id: 'm9', azureADDeviceId: 'a9', deviceName: 'iPhone Ana', serialNumber: 'F2', operatingSystem: 'iOS', osVersion: '18.1', imei: '35 123456 789012 3', phoneNumber: '+41 79 123 45 67',
       managedDeviceOwnerType: 'company', freeStorageSpaceInBytes: 32 * 2 ** 30, totalStorageSpaceInBytes: 128 * 2 ** 30 }]);

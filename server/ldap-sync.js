@@ -3,7 +3,7 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
-import { fillField } from './fill.js';
+import { fillField, lsOwns } from './fill.js';
 import { stamp } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
@@ -83,9 +83,9 @@ export function applyComputers(s, computers, now = new Date()) {
     let changed = false;
     /* Detached or excluded from sync, a device keeps its fields; what AD says of the account is still shown. */
     if (c && s.fillAd !== false && !o.excluded && !o.detached) {
-      /* A device Lansweeper has gets only its gaps filled. */
+      /* A field Lansweeper fills in gets only filled while it is empty. */
       for (const [k, v, label] of [['os', c.os, 'Operating system'], ['domain', c.domain, 'Domain']]) {
-        if (o.feed && o[k]) continue;
+        if (lsOwns(s, o, k) && o[k]) continue;
         if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
       }
     }
