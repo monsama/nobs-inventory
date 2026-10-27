@@ -1,18 +1,21 @@
-# The shared proxy. Certificates come from ./certificates (not from Let's Encrypt), so internal names work: one
-# certificate, nobs.crt with nobs.key, carries every name served here (inventory.example.ch, wiki.example.ch, ...).
-# Replace it with: sudo ./scripts/install-cert.sh <cert.pem> <key.pem>
+# The shared proxy. Certificates come from ./certificates (not from Let's Encrypt), so internal names work.
+#   - A site can have a certificate of its own, in ./certificates/sites/<site>.crt with its .key: installed with
+#     sudo ./scripts/install-cert.sh <site> <bundle.pem>, which also points the site's file at it.
+#   - Every other site, and a name no site answers to, gets the default certificate, nobs.crt with nobs.key.
 # Each service has a file in ./sites, for example:
 #   https://wiki.example.ch {
 #   	import tls_and_headers
 #   	reverse_proxy dokuwiki:8080
 #   }
+# and with a certificate of its own, instead of "import tls_and_headers":
+#   	tls /certs/sites/wiki.crt /certs/sites/wiki.key
+#   	import headers
 {
 	auto_https off
 	admin off
 }
 
-(tls_and_headers) {
-	tls /certs/nobs.crt /certs/nobs.key
+(headers) {
 	encode zstd gzip
 	header {
 		-Server
@@ -20,6 +23,11 @@
 		Referrer-Policy "same-origin"
 		# Strict-Transport-Security "max-age=31536000"   (enable once the certificate is trusted)
 	}
+}
+
+(tls_and_headers) {
+	tls /certs/nobs.crt /certs/nobs.key
+	import headers
 }
 
 :80 {

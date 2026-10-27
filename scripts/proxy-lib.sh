@@ -22,6 +22,16 @@ proxy_take_certificates() {
   fi
 }
 
+# The certificate lines of a site: its own certificate when scripts/install-cert.sh put one in certificates/sites,
+# else the default one (nobs.crt) with the headers.
+proxy_tls_lines() {
+  if [ -s "$PROXY_DIR/certificates/sites/$1.crt" ] && [ -s "$PROXY_DIR/certificates/sites/$1.key" ]; then
+    printf '\ttls /certs/sites/%s.crt /certs/sites/%s.key\n\timport headers\n' "$1" "$1"
+  else
+    printf '\timport tls_and_headers\n'
+  fi
+}
+
 # The inventory's site: the name people type (NI_HOST), and its short form for an internal name. Written each time,
 # so a changed NI_HOST takes effect; other services' files in proxy/sites are left alone.
 proxy_site() {
@@ -29,13 +39,11 @@ proxy_site() {
   host="$(proxy_env NI_HOST)"; [ -n "$host" ] || { echo "[ERROR] NI_HOST is not set in .env." >&2; return 1; }
   names="https://$host"; short="${host%%.*}"; [ "$short" != "$host" ] && names="$names, https://$short"
   mkdir -p "$PROXY_DIR/sites"
-  cat > "$PROXY_DIR/sites/inventory.caddy" <<SITE
-# NOBS Inventory. Written from NI_HOST in .env by deploy-nobs.sh and scripts/update.sh: a change here is overwritten.
-$names {
-	import tls_and_headers
-	reverse_proxy nobs-inventory:8080
-}
-SITE
+  { echo "# NOBS Inventory. Written from NI_HOST in .env by deploy-nobs.sh and scripts/update.sh: a change here is overwritten."
+    echo "$names {"
+    proxy_tls_lines inventory
+    printf '\treverse_proxy nobs-inventory:8080\n}\n'
+  } > "$PROXY_DIR/sites/inventory.caddy"
 }
 
 # Starts the proxy, or reloads it when it runs, so a new site file or certificate is used.

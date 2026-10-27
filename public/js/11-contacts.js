@@ -7,6 +7,7 @@ import { closeModal, modal } from './03-object-modals.js';
 import { USERS, canEdit, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { resetFilters } from './02-views.js';
+import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 
 const newId = () => 'k' + Math.random().toString(36).slice(2, 10);
 export const RESP_KEYS = { internal: 'respIn', external: 'respEx' };
@@ -28,6 +29,7 @@ function contactCard(c){
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${esc(initials(c.name))}</span>
       <div class="cn-who"><b>${esc(c.name)}</b><span class="muted">${esc([c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind])}</span></div>
       <button class="icon ghost" data-cnedit="${esc(c.id)}" aria-label="${canEdit() ? 'Edit' : 'Show'} ${esc(c.name)}" title="${canEdit() ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button></div>
+    ${c.area ? `<div class="cn-area" title="Ask about">${esc(c.area)}</div>` : ''}
     <div class="cn-ways">${reach(c) || '<span class="muted">No e-mail or phone yet</span>'}</div>
     ${c.note ? `<p class="cn-note">${esc(c.note)}</p>` : ''}
     <div class="cn-foot"><button class="link" data-cndevs="${esc(c.id)}" ${n ? '' : 'disabled'} title="Show the devices ${esc(c.name)} is responsible for">${n ? `Responsible for ${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'}</button></div>
@@ -37,17 +39,23 @@ function contactCard(c){
 export function renderContacts(){
   const q = (st.cnQ || '').trim().toLowerCase(), kind = st.cnKind || '';
   const all = CONTACTS.list;
-  const hit = c => (!kind || c.kind === kind) && (!q || [c.name, c.company, c.role, c.email, c.phone, c.mobile, c.note].some(v => String(v || '').toLowerCase().includes(q)));
+  const hit = c => (!kind || c.kind === kind) && (!q || [c.name, c.company, c.area, c.role, c.email, c.phone, c.mobile, c.note].some(v => String(v || '').toLowerCase().includes(q)));
   const shown = all.filter(hit);
   $('#toolbar').innerHTML = `<input id="cnQ" type="search" placeholder="Find a contact, company or number…" aria-label="Find a contact" value="${esc(st.cnQ || '')}" style="width:260px">
     <select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><div class="grow"></div>
-    ${canEdit() ? '<button id="cnNew" class="primary">New contact</button>' : ''}`;
+    ${all.length ? '<button id="cnExport" title="All contacts as a CSV file for Excel">Export CSV</button>' : ''}
+    ${canEdit() ? '<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>' : ''}`;
   const nb = $('#cnNew'); if (nb) nb.onclick = () => contactModal(null);
+  const ib = $('#cnImport'); if (ib) ib.onclick = () => importModal();
+  const eb = $('#cnExport'); if (eb) eb.onclick = () => {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([contactsCsv(CONTACTS.list)], { type: 'text/csv;charset=utf-8' })), download: 'contacts.csv' });
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   $('#cnKind').onchange = e => { st.cnKind = e.target.value; renderContacts(); };
   const box = $('#cnQ'); box.oninput = () => { st.cnQ = box.value; renderContacts(); const b = $('#cnQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
-    $('#view').innerHTML = `<div class="empty">No contacts yet. Add your own IT people and the people at your IT partners (service provider, supplier support), then name on each device who is responsible for it, internally and externally.</div>`;
+    $('#view').innerHTML = `<div class="empty">No contacts yet. Add your own IT people and the people at your IT partners (service provider, supplier support), or import them from a CSV file or vCards, then name on each device who is responsible for it, internally and externally.</div>`;
     return;
   }
   /* The company's own people first, then each partner company in order, those without a company last. */
@@ -81,6 +89,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
       <label for="cn_user" class="cn-in">Is the user</label><div class="cn-in"><select id="cn_user" ${ro}><option value="">— nobody in Users —</option>${users.map(u => `<option value="${esc(u.id)}" ${cur.userId === u.id ? 'selected' : ''}>${esc(u.name)}${u.dept ? ' · ' + esc(u.dept) : ''}</option>`).join('')}</select></div>
       ${field('name', 'Name', 'placeholder="First and last name, or a team (Service desk)"')}
       ${field('company', 'Company', 'list="cnCompanies" placeholder="e.g. Muster IT AG"')}<datalist id="cnCompanies">${companies.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+      ${field('area', 'Area', 'placeholder="What to ask them about, e.g. Sage200 interface, Firewall"')}
       ${field('role', 'Role', 'placeholder="e.g. Network, Field service, Account manager"')}
       ${field('email', 'E-mail', 'type="email" autocomplete="off"')}
       ${field('phone', 'Phone', 'inputmode="tel" autocomplete="off"')}
@@ -106,7 +115,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
   $('#cnOk').onclick = () => {
     const k = kindNow(), val = id => $('#cn_' + id).value.trim();
     const next = { id: cur.id, kind: k, name: val('name').replace(/\s+/g, ' ') };
-    for (const f of ['company', 'role', 'email', 'phone', 'mobile']) if (val(f)) next[f] = val(f);
+    for (const f of ['company', 'area', 'role', 'email', 'phone', 'mobile']) if (val(f)) next[f] = val(f);
     const note = $('#cn_note').value.trim(); if (note) next.note = note;
     if (k === 'internal' && $('#cn_user').value) next.userId = $('#cn_user').value;
     const p = contactProblem(next);
@@ -151,3 +160,81 @@ export function bindDeviceResp(o){
 }
 /* The table's column: the two names, internal first. */
 export const respText = o => [contactOf(o.respIn), contactOf(o.respEx)].filter(Boolean).map(c => c.name).join(' · ');
+
+/* Contacts from a file, shown before anything changes. The columns are matched to the fields by their headings
+   (German, English, Outlook, SharePoint) and can be changed; each row says whether it adds a contact, updates one,
+   changes nothing, repeats an earlier row or cannot be read, and why. Rows can be left out. A backup is taken first. */
+const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+const ACTION = { new: ['ok', 'New'], update: ['info', 'Update'], same: ['kept', 'Unchanged'], duplicate: ['warn', 'Twice in file'], error: ['bad', 'Not imported'] };
+export function importModal(){
+  let file = null, kind = 'external', plan = [], skip = new Set();
+  modal(`<div class="mh">Import contacts</div>
+    <div class="mb imp">
+      <div class="imp-pick">
+        <label class="imp-drop" id="impDrop"><input type="file" id="impFile" accept=".csv,.txt,.vcf,text/csv,text/vcard"><span><b>Choose a file</b><span class="imp-or"> or drop it here</span></span>
+          <span class="muted">CSV from Excel, Outlook or a SharePoint list (semicolon, comma or tab; UTF-8 or Windows), or vCards (.vcf)</span></label>
+        <div class="imp-kind"><label for="impKind">Rows that do not say internal or external are</label>
+          <select id="impKind"><option value="external">External (IT partner)</option><option value="internal">Internal (own staff)</option></select></div>
+      </div>
+      <div id="impBody"></div>
+    </div>
+    <div class="mf"><span class="muted" id="impSum">A backup is taken before the import.</span><div class="grow"></div><button id="impCancel">Cancel</button><button id="impOk" class="primary" disabled>Import</button></div>`, 'wide');
+  $('#impCancel').onclick = closeModal;
+  const draw = () => {
+    if (!file) { $('#impBody').innerHTML = ''; return; }
+    plan = planImport(CONTACTS.list, file.rows, file.mapping, kind);
+    const n = a => plan.filter(p => p.action === a).length;
+    const picked = plan.filter((p, i) => (p.action === 'new' || p.action === 'update') && !skip.has(i));
+    const sample = i => (file.rows.find(r => String(r[i] || '').trim()) || [])[i] || '';
+    const opts = sel => `<option value="">Not imported</option>${Object.entries(IMPORT_FIELDS).map(([k, f]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${f.label}</option>`).join('')}`;
+    const cell = v => `<td title="${esc(v || '')}">${esc(v || '')}</td>`;
+    $('#impBody').innerHTML = `
+      <section class="imp-sec"><div class="imp-h">Columns <span class="muted">${esc(file.name)} · ${file.rows.length} ${file.rows.length === 1 ? 'row' : 'rows'}</span></div>
+        <div class="imp-map">${file.headers.map((h, i) => `<label class="imp-col"><span class="imp-head" title="${esc(h)}">${esc(h || `Column ${i + 1}`)}</span>
+          <select data-impcol="${i}" aria-label="Field for the column ${esc(h)}">${opts(file.mapping[i])}</select><span class="muted imp-sample" title="${esc(sample(i))}">${esc(sample(i)) || '—'}</span></label>`).join('')}</div></section>
+      <section class="imp-sec"><div class="imp-h">What happens</div>
+        <div class="chip-row imp-counts">${Object.entries(ACTION).map(([a, [cls, label]]) => `<span class="chip ${cls}">${n(a)} ${label.toLowerCase()}</span>`).join('')}</div>
+        <div class="imp-table"><table class="grid mini"><thead><tr><th aria-label="Import"></th><th>Line</th><th>What</th><th>Name</th><th>Company</th><th>Area</th><th>Role</th><th>E-mail</th><th>Phone</th><th>Details</th></tr></thead><tbody>
+        ${plan.map((p, i) => { const [cls, label] = ACTION[p.action], can = p.action === 'new' || p.action === 'update', c = p.contact;
+          return `<tr class="imp-${p.action}"><td>${can ? `<input type="checkbox" data-improw="${i}" ${skip.has(i) ? '' : 'checked'} aria-label="Import line ${p.line}">` : ''}</td><td class="mono">${p.line}</td>
+            <td><span class="chip ${cls}">${label}</span></td>${cell(c.name)}${cell(c.company)}${cell(c.area)}${cell(c.role)}${cell(c.email)}${cell(c.phone || c.mobile)}
+            <td class="${p.problem ? 'imp-why' : 'muted'}" title="${esc(p.problem || '')}">${esc(p.problem || (p.changes ? 'Changes ' + p.changes.map(f => (IMPORT_FIELDS[f] || { label: f }).label.toLowerCase()).join(', ') : ''))}</td></tr>`; }).join('')}
+        </tbody></table></div></section>`;
+    $('#impOk').disabled = !picked.length;
+    $('#impOk').textContent = picked.length ? `Import ${picked.length} ${picked.length === 1 ? 'contact' : 'contacts'}` : 'Import';
+    $('#impSum').textContent = `${n('new') - plan.filter((p, i) => p.action === 'new' && skip.has(i)).length} new, ${n('update') - plan.filter((p, i) => p.action === 'update' && skip.has(i)).length} updated. A backup is taken first.`;
+    document.querySelectorAll('[data-impcol]').forEach(s => s.onchange = () => {
+      const i = +s.dataset.impcol, f = s.value;
+      /* A field comes from one column: picking it for this one takes it from the other. */
+      file.mapping = file.mapping.map((m, j) => j === i ? f : m === f ? '' : m);
+      skip = new Set(); draw();
+    });
+    document.querySelectorAll('[data-improw]').forEach(b => b.onchange = () => { const i = +b.dataset.improw; if (b.checked) skip.delete(i); else skip.add(i); draw(); });
+  };
+  const load = async f => {
+    if (!f) return;
+    if (f.size > IMPORT_MAX_BYTES) { toast('The file is larger than 2 MB. Is it the right one?'); return; }
+    const read = readContactFile(decodeText(await f.arrayBuffer()), f.name);
+    if (!read.rows.length) { toast('No contacts in this file: it needs a heading line and at least one row.'); return; }
+    file = { name: f.name, ...read }; skip = new Set();
+    $('#impDrop b').textContent = f.name; $('#impDrop .imp-or').textContent = ' · choose another file or drop it here';
+    draw();
+  };
+  $('#impFile').onchange = e => load(e.target.files[0]);
+  const drop = $('#impDrop');
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); load(e.dataTransfer.files[0]); };
+  $('#impKind').onchange = e => { kind = e.target.value; draw(); };
+  $('#impOk').onclick = async () => {
+    const pick = it => (it.action === 'new' || it.action === 'update') && !skip.has(plan.indexOf(it));
+    const { list, added, updated } = applyImport(CONTACTS.list, plan, newId, pick);
+    if (list.length > 2000) { toast(`At most 2000 contacts: this import would make ${list.length}.`); return; }
+    $('#impOk').disabled = true; $('#impOk').textContent = 'Importing…';
+    try { await fetch('api/backups', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'before a contact import' }) }); }
+    catch { /* no backup is no reason to stop: the import can be undone by hand, and the change is shown before */ }
+    CONTACTS.list = list;
+    queueServerSave(); closeModal();
+    toast(`Imported: ${added} new, ${updated} updated`); render();
+  };
+}
