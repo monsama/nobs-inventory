@@ -209,6 +209,8 @@ export function modelFor(s, name) {
 }
 /* The app type for a Lansweeper type name: a type mapping set in Settings (the name, without case) wins; then the type
    rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
+/* A type chosen by hand on the page (or one the history says was changed by a person) is never changed by the rules. */
+export const typeSetByHand = (s, o) => (o.ovr && o.ovr.type === false) || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
@@ -306,6 +308,15 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
        change of the device, so it does not count as an update. */
     if (found.feed) Object.assign(found.feed, scanDays(r));
     let changed = false;
+    /* A device still filed as Other gets the type the rules now find (new rules, a better model name), unless a person
+       chose its type; a device that has a type keeps it (Settings → Feed → Apply to existing devices changes those). */
+    if (found.type === 'other' && s.feedOn !== false && !typeSetByHand(s, found)) {
+      const to = typeFor(s, r.assetType || found.feed.assetType, r.model || found.model, r.role, r.name || found.name, r.chassis);
+      if (to !== 'other' && (KNOWN_TYPES.includes(to) || (s.types || {})[to])) {
+        ((s.history ??= {})[found.id] ??= []).unshift({ t: seen, msg: `Type changed from other to ${to} by the type rules (Lansweeper)` });
+        found.type = to; changed = true;
+      }
+    }
     for (const k of FEED_FIELDS) {
       const incoming = r[k];
       if (!incoming) continue;

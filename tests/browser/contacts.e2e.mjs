@@ -14,7 +14,7 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s0 = loadState(db);
 saveState(db, { ...s0,
-  company: { name: 'Argolite AG' },
+  company: { name: 'Example AG' },
   contacts: [
     { id: 'k1', kind: 'internal', name: 'Viktor Hug', role: 'IT lead', email: 'viktor@example.ch', phone: '+41 41 000 00 01' },
     { id: 'k2', kind: 'external', name: 'Sara Netz', company: 'Muster IT AG', role: 'Network', email: 'sara@muster-it.ch', mobile: '+41 79 000 00 02' },
@@ -43,7 +43,7 @@ try {
 
   // the tab: internal first, then the partner with its two people
   await page.click('[data-tab=contacts]'); await page.waitForSelector('.cn-card');
-  assert.deepEqual(await page.locator('.cn-group > .hdr').evaluateAll(h => h.map(x => x.firstChild.textContent.trim())), ['Internal · Argolite AG', 'Muster IT AG']);
+  assert.deepEqual(await page.locator('.cn-group > .hdr').evaluateAll(h => h.map(x => x.firstChild.textContent.trim())), ['Internal · Example AG', 'Muster IT AG']);
   assert.equal(await page.getAttribute('.cn-card:has-text("Sara Netz") a[href^="tel:"]', 'href'), 'tel:+41790000002');
   if (shots) await page.locator('#view').screenshot({ path: path.join(shots, 'contacts.png') });
   // a contact's devices open in the table, with the filter in the sidebar

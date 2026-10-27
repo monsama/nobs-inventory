@@ -26,7 +26,7 @@ function setup({ health = 'healthy', oldProxy = false } = {}) {
   const upd = path.join(install, 'scripts', 'update.sh');
   fs.writeFileSync(upd, fs.readFileSync(upd, 'utf8').split('\n').filter(l => !l.includes('sheet_key')).join('\n'), { mode: 0o755 });
   fs.mkdirSync(path.join(install, 'secrets')); fs.writeFileSync(path.join(install, 'secrets', 'feed_token'), '');
-  fs.writeFileSync(path.join(install, '.env'), 'NI_IMAGE=ghcr.io/monsama/nobs-inventory:1.0.0\nNI_HOST=inventory.argolite.ch\n');
+  fs.writeFileSync(path.join(install, '.env'), 'NI_IMAGE=ghcr.io/monsama/nobs-inventory:1.0.0\nNI_HOST=inventory.example.ch\n');
   /* An install from before the shared proxy: its own Caddy in its Compose file, the Caddyfile and certificate beside it. */
   if (oldProxy) {
     fs.rmSync(path.join(install, 'proxy'), { recursive: true, force: true });
@@ -83,7 +83,7 @@ test('an install with its own Caddy moves to the shared proxy: certificate, site
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const p = f => path.join(s.install, 'proxy', f);
   assert.equal(fs.readFileSync(p('certificates/nobs.crt'), 'utf8'), 'CERT', 'the certificate is in proxy/certificates');
-  assert.match(fs.readFileSync(p('sites/inventory.caddy'), 'utf8'), /^https:\/\/inventory\.argolite\.ch, https:\/\/inventory \{$/m);
+  assert.match(fs.readFileSync(p('sites/inventory.caddy'), 'utf8'), /^https:\/\/inventory\.example\.ch, https:\/\/inventory \{$/m);
   const log = fs.readFileSync(path.join(s.root, 'docker.log'), 'utf8');
   assert.match(log, /docker compose up -d --no-build --remove-orphans/, 'the old Caddy goes with the app\'s Compose project');
   assert.match(log, /docker compose -p nobs-proxy -f proxy\/docker-compose\.yml --env-file \.env up -d/, 'the shared proxy is started');

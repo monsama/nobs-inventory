@@ -158,7 +158,7 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
 - Matching is by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
 - Besides the device, the push reads what this Lansweeper version has (a column it lacks is skipped and logged):
   - the network adapter's subnet mask, gateway, DNS servers and DHCP. A gateway other than its subnet's is marked on the device, and subnets the adapters are in that the inventory does not list are offered under Settings → Network → Subnets, to add with one click;
-  - Lansweeper's IP locations. A device with no location gets the room whose name matches the IP location of its address (`Willisau Lager` → `Willisau / Lager`);
+  - Lansweeper's IP locations. A device with no location gets the room whose name matches the IP location of its address (`Bern Lager` → `Bern / Lager`);
   - purchase date and warranty end. Warranties that end within 90 days, or have ended, are marked and can be filtered in the sidebar;
   - the Windows role (workstation, server, domain controller), which decides PC or server for a new device;
   - the department of the logged-on user, from the Active Directory users Lansweeper scans.

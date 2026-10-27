@@ -12,20 +12,20 @@ import { CERT_SOON_DAYS, certReport } from '../server/proxy-cert.js';
 import { startServer, signIn } from './helpers.js';
 
 const DAY = 86400000;
-const fake = (validTo, extra = {}) => ({ subject: { CN: 'inventory.argolite.ch' }, issuer: { CN: 'argo-ARGODC02-CA-1' }, subjectaltname: 'DNS:inventory.argolite.ch, DNS:inventory',
+const fake = (validTo, extra = {}) => ({ subject: { CN: 'inventory.example.ch' }, issuer: { CN: 'corp-DC02-CA-1' }, subjectaltname: 'DNS:inventory.example.ch, DNS:inventory',
   valid_from: 'Jan  1 00:00:00 2026 GMT', valid_to: new Date(validTo).toUTCString(), fingerprint: 'AB:CD', ...extra });
 
 test('a certificate is read for people: its names and issuer, and whether it ends soon, has ended or is for another name', () => {
   const now = Date.parse('2026-10-27T12:00:00Z');
-  const ok = certReport(fake(now + 400 * DAY), 'inventory.argolite.ch', now);
-  assert.deepEqual([ok.state, ok.names, ok.issuer, ok.selfSigned, ok.matches, ok.daysLeft], ['ok', ['inventory.argolite.ch', 'inventory'], 'argo-ARGODC02-CA-1', false, true, 400]);
+  const ok = certReport(fake(now + 400 * DAY), 'inventory.example.ch', now);
+  assert.deepEqual([ok.state, ok.names, ok.issuer, ok.selfSigned, ok.matches, ok.daysLeft], ['ok', ['inventory.example.ch', 'inventory'], 'corp-DC02-CA-1', false, true, 400]);
   assert.equal(certReport(fake(now + 400 * DAY), 'inventory', now).matches, true, 'the short name is in it too');
-  assert.equal(certReport(fake(now + (CERT_SOON_DAYS - 1) * DAY), 'inventory.argolite.ch', now).state, 'soon');
-  assert.equal(certReport(fake(now + CERT_SOON_DAYS * DAY + 1000), 'inventory.argolite.ch', now).state, 'ok');
-  assert.equal(certReport(fake(now - DAY), 'inventory.argolite.ch', now).state, 'expired');
-  assert.equal(certReport(fake(now + 400 * DAY), 'wiki.argolite.ch', now).state, 'wrong');
+  assert.equal(certReport(fake(now + (CERT_SOON_DAYS - 1) * DAY), 'inventory.example.ch', now).state, 'soon');
+  assert.equal(certReport(fake(now + CERT_SOON_DAYS * DAY + 1000), 'inventory.example.ch', now).state, 'ok');
+  assert.equal(certReport(fake(now - DAY), 'inventory.example.ch', now).state, 'expired');
+  assert.equal(certReport(fake(now + 400 * DAY), 'wiki.example.ch', now).state, 'wrong');
   assert.equal(certReport(fake(now + 400 * DAY), '10.0.0.5', now).matches, null, 'an address is not checked against the names');
-  assert.equal(certReport(fake(now + 400 * DAY, { issuer: { CN: 'inventory.argolite.ch' } }), 'inventory', now).selfSigned, true);
+  assert.equal(certReport(fake(now + 400 * DAY, { issuer: { CN: 'inventory.example.ch' } }), 'inventory', now).selfSigned, true);
 });
 
 const rawGet = (srv, host, cookie, p) => new Promise((resolve, reject) => {

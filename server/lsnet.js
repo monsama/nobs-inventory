@@ -50,7 +50,7 @@ export function ipLocationOf(locations, ip) {
   return best;
 }
 
-/* An IP location named "Willisau Lager" is the inventory's room "Willisau / Lager": compared without case, spaces or signs. */
+/* An IP location named "Bern Lager" is the inventory's room "Bern / Lager": compared without case, spaces or signs. */
 const flat = t => String(t || '').toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, '');
 export const roomForIpLocation = (locs, name) => {
   const want = flat(name);

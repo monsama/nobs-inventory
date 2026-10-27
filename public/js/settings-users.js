@@ -111,7 +111,7 @@ export function renderSetCompany(){
   el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
     <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
     <div class="form" style="padding:10px 12px;grid-template-columns:170px minmax(0,1fr)">
-      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Argolite AG" ${edit ? '' : 'disabled'}>
+      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
       <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
         <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
         <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>

@@ -7,11 +7,11 @@ import { checkState } from '../server/state.js';
 /* What a push brings beyond the device itself: IP locations, the adapter's network, warranty dates, the Windows role
    and the user's department. */
 const base = (extra = {}) => ({ objs: [], rels: [], users: [], policy: { ip: true, mask: true, gateway: true, dns: true, dhcp: true, purchased: true, warranty: true }, feedOn: true,
-  locs: ['Willisau / Lager', 'Willisau / Büro'], seq: 100, codeN: 0, rseq: 0, types: {}, history: {}, ...extra });
+  locs: ['Bern / Lager', 'Bern / Büro'], seq: 100, codeN: 0, rseq: 0, types: {}, history: {}, ...extra });
 const now = new Date(2026, 9, 25, 10, 0);
 const IP_LOCATIONS = cleanIpLocations([
-  { name: 'Willisau Lager', from: '172.21.108.1', to: '172.21.108.254' },
-  { name: 'Willisau', from: '172.21.0.1', to: '172.21.255.254' },
+  { name: 'Bern Lager', from: '172.21.108.1', to: '172.21.108.254' },
+  { name: 'Bern', from: '172.21.0.1', to: '172.21.255.254' },
   { name: 'broken', from: '10.0.0.9', to: '10.0.0.1' },
 ]);
 
@@ -21,8 +21,8 @@ test('masks, subnets and IP location names are read the way the inventory writes
   assert.equal(subnetOf('10.10.20.37', '255.255.255.0'), '10.10.20.0/24');
   assert.equal(subnetOf('10.10.20.37', '255.255.255.255'), null, 'a /32 is not a subnet');
   assert.equal(IP_LOCATIONS.length, 2, 'a range that runs backwards is left out');
-  assert.equal(roomForIpLocation(['Willisau / Lager'], 'Willisau Lager'), 'Willisau / Lager');
-  assert.equal(roomForIpLocation(['Willisau / Lager'], 'Willisau'), null, 'a site is not a room');
+  assert.equal(roomForIpLocation(['Bern / Lager'], 'Bern Lager'), 'Bern / Lager');
+  assert.equal(roomForIpLocation(['Bern / Lager'], 'Bern'), null, 'a site is not a room');
   assert.equal(dayOf('2027-03-31T00:00:00'), '2027-03-31');
   assert.equal(dayOf('31.3.2027'), '2027-03-31');
   assert.equal(dayOf('1900-01-01'), '', 'Lansweeper\'s empty date is no date');
@@ -31,7 +31,7 @@ test('masks, subnets and IP location names are read the way the inventory writes
 test('a device with no location gets the room its address is in; a location set by hand or held by the device stays', () => {
   const s = base({ objs: [
     { id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: '', ovr: {}, feed: null },
-    { id: 'b', code: 'INV-2', type: 'pc', name: 'PC-B', status: 'active', loc: 'Willisau / Büro', ovr: {}, feed: null },
+    { id: 'b', code: 'INV-2', type: 'pc', name: 'PC-B', status: 'active', loc: 'Bern / Büro', ovr: {}, feed: null },
     { id: 'c', code: 'INV-3', type: 'pc', name: 'PC-C', status: 'active', loc: '', ovr: { loc: false }, feed: null },
   ] });
   mergeRecords(s, recordsFromJson([
@@ -39,10 +39,10 @@ test('a device with no location gets the room its address is in; a location set 
     { name: 'NEW-1', ip: '172.21.108.17', ref: '4', assetType: 'Windows' }, { name: 'NEW-2', ip: '10.9.9.9', ref: '5', assetType: 'Windows' },
   ]), now, IP_LOCATIONS);
   const loc = n => s.objs.find(o => o.name === n).loc;
-  assert.equal(loc('PC-A'), 'Willisau / Lager');
-  assert.equal(loc('PC-B'), 'Willisau / Büro', 'a location the device has is not replaced');
+  assert.equal(loc('PC-A'), 'Bern / Lager');
+  assert.equal(loc('PC-B'), 'Bern / Büro', 'a location the device has is not replaced');
   assert.equal(loc('PC-C'), '', 'a device that holds its location keeps none');
-  assert.equal(loc('NEW-1'), 'Willisau / Lager', 'a new device gets the room of its address');
+  assert.equal(loc('NEW-1'), 'Bern / Lager', 'a new device gets the room of its address');
   assert.equal(loc('NEW-2'), '', 'an address in no known room gives no location, not the first room in the list');
   assert.equal(s.lsIpLocations.length, 2, 'the IP locations are kept for the next sync');
 });
@@ -124,7 +124,7 @@ test('subnets the adapters report and the inventory lacks are suggested, with th
   ];
   const nets = suggestNets(recs, [{ cidr: '10.10.20.0/24' }], IP_LOCATIONS);
   assert.equal(nets.length, 1, 'a subnet the inventory has is not suggested');
-  assert.deepEqual(nets[0], { cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5', '172.21.1.6'], name: 'Willisau Lager',
+  assert.deepEqual(nets[0], { cidr: '172.21.108.0/24', devices: 3, gateway: '172.21.108.1', dns: ['172.21.1.5', '172.21.1.6'], name: 'Bern Lager',
     types: [{ type: 'pc', count: 2 }, { type: 'printer', count: 1 }],
     seen: [{ use: 'DHCP', from: '172.21.108.14', to: '172.21.108.150', count: 2 }, { use: 'Static', from: '172.21.108.16', to: '172.21.108.16', count: 1 }] },
     'the device types seen there, and the lowest and highest address per kind');
@@ -146,9 +146,9 @@ test('a drive or motion controller that Lansweeper files as a switch is a PLC / 
 });
 
 test('every box in Feed may overwrite does what it says: location, room from IP, IPv6, Windows update, software, monitors, departments', () => {
-  const pc = (extra = {}) => ({ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: 'Willisau / Büro', ovr: {}, feed: { sys: 'Lansweeper', ref: '1' }, ...extra });
+  const pc = (extra = {}) => ({ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: 'Bern / Büro', ovr: {}, feed: { sys: 'Lansweeper', ref: '1' }, ...extra });
   const mon = { id: 'm', code: 'INV-2', type: 'monitor', name: 'MON-A', status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref: '2' } };
-  const rec = { name: 'PC-A', ref: '1', ip: '172.21.108.14', ip6: '2001:DB8::14', patch: 'KB5066835 (2026-10-14)', location: 'Willisau / Lager',
+  const rec = { name: 'PC-A', ref: '1', ip: '172.21.108.14', ip6: '2001:DB8::14', patch: 'KB5066835 (2026-10-14)', location: 'Bern / Lager',
     user: 'Anna Muster', userDept: 'Logistik', software: [{ name: 'Tool A', version: '1' }], links: [{ kind: 'attached', ref: '2' }] };
   const run = (policy, objs = [pc(), { ...mon }], users = []) => {
     const s = base({ policy, objs, users });
@@ -158,8 +158,8 @@ test('every box in Feed may overwrite does what it says: location, room from IP,
   const all = { loc: true, ipRoom: true, ip6: true, patch: true, software: true, links: true, dept: true, user: true };
   let s = run(all);
   let o = s.objs.find(x => x.id === 'a');
-  assert.equal(o.loc, 'Willisau / Lager', 'Location: Lansweeper\'s room replaces the one the device had');
-  assert.match(s.history.a[0].msg, /Location changed from Willisau \/ Büro to Willisau \/ Lager/);
+  assert.equal(o.loc, 'Bern / Lager', 'Location: Lansweeper\'s room replaces the one the device had');
+  assert.match(s.history.a[0].msg, /Location changed from Bern \/ Büro to Bern \/ Lager/);
   assert.equal(o.ip6, '2001:db8::14', 'IPv6 is kept in its stored form');
   assert.equal(o.patch, 'KB5066835 (2026-10-14)');
   assert.deepEqual(o.software.map(x => x.name), ['Tool A']);
@@ -167,14 +167,14 @@ test('every box in Feed may overwrite does what it says: location, room from IP,
 
   s = run({ loc: false, ipRoom: true, ip6: false, patch: false, software: false, links: false, dept: false, user: true });
   o = s.objs.find(x => x.id === 'a');
-  assert.equal(o.loc, 'Willisau / Büro', 'Location off: the room stays');
+  assert.equal(o.loc, 'Bern / Büro', 'Location off: the room stays');
   assert.equal(o.ip6, undefined); assert.equal(o.patch, undefined);
   assert.equal(o.software, undefined, 'Installed software off');
   assert.equal(s.rels.length, 0, 'Monitors off');
   assert.ok(!s.users.some(u => u.dept === 'Logistik'), 'Departments off');
 
   // Room from IP location: fills an empty location when on, leaves it empty when off
-  assert.equal(run({ ipRoom: true }, [pc({ loc: '' }), { ...mon }]).objs.find(x => x.id === 'a').loc, 'Willisau / Lager');
+  assert.equal(run({ ipRoom: true }, [pc({ loc: '' }), { ...mon }]).objs.find(x => x.id === 'a').loc, 'Bern / Lager');
   assert.equal(run({ ipRoom: false }, [pc({ loc: '' }), { ...mon }]).objs.find(x => x.id === 'a').loc, '');
   // An IPv6 that is not one is not stored
   const bad = base({ policy: all, objs: [pc()] });
