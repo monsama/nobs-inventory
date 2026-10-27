@@ -769,7 +769,9 @@ function Get-LsRecords {
                 $rec['software'] = $items.ToArray()
             }
         }
-        foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m) }
+        # The monitors go as records of their own; counted apart, so the log adds up with Lansweeper's assets.
+        $script:MonitorCount = 0
+        foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }
@@ -890,7 +892,8 @@ try {
 
     Write-PushLog 'Reading Lansweeper ...'
     $records = Get-LsRecords
-    Write-PushLog "$($records.Count) active asset(s) with a name"
+    $assets = $records.Count - [int]$script:MonitorCount
+    Write-PushLog ("$assets active asset(s) with a name" + $(if ($script:MonitorCount) { " and $($script:MonitorCount) monitor(s) on them: $($records.Count) records" } else { '' }))
     $leftOut = Format-LeftOut $script:LeftOut
     if ($leftOut) { Write-PushLog $leftOut }
 
