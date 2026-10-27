@@ -4,11 +4,11 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { stampTime, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { stampTime, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
-import { openObj } from './02-views.js';
+import { joinCardsAvailable, openObj } from './02-views.js';
 /* ---------- racks ---------- */
 /* A new rack: what a rack has (its name, room, height in U and optionally its model and serial number), nothing more.
    It is shown in Racks right away. */
@@ -676,6 +676,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
         ${rackFields(o)}
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>

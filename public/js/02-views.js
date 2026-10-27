@@ -230,8 +230,9 @@ export function cardLine(o, key, idx){
 /* idx: the relations index of the view drawing many cards (relIndex), so each card does not go through every relation. */
 /* Whether the cards show AD, Entra and Intune (joinBadges). Kept in this browser: it is how this person likes to look. */
 export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
-let cardJoin = false;
-try { cardJoin = localStorage.getItem('ni-card-join') === '1'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
+/* On unless this person turned it off: a computer's place in AD, Entra and Intune is what one looks for first. */
+let cardJoin = true;
+try { cardJoin = localStorage.getItem('ni-card-join') !== '0'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 const showJoin = () => cardJoin && joinCardsAvailable();
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);

@@ -329,6 +329,9 @@ svg.cu{fill:currentColor;stroke:none}
 .card .cf{white-space:nowrap}
 .card .cf .code{font-family:var(--mono);flex:none}
 .card .cf .chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* The Lansweeper status (Synced, Check by hand, Stale…) is one width wherever it shows, so cards and rows line up;
+   a longer label ends in … and is whole in its tooltip. */
+.chip.lsst{display:inline-block;width:168px;max-width:100%;flex:none;box-sizing:border-box;text-align:center;line-height:16px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
 /* AD, Entra and Intune on a card: three equal marks above the footer. Lit in the colour of how the device is joined
    (the Overview's colours) or of its compliance; dashed and grey where the device is not there. */
 .jbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:6px 10px;border-top:1px solid var(--bd2)}
@@ -340,6 +343,8 @@ svg.cu{fill:currentColor;stroke:none}
 .jb.no i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
 .jb.no b,.jb.no small{color:var(--muted);font-weight:500}
 @media (max-width:760px){.jb small{font-size:10px}}
+/* The same marks on the device page, in its Properties: no card edge around them. */
+.jbar.jbar-page{flex:1;padding:0;border-top:0}
 .jb.ad{--c:#7c3aed}.jb.en{--c:#2563eb}.jb.hy{--c:#0d9488}.jb.reg{--c:#d97706}
 .jb.ok{--c:var(--ok)}.jb.warn{--c:var(--warnbtn)}.jb.bad{--c:var(--danger-bg)}.jb.nc{--c:#64748b}
 
