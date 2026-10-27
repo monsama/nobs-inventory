@@ -79,7 +79,7 @@ try {
   await p.fill('#peName', 'Erdgeschoss'); await p.click('#peOk');
   await until(p, async () => (await import('/js/07-render-plans.js')).planById('pl1').name === 'Erdgeschoss');
   const box = await p.locator('#plCanvas').boundingBox();
-  await p.mouse.move(box.x + box.width * 0.13, box.y + box.height * 0.37); await p.mouse.down(); await p.mouse.up();
+  await p.mouse.move(box.x + box.width * 0.385, box.y + box.height * 0.385); await p.mouse.down(); await p.mouse.up();   // the area's lower right corner, clear of its spread-out pins
   await p.waitForSelector('#plAreaEdit'); await p.click('#plAreaEdit');
   assert.equal(await p.inputValue('#aeRoom'), 'Zürich HQ / Büro', 'the area\'s room is chosen');
   await p.fill('#aeName', 'Büro Nord'); await p.click('#aeOk');
