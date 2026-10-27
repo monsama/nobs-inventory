@@ -574,11 +574,18 @@ function Select-Adapter($nics, [string]$ip) {
 function Get-OtherAdapters($nics, $main, [string]$ip = '') {
     # Adapters that are not a second network of the device: virtual switches, VPN and tunnel adapters, loopback, Bluetooth.
     $virtual = 'hyper-v|vethernet|virtual|vmware|virtualbox|vpn|tap-|tap adapter|wan miniport|loopback|bluetooth|teredo|isatap|6to4|wireguard|tailscale|zerotier|anyconnect|fortinet|globalprotect|pangp|juniper|wi-fi direct|docker|npcap'
+    # A plain loop over the list with a set of addresses already taken: Windows PowerShell 5.1 failed on @($nics) and a
+    # Where-Object over the result ("Argument types do not match") for some devices.
     $out = New-Object System.Collections.Generic.List[object]
-    foreach ($n in @($nics)) {
-        if (-not $n -or ($main -and $n['ip'] -eq $main['ip']) -or ($ip -and $n['ip'] -eq $ip) -or ($n['ip'] -like '169.254.*') -or ($n['name'] -match $virtual)) { continue }
-        if ($out | Where-Object { $_.ip -eq $n['ip'] }) { continue }
-        $out.Add([ordered]@{ name = $n['name']; ip = $n['ip']; mac = $n['mac']; mask = $n['mask']; gateway = $n['gateway']; dhcp = $n['dhcp'] })
+    if (-not $nics) { return , $out.ToArray() }
+    $mainIp = if ($main -is [System.Collections.IDictionary]) { [string]$main['ip'] } else { '' }
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($n in $nics) {
+        if ($n -isnot [System.Collections.IDictionary]) { continue }
+        $a = [string]$n['ip']
+        if (-not $a -or $a -eq $mainIp -or ($ip -and $a -eq $ip) -or $a.StartsWith('169.254.') -or ([string]$n['name'] -match $virtual)) { continue }
+        if (-not $seen.Add($a)) { continue }
+        $out.Add([ordered]@{ name = [string]$n['name']; ip = $a; mac = [string]$n['mac']; mask = [string]$n['mask']; gateway = [string]$n['gateway']; dhcp = [string]$n['dhcp'] })
     }
     return , $out.ToArray()
 }
