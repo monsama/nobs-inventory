@@ -20,7 +20,7 @@ const server = await new Promise(r => { const s = createApp({ db }).listen(0, '1
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
-const page = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); return p; };
+const page = async (ctx) => { const p = await ctx.newPage(); p.on('pageerror', e => { errors.push(e.message); console.error('page error:', e.stack || e.message); }); return p; };
 const ctxOpts = { viewport: { width: 1400, height: 900 } };
 const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
