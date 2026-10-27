@@ -3,6 +3,7 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 import { contactsProblem } from '../public/js/contacts.js';
+import { linksProblem } from '../public/js/links.js';
 import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
@@ -247,6 +248,8 @@ function checkStateRules(s) {
     if (!types.has(o.type)) bad(`${o.name || o.id} has an unknown type: ${o.type}.`);
     if (!STATUSES.includes(o.status)) bad(`${o.name || o.id} has an unknown status: ${o.status}.`);
     if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
+    /* Its links (web interface, shares): only addresses that cannot run anything in the page (public/js/links.js). */
+    if (o.urls !== undefined) { const p = linksProblem(o.urls); if (p) bad(`${o.name}: ${p}`); }
     /* Its responsibles name a contact by id. One deleted since is cleared by the page; a dangling id only shows as none. */
     for (const k of ['respIn', 'respEx']) if (o[k] !== undefined && o[k] !== null && (typeof o[k] !== 'string' || o[k].length > 40)) bad(`${o.name}: the ${k === 'respIn' ? 'internal' : 'external'} responsible is not a contact.`);
     /* Addresses are checked and written in their stored form, however the object arrived. */

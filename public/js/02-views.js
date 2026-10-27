@@ -2,6 +2,7 @@ import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
+import { linkHref, linkKind } from './links.js';
 import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, now, objs, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
@@ -199,6 +200,8 @@ export const CARD_FIELDS = {
   purpose: ['Purpose', o => esc(o.purpose || '')],
   model: ['Model', o => esc(o.model || '')],
   resp: ['Responsible', o => esc(respText(o))],
+  /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
+  urls: ['Links', o => esc((o.urls || []).map(l => l.label || linkKind(l.url)).join(' · '))],
 };
 /* Every card shows four lines, the same four for every device of a type, so cards are the same height and a value sits
    in the same place on each. A value a device does not have shows as a dash. Settings -> Object types can change them. */
@@ -327,6 +330,7 @@ export const TABLE_COLS = [
   {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
+  {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
@@ -334,16 +338,16 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off. */
 export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '3');
+      localStorage.setItem('ni-cols-v', '4');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;

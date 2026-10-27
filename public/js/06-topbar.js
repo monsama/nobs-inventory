@@ -17,7 +17,8 @@ $('#themeBtn').onclick = () => {
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
 $('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map'].includes(st.tab)) st.tab = 'cards'; view(); });
-document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]')) openObj(t.dataset.open); });
+/* A link inside a row or card (a device's web interface) opens itself, not the device. */
+document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]') && !e.target.closest('a[href]')) openObj(t.dataset.open); });
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
