@@ -427,7 +427,8 @@ export function renderTable(){
   $('#view').querySelectorAll('[data-sel]').forEach(c => { selBox(c); c.onchange = () => { c.checked ? st.bulk.add(c.dataset.sel) : st.bulk.delete(c.dataset.sel); renderTable(); }; });
   const all = $('#selAll'); selBox(all);
   /* Only the rows shown: a row hidden by a column filter is not selected. */
-  const rowIds = () => [...$('#view').querySelectorAll('tbody tr')].filter(r => r.style.display !== 'none' && r.querySelector('[data-sel]')).map(r => r.querySelector('[data-sel]').dataset.sel);
+  /* Every device the filters leave, also those past the first 500 rows not drawn. */
+  const rowIds = () => list.map(o => o.id);
   all.checked = rowIds().length > 0 && rowIds().every(id => st.bulk.has(id));
   /* Ticking it selects every row shown; ticking it again, when they are all selected, clears them. */
   all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };

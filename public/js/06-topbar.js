@@ -31,12 +31,14 @@ export const saveTBL = () => { try { localStorage.setItem('ni-cols', JSON.string
 /* A table that sorts and filters its data before drawing (data-data) is drawn again when a column is sorted or
    filtered, so the sort and the filter see every row, also those not drawn. focusFilter: the filter box to put the
    cursor back in. */
-function redrawFromData(t, focusFilter = null){
+function redrawFromData(t, focusFilter = null, focusHeader = null){
   if (!t.dataset.data) return false;
   view();
   /* The new table gets its filter row now, not when the page notices it, so the cursor can go back into its box. */
   document.querySelectorAll('table.grid').forEach(setupTable);
-  if (focusFilter !== null){ const box = document.querySelectorAll('table.grid tr.fr th')[focusFilter]?.querySelector('input'); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  /* Found by the column it filters, not by its place: moved columns put the boxes in another order. */
+  if (focusFilter !== null){ const box = document.querySelector(`table.grid tr.fr input[data-fci="${focusFilter}"]`); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  else if (focusHeader !== null){ const th = document.querySelector(`table.grid thead tr:first-child th[data-ci="${focusHeader}"]`); if (th) th.focus(); }
   return true;
 }
 export function tableKey(t){
@@ -120,7 +122,7 @@ export function setupTable(t){
       const c = document.createElement('th');
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
-      inp.placeholder = 'filter'; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
+      inp.placeholder = 'filter'; inp.dataset.fci = i; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
       inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); });
       c.appendChild(inp); fr.appendChild(c);
     });
@@ -136,7 +138,7 @@ export function setupTable(t){
     const sortBy = () => {
       const cur = TBL[tableKey(t)], ci = +th.dataset.ci;
       cur.sort = cur.sort && cur.sort.ci === ci ? {ci, dir: -cur.sort.dir} : {ci, dir: 1};
-      saveTBL(); if (!redrawFromData(t)) applyView(t);
+      saveTBL(); if (!redrawFromData(t, null, ci)) applyView(t);
     };
     th.addEventListener('click', e => { if (!e.target.classList.contains('rz')) sortBy(); });
     /* Sorting works from the keyboard too: Tab to a column header, Enter or Space. */

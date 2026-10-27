@@ -535,8 +535,11 @@ export function applyChanges(db, body, guard = () => {}) {
      refused with the reason, since sending it again would not help. */
   /* The size is what is stored plus what this save sends, read from the database: turning the whole inventory into
      text only to measure it took longer than the rest of the save. */
+  /* Each record a save replaces counts once, at its new size; refused (stale) changes do not count. */
   const storedBytes = db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM docs').get().n;
-  if (storedBytes + puts.reduce((t, c) => t + JSON.stringify(c.value).length, 0) > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  const sizeOf = db.prepare('SELECT LENGTH(data) AS n FROM docs WHERE kind = ? AND id = ?');
+  const delta = okPuts.reduce((t, c) => t + JSON.stringify(c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
+  if (storedBytes + delta > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
   try { checkState(s, { size: false }); }
   catch (e) {
     if (!conflicts.length) throw e;
