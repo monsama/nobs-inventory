@@ -4,6 +4,7 @@ import { queueServerSave, flushSave, reloadFromServer, SERVER } from './07-rende
 import { pushDate } from './settings-feed.js';
 import { canEdit } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';
+import { CERT, certPanel, loadCert, wireCertPanel } from './certificate.js';
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
@@ -89,14 +90,17 @@ export function restoreModal(label, run){
   };
   $('#rsWord').focus();
 }
-/* Maintenance: the factory reset. Only an admin can use it, and it asks for the typed word first. */
+/* Maintenance: the HTTPS certificate, the backups, and the factory reset. Only an admin can change anything, and the
+   reset asks for the typed word first. */
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
-  $('#setMaint').innerHTML = `${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
+  if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
+  $('#setMaint').innerHTML = `${certPanel()}${edit ? backupPanel(edit) : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
+  wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
   if (edit) wireBackups(edit);
   if (edit) $('#frReset').onclick = factoryResetModal;
 }

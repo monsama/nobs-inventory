@@ -5,6 +5,8 @@ import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { view } from './07-render-plans.js';
 import { resetFilters } from './02-views.js';
+import { CERT, certAttention, loadCert } from './certificate.js';
+import { openSettings } from './04-settings.js';
 
 const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 /* A list of bars, longest first, each a button that opens the list behind it. One hue: the length is the message. */
@@ -52,7 +54,10 @@ export function renderOverview(){
     ...(SYNC.graph ? ['noncompliant', 'unencrypted'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
     ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', `data-ovos="${esc(fam)}"`]),
     [repair, 'warn', 'In repair', repair === 1 ? 'device' : 'devices', 'data-ovs="repair"'],
+    certAttention() || [0],
   ].filter(a => a[0] > 0);
+  /* The certificate is read once; the overview is drawn again when it is known, if it is still shown. */
+  if (CERT === null) loadCert().then(() => { if (st.tab === 'overview' && certAttention()) renderOverview(); });
   const tile = (label, value, sub, attr = '') => `<${attr ? `button ${attr}` : 'div'} class="ov-tile"><span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span></${attr ? 'button' : 'div'}>`;
   const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: TYPES[t] ? TYPES[t].label : t, n, icon: tico(t, 'tico sm') })).sort((a, b) => b.n - a.n);
   const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
@@ -94,5 +99,6 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
+  v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
   v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; view(); });
 }

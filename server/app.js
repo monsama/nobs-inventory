@@ -17,8 +17,8 @@ import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGrap
 import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
+import { certReport, probeCert } from './proxy-cert.js';
 import crypto from 'node:crypto';
-import tls from 'node:tls';
 import { syncLdapUsers } from './ldap-sync.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
@@ -636,15 +636,22 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* The SHA-1 thumbprint of the certificate the proxy presents for a host name, as Windows writes it ('' when it cannot
      be read). The push script pins it, so a certificate Windows does not trust (the self-signed one of a new install)
      works without a question; a trusted one is not affected by the pin. */
-  const proxyThumbprint = hostname => new Promise(resolve => {
-    const ip = /^[\d.]+$|:/.test(hostname);
-    const sock = tls.connect({ host: certProbe.host, port: certProbe.port, servername: ip ? undefined : hostname, rejectUnauthorized: false }, () => {
-      const c = sock.getPeerCertificate();
-      sock.end();
-      resolve(c && c.fingerprint ? c.fingerprint.replace(/:/g, '').toUpperCase() : '');
-    });
-    sock.setTimeout(3000, () => { sock.destroy(); resolve(''); });
-    sock.on('error', () => resolve(''));
+  const proxyThumbprint = async hostname => { const c = await probeCert(certProbe, hostname); return c && c.fingerprint ? c.fingerprint.replace(/:/g, '').toUpperCase() : ''; };
+  /* The certificate people get when they open the inventory: names, issuer, end, and whether it expires soon. Read from
+     the proxy for the name the page was opened by, at most every ten minutes per name. Public facts only. */
+  const certSeen = new Map();
+  app.get('/api/certificate', requireUser, async (req, res, next) => {
+    try {
+      const host = String(req.hostname || '').replace(/^\[|\]$/g, '');
+      if (!/^[A-Za-z0-9.-]{1,253}$|^[0-9a-fA-F:.]{2,45}$/.test(host)) return res.json({ certificate: null, reason: 'The name this page was opened by could not be read.' });
+      const seen = certSeen.get(host);
+      if (seen && Date.now() - seen.at < 600000 && req.query.fresh !== '1') return res.json(seen.body);
+      const c = await probeCert(certProbe, host);
+      const body = c ? { certificate: certReport(c, host) } : { certificate: null, reason: 'The proxy in front of the inventory could not be asked: another proxy may serve it (NI_PROXY=none).' };
+      if (certSeen.size > 20) certSeen.clear();
+      certSeen.set(host, { at: Date.now(), body });
+      res.json(body);
+    } catch (e) { next(e); }
   });
   /* The push script, with this server's address and certificate thumbprint already in it. */
   app.get('/api/feed/push-script', requireUser, requireAdmin, async (req, res, next) => {
