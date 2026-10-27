@@ -177,9 +177,9 @@ try {
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
   await p.click('#tabsbar [data-tab=net]');
   await until(p, async () => (await import('/js/01-core.js')).st.portsDevice === 'rt1');
-  await p.fill('#psPorts', '1'); await p.click('#psSave');
+  await p.fill('#psPorts', '1'); await p.press('#psPorts', 'Tab');   /* saved when the field is left */
   assert.match(await p.textContent('#psMsg'), /block this change/, 'a count below a used port is refused');
-  await p.fill('#psPorts', '10'); await p.click('#psSave');
+  await p.fill('#psPorts', '10'); await p.press('#psPorts', 'Tab');
   await until(p, async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').ports === 10);
   await p.click('#view .port[data-port="2"]');
   await p.fill('#pnDesc', 'Printer, 3rd floor'); await p.press('#pnDesc', 'Tab');

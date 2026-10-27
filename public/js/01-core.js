@@ -394,6 +394,29 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
   t.onclick = () => t.classList.add('off');
   t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), kind === 'err' ? 8000 : 2800);
 }
+/* A message with Undo: for a change made to many devices at once, or one hard to set back by hand (retire, a bulk move,
+   a room renamed). Undo is offered for 10 seconds; the page that made the change says what undoing does. */
+export function toastUndo(msg, undo){
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
+  t.classList.remove('err', 'off');
+  t.onclick = e => {
+    t.classList.add('off'); clearTimeout(toast.h);
+    if (e.target.closest('.t-undo')){ undo(); toast('Undone'); }
+  };
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
+}
+/* The devices as they are now, to put back on Undo: every field, so what the change touched is set back and nothing else. */
+export const snapshot = list => list.filter(Boolean).map(o => [o, JSON.parse(JSON.stringify(o))]);
+export function restoreSnapshot(snap, why = 'Undone'){
+  for (const [o, was] of snap){
+    /* The user is read from uid (and hotdesk); writing its name back would look the person up again, or make one. */
+    const rest = { ...was }; delete rest.user;
+    for (const k of Object.keys(o)) if (k !== 'user' && !(k in rest)) delete o[k];
+    Object.assign(o, rest);
+    hist(o, now(), why);
+  }
+}
 /* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
 export const releaseRetiredPort = (to, port) => {
   const holders = rels.filter(r => r.to === to.id && String(r.port) === String(port));
@@ -422,11 +445,18 @@ export const isAttached = k => k === 'attached';
 
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
+/* Whether an object has the search text in one of the fields a search looks at. */
+const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q));
+/* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
+export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.intune || st.osFam || st.live || st.resp || st.adGroup);
+/* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
+   search for something that is there never ends in "nothing matches". */
+export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? objs.filter(o => matchesQ(o, q)) : []; };
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
   return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
-    && (!q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q))));
+    && matchesQ(o, q));
 }
 
 /* The way up from a device to the core: follow outgoing relations. */

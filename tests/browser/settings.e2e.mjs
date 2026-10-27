@@ -139,10 +139,13 @@ try {
   // clear the inventory: two clicks, devices gone, admin and settings kept
   saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-X', ovr: {}, feed: null }], rels: [], history: {} });
   await page.click('#setTabs [data-st=feed]');
-  await page.click('#setReset'); await page.waitForSelector('#clrOk');
+  await page.click('#setTabs [data-st=maintenance]'); await page.click('#setReset'); await page.waitForSelector('#clrOk');
   await page.fill('#clrWord', 'clear'); assert.equal(await page.isDisabled('#clrOk'), true, 'lower case confirms');
-  await page.fill('#clrWord', 'CLEAR'); await page.click('#clrOk'); await page.waitForTimeout(400);
+  await page.fill('#clrWord', 'CLEAR'); await page.click('#clrOk');
+  for (let t0 = Date.now(); loadState(db).objs.length && Date.now() - t0 < 8000;) await page.waitForTimeout(100);
   assert.equal(loadState(db).objs.length, 0, 'devices are cleared on the server');
+  const kept = db.prepare("SELECT objects FROM backups WHERE reason = 'before clearing the inventory'").get();
+  assert.equal(kept?.objects, 1, 'a backup with the device was taken before clearing');
   assert.ok(loadState(db).users.some(u => u.role === 'admin'), 'the admin stays');
   console.log('browser settings: all checks passed');
 } finally {

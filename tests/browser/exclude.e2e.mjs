@@ -58,7 +58,7 @@ try {
   await p.click('#setClose');
 
   // Clear inventory keeps the excluded objects and the relation between them.
-  await p.click('#setBtn'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=maintenance]'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   assert.equal(await p.isChecked('#clrConn'), false, 'the connections stay unless asked');
   await p.fill('#clrWord', 'CLEAR'); await p.click('#clrOk');
   await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 2 && srv().objs.filter(o => o.type === 'rack').length === 2, 'the clear keeps excluded objects and the racks');
@@ -66,7 +66,7 @@ try {
   assert.equal(srv().rels.length, 1, 'the relation between kept objects was removed');
 
   // With the box ticked, the excluded objects go too.
-  await p.click('#setBtn'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=maintenance]'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrAll'); await p.click('#clrOk');
   await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 0 && srv().rels.length === 0, 'the clear of protected objects');
 
