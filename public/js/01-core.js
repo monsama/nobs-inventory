@@ -345,7 +345,7 @@ export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
-export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
+export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;
 export { pad2 };
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
 export const pfxOf = o => o.pfx ?? '';
