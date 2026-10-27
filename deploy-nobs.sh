@@ -151,7 +151,7 @@ step_certificate() {
         -addext "basicConstraints=critical,CA:FALSE" -addext "extendedKeyUsage=serverAuth" 2>/dev/null )
     chmod 644 "$crt"; chmod 600 "$key"
     info "Self-signed certificate created for: $sans"
-    warn "Browsers will warn until you install your company certificate: sudo ./scripts/install-cert.sh <cert.pem> <key.pem>"
+    warn "Browsers will warn until you install your company certificate: sudo ./scripts/install-cert.sh inventory <bundle.pem>"
 }
 
 step_check() {
@@ -193,8 +193,8 @@ summary() {
         echo "  Admin:     login 'admin'. Password: $BASE_DIR/secrets/admin_password (sudo cat to read it)"
     fi
     echo
-    echo "  Certificate: proxy/certificates/nobs.crt (self-signed until replaced):"
-    echo "               sudo ./scripts/install-cert.sh <cert.pem> <key.pem>   (one certificate for every name)"
+    echo "  Certificate: self-signed until replaced. The inventory's own (key, certificate and CA in one PEM):"
+    echo "               sudo ./scripts/install-cert.sh inventory <bundle.pem>    (--info lists every site)"
     echo "  Other sites: a file per service in proxy/sites, on the Docker network nobs-proxy (see README)"
     echo "  Update:      sudo ./scripts/update.sh"
     echo "  Backup:      sudo ./scripts/backup.sh     (copy backup/ off this server)"

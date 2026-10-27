@@ -47,12 +47,15 @@ then `docker restart nobs-proxy`. In the service's own Compose file:
       nobs-proxy:
         external: true
 
-Certificates: one certificate in `proxy/certificates/` serves every name, so it must carry all of them (`inventory.example.ch` and `wiki.example.ch`, say). The install creates a self-signed one, so the site works at once with a browser warning. To replace it with your company certificate (PEM, with its key):
+Certificates: each site can have a certificate of its own, so the inventory and a wiki can be renewed apart. A site without one, and a name no site answers to, gets the default certificate (`proxy/certificates/nobs.crt`), which the install creates self-signed, so the site works at once with a browser warning. Install a site's certificate as one PEM file with the key, the certificate and the CA in it (what an AD CS request script writes; a `.pfx` works too, the script asks for its password):
 
-    sudo ./scripts/install-cert.sh company.pem company.key [chain.pem]
-    sudo ./scripts/install-cert.sh --info
+    sudo ./scripts/install-cert.sh inventory /root/cert/inventory.pem
+    sudo ./scripts/install-cert.sh dokuwiki /root/cert/wiki.pem        # the site by its file in proxy/sites, or by a name: wiki.example.ch
+    sudo ./scripts/install-cert.sh --info                              # every site, its certificate and how long it is valid
 
-It warns about every site name the new certificate does not carry.
+The script checks that the key belongs to the certificate, that it is valid and carries every name of the site (it warns otherwise and asks), keeps the old files in `proxy/certificates/old-*`, points the site's file at the new certificate (`proxy/certificates/sites/<site>.crt` and `.key`), checks the proxy's configuration with it and restarts the proxy. If the proxy refuses it, everything is put back. `--remove <site>` goes back to the default certificate; `default <bundle.pem>` replaces the default one (or the older form `<cert.pem> <key.pem> [chain.pem]`).
+
+Settings → Maintenance shows the certificate people get (names, issuer, valid until), read from the proxy; from 30 days before it ends, or when it is for another name, the Overview lists it under Needs attention.
 
 
 Secrets live in `secrets/` and are mounted into the app container as files. They are never in `.env`, and `docker inspect` does not show them. Add the LDAP service password or the Lansweeper token by writing the value into the matching file in `secrets/`, then `docker compose restart app`.
