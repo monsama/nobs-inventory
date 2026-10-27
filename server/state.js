@@ -128,11 +128,12 @@ export const freeUserId = (users, id) => { let n = 1, out = id; while (users.som
 
 /* The rules a whole inventory must follow before it is stored. Something not in the expected form (a null where a
    record belongs) is refused like any other wrong value, not answered with a server error. */
-export function checkState(s) {
-  try { checkStateRules(s); }
+/* size: false skips measuring the whole inventory (a page save measures what it adds instead, see applyChanges). */
+export function checkState(s, { size = true } = {}) {
+  try { checkStateRules(s, size); }
   catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
 }
-function checkStateRules(s) {
+function checkStateRules(s, size = true) {
   const bad = msg => { throw new HttpError(400, msg); };
   /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
   for (const [name, list] of [['objects', s.objs], ['relations', s.rels], ['users', s.users]]) if (Array.isArray(list) && !list.every(x => x && typeof x === 'object' && !Array.isArray(x))) bad(`The ${name} must be a list of records.`);
@@ -369,7 +370,7 @@ function checkStateRules(s) {
   }
   /* Measured as stored: the revisions and the empty flag that loadState adds are not part of it. */
   const { revs: _revs, empty: _empty, ...stored } = s;   // eslint-disable-line no-unused-vars
-  if (JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  if (size && JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
 }
 
 function rowsOf(s) {
@@ -532,7 +533,11 @@ export function applyChanges(db, body, guard = () => {}) {
      Then nothing is saved and every change is answered as a conflict, so the page reloads and offers its edits again,
      instead of a refusal it would send again and again. Without a stale change the save itself is wrong: that is
      refused with the reason, since sending it again would not help. */
-  try { checkState(s); }
+  /* The size is what is stored plus what this save sends, read from the database: turning the whole inventory into
+     text only to measure it took longer than the rest of the save. */
+  const storedBytes = db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM docs').get().n;
+  if (storedBytes + puts.reduce((t, c) => t + JSON.stringify(c.value).length, 0) > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  try { checkState(s, { size: false }); }
   catch (e) {
     if (!conflicts.length) throw e;
     return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
