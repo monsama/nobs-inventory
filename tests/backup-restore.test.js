@@ -15,15 +15,16 @@ const freshDb = () => {
 const backup = (planImages) => ({ version: 1, state: { objs: [], rels: [], users: [], types: {}, history: {}, settings: {} }, planImages });
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
-test('a push in many requests takes one backup, and backups taken by hand are never pushed out by automatic ones', async () => {
-  const { autoBackup, takeBackup } = await import('../server/backup.js');
+test('a push in many requests takes one backup, and backups taken by hand or before a clear are never pushed out by automatic ones', async () => {
+  const { BEFORE_CLEAR, autoBackup, takeBackup } = await import('../server/backup.js');
   const db = freshDb();
-  const mine = takeBackup(db, 'by hand');
+  const mine = takeBackup(db, 'by hand'), beforeClear = takeBackup(db, BEFORE_CLEAR);
   for (let i = 0; i < 12; i++) autoBackup(db, 'before a Lansweeper push', { hourly: true });
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason = 'before a Lansweeper push'").get().n, 1, 'one backup for the run');
   for (let i = 0; i < 15; i++) autoBackup(db, 'before an LDAP sync');
   assert.ok(db.prepare('SELECT 1 FROM backups WHERE id = ?').get(mine), 'the backup taken by hand is still there');
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason <> 'by hand'").get().n, 10, 'ten automatic ones kept');
+  assert.ok(db.prepare('SELECT 1 FROM backups WHERE id = ?').get(beforeClear), 'the backup taken before clearing is still there');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM backups WHERE reason NOT IN ('by hand', ?)").get(BEFORE_CLEAR).n, 10, 'ten automatic ones kept');
   db.close();
 });
 

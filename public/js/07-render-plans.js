@@ -1,11 +1,11 @@
-import { CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
+import { restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
-import { FIXED_TABS, openObj, renderCards, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
+import { FIXED_TABS, openObj, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { leaveSettings, closeModal, modal, renderObj, renderRack, renderSoftware, followOnTop } from './03-object-modals.js';
 import { newObjModal } from './05-new-object.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
@@ -65,6 +65,8 @@ export let planParts = [];
 export let planEditArea = null;
 let planAreaDrag = null;
 export let planZoom = 1;
+/* Ctrl + wheel steps not drawn yet (see renderPlans). */
+const planWheel = { dy: 0, at: null, raf: 0 };
 export const planById = id => PLANS.find(p => p.id === id);
 /* Where a device sits on a plan: its own place, or, for a device already in the location of an area, the centre of that area. */
 export const planPosOf = (plan, o) => {
@@ -152,7 +154,7 @@ export function renderPlans(){
         <button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
         <button id="plDel" class="danger-text">Delete plan</button>
-        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in">+</button></span>` : ''}
+        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
@@ -177,8 +179,33 @@ export function renderPlans(){
   on('#plReplace', () => planModal(plan));
   on('#plEdit', () => planEditModal(plan));
   on('#plAreaEdit', () => { const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) areaEditModal(plan, a); });
-  const zoom = v => { planZoom = Math.max(0.5, Math.min(3, Math.round(v * 100) / 100)); renderPlans(); };
+  /* A zoom keeps one point of the plan where it is on the screen: the pointer for Ctrl + wheel (and a pinch on a
+     touchpad), the middle of the view for the buttons. The plan is drawn again at the new size, then scrolled back. */
+  const zoom = (v, at) => {
+    const next = Math.max(0.5, Math.min(3, Math.round(v * 1000) / 1000));
+    const stage = $('#plStage'), cv = $('#plCanvas');
+    if (next === planZoom) return;
+    if (!stage || !cv){ planZoom = next; renderPlans(); return; }
+    const sr = stage.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+    const px = at ? at.x : sr.left + sr.width / 2, py = at ? at.y : sr.top + sr.height / 2;
+    const fx = (px - cr.left) / cr.width, fy = (py - cr.top) / cr.height;
+    const keep = { left: stage.scrollLeft, top: stage.scrollTop };
+    planZoom = next; renderPlans();
+    const s2 = $('#plStage'), c2 = $('#plCanvas'); if (!s2 || !c2) return;
+    s2.scrollLeft = keep.left; s2.scrollTop = keep.top;
+    const r2 = c2.getBoundingClientRect();
+    s2.scrollLeft += r2.left + fx * r2.width - px; s2.scrollTop += r2.top + fy * r2.height - py;
+  };
   on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
+  /* Ctrl + wheel zooms at the pointer, as in a map or a picture viewer; the wheel alone still scrolls. Several wheel
+     steps in one frame are one zoom, so a fast wheel or a touchpad does not draw the plan many times over. */
+  const stage = $('#plStage');
+  if (stage) stage.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    planWheel.dy += e.deltaY * (e.deltaMode === 1 ? 33 : 1); planWheel.at = { x: e.clientX, y: e.clientY };
+    if (!planWheel.raf) planWheel.raf = requestAnimationFrame(() => { const f = Math.pow(1.0015, -planWheel.dy); planWheel.dy = 0; planWheel.raf = 0; zoom(planZoom * f, planWheel.at); });
+  }, { passive: false });
   on('#plDel', () => deletePlanModal(plan));
   if (!plan) return;
   renderPlanList(plan);
@@ -283,7 +310,7 @@ export function planCanvas(plan){
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc(o.loc || 'No location')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -296,11 +323,30 @@ export function renderPlanList(plan){
     && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
-export function placeDevice(plan, o, x, y){
+export function placeDevice(plan, o, x, y, sure = false){
+  /* A device at another site would move there: that is asked first, not done quietly. */
+  const a = areaAt(plan, x, y), to = a && plan.site ? areaLocName(plan, a) : '', fromSite = String(o.loc || '').split(' / ')[0];
+  if (!sure && to && fromSite && plan.site && fromSite !== plan.site){
+    modal(`<div class="mh">Move ${esc(o.name)} to ${esc(plan.site)}?</div><div class="mb"><p class="note">${esc(o.name)} is in <b>${esc(o.loc)}</b>. Placing it in the area ${esc(a.name)} of this plan sets its location to <b>${esc(to)}</b>.</p></div>
+      <div class="mf"><button id="pmCancel">Cancel</button><button id="pmOk" class="primary">Move to ${esc(plan.site)}</button></div>`, 'sm');
+    $('#pmCancel').onclick = () => { closeModal(); planPlace = null; renderPlans(); };
+    $('#pmOk').onclick = () => { closeModal(); placeDevice(plan, o, x, y, true); };
+    return;
+  }
+  const was = snapshot([o]), wasLoc = o.loc;
   o.planPos = {plan: plan.id, x, y}; delete o.planOff; plan.off = (plan.off || []).filter(id => id !== o.id);
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
+  /* The pin just placed is marked for a moment and kept out of a group, so it can be seen where it went. */
+  st.planFlash = o.id;
   planPlace = null; queueServerSave(); renderPlans();
+  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
+}
+/* From a device's page: its floor plan, with the device marked and in view. */
+export function showOnPlan(o){
+  if (!o.planPos || !planById(o.planPos.plan)) return;
+  planSel = o.planPos.plan; planMode = 'view'; planPlace = null;
+  st.planFlash = o.id; st.tab = 'plans'; render({ save: false });
 }
 export function drawPreview(){
   const c = $('#plCanvas'); if (!c || !planDraw) return;
@@ -563,6 +609,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
   else renderObj(byId(st.tab));
+  renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();
   $('#stObjs').textContent = objs.length + ' objects';
@@ -831,7 +878,7 @@ export function applyState(d){
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. It cannot be undone: only a backup brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
@@ -859,6 +906,9 @@ export async function clearAll(){
     ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
     ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
   ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
+  /* A backup first, kept until someone deletes it: without one nothing is cleared. */
+  const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
+  if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
   const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
@@ -873,13 +923,14 @@ export async function clearAll(){
   toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-export const SHORTCUTS = [['N','New object'],['/','Search'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Esc','Close a dialog'],['?','This list']];
+export const SHORTCUTS = [['N','New object'],['/','Search'],['Enter','In the search: open the one object found, or go to the first result'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
 export function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
     ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table></div>
     <div class="mf"><button id="scClose" class="primary">Done</button></div>`, 'sm');
   $('#scClose').onclick = closeModal;
 }
+{ const kb = $('#keysBtn'); if (kb) kb.onclick = shortcutsModal; }
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.closest('input, textarea, select') || $('#mdl')) return;

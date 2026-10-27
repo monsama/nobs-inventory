@@ -11,19 +11,19 @@
    Colours are the NOBS SQL Editor's own tokens, so both tools read as one family. */
 :root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
- --bg:#fff;--fg:#1b1d21;--panel:#f4f5f7;--panel2:#eaecef;--bd:#d6d9de;--bd2:#e7e9ec;--tile:#eef0f3;--oktext:#1d6b38;--badtext:#b42318;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;
+ --bg:#fff;--fg:#1b1d21;--panel:#f4f5f7;--panel2:#eaecef;--bd:#d6d9de;--bd2:#e7e9ec;--tile:#eef0f3;--oktext:#1d6b38;--badtext:#b42318;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%235c5c5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
  --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#8a4300;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
  --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
  --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
  --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
@@ -32,12 +32,35 @@
 *{box-sizing:border-box}
 *{scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
+/* The grey example in an empty field is in the text font, also in a field for a technical value (name, IP, port):
+   empty fields look alike, and only what is typed there is in the monospace font. */
+/* Hidden means hidden: no display rule of a class (a button, a field, a flex row) can show what the page hides. */
+[hidden]{display:none!important}
+input::placeholder,textarea::placeholder{font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif}
 body{display:flex;flex-direction:column;overflow:hidden}
 button,input,select,textarea{font-family:inherit;font-size:inherit}
 input[type=file]{max-width:100%;min-width:0;font-size:12px}
-input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px}
+input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);padding:3px 6px;height:28px;font-size:13px}
 /* A select draws its text a few pixels in from an input's, so its left padding is less, and the text lines up. */
-select{padding-left:2px}
+/* Every dropdown looks like the combo fields (Model): the same chevron in the same place, text where an input's is.
+   Where the browser lets the list be styled (Chrome and Edge 135+), the open list is the combo's list too;
+   elsewhere it stays the system's. */
+select{appearance:none;-webkit-appearance:none;padding:3px 26px 3px 6px;background:var(--in) var(--chev) no-repeat right 7px center/12px 12px;text-overflow:ellipsis}
+@supports (appearance:base-select){
+  select,::picker(select){appearance:base-select}
+  select{align-items:center;white-space:nowrap;overflow:hidden}
+  select[hidden]{display:none}
+  select::picker-icon{display:none}
+  ::picker(select){margin:2px 0;padding:4px 0;max-height:260px;overflow:auto;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-s);box-shadow:var(--shadow);font-size:13px}
+  select option{padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;min-height:0}
+  select option::checkmark{display:none}
+  select option:hover,select option:focus-visible{background:var(--hover);outline:0}
+  select option:checked{font-weight:600;background:none}
+  select option:checked:hover,select option:checked:focus-visible{background:var(--hover)}
+  select option:disabled{color:var(--muted);font-style:italic;cursor:default}
+  select optgroup{padding:0}
+  select optgroup legend{padding:6px 10px 2px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+}
 /* Fields inside a label would take the label's small text; they keep the size of every other field. */
 label>input,label>select,label>textarea{font-size:13px}
 code{font-family:var(--mono)}
@@ -48,6 +71,7 @@ code{font-family:var(--mono)}
 .combo-arrow:hover{color:var(--fg)}
 .combo>input:disabled+.combo-arrow{opacity:.4;pointer-events:none}
 .combo-list{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:60;margin:0;padding:4px 0;list-style:none;max-height:260px;overflow:auto;background:var(--in);border:1px solid var(--bd);border-radius:var(--r-s);box-shadow:var(--shadow)}
+.combo.up .combo-list{top:auto;bottom:calc(100% + 2px)}
 .combo-list li{padding:5px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .combo-list li:hover,.combo-list li.active{background:var(--hover)}
 .combo-list li[aria-selected="true"]{font-weight:600}
@@ -91,9 +115,10 @@ label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}
 .ctlrow .pchk{white-space:nowrap;flex:none}
-.plans{display:flex;flex-direction:column;min-height:0}
+/* The floor plan fills the view down to the status bar, like the relationship map. */
+.plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
 .pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--bd2)}
-.pl-bar select{height:30px;min-width:200px}
+.pl-bar select{min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
 .pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
 .pl-zoom{display:inline-flex;gap:0}
@@ -101,7 +126,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .pl-zoom button:first-child{border-radius:var(--r-s) 0 0 var(--r-s)}
 .pl-zoom button:last-child{border-radius:0 var(--r-s) var(--r-s) 0}
 .pl-zv{min-width:58px;font-variant-numeric:tabular-nums}
-.pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 190px);min-height:360px}
+.pl-body{display:grid;grid-template-columns:260px minmax(0,1fr);flex:1;min-height:360px}
 .pl-side{border-right:1px solid var(--bd2);display:flex;flex-direction:column;min-height:0}
 .pl-shead{padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--bd2)}
 .pl-q{padding:8px 10px}
@@ -152,7 +177,7 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-pin:active{cursor:grabbing}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
-@media (max-width:760px){.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
+@media (max-width:760px){.plans{position:static}.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
 .btnlike{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
 .btnlike:hover{filter:brightness(1.08)}
 a.btnlike{text-decoration:none;gap:6px}
@@ -168,6 +193,8 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrow.tmap{grid-template-columns:minmax(0,1fr) 220px 92px}
 .lpanel-add #vlId{flex:none;width:130px}
 .lrow.mdl{grid-template-columns:minmax(0,1fr) 100px 80px}
+.mdl-from{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;margin-top:-2px}
+.mdl-map{gap:2px;padding-right:2px}.mdl-map .icon{height:18px;min-height:0;width:18px;padding:0;line-height:1}
 .lrow input{width:100%;min-width:0;height:28px;box-sizing:border-box}
 .lrow .n{text-align:right;font-variant-numeric:tabular-nums}
 .lrow .site{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -182,6 +209,11 @@ button[data-td]{min-width:92px}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
 .pchk-slot{display:inline-block;width:24px;flex:none}
+/* "+ 8 more types": a quiet line under the list, like a link. */
+.side-more{display:block;width:100%;height:auto;min-height:0;padding:5px 12px 7px;border:0;background:none;color:var(--linktext);font-size:12px;text-align:left;cursor:pointer}
+.side-more:hover{text-decoration:underline}
+.prop-head{min-height:0}
+.prop-head .ph-ls{display:flex;justify-content:flex-end;white-space:nowrap;overflow:visible;font-size:11px;color:var(--muted);margin-right:-2px}
 .ctlrow .pchk.pchk-only{width:24px;justify-content:center}
 .ctlrow .pchk-only input{margin:0}
 table.types{table-layout:fixed;width:100%}
@@ -193,6 +225,7 @@ table.types td input{width:100%;min-width:0;box-sizing:border-box}
 #setUsers td:has(> input),#setUsers td:has(> select){text-overflow:clip}
 table.types .icondd{display:flex;min-width:0;width:100%}
 table.types td.n,table.types th.n{text-align:right}
+table.types td:last-child,table.types th:last-child{padding-right:12px}
 .tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
@@ -201,7 +234,9 @@ table.types td.n,table.types th.n{text-align:right}
 .icondd-btn{width:100%}
 .icondd-btn svg,.icondd-item svg{width:18px;height:18px;flex:none}
 .icondd-btn span:nth-of-type(1){flex:1;text-align:left}
-.icondd-caret{color:var(--muted);font-size:11px}
+/* The same chevron as every dropdown, in the same place (7px from the right edge). */
+.icondd-btn .icondd-caret{color:var(--muted);width:12px;height:12px;margin-right:-2px}
+.icondd-btn{background:var(--in);border-color:var(--bd)}
 .icondd-list{position:fixed;z-index:30;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
 .icondd-list[hidden]{display:none}
 .icondd-item{width:100%;border:0;background:transparent;box-shadow:none}
@@ -290,6 +325,11 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .view{flex:1;overflow:auto;min-height:0;position:relative}
 .statusbar{display:flex;gap:14px;padding:3px max(8px, env(safe-area-inset-right, 0px)) 3px max(8px, env(safe-area-inset-left, 0px));font-size:12px;border-top:1px solid var(--bd2);background:var(--panel);flex:none;white-space:nowrap;overflow:hidden}
 .statusbar span{display:inline-flex;align-items:center;gap:5px}
+/* "? Shortcuts" at the right end of the status bar: small, like the rest of the bar. */
+.statusbar .sb-keys{margin-left:auto;height:auto;min-height:0;padding:0 2px;border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer}
+.statusbar .sb-keys:hover{color:var(--fg)}
+/* The device's name takes the focus when it opens (for Tab to carry on there); it is not a control, so no ring. */
+#objTitle:focus{outline:none}
 
 /* cards */
 /* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
@@ -363,7 +403,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .graph-steps>li+li{border-top:1px solid var(--bd2)}
 .graph-steps .form{grid-template-columns:170px minmax(0,1fr)}
 .gs-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-.gs-head .chip{min-width:22px;justify-content:center}
+.gs-head .gs-done{margin-left:auto}
 .gs-sub{margin:2px 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--fg);line-height:1.5}
 .gs-why{margin-top:6px}
 .side-sub{font-size:11px;color:var(--muted);padding:6px 12px 2px;text-transform:uppercase;letter-spacing:.4px}
@@ -371,7 +411,9 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sched-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:12px}
 .sched-row select{width:auto;min-width:170px}
 .sched-row input[type=time]{width:auto}
-.sched-l{font-weight:600}
+/* Like the labels of the form it sits in (a 170px column, then a 10px gap): the field starts where theirs do. */
+.sched-l{flex:none;width:172px;color:var(--muted);font-size:12px}
+@media (max-width:760px){.sched-l{width:100%}}
 .gu-box{border-top:1px solid var(--bd2)}
 #guList td{white-space:nowrap}
 .gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
@@ -380,7 +422,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ov-tile{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r-l);background:var(--panel);color:var(--fg);height:auto;font:inherit}
-.ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0;align-items:flex-start}
+.ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
 /* Under a long list drawn in part: how many are shown, and a way to show them all. */
 /* links on a device: the label opens it, the address below it; in the table a list of labels */
@@ -427,8 +469,8 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .resp-pick select{width:100%}
 .resp-pick .cn-ways{padding:0}
 @media (max-width:760px){.cn-ways,.cn-note{padding-left:10px;margin-left:10px}.cn-ways{margin-left:0}.resp-row>.k{width:80px}}
-.ct-sum .ov-tile{min-width:150px}.ct-sum .ov-tile b{font-size:18px}
-.ct-kinds{display:flex;flex-direction:column;gap:2px;padding:10px 14px;font-size:13px}
+/* A kind and its cost on one line, the cost on the right, in the fourth tile. */
+.ct-kind{display:flex;justify-content:space-between;gap:12px;width:100%;font-size:13px;line-height:1.6}
 .ct-sum-note{margin:0;padding:6px 12px 10px}
 table.contracts td:last-child,table.contracts th:last-child{width:1%;white-space:nowrap}
 button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
@@ -493,14 +535,15 @@ button.link:hover{text-decoration:underline}
 .sheet-pw code{font-size:20px;letter-spacing:.08em;flex:1;min-width:0;overflow-wrap:anywhere}
 .form.sheet-form{grid-template-columns:170px minmax(0,1fr)}
 td.act:has(.sheet-acts){white-space:normal;overflow:visible;text-overflow:clip}
-.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:#fff}
+/* Empty, it is a field like the others; with a logo, white, as the logo is printed on white paper. */
+.company-logo{display:flex;align-items:center;justify-content:center;width:180px;height:60px;border:1px dashed var(--bd);border-radius:var(--r-m);background:var(--in)}
+.company-logo:has(img){background:#fff}
 .company-logo img{max-width:170px;max-height:52px;object-fit:contain}
 /* The logo box is white in both themes (a logo is made for paper), so its placeholder text is a fixed grey. */
-.company-logo>.muted{color:#5b6470}
+.company-logo>.muted{color:var(--muted)}
 .sheet-devs{display:flex;flex-direction:column;gap:4px;padding-top:4px}
 .sheet-devs .pchk{font-size:13px}
 .sheet-devs .note{margin-left:4px}
-table.grid tr:nth-child(even) td{background:var(--even)}
 table.grid tbody tr{cursor:pointer}
 table.grid tbody tr:hover td{background:var(--hover)}
 /* Pinned columns (selection, code, name) stay on the left while a wide table scrolls; a shade marks their edge. */
@@ -513,7 +556,6 @@ table.grid[data-pinned] thead tr>:nth-child(-n+3){z-index:3}
 table.grid[data-pinned]{border-collapse:separate;border-spacing:0}
 table.grid tr>.selcol,table.grid[data-pinned] tbody tr>td:first-child{text-overflow:clip;padding-left:10px;padding-right:4px}
 table.grid[data-pinned] tbody tr>td:nth-child(-n+3){background:var(--bg)}
-table.grid[data-pinned] tbody tr:nth-child(even)>td:nth-child(-n+3){background:var(--even)}
 table.grid[data-pinned] tbody tr:hover>td:nth-child(-n+3){background:var(--hover)}
 table.grid[data-pinned="3"] tr>:nth-child(3),table.grid[data-pinned="2"] tr>:nth-child(2),table.grid[data-pinned="1"] tr>:nth-child(1){box-shadow:4px 0 6px -4px rgba(0,0,0,.35)}
 table.grid td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
@@ -532,7 +574,6 @@ table.grid th .rz:hover{background:var(--accent);opacity:.45}
 table.grid th[data-sort="asc"]::after{content:' \25B2';font-size:9px;color:var(--muted)}
 /* Software: a package opens in place to list its devices. */
 table.grid.sw{width:100%;min-width:0;table-layout:fixed}
-table.grid.sw tr:nth-child(even) td{background:none}
 table.grid.sw .sw-row{cursor:pointer}
 table.grid.sw .sw-row:hover td{background:var(--hover)}
 table.grid.sw .sw-row.open td{background:var(--panel);border-bottom-color:transparent}
@@ -615,13 +656,13 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .tf-row.tf-head:hover{background:none}
 .tf-row.tf-head>span:nth-child(2){padding-left:9px}
 .tf-row.off .tf-name{color:var(--muted);text-decoration:line-through}
-.tf-name{border:1px solid transparent;background:transparent;height:28px;padding:0 8px;min-width:0;width:100%;box-sizing:border-box;color:var(--fg)}
+.tf-name{border:1px solid transparent;background:transparent;height:28px;padding:0 6px;min-width:0;width:100%;box-sizing:border-box;color:var(--fg)}
 .tf-name:hover{border-color:var(--bd)} .tf-name:focus{border-color:var(--accent);background:var(--bg)}
 .tf-fixed{font-size:12px}
 .tf-note-k{font-size:12px;white-space:nowrap}
 .tf-row .fl-move button{height:24px;width:26px;padding:0}
 .tf-add{border-top:1px solid var(--bd2)}
-#setPane .panelbox>.hdr+.note,#setPane .panelbox>.hdr+div>p.note:first-child,.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
+#setPane .panelbox>.hdr+.note:not(.lempty),#setPane .panelbox>.hdr+div>p.note:first-child:not(.lempty),.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
 .chassis{display:inline-flex;flex-direction:column;gap:8px;align-items:stretch;padding:10px 14px;border-radius:var(--r-m);background:var(--panel);border:1px solid var(--bd)}
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}
@@ -737,6 +778,14 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
+.form label.btnlike{color:var(--fg);font-size:13px}
+/* The calendar and clock of date and time fields: as quiet as a dropdown's chevron. */
+input::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer}
+input::-webkit-calendar-picker-indicator:hover{opacity:.9}
+/* A field with a line of help under it: its label stays level with the field, not with the middle of field and help. */
+.form>label:has(+ div > .note),.form>label:has(+ div > p.note){align-self:start;padding-top:7px}
+/* A value shown in a form (not a field) reads like the text of the panel, on a row as high as a field. */
+.form>span{font-size:13px;line-height:18px;padding:5px 0}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
 /* Disks: a bar per drive, filled as far as the drive is used; orange from 80 %, red from 90 %. */
@@ -926,11 +975,14 @@ details.menu>summary::-webkit-details-marker{display:none}
 .readonly .obj input:disabled,.readonly .obj select:disabled{opacity:.85}
 #whoBtn{height:28px;font-size:13px;color:var(--muted)}
 #toast.off{opacity:0;pointer-events:none}
+#toast .t-undo{margin-left:12px;height:auto;min-height:0;padding:2px 8px;border:1px solid color-mix(in srgb,var(--bg) 40%,transparent);border-radius:var(--r-s);background:none;color:var(--bg);font-weight:600;font-size:12px;cursor:pointer}
+#toast .t-undo:hover{background:color-mix(in srgb,var(--bg) 15%,transparent)}
 /* A table row's name opens the device; it reads as the name, not as a link. */
 table.grid a.rowopen{color:inherit;text-decoration:none}
 table.grid a.rowopen:hover{text-decoration:underline}
 @media (max-width:760px){table.grid a.rowopen{display:inline-flex;align-items:center;min-height:36px}}
-#toast{transition:opacity .15s;position:fixed;right:calc(16px + env(safe-area-inset-right, 0px));bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
+/* Messages at the bottom centre, over the status bar: away from the buttons at the right of dialogs and panels. */
+#toast{transition:opacity .15s;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(36px + env(safe-area-inset-bottom, 0px));background:var(--fg);color:var(--bg);padding:8px 12px;border-radius:var(--r-m);box-shadow:var(--shadow);font-size:12px;z-index:60;max-width:calc(100% - 32px)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 
 #sideBtn{display:none}
@@ -949,6 +1001,8 @@ table.grid a.rowopen:hover{text-decoration:underline}
 @media (pointer:coarse){
   button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item{min-height:40px}
   input:not([type=checkbox]):not([type=radio]),select{height:40px}
+  /* The entries of an open list, too: the app's own (Model) and a dropdown's where the browser lets it be styled. */
+  .combo-list li,select option{padding:11px 12px}
   input[type=checkbox],input[type=radio]{width:24px!important;height:24px!important}
   table.grid tr.fr input{height:36px!important;font-size:14px}
   button.icon{min-width:40px}
@@ -962,6 +1016,30 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .chip{background:var(--panel2);border-color:transparent;font-weight:600;letter-spacing:.1px}
 .chip.ok{background:color-mix(in srgb,var(--okdot) 14%,transparent);border-color:color-mix(in srgb,var(--okdot) 28%,transparent);color:var(--oktext)}
 .chip.warn{background:color-mix(in srgb,var(--warn) 15%,transparent);border-color:color-mix(in srgb,var(--warn) 32%,transparent);color:var(--warntext)}
+/* A chip that is a button: a filter that can be switched on or taken off (the active filters, "1 due within 60 days"). */
+.chip-btn{display:inline-flex;align-items:center;gap:6px;height:24px;min-height:0;padding:0 9px;border-radius:12px;font-size:12px;font-weight:600;border:1px solid color-mix(in srgb,var(--warn) 32%,transparent);background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warntext);cursor:pointer;white-space:nowrap}
+.chip-btn:hover{border-color:var(--warn)}
+.chip-btn.on{background:color-mix(in srgb,var(--warn) 24%,transparent)}
+/* Over the devices found in a contract: how many, how many covered, and taking them all. */
+/* The filters that narrow the list, over Cards, Table and Relationships: each can be taken off on its own. */
+/* "Saved 17:45" where Save was: Save shows only while a field holds a change not saved yet. */
+#psMsg.err{color:var(--badtext)}
+/* Retire: what the device still holds, one tick box each. */
+.rt-ties{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px}
+.rt-h{font-size:12px;color:var(--muted)}
+.rt-ties .pchk{display:flex;align-items:flex-start;gap:8px;white-space:normal;width:auto;line-height:1.4}
+.rt-ties .pchk input{margin-top:2px;flex:none}
+.obj-saved{font-size:12px;color:var(--muted);white-space:nowrap}.obj-saved.dirty{color:var(--warntext)}
+.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--bd2);background:var(--bg)}
+.fbar[hidden]{display:none}
+.fbar .fb-l{font-size:12px;color:var(--muted);margin-right:2px}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:24px;min-height:0;padding:0 4px 0 9px;border-radius:12px;font-size:12px;border:1px solid var(--bd);background:var(--sub);color:var(--fg);cursor:pointer;white-space:nowrap;max-width:280px}
+.fchip>span{overflow:hidden;text-overflow:ellipsis}
+.fchip b{font-weight:600}
+.fchip .x{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;color:var(--muted)}
+.fchip:hover{border-color:var(--accent)}.fchip:hover .x{background:var(--panel2);color:var(--fg)}
+.fbar .fb-clear{height:auto;min-height:0;padding:0 4px;border:0;background:none;color:var(--linktext);font-size:12px;cursor:pointer}
+.ct-devbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 6px}
 .chip.bad{background:color-mix(in srgb,var(--danger) 14%,transparent);border-color:color-mix(in srgb,var(--danger) 32%,transparent);color:var(--badtext)}
 .chip.info{background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--linktext)}
 .chip.kept{background:transparent;border-color:var(--bd)}
@@ -1000,7 +1078,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 40%,var(--bd));font-weight:600}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent)}
-.box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg)}
+.box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg);font-weight:600}
 button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);box-shadow:none;opacity:1}
 input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
@@ -1047,7 +1125,7 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 :root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pl-canvas>img{filter:brightness(.82) contrast(1.05)}}
 /* Remove buttons on a page are neutral until pointed at; red stays for the dialog that confirms them. */
-button.danger-text{color:var(--fg);border-color:var(--bd)}
+button.danger-text{color:var(--fg);border-color:var(--bd);font-weight:400}
 button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
 .lsbox{grid-template-columns:max-content minmax(0,1fr)}
 .jb.no{border-style:solid;border-color:var(--bd2)}
@@ -1079,6 +1157,11 @@ button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-
 .pl-pin.grouped{display:none}
 .pl-pin.fanned{z-index:22;transition:left .15s ease,top .15s ease}
 .pl-pin.hit,.pl-group.hit{box-shadow:0 0 0 3px var(--accent),0 2px 6px rgba(0,0,0,.3)}
+/* While searching, the others step back; the device looked for pulses twice. */
+.pl-canvas.searching .pl-pin:not(.hit),.pl-canvas.searching .pl-group:not(.hit){opacity:.4}
+.pl-pin.flash{z-index:6;animation:pl-flash 1.1s ease-out 2}
+@keyframes pl-flash{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 70%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
+@media (prefers-reduced-motion:reduce){.pl-pin.flash{animation:none}}
 .pl-group{position:absolute;transform:translate(-50%,-50%);z-index:6;display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 9px 0 10px;border-radius:var(--r-s);border:1px solid var(--bd);background:var(--panel);color:var(--fg);font:inherit;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
 .pl-group b{font-size:13px;margin-right:2px}
 .pl-group:hover,.pl-group.open{border-color:var(--accent)}
@@ -1195,6 +1278,7 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
     <nav id="tabsbar" aria-label="Views"></nav>
     <nav id="objbar" aria-label="Open objects" hidden></nav>
     <div id="toolbar" class="toolbar"></div>
+    <div id="fbar" class="fbar" hidden aria-label="Active filters"></div>
     <div id="view" class="view"></div>
   </section>
 </div>
@@ -1205,6 +1289,7 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
   <span class="hide-n" id="stSave" role="status"></span>
   <span class="hide-n" id="stSync"></span>
   <span class="hide-n muted" id="verFoot"></span>
+  <button type="button" class="hide-n sb-keys" id="keysBtn" title="Keyboard shortcuts">? Shortcuts</button>
 </footer>
 
 <div id="modalHost"></div>

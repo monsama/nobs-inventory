@@ -40,8 +40,9 @@ function regroup(c, startDrag){
   /* An open group goes back first, so its pins are at their own places again before anything is measured or kept. */
   closeGroup();
   c.querySelectorAll('.pl-group,.pl-glist,.pl-fanring').forEach(el => el.remove());
-  const pins = [...c.querySelectorAll('.pl-pin')];
-  pins.forEach(p => { p.classList.remove('grouped', 'fanned'); delete p.dataset.homeX; delete p.dataset.homeY; });
+  /* The device looked for (from its page, or just placed) stands on its own, not inside a group. */
+  const flash = st.planFlash, all = [...c.querySelectorAll('.pl-pin')], pins = all.filter(p => p.dataset.pin !== flash);
+  all.forEach(p => { p.classList.remove('grouped', 'fanned'); delete p.dataset.homeX; delete p.dataset.homeY; });
   const cr = c.getBoundingClientRect();
   if (!cr.width || !cr.height) return;
   spread(pins, cr);
@@ -52,8 +53,11 @@ function regroup(c, startDrag){
   for (let i = 0; i < pins.length; i++) for (let j = i + 1; j < pins.length; j++) if (touch(boxes[i], boxes[j])) up[root(i)] = root(j);
   const groups = new Map();
   pins.forEach((p, i) => { const r = root(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); });
-  const hits = st.q ? new Set(filtered().map(o => o.id)) : null;
-  pins.forEach(p => p.classList.toggle('hit', !!hits && hits.has(p.dataset.pin)));
+  /* The search's hits are marked (and their groups); so is the device looked for. The first is brought into view once
+     per search, not every time the plan is drawn, so the person can scroll away. */
+  const hits = st.q.trim() || flash ? new Set([...(st.q.trim() ? filtered().map(o => o.id) : []), ...(flash ? [flash] : [])]) : null;
+  all.forEach(p => { p.classList.toggle('hit', !!hits && hits.has(p.dataset.pin)); p.classList.toggle('flash', p.dataset.pin === flash); });
+  c.classList.toggle('searching', !!hits && hits.size > 0);
   for (const idx of groups.values()) {
     if (idx.length < 2) continue;
     const members = idx.map(i => pins[i]), devs = members.map(p => byId(p.dataset.pin)).filter(Boolean);
@@ -81,7 +85,16 @@ function regroup(c, startDrag){
     m.onclick = e => { e.stopPropagation(); const was = open && open.marker === m; closeGroup(); if (!was) (members.length <= FAN_MAX ? fan(c, m, members) : list(c, m, members, devs, startDrag)); };
     c.appendChild(m);
   }
+  const key = (st.q || '') + '|' + (flash || '');
+  if (hits && hits.size && key !== shownFor){
+    shownFor = key;
+    const first = c.querySelector('.pl-pin.flash, .pl-pin.hit:not(.grouped), .pl-group.hit');
+    if (first) first.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+  }
+  if (!hits) shownFor = '';
 }
+/* The search (or device) the plan last scrolled to, so it does so once. */
+let shownFor = '';
 
 /* The devices shown because they are in an area's room, spread over the area in a grid as wide as the area has room
    for in pixels (so zooming in makes room), in code order; the top is kept clear for the area's name. */

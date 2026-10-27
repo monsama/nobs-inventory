@@ -10,7 +10,7 @@ import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
-import { autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
+import { BEFORE_CLEAR, autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph, addGraphDevices } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
@@ -686,6 +686,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       /* The page takes one before a contact import: an automatic backup (it follows the setting and is pushed out in time). */
       if (req.body?.reason === 'before a contact import') { const id = autoBackup(db, 'before a contact import'); res.json({ id }); return; }
+      /* Before the inventory is cleared: always taken, whatever the setting, and kept like one taken by hand. */
+      if (req.body?.reason === BEFORE_CLEAR) { const id = takeBackup(db, BEFORE_CLEAR); audit(db, req.user.id, 'backup taken before clearing the inventory'); res.json({ id }); return; }
       const id = takeBackup(db, 'by hand'); audit(db, req.user.id, 'backup taken by hand'); res.json({ id });
     }
     catch (e) { next(e); }

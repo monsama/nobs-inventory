@@ -13,6 +13,9 @@ const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 
 /* Backups taken by hand are never pushed out by automatic ones; only automatic ones count against the number kept. */
 const BY_HAND = 'by hand';
+/* Backups only a person removes: those taken by hand, and the one taken before the inventory is cleared. Automatic
+   backups (syncs, pushes, imports) never push them out. */
+export const BEFORE_CLEAR = 'before clearing the inventory';
 /* The server's sheet key, given once at start (createApp), so a backup can take the passwords out of entry sheets. */
 let sheetKey = null;
 export const setBackupSheetKey = key => { sheetKey = key; };
@@ -52,7 +55,7 @@ export function takeBackup(db, reason) {
     sheets: sheetsForBackup(db)
   };
   const info = db.prepare('INSERT INTO backups (at, reason, objects, data) VALUES (?, ?, ?, ?)').run(data.created, reason, s.objs.length, JSON.stringify(data));
-  db.prepare('DELETE FROM backups WHERE reason <> ? AND id NOT IN (SELECT id FROM backups WHERE reason <> ? ORDER BY id DESC LIMIT ?)').run(BY_HAND, BY_HAND, keep);
+  db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
   return Number(info.lastInsertRowid);
 }
 

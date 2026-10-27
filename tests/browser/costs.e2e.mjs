@@ -63,7 +63,7 @@ try {
   assert.deepEqual([c.name, c.renew, c.notice, c.cost, c.devices], ['Switch maintenance', 12, 1, 1200, ['o1']]);
   // the summary: what the contracts cost this year and the next two (no start date, renews: the whole year each)
   const y = new Date().getFullYear();
-  assert.match(await page.textContent('.ct-sum'), new RegExp(`${y} \\(this year\\)CHF 1.?200.*${y + 1}CHF 1.?200.*${y + 2}CHF 1.?200.*Maintenance CHF 1.?200`, 's'));
+  assert.match(await page.textContent('.ct-sum'), new RegExp(`${y}CHF 1.?200this year.*${y + 1}CHF 1.?200next year.*${y + 2}CHF 1.?200the year after.*${y} by kindMaintenanceCHF 1.?200`, 's'));
   // Edit opens the contract to change it
   await page.click('table.contracts button[aria-label="Edit Switch maintenance"]');
   await page.fill('#ctCost', '1500'); await page.click('#ctOk');

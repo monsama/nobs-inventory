@@ -1,15 +1,16 @@
 import { dateText, dateTimeText } from './dates.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
-import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
+import { O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
-import { queueServerSave, render } from './07-render-plans.js';
-import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
+import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
+import { USERS, applyRole, canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { isPlaceholderSerial } from './serials.js';
+import { sheetModal } from './08-sheets.js';
 /* ---------- racks ---------- */
 /* A new rack: what a rack has (its name, room, height in U and optionally its model and serial number), nothing more.
    It is shown in Racks right away. */
@@ -121,7 +122,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.loc ? '' : 'selected'}>No location</option>${(o.loc && !LOCS.includes(o.loc) ? [o.loc, ...LOCS] : LOCS).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
   else if (kind === 'subnet'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
@@ -185,7 +186,17 @@ const avNames = () => [...new Set([...objs.flatMap(x => avEntries(x).map(e => e.
 export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
-const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all) };
+export const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all),
+  port: input => { const t = byId(($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; } };
+/* The ports of a switch (1/1, 1/2 …) or patch panel (P01 …) that nothing is plugged into and that are not part of a LAG,
+   to pick from when something is plugged in. Empty for a device whose ports are not numbered. */
+export function freePorts(t){
+  const taken = new Set(rels.filter(r => r.to === t.id && r.port != null).map(r => String(r.port)));
+  if (t.type === 'patch') return Array.from({length: t.ports || 0}, (_, i) => 'P' + String(i + 1).padStart(2, '0')).filter(p => !taken.has(p));
+  if (!hasPorts(t) || !(t.ports > 0)) return [];
+  return Array.from({length: (t.ports || 0) + (t.sfp || 0)}, (_, i) => i + 1).filter(n => !taken.has(String(n)) && !lagOfPort(t, n))
+    .map(n => ({v: String(n), label: portLabel(t, n) + (n > (t.ports || 0) ? ' (SFP)' : '')}));
+}
 /* Sources that read what was typed themselves; the others are filtered by it here. */
 const SELF_FILTERED = ['ip'];
 const comboOf = el => el && el.closest && el.closest('.combo');
@@ -270,6 +281,13 @@ function comboOpen(c, all){
   /* An entry with off is a remark (no subnet, nothing free), shown but not picked. */
   list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" ${m.off ? 'class="off" aria-disabled="true"' : `data-v="${esc(m.v)}"`} aria-selected="${!m.off && m.v === input.value ? 'true' : 'false'}">${m.html || esc(m.label)}</li>`).join('');
   list.hidden = false; input.setAttribute('aria-expanded', 'true');
+  /* Near the bottom of a dialog or the window the list opens upwards, so it is not cut off by the edge. */
+  const box = input.closest('.mb, .view') || document.documentElement, r = input.getBoundingClientRect(), b = box.getBoundingClientRect();
+  const below = Math.min(b.bottom, window.innerHeight) - r.bottom, above = r.top - Math.max(b.top, 0);
+  const up = below < Math.min(list.scrollHeight + 8, 268) && above > below;
+  c.classList.toggle('up', up);
+  /* No taller than the room on that side, so it is never cut off; it scrolls instead. */
+  list.style.maxHeight = Math.max(96, Math.min(260, (up ? above : below) - 8)) + 'px';
 }
 function comboClose(c){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
@@ -339,7 +357,19 @@ document.addEventListener('keydown', e => {
 document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* A field's ⋯ menu closes on a click elsewhere or Escape. */
-document.addEventListener('click', e => document.querySelectorAll('details.fmenu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
+/* Enter in a field of a dialog does what its main button does (Create, Save, Restore …), as in any form. Not in a row
+   that adds something of its own (it has its own button), not in a text area or a list, and not in Settings, whose
+   fields save as they are left. A field that handles Enter itself says so (preventDefault) and is left alone. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing) return;
+  const el = e.target, m = el.closest && el.closest('#mdl:not(.minimized)');
+  if (!m || m.querySelector('#setPane') || !el.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button])')) return;
+  if (el.form || el.closest('.addrel, .lpanel-add, .tf-add, .mf')) return;   /* a form (sign-in) submits by itself */
+  const ok = m.querySelector('.mf button.primary:not(:disabled), .mf button[id$="Ok"]:not(:disabled)');
+  if (ok){ e.preventDefault(); ok.click(); }
+});
+/* An open menu (a field's, or More in a toolbar) closes on a click beside it. */
+document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
 export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
@@ -360,6 +390,14 @@ export function fieldMenu(o, f, hiddenBy = ''){
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
   return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
 }
+/* Over the two narrow columns at the right of Properties, for an object Lansweeper fills in: what the boxes are, so a row
+   without one reads as "not from Lansweeper", not as a gap. The text ends over the boxes. */
+function propHead(o, menu){
+  if (!(LS_ON() && feedLinked(o))) return '';
+  return `<span></span><div class="ctlrow prop-head" aria-hidden="true"><span></span><span class="pchk-slot ph-ls">From Lansweeper</span>${menu ? '<span class="fm-slot"></span>' : ''}</div>`;
+}
+/* When a device was last saved here, for the toolbar: the time today, else the day. */
+const savedAt = iso => { const d = new Date(iso), t = new Date(); return d.toDateString() === t.toDateString() ? d.toTimeString().slice(0, 5) : dateText(d); };
 /* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
    ticked; untick it to edit the value here. */
 export function propRow(o, f, menu = ''){
@@ -505,9 +543,9 @@ export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [];
   return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
-    ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing recorded.</td></tr>'}
-    </tbody></table></div>
+    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
+    ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>'}
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`;
 }
 export function bindSoftware(o){
@@ -613,12 +651,73 @@ export function patchPanel(o){
 }
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
 /* Retiring keeps the record: the object stays with its relations, ports and rack place, and is no longer offered as a target. */
+/* A person added while giving them a device: their name (and department), as in Settings → Users, without a sign-in. */
+function newPersonModal(o){
+  modal(`<div class="mh">New person for ${esc(o.name)}</div>
+    <div class="mb"><div class="form" style="padding:0">
+      <label for="npFirst">First name</label><input id="npFirst" maxlength="60" autocomplete="off">
+      <label for="npLast">Last name</label><input id="npLast" maxlength="60" autocomplete="off">
+      <label for="npDept">Department</label><input id="npDept" maxlength="80" autocomplete="off" placeholder="Optional">
+    </div><p class="note">Added to Settings → Users as a person without a sign-in; give them a login there if they need one.</p></div>
+    <div class="mf"><button id="npCancel">Cancel</button><button id="npOk" class="primary">Add and give the device</button></div>`, 'sm');
+  $('#npCancel').onclick = closeModal;
+  $('#npOk').onclick = () => {
+    const name = [$('#npFirst').value.trim(), $('#npLast').value.trim()].filter(Boolean).join(' ');
+    if (!name){ $('#npFirst').focus(); return; }
+    const u = ensureUser(name, 'manual'), dept = $('#npDept').value.trim();
+    if (dept && !u.dept) u.dept = dept;
+    const was = o.user;
+    delete o.hotdesk; o.uid = u.id;
+    if (feedLinked(o) || (o.graph && o.graph.added)) o.ovr.user = false;
+    hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}`);
+    closeModal(); queueServerSave(); toast(`${o.name} is now with ${name}`); render();
+  };
+  $('#npFirst').focus();
+}
+/* What a device still holds when it is retired, each a tick box (ticked) in the dialog: the person who has it, the port
+   it is plugged into, what is attached to it, its place on the floor plan, its contracts and its responsibles. A rack
+   place is always given up. Only what applies is listed. */
+function retireTies(o){
+  const plugs = rels.filter(r => r.from === o.id && r.kind === 'connected' && byId(r.to));
+  const attached = rels.filter(r => r.to === o.id && r.kind === 'attached' && byId(r.from));
+  const plan = o.planPos && PLANS.find(p => p.id === o.planPos.plan);
+  const cts = contractsOf(o);
+  const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
+  return [
+    (o.uid || o.hotdesk) && ['user', `Take it from ${esc(o.user)}`, () => { o.uid = null; o.hotdesk = false; if (o.ovr) o.ovr.user = false; }],
+    plugs.length && ['plug', `Unplug it from ${plugs.map(r => `${esc(byId(r.to).name)}${r.port != null ? ' port ' + esc(portLabel(byId(r.to), r.port)) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    attached.length && ['attached', `Detach ${attached.map(r => esc(byId(r.from).name)).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    plan && ['plan', `Take it off the floor plan ${esc(plan.name)}`, () => { delete o.planPos; }],
+    cts.length && ['contracts', `Remove it from ${cts.map(c => esc(c.name)).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
+    resp.length && ['resp', `Remove ${resp.map(c => esc(c.name)).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
+  ].filter(Boolean);
+}
 export function retireModal(o){
+  const ties = retireTies(o);
   modal(`<div class="mh">Retire ${esc(o.name)}?</div>
-    <div class="mb"><p class="note">It stays in the inventory for the record, with its connections, port and rack place. It is no longer offered when connecting something. You can bring it back by changing its status.</p></div>
+    <div class="mb"><p class="note">It stays in the inventory for the record, with its history, and is no longer offered when connecting something. You can bring it back by changing its status.${o.rack ? ' It is taken out of its rack.' : ''}</p>
+      ${ties.length ? `<div class="rt-ties"><div class="rt-h">Also, so nothing looks in use that is not:</div>${ties.map(([k, l]) => `<label class="pchk"><input type="checkbox" data-rt="${k}" checked> ${l}</label>`).join('')}</div>` : ''}
+      <div class="form" style="padding:8px 0 0"><label for="rtWhy">Reason</label><input id="rtWhy" maxlength="200" placeholder="Optional, e.g. broken screen, replaced by ZH-NB-0210"></div></div>
     <div class="mf"><button id="rtCancel">Cancel</button><button id="rtOk" class="danger-text">Retire</button></div>`, 'sm');
   $('#rtCancel').onclick = closeModal;
-  $('#rtOk').onclick = () => { if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); } o.status = 'retired'; hist(o, now(), 'Retired by ' + who()); closeModal(); toast(o.name + ' is retired. It stays in the inventory for the record.'); render(); };
+  $('#rtOk').onclick = () => {
+    /* All of it can be undone at once: the device, the relations taken away and the contracts it was on. */
+    const was = snapshot([o]), relsWas = [...rels], ctsWas = COSTS.contracts.map(c => [c, [...(c.devices || [])]]);
+    if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); }
+    const done = ties.filter(([k]) => $(`[data-rt="${k}"]`).checked);
+    done.forEach(([, , run]) => run());
+    const why = $('#rtWhy').value.trim();
+    o.status = 'retired';
+    hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => l.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
+    closeModal();
+    toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
+      restoreSnapshot(was, 'Retirement undone by ' + who());
+      rels.splice(0, rels.length, ...relsWas);
+      ctsWas.forEach(([c, d]) => { c.devices = d; });
+      render();
+    });
+    render();
+  };
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -705,12 +804,12 @@ export function renderObj(o){
       ${i ? `<div class="ps-hop">${esc(KINDS[n.via.kind].fwd)}${n.via.port != null ? ` <b>${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : ''}
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
-  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
-    <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
+  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
+    <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${propHead(o, !!menuSlot)}${fields.map(row).join('')}
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
@@ -743,10 +842,15 @@ export function renderObj(o){
   bindDeviceResp(o);
   bindDeviceLinks(o);
   const objView = $('#view').querySelector('.obj');
-  const dirty = () => { $('#saveBtn').disabled = false; };
+  /* A field saves when it is left; while one is being typed in, Save shows (Enter or leaving the field do the same). */
+  const dirty = () => { $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
   objView.addEventListener('input', dirty);
   /* A field saves when it is left: the whole object is saved, without a redraw, except for a type change, which changes the fields. */
-  objView.addEventListener('change', e => { dirty(); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type'); });
+  objView.addEventListener('change', e => {
+    /* "New person…": who gets the device, added to the people here and given it in one step. */
+    if (e.target.dataset.k === 'user' && e.target.value === '__new'){ e.target.value = o.hotdesk ? '__hotdesk' : (o.uid || ''); newPersonModal(o); return; }
+    dirty(); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type');
+  });
   /* A panel stays open or closed as the person left it. The choice is kept in this browser, by the panel's title. */
   $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
@@ -954,9 +1058,11 @@ export function renderObj(o){
     if (clash && clash.level === 'warn') warns.push(clash.text);
     const sn = o.subnet ? SUBNETS.find(n => n.cidr === o.subnet) : null, span = sn ? subnetSpan(sn) : null, ipn = ipInt(o.ip);
     if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
-    toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '') + (warns.length ? '. Check: ' + warns.join('; ') : ''));
+    /* Said plainly: what was typed over a synced value stays, and the sync leaves it alone from now on. */
+    const keptMsg = kept.length ? `. ${kept.join(', ')}: your value stays; ${feedLinked(o) ? 'Lansweeper' : 'Microsoft Graph'} no longer changes ${kept.length === 1 ? 'it' : 'them'}` : '';
+    toast('Saved ' + o.name + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : ''));
     queueServerSave();
-    if (rerender) render(); else $('#saveBtn').disabled = true;
+    if (rerender) render(); else { $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); }
     return true;
   };
   $('#saveBtn').onclick = () => saveObj();
@@ -1035,6 +1141,9 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
   $('#dupBtn').onclick = () => newObjModal({copy: o});
+  /* Handing a device over: the entry sheet of the person who has it (their devices and a first password), from here. */
+  const opb = $('#onPlanBtn'); if (opb) opb.onclick = () => showOnPlan(o);
+  const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u); };
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
   $('#delBtn').onclick = () => retireModal(o);
@@ -1138,7 +1247,8 @@ export const closeModal = () => {
 };
 document.addEventListener('keydown', e => {
   if (!$('#mdl') || $('#mdl.minimized')) return;
-  if (e.key === 'Escape' && $('#mdl .locked')) return;
+  /* Escape that closed something inside the dialog (an open list) does not also close the dialog. */
+  if (e.key === 'Escape' && (e.defaultPrevented || $('#mdl .locked'))) return;
   if (e.key === 'Escape' && !$('#mdl .locked')) closeModal();
   if (e.key !== 'Tab') return;
   const f = [...$('#mdl .box').querySelectorAll('button:not([disabled]), input:not([disabled]), select, textarea')];
