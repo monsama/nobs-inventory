@@ -316,6 +316,8 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .tab.objtab{background:var(--panel);border-color:var(--bd);padding-left:8px;border-radius:4px}
 .tab.objtab .tsw{width:8px;height:8px;border-radius:50%;flex:none}
 .tab.objtab.active{background:var(--bg)}
+/* an open object needs no accent bar: its own tab border and background mark it */
+.tab.objtab.active::after{display:none}
 .port.single{opacity:.5;cursor:not-allowed}
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
@@ -432,6 +434,12 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .lnk:hover{text-decoration:underline}
 .lnk-url{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .lnk-add{flex-wrap:wrap}
+.lnk-quick{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border:1px dashed var(--bd);border-radius:13px;background:transparent;color:var(--linktext);font-family:var(--mono);font-size:12px;cursor:pointer}
+.lnk-quick:hover{border-style:solid;background:var(--hover)}
+.lnk-quick>span{font-weight:600;font-size:14px;line-height:1}
+.relrow.lnk-edit input{height:28px;box-sizing:border-box}
+.relist .relrow.lnk-edit button{flex:none;width:auto;height:28px;padding:0 12px}
+.lnk-break{flex-basis:100%;height:0}
 .more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
 .cn{padding:12px;display:flex;flex-direction:column;gap:12px}
 .cn-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
@@ -1050,7 +1058,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .tab.active{background:var(--panel2);color:var(--fg)}
 .tab.active::after{opacity:1;left:12px;right:12px;bottom:2px}
 .tab.objtab{background:transparent;border-color:var(--bd2)}
-.tab.objtab.active{background:var(--panel2)}
+.tab.objtab.active{background:var(--panel2);border-color:var(--bd);color:var(--fg)}
 .tsw{opacity:.75}
 .jb.ad,.jb.en,.jb.hy,.jb.reg{--c:var(--accent)}
 .jb{border-left-width:1px;background:color-mix(in srgb,var(--c) 7%,transparent)}
