@@ -676,7 +676,18 @@ export function mapLegend(L){
     <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
     <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
 }
-export function mapApply(){ const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`); }
+export function mapApply(){
+  const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`);
+  const z = $('#mapZoomReset'); if (z) z.textContent = Math.round(MAP.zoom * 100) + '%';
+}
+/* Zooms the map to z, keeping the point (mx, my) of the drawing area where it is: the pointer for Ctrl + wheel, the
+   middle for the buttons. */
+export function mapZoomTo(z, mx, my){
+  const svg = $('#mapSvg'); if (!svg) return;
+  if (mx === undefined){ mx = svg.clientWidth / 2; my = svg.clientHeight / 2; }
+  const z0 = MAP.zoom, z1 = Math.min(2.5, Math.max(0.3, z));
+  MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
+}
 export function mapBox(L){
   const xs = L.list.map(o => L.pos[o.id].x), ys = L.list.map(o => L.pos[o.id].y);
   const x0 = Math.min(...xs), y0 = Math.min(...ys);
@@ -711,6 +722,10 @@ function bindMapToolbar(){
   $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; view(); };
   $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; view(); };
   $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; const svg = $('#mapSvg'); if (svg) svg.classList.toggle('labels', st.mapLabels); };
+  /* The same zoom control as on the floor plan: the steps of the plan's buttons, around the middle of the map. */
+  $('#mapZoomOut').onclick = () => mapZoomTo(MAP.zoom / 1.25);
+  $('#mapZoomIn').onclick = () => mapZoomTo(MAP.zoom * 1.25);
+  $('#mapZoomReset').onclick = () => mapZoomTo(1);
 }
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
@@ -735,7 +750,8 @@ export function renderMap(){
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
     <input id="mapFind" type="search" placeholder="Find object…" style="width:160px" value="${esc(st.mapFind)}" aria-label="Find object">
-    <div class="grow"></div><span class="tbgroup"><button id="mapFitBtn">Fit</button><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></span>`;
+    <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></div></details></span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
@@ -784,9 +800,8 @@ export function renderMap(){
   svg.addEventListener('wheel', e => {
     e.preventDefault();
     if (!e.ctrlKey){ MAP.px -= e.deltaX; MAP.py -= e.deltaY; mapApply(); return; }
-    const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-    const z0 = MAP.zoom, z1 = Math.min(2.5, Math.max(0.3, z0 * (e.deltaY < 0 ? 1.1 : 0.91)));
-    MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
+    const r = svg.getBoundingClientRect();
+    mapZoomTo(MAP.zoom * (e.deltaY < 0 ? 1.1 : 0.91), e.clientX - r.left, e.clientY - r.top);
   }, {passive: false});
   bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
@@ -801,7 +816,8 @@ export function renderMap(){
   });
   $('#mapFitBtn').onclick = mapFit;
   $('#mapReset').onclick = () => { st.mapPos = {}; render(); mapFit(); };
-  $('#mapExport').onclick = () => {
+  $('#mapExport').onclick = e => {
+    e.target.closest('details').open = false;
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + mapExportSvg()], {type: 'image/svg+xml'});
     const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'relationships.svg'});
     document.body.appendChild(a); a.click(); a.remove(); toast('Exported relationships.svg');

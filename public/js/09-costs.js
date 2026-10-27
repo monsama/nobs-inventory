@@ -47,9 +47,11 @@ function costSummary(all){
   const per = years.map(y => all.reduce((t, c) => t + costInYear(c, y), 0));
   if (!per.some(v => v > 0)) return '';
   const kinds = Object.entries(CONTRACT_KINDS).map(([k, l]) => [l, all.filter(c => c.kind === k).reduce((t, c) => t + costInYear(c, y0), 0)]).filter(([, v]) => v > 0);
-  return `<div class="ct-sum" aria-label="Contract costs per year">
-    ${years.map((y, i) => `<div class="ov-tile"><span class="muted">${y}${i === 0 ? ' (this year)' : ''}</span><b>${money(Math.round(per[i] * 100) / 100) || money(0)}</b></div>`).join('')}
-    ${kinds.length ? `<div class="ct-kinds"><span class="muted">${y0} by kind</span>${kinds.map(([l, v]) => `<span>${esc(l)} <b>${money(Math.round(v * 100) / 100)}</b></span>`).join('')}</div>` : ''}
+  /* The Overview's tiles: a label, the figure, a line under it; this year by kind is the fourth. */
+  const when = ['this year', 'next year', 'the year after'];
+  return `<div class="ov-kpis ct-sum" aria-label="Contract costs per year">
+    ${years.map((y, i) => `<div class="ov-tile"><span class="ov-tl">${y}</span><span class="ov-tv">${money(Math.round(per[i] * 100) / 100) || money(0)}</span><span class="ov-ts">${when[i]}</span></div>`).join('')}
+    ${kinds.length ? `<div class="ov-tile"><span class="ov-tl">${y0} by kind</span>${kinds.map(([l, v]) => `<span class="ct-kind"><span>${esc(l)}</span><b>${money(Math.round(v * 100) / 100)}</b></span>`).join('')}</div>` : ''}
   </div>
   <p class="note ct-sum-note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p>`;
 }
