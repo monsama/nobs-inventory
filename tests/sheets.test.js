@@ -56,6 +56,10 @@ test('a sheet is made from the inventory, kept sealed, opened again, and its pas
     const backup = srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(backupId).data;
     assert.ok(!backup.includes(sheet.password), 'the password is readable in a backup');
     assert.ok(JSON.parse(backup).sheets.some(r => r.id === id), 'the sealed sheet is in the backup');
+    // not even with the key: a backup keeps the sheet without its password, so marking it changed later holds there too
+    const inBackup = JSON.parse(backup).sheets.find(r => r.id === id);
+    assert.equal(inBackup.password, 'expired');
+    assert.equal(openSheet(key, inBackup.data).password, undefined, 'the password is in the backup\'s sealed sheet');
     const state = (await srv.call('GET', '/api/state', { cookie: a.cookie })).text;
     const log = JSON.stringify(srv.db.prepare('SELECT action FROM audit').all());
     assert.ok(!state.includes(sheet.password) && !log.includes(sheet.password), 'the password is in the state or the log');
@@ -142,6 +146,7 @@ test('a restore adds the sheets that are missing and keeps those that are there'
     assert.equal(getSheet(srv.db, key, two).sheet.password, undefined);
     srv.db.prepare('DELETE FROM sheets WHERE id = ?').run(two);
     restoreBackup(srv.db, backup, crypto.randomBytes(32));
-    assert.equal(srv.db.prepare('SELECT COUNT(*) AS n FROM sheets WHERE id = ?').get(two).n, 0, 'a sheet that cannot be opened to take the password out is left out');
+    // a backup holds no password at all, so even restored with another key the sheet comes back only as expired
+    assert.equal(srv.db.prepare('SELECT password FROM sheets WHERE id = ?').get(two).password, 'expired');
   } finally { await srv.close(); }
 });

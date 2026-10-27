@@ -6,7 +6,7 @@ services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.33}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.34}
     build: .
     restart: unless-stopped
     expose:
@@ -19,6 +19,8 @@ services:
       NI_SHEET_KEY_FILE: /run/secrets/sheet_key
       # Caddy serves HTTPS, so the session cookie is sent only over HTTPS.
       NI_SECURE_COOKIE: ${NI_SECURE_COOKIE:-1}
+      # The time zone of scheduled syncs ("daily at 06:00"), the entry-sheet clean-up and the server's history stamps.
+      TZ: ${TZ:-Europe/Zurich}
       NI_LDAP_URL: ${NI_LDAP_URL:-}
       NI_LDAP_BIND: ${NI_LDAP_BIND:-}
       NI_LDAP_BASE: ${NI_LDAP_BASE:-}

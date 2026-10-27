@@ -645,8 +645,9 @@ export function mapInner(L){
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
     return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})">
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
-      <rect width="${MAP_W}" height="20" rx="5" fill="${c}"/><rect y="12" width="${MAP_W}" height="8" fill="${c}"/>
-      <text x="8" y="14" font-size="10" font-family="var(--mono)" fill="#fff">${esc(o.code)}</text>
+      <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
+      <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
+      <text x="9" y="14" font-size="10" font-family="var(--mono)" fill="var(--muted)">${esc(o.code)}</text>
       <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
       ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
       ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}
@@ -823,7 +824,7 @@ export function renderPorts(){
   /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
   const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);
   /* Each group has its own colour on the front panel, shown in the legend below it. A LAG group has dashed ports. */
-  const groupColour = i => `hsl(${(i * 97) % 360} 60% 42%)`;
+  const groupColour = i => `hsl(${(210 + i * 97) % 360} 28% 50%)`;   /* muted: a group is a group, not a warning */
   /* A port in a linked LAG is in use by the device on the other end of the LAG. */
   const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
   const portBtn = p => {

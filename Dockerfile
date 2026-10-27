@@ -2,7 +2,8 @@ FROM node:26.12-alpine3.24
 # Security fixes Alpine has published since the base image was built (OpenSSL, ...).
 RUN apk upgrade --no-cache
 WORKDIR /app
-ENV NODE_ENV=production NI_DATA=/data NI_PORT=8080
+# TZ: the time zone of scheduled syncs and the server's time stamps (Node carries the zone data itself).
+ENV NODE_ENV=production NI_DATA=/data NI_PORT=8080 TZ=Europe/Zurich
 COPY package.json package-lock.json ./
 # npm is only needed to install. It is removed afterwards, so the dependencies it bundles (tar, sigstore, ...) are not in the image.
 RUN npm ci --omit=dev && npm cache clean --force \

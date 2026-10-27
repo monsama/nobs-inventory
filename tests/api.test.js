@@ -674,3 +674,18 @@ test('requests from another site are refused, large bodies need a signed-in admi
     assert.equal(after.lsNets, undefined, 'a server-only setting is not taken from the request');
   } finally { await srv.close(); }
 });
+
+test('a location or site that is not a name is refused, so it cannot leave the page blank for everyone', async () => {
+  const { loadState } = await import('../server/state.js');
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const revs = loadState(srv.db).revs;
+    for (const [id, value] of [['locs', [null]], ['locs', ['']], ['sites', [42]]]) {
+      const r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'setting', id, value, base: revs['setting|' + id] ?? 0 }], dels: [] } });
+      assert.equal(r.status, 400, `${id} ${JSON.stringify(value)} was saved`);
+    }
+    const ok = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [{ kind: 'setting', id: 'locs', value: ['HQ / Lager'], base: revs['setting|locs'] ?? 0 }], dels: [] } });
+    assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  } finally { await srv.close(); }
+});

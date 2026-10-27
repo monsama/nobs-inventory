@@ -587,7 +587,8 @@ export function renderStatus(){
     failed: ['bad', 'Not saved', 'The last change was refused. It is kept here and sent again with the next change.'],
     offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
   }[SERVER.save] || ['', '', ''];
-  save.innerHTML = `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
+  /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
+  save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
   save.classList.toggle('hide-n', !S[0]);
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
