@@ -63,6 +63,10 @@ $other = Get-OtherAdapters $all $all[0] '10.10.20.42'
 Check 'other adapters: one' $other.Count 1
 Check 'other adapters: the Wi-Fi' $other[0].name 'Intel Wi-Fi 6 AX201'
 Check 'other adapters: none without a main' (Get-OtherAdapters @($all[0]) $null '10.10.20.42').Count 0
+# As Get-AdapterByAsset hands them over: a list of the asset's adapters, or nothing for an asset without one.
+Check 'other adapters: from the adapter list' (Get-OtherAdapters $map['7'] $nic '10.10.20.42')[0].ip '192.168.56.1'
+Check 'other adapters: no adapters' (Get-OtherAdapters $map['nope'] $null '10.0.0.1').Count 0
+Check 'other adapters: one record' (Get-OtherAdapters $all[1] $null '').Count 1
 
 $locs = Get-IpLocations (New-Conn (New-Table @('IPLocation','StartIP','EndIP') @(@('Bern Lager','172.21.108.1','172.21.108.254'), @('', '1.1.1.1', '1.1.1.2'))))
 Check 'ip locations read' $locs.Count 1
