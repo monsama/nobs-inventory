@@ -121,7 +121,7 @@ export const warrantyState = (o, today = new Date()) => {
 export const SCAN_OLD_DAYS = 90;
 export const scanOld = (o, today = new Date()) => !!(lsLive() && o.feed && !o.excluded && !o.detached && /^\d{4}-\d{2}-\d{2}$/.test(o.feed.scanned || '')
   && (today - new Date(o.feed.scanned + 'T00:00:00')) / 86400000 > SCAN_OLD_DAYS);
-export const scanChip = o => scanOld(o) ? `<span class="chip warn" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
+export const scanChip = o => scanOld(o) ? `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>` : '';
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
@@ -330,7 +330,7 @@ export const joinBadges = o => {
     ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}
   </div>`;
 };
-export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
+export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
 /* An object excluded from the sync, or detached, is not linked to Lansweeper: its fields are its own. */
@@ -345,7 +345,7 @@ export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
-export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="background:${tcol(t)}">${svg(t)}</span>`;
+export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;
 export { pad2 };
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
 export const pfxOf = o => o.pfx ?? '';

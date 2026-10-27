@@ -145,7 +145,8 @@ try {
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
   await page.waitForSelector('#f_o1_ip');
   await page.fill('#f_o1_ip', '10.50.0.7'); await page.press('#f_o1_ip', 'Tab');
-  await page.waitForFunction(() => /10\.50\.0\.7 is also used by/.test(document.querySelector('#toast').textContent));
+  // both are DHCP addresses, so it is a note under the address (it has moved), not a warning on saving
+  await page.waitForFunction(() => /DHCP address, also recorded on another device: PC-ENDED/.test(document.querySelector('#f_o1_ip_note').textContent));
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').ip = '10.10.20.5'; delete c.byId('o2').nics; });
 
   // AD groups from the directory: chips on the device; one opens the table filtered to that group, cleared from the sidebar
