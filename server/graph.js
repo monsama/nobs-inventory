@@ -7,6 +7,8 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
 import { checkAddress } from './validate.js';
+/* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
+const GRAPH_TIMEOUT_MS = 60000;
 
 /* Intune writes a MAC as twelve hex digits with no separators (00155D012345). It is stored the way the inventory writes
    one, 00:15:5d:01:23:45; a value that is not a MAC is left out, so it cannot make the whole sync fail its checks. */
@@ -47,7 +49,7 @@ export async function graphToken(cfg, now = new Date(), fetchImpl = fetch) {
     client_id: cfg.clientId, scope: `${GRAPH_ORIGIN}/.default`, grant_type: 'client_credentials',
     client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion(cfg, now),
   });
-  const r = await fetchImpl(`https://login.microsoftonline.com/${cfg.tenant}/oauth2/v2.0/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
+  const r = await fetchImpl(`https://login.microsoftonline.com/${cfg.tenant}/oauth2/v2.0/token`, { method: 'POST', signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS), headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) {
     const why = String(j.error_description || j.error || r.status).split('\r')[0].slice(0, 200);
@@ -72,13 +74,13 @@ export async function testGraph(cfg, fetchImpl = fetch) {
   const lists = [['devices', 'Device.Read.All', `${GRAPH}/devices?$top=1&$select=id`], ['managedDevices', 'DeviceManagementManagedDevices.Read.All', `${GRAPH}/deviceManagement/managedDevices?$top=1&$select=id`]];
   const out = { signedIn: true, missing: [] };
   for (const [name, permission, url] of lists) {
-    const r = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
+    const r = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
     out[name] = r.ok;
     if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? permission : `${permission} (Microsoft Graph answered ${r.status})`);
   }
   /* People are read only when Settings asks for them; then their permission is checked too. */
   if (cfg.people && cfg.people !== 'off') {
-    const r = await fetchImpl(`${GRAPH}/users?$top=1&$select=id`, { headers: { authorization: `Bearer ${token}` } });
+    const r = await fetchImpl(`${GRAPH}/users?$top=1&$select=id`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
     out.users = r.ok;
     if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? 'User.Read.All' : `User.Read.All (Microsoft Graph answered ${r.status})`);
   }
@@ -93,7 +95,7 @@ export async function graphAll(token, url, fetchImpl = fetch) {
     /* A list cut short would make every device not read look gone: the sync stops instead. */
     if (pages >= 1000) throw new HttpError(502, 'Microsoft Graph returned more than 1000 pages; the sync was stopped so no device is marked as gone by mistake.');
     if (new URL(next).origin !== GRAPH_ORIGIN) throw new HttpError(502, 'Microsoft Graph gave a link to somewhere else.');
-    const r = await fetchImpl(next, { headers: { authorization: `Bearer ${token}` } });
+    const r = await fetchImpl(next, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
     if (!r.ok) throw new HttpError(502, `Microsoft Graph answered ${r.status} for ${new URL(url).pathname}.`);
     const j = await r.json();
     out.push(...(j.value || []));

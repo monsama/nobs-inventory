@@ -6,7 +6,8 @@ export const PERIODS = { year: 'per year', month: 'per month', once: 'once' };
 export const NOTICE_SOON_DAYS = 60;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const isDay = v => typeof v === 'string' && DAY.test(v) && !isNaN(new Date(v + 'T00:00:00Z'));
+/* A real day: 2026-02-31 is not one, though Date would roll it over into March. */
+const isDay = v => { if (typeof v !== 'string' || !DAY.test(v)) return false; const d = new Date(v + 'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === v; };
 const text = (v, max) => v === undefined || (typeof v === 'string' && v.length <= max);
 const count = (v, max) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= max);
 const money = v => v === undefined || v === null || (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e9);

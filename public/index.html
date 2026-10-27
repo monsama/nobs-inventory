@@ -999,7 +999,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 40%,var(--bd));font-weight:600}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent)}
-.box.sm .mf button.danger-text{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg)}
+.box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg)}
 button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);box-shadow:none;opacity:1}
 input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
@@ -1097,6 +1097,31 @@ button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-
 @media (max-width:640px){#stSync{display:none!important}}
 .card .cf .chip{max-width:60%}
 .card .cf>.muted,.card .cf>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* Full check 3: errors look like errors; one style per kind of thing; boxes of a set one size; nothing cut off hard. */
+#toast.err{background:var(--danger-bg);color:#fff;cursor:pointer}
+.note.err{color:var(--badtext)}
+#stSave .chip{height:16px}
+.lic-mark.over{background:color-mix(in srgb,var(--danger) 14%,transparent);border-color:color-mix(in srgb,var(--danger) 32%,transparent);color:var(--badtext)}
+.sess-here{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--fg)}
+.cn-card{height:100%;min-height:128px}
+.relrow button[data-editgroup]{height:24px;padding:0 10px}
+.cn-grid{grid-auto-rows:1fr}
+.cn-card .cn-kind,.cn-card .chip{white-space:nowrap}
+.jbar-page{align-items:stretch}
+.jbar-page .jb{align-content:center}
+#bkLoc,#bkStatus,#bkResp{flex:0 0 200px;width:200px;max-width:100%}
+@media (max-width:760px){#bkLoc,#bkStatus,#bkResp{flex:1 1 100%;width:auto}}
+table.contracts td:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+table.contracts td:first-child .link{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.obj table.grid.mini td:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;width:60%}
+button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border-color:var(--accentbtn);opacity:.45}
+@media (max-width:760px){
+ #mdl .box.settings,#mdl .box:has(#setPane){width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}
+ #mdl:has(#setPane){padding:0}
+ .obj .form{grid-template-columns:minmax(0,1fr)}
+ .obj .form>label{padding-bottom:0}
+}
 </style>
 </head>
 <body>

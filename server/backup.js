@@ -11,13 +11,32 @@ const COUNTERS = ['seq', 'codeN', 'rseq'];
 /* How backups are taken is not part of the inventory: a restore of an old backup never switches them off or keeps fewer. */
 const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
 
+/* Backups taken by hand are never pushed out by automatic ones; only automatic ones count against the number kept. */
+const BY_HAND = 'by hand';
+/* The server's sheet key, given once at start (createApp), so a backup can take the passwords out of entry sheets. */
+let sheetKey = null;
+export const setBackupSheetKey = key => { sheetKey = key; };
+
 /* A backup taken by the app itself, before one of the changes above. Off when the setting "Automatic backups" is off.
-   daily: at most one a day for this reason (a sync that runs every few hours). */
-export function autoBackup(db, reason, { daily = false } = {}) {
+   daily: at most one a day for this reason (a sync that runs every few hours); hourly: at most one an hour (a push
+   that comes in many requests of 500 devices, each of which would otherwise take its own). */
+export function autoBackup(db, reason, { daily = false, hourly = false } = {}) {
   if (settingOf(db, 'autoBackups') === false) return null;
-  /* A sync that runs every few hours backs up once a day, so its backups do not push the older ones out. */
-  if (daily && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at > ?").get(reason, new Date(Date.now() - 864e5).toISOString())) return null;
+  const within = daily ? 864e5 : hourly ? 36e5 : 0;
+  if (within && db.prepare("SELECT 1 FROM backups WHERE reason = ? AND at > ?").get(reason, new Date(Date.now() - within).toISOString())) return null;
   return takeBackup(db, reason);
+}
+/* Entry sheets as a backup keeps them: sealed, and never with a password. A kept password is taken out (the sheet reads
+   as expired there), so marking it changed or its expiry here also holds for every backup; a sheet that cannot be opened
+   to do that is left out of the backup. */
+function sheetsForBackup(db) {
+  if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sheets'").get()) return [];
+  return db.prepare('SELECT * FROM sheets').all().flatMap(r => {
+    if (r.password !== 'kept') return [r];
+    if (!sheetKey) return [];
+    try { const sheet = openSheet(sheetKey, r.data); delete sheet.password; return [{ ...r, password: 'expired', data: sealSheet(sheetKey, sheet) }]; }
+    catch { return []; }
+  });
 }
 export function takeBackup(db, reason) {
   const s = loadState(db);
@@ -29,11 +48,11 @@ export function takeBackup(db, reason) {
     reason,
     state: { objs: s.objs, rels: s.rels, users: s.users, types: s.types, history: s.history, settings },
     planImages: db.prepare('SELECT id, data FROM plan_images').all(),
-    /* Entry sheets as they are stored: sealed. The key is not in the backup, so a backup alone opens none of them. */
-    sheets: db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sheets'").get() ? db.prepare('SELECT * FROM sheets').all() : []
+    /* Entry sheets sealed and without passwords; the key is not in the backup either. */
+    sheets: sheetsForBackup(db)
   };
   const info = db.prepare('INSERT INTO backups (at, reason, objects, data) VALUES (?, ?, ?, ?)').run(data.created, reason, s.objs.length, JSON.stringify(data));
-  db.prepare('DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY id DESC LIMIT ?)').run(keep);
+  db.prepare('DELETE FROM backups WHERE reason <> ? AND id NOT IN (SELECT id FROM backups WHERE reason <> ? ORDER BY id DESC LIMIT ?)').run(BY_HAND, BY_HAND, keep);
   return Number(info.lastInsertRowid);
 }
 

@@ -386,10 +386,13 @@ export const now = () => stamp(new Date());
 /* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
    hidden), so a screen reader hears each new text. The same message again is changed by an invisible character, so
    it is read again too. */
-export function toast(msg){
+/* A short message at the bottom. One that says a change was not saved is red and stays longer (a click hides it). */
+export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
   const t = $('#toast');
   t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
-  t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 2800);
+  t.classList.toggle('err', kind === 'err');
+  t.onclick = () => t.classList.add('off');
+  t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), kind === 'err' ? 8000 : 2800);
 }
 /* A port held only by retired devices is free for a new connection: their connection to it is removed, with a note in their history. */
 export const releaseRetiredPort = (to, port) => {

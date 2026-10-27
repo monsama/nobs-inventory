@@ -74,7 +74,7 @@ export function renderContracts(){
   }
   $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
-    ${rows.map(({ c }) => `<tr><td><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
+    ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${contractChip(c)}</td>
       <td class="num"><button data-contract="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">Edit</button></td></tr>`).join('')
@@ -121,7 +121,7 @@ export function contractModal(c, preset = []){
     COSTS.contracts = COSTS.contracts.filter(x => x.id !== cur.id); queueServerSave(); closeModal(); toast('Contract deleted'); render();
   };
   $('#ctOk').onclick = () => {
-    const err = m => { $('#ctErr').textContent = m; };
+    const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
     const name = $('#ctName').value.trim();
     if (!name) return err('Give the contract a name.');
     const start = $('#ctStart').value, end = $('#ctEnd').value;
@@ -205,15 +205,15 @@ export function licenceModal(l, name = ''){
       <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
     </div><p class="note" id="licErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : '<button id="licDel" class="danger-text">Delete</button>'}<div class="grow"></div><button id="licCancel">Cancel</button><button id="licOk" class="primary">Save</button></div>`, 'sm');
-  const hint = () => { const n = $('#licName').value.trim(); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
+  const hint = () => { const n = $('#licName').value.trim(); $('#licErr').classList.remove('err'); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
   hint(); $('#licName').oninput = hint;
   $('#licCancel').onclick = closeModal;
   if (!isNew) $('#licDel').onclick = () => { COSTS.licences = COSTS.licences.filter(x => x.id !== cur.id); queueServerSave(); closeModal(); toast('Licence deleted'); render(); };
   $('#licOk').onclick = () => {
     const nm = $('#licName').value.trim();
-    if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; return; }
+    if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }
     const cost = num($('#licCost').value);
-    if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number, e.g. 1200 or 99.50.'; return; }
+    if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number, e.g. 1200 or 99.50.'; $('#licErr').classList.add('err'); return; }
     const next = { id: cur.id, name: nm, seats: int($('#licSeats').value, 1000000), cost, per: $('#licPer').value, end: $('#licEnd').value || undefined, note: $('#licNote').value.trim() || undefined };
     COSTS.licences = isNew ? [...COSTS.licences, next] : COSTS.licences.map(x => x.id === cur.id ? next : x);
     queueServerSave(); closeModal(); toast(isNew ? 'Licence added' : 'Licence saved'); render();
