@@ -194,6 +194,32 @@ export const computerBaseOf = config => {
   return dcs.length ? dcs.join(',') : config.searchBase;
 };
 /* The computer accounts with the groups each is a direct member of, by group name. */
+/* What is read of a computer account, by name: never everything, so a service account with more rights than it needs
+   is not sent the LAPS password (ms-Mcs-AdmPwd, msLAPS-Password) or BitLocker recovery keys, which live on or under it.
+   Written in lower case: AD does not mind, and a directory stand-in that compares names as written still answers. */
+export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated'];
+/* AD writes a time as Windows file time (100 ns since 1601) or as generalized time (20231005123456.0Z); the day of it. */
+export function adDay(v) {
+  const t = String(v ?? '').trim();
+  if (/^\d{15,19}$/.test(t)) { const ms = Number(BigInt(t) / 10000n) - 11644473600000; return ms > 0 ? new Date(ms).toISOString().slice(0, 10) : ''; }
+  const m = /^(\d{4})(\d{2})(\d{2})\d{0,6}(?:\.\d+)?Z?$/.exec(t);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+}
+/* The operating system as AD has it, with its build the way Windows writes it: Windows Server 2019 Standard (10.0.17763). */
+export function adOs(name, version) {
+  const n = String(name ?? '').trim(), v = String(version ?? '').trim();
+  if (!n) return '';
+  const build = /^(\d+\.\d+)\s*\((\d+)\)/.exec(v);
+  const ver = build ? `${build[1]}.${build[2]}` : v;
+  return ver && !n.includes(ver) ? `${n} (${ver})` : n;
+}
+export function computerOf(a) {
+  const dns = a.dnshostname?.[0] || '';
+  return { name: a.cn?.[0] || '', dns, groups: [...new Set((a.memberof ?? []).map(cnOf))].sort((x, y) => x.localeCompare(y)),
+    os: adOs(a.operatingsystem?.[0], a.operatingsystemversion?.[0]), domain: dns.includes('.') ? dns.slice(dns.indexOf('.') + 1).toLowerCase() : '',
+    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]) };
+}
+
 export async function ldapListComputers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   /* No password is never sent: an empty one is an anonymous sign-in to Active Directory. */
@@ -202,9 +228,8 @@ export async function ldapListComputers(config) {
   const client = await connect(config);
   try {
     await bind(client, config.serviceDn, config.servicePassword);
-    const list = await ldapSearch(client, computerBaseOf(config), '(objectClass=computer)');
-    return list.map(e => ({ name: e.attrs.cn?.[0] || '', dns: e.attrs.dnshostname?.[0] || '', groups: [...new Set((e.attrs.memberof ?? []).map(cnOf))].sort((a, b) => a.localeCompare(b)) }))
-      .filter(c => c.name);
+    const list = await ldapSearch(client, computerBaseOf(config), '(objectClass=computer)', COMPUTER_ATTRS);
+    return list.map(e => computerOf(e.attrs)).filter(c => c.name);
   } finally { close(client); }
 }
 

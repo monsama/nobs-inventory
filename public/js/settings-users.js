@@ -68,6 +68,7 @@ export function renderSetUsers(){
   root.querySelectorAll('[data-udept]').forEach(i => i.onchange = () => {
     const u = USERS[+i.dataset.udept], dept = i.value.trim();
     if (dept) u.dept = dept; else delete u.dept;
+    delete u.deptFrom;   /* typed here: no longer Entra's */
     queueServerSave(); toast('Department saved'); renderSetUsers();
   });
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));

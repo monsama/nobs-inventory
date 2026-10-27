@@ -1,7 +1,7 @@
 /* Settings → LDAP & Graph, the Microsoft Graph half: the app registration, certificates, people from Entra, test
    and sync, and the devices Graph has that the inventory does not. */
 import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
-import { SERVER, reloadFromServer } from './07-render-plans.js';
+import { SERVER, reloadFromServer, queueServerSave } from './07-render-plans.js';
 import { canEdit, applyRole } from './04-settings.js';
 import { dateText } from './dates.js';
 import { st, esc, complianceChip, byId, $, dayText, toast, SYNC } from './01-core.js';
@@ -94,11 +94,14 @@ export async function renderSetGraph(){
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
       <li><div class="gs-head"><b>People from Entra</b> <span class="muted">(optional)</span></div>
-        <p class="note">Beside the devices, the sync can read Entra's people (members, no guests) and show in Settings → Users who is in the directory (LDAP), in Entra, or in both. It never changes a person from LDAP or added here, and for one from Lansweeper only fills in an empty name or department; LDAP takes over a person Entra added when the same login comes. Needs <span class="mono">User.Read.All</span>; without it the devices still sync.</p>
+        <p class="note">Beside the devices, the sync can read Entra's people (members, no guests) and show in Settings → Users who is in the directory (LDAP), in Entra, or in both. It fills in an empty department of anyone, and an empty name of a person from Lansweeper, and otherwise changes nobody from LDAP or added here; LDAP takes over a person Entra added when the same login comes. Needs <span class="mono">User.Read.All</span>; without it the devices still sync.</p>
         <div class="form" style="padding:8px 0 0"><label for="gPeople">People</label><select id="gPeople" ${edit ? '' : 'disabled'}>
           <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
           <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
           <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
+      <li><div class="gs-head"><b>Device fields</b></div>
+        <p class="note">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>
+        <label class="pchk" style="width:auto;padding-top:6px"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Fill in empty fields from Intune</label></li>
       <li><div class="gs-head"><b>Test and sync</b>${done(g.configured)}</div>
         <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set below.</p>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div>
@@ -115,6 +118,7 @@ export async function renderSetGraph(){
     if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }
     toast('Microsoft Graph IDs saved'); await refreshGraph();
   };
+  const gf = $('#gFill'); if (gf) gf.onchange = () => { st.fillGraph = gf.checked; queueServerSave(); };
   $('#gPeople').onchange = async () => {
     const x = await post('api/graph/settings', {people: $('#gPeople').value});
     toast(x.ok ? 'Saved: people are read at the next sync' : (x.j.error || 'Not saved.'));

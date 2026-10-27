@@ -3,6 +3,8 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
+import { fillField } from './fill.js';
+import { stamp } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
@@ -20,16 +22,18 @@ export async function syncLdapUsers(db, config) {
     const role = p.admin ? 'admin' : 'viewer';
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
     if (!u) {
-      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, dept: p.dept, groups: p.groups, source: 'ldap', active: true, role });
+      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, ...(p.dept ? { dept: p.dept } : {}), groups: p.groups, source: 'ldap', active: true, role });
       counts.created++;
     } else if (u.source === 'lansweeper' || u.source === 'entra') {
       /* A person Lansweeper (or Entra) named by this login: the same person, now from the directory. Kept as the same record, so
          devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
          removed after the save: from now on the directory checks it. */
-      Object.assign(u, { login: p.login, name: p.name, dept: p.dept, groups: p.groups, role, source: 'ldap' });
+      Object.assign(u, { login: p.login, name: p.name, dept: deptOf(u, p), groups: p.groups, role, source: 'ldap' });
+      if (p.dept) delete u.deptFrom;
       linked.push(u.id);
     } else if (u.source === 'ldap') {
-      const next = { name: p.name, dept: p.dept, groups: p.groups, role };
+      const next = { name: p.name, dept: deptOf(u, p), groups: p.groups, role };
+      if (p.dept) delete u.deptFrom;
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
       Object.assign(u, next);
       /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
@@ -43,7 +47,7 @@ export async function syncLdapUsers(db, config) {
   }
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;
-  else if (computers && computers.length) counts.computers = applyComputerGroups(s, computers);
+  else if (computers && computers.length) counts.computers = applyComputers(s, computers);
   else if (computers) counts.computerError = 'No computer accounts were found in the computers search base.';
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
@@ -56,10 +60,15 @@ export async function syncLdapUsers(db, config) {
   return counts;
 }
 
+/* The directory's department; when it has none, the one Entra gave (deptFrom 'entra') stays. */
+const deptOf = (u, p) => p.dept || (u.deptFrom === 'entra' ? u.dept : '') || '';
+
 /* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name) as
-   adGroups, and is marked as being in Active Directory (inAd). A device with no account, or whose account is in no
-   group, has no groups. Returns how many devices changed. */
-export function applyComputerGroups(s, computers) {
+   adGroups, and is marked as being in Active Directory (inAd), with the account's last logon and creation day (o.ad).
+   Its operating system and domain fill empty fields, as fill.js rules, unless Settings turned that off. A device with no
+   account, or whose account is in no group, has no groups. Returns how many devices changed. */
+export function applyComputers(s, computers, now = new Date()) {
+  const at = stamp(now);
   const byName = new Map();
   for (const c of computers) {
     for (const k of [c.name, c.dns, String(c.dns || '').split('.')[0]]) if (k && !byName.has(k.toLowerCase())) byName.set(k.toLowerCase(), c);
@@ -70,10 +79,23 @@ export function applyComputerGroups(s, computers) {
     const key = String(o.name).toLowerCase(), c = byName.get(key) || byName.get(key.split('.')[0]);
     const groups = c && c.groups.length ? c.groups : null;
     /* Whether the device has a computer account in Active Directory: with Graph, this tells an AD-only device apart. */
-    if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null) && !!c === !!o.inAd) continue;
+    const ad = c && (c.logon || c.created) ? { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}) } : null;
+    let changed = false;
+    /* Detached or excluded from sync, a device keeps its fields; what AD says of the account is still shown. */
+    if (c && s.fillAd !== false && !o.excluded && !o.detached) {
+      /* A device Lansweeper has gets only its gaps filled. */
+      for (const [k, v, label] of [['os', c.os, 'Operating system'], ['domain', c.domain, 'Domain']]) {
+        if (o.feed && o[k]) continue;
+        if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
+      }
+    }
+    if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null) && !!c === !!o.inAd && JSON.stringify(ad) === JSON.stringify(o.ad || null) && !changed) continue;
     if (groups) o.adGroups = groups; else delete o.adGroups;
     if (c) o.inAd = true; else delete o.inAd;
+    if (ad) o.ad = ad; else delete o.ad;
     n++;
   }
   return n;
 }
+/* The name the tests and older callers know. */
+export const applyComputerGroups = applyComputers;

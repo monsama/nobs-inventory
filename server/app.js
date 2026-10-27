@@ -175,7 +175,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             isAdmin = true;
             audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
           }
-          Object.assign(user, { name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
+          /* The directory's department; with none there, one Entra gave stays (deptFrom 'entra'). */
+          Object.assign(user, { name: d.name, dept: d.dept || (user.deptFrom === 'entra' ? user.dept : d.dept), groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
+          if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
             if (wasLansweeper) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(user.id);   /* the directory checks the password now */
