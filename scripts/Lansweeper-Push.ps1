@@ -73,7 +73,7 @@ if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
 
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
 $script:Wanted = [ordered]@{
-    tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'OScode', 'Memory', 'Processor')
+    tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'Lasttried', 'Firstseen', 'OScode', 'Memory', 'Processor')
     tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate')
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
@@ -651,6 +651,7 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssets' 'a' 'AssetID'), (Get-SelectItem 'tblAssets' 'a' 'AssetName'),
             (Get-SelectItem 'tblAssets' 'a' 'Username'), (Get-SelectItem 'tblAssets' 'a' 'Userdomain'),
             (Get-SelectItem 'tblAssets' 'a' 'IPAddress'), (Get-SelectItem 'tblAssets' 'a' 'Mac'), (Get-SelectItem 'tblAssets' 'a' 'Lastseen'),
+            (Get-SelectItem 'tblAssets' 'a' 'Lasttried'), (Get-SelectItem 'tblAssets' 'a' 'Firstseen'),
             (Get-SelectItem 'tblAssets' 'a' 'Memory'), (Get-SelectItem 'tblAssets' 'a' 'Processor'),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Manufacturer' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Model' $hasCustom),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Location' $hasCustom),
@@ -724,6 +725,9 @@ function Get-LsRecords {
                     purchased = Get-DateText $reader['c__PurchaseDate']
                     warranty = Get-DateText $reader['c__Warrantydate']
                     scanned = Get-DateText $reader['a__Lastseen']
+                    # The last scan Lansweeper tried (Lastseen is only the last one that worked) and when it first found the asset.
+                    tried = Get-DateText $reader['a__Lasttried']
+                    firstSeen = Get-DateText $reader['a__Firstseen']
                     role = Get-RoleText $reader['cs__Domainrole']
                     chassis = Get-ChassisText $reader['se__ChassisTypes']
                     userDept = $(if (Get-UserText $reader['a__Username']) { Get-Clean $reader['ad__Department'] } else { '' })

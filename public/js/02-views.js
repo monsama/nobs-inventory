@@ -406,6 +406,17 @@ export function renderTable(){
   /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
      the table showed it. Column 0 is the tick box; column k is shown[k - 1]. */
   const tv = TBL['view:table:0'] || {};
+  /* The filters, sort, widths and order are kept by column position. When a column is shown or hidden the positions
+     move, so each is carried to where its column is now (by the column's key), and one whose column is gone is dropped. */
+  const keys = shown.map(c => c.k);
+  if (TBL['view:table:0'] && Array.isArray(tv.keys) && tv.keys.join() !== keys.join()){
+    const to = ci => +ci === 0 ? 0 : keys.indexOf(tv.keys[+ci - 1]) + 1 || null;   /* 0 is the tick box */
+    const move = obj => Object.fromEntries(Object.entries(obj || {}).map(([ci, v]) => [to(ci), v]).filter(([ci]) => ci !== null));
+    tv.filters = move(tv.filters); tv.widths = move(tv.widths);
+    if (tv.sort) tv.sort = to(tv.sort.ci) === null ? null : { ...tv.sort, ci: to(tv.sort.ci) };
+    if (Array.isArray(tv.order)){ const kept = tv.order.map(to).filter(ci => ci !== null); tv.order = [...kept, ...keys.map((_, i) => i + 1).filter(ci => !kept.includes(ci))]; }
+  }
+  if (TBL['view:table:0']) tv.keys = keys;
   const textOf = html => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
   const colOf = ci => shown[ci - 1];
   for (const [ci, q] of Object.entries(tv.filters || {})) {

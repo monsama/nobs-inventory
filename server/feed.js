@@ -38,8 +38,11 @@ export function recordsFromCsv(text) {
   }));
 }
 
+/* Lansweeper's own days for an asset: the last scan that worked (scanned), the last one it tried (tried) and when it first
+   found it (firstSeen). Only those it sent are set, so an older push script that sends none keeps what is there. */
+const scanDays = r => Object.fromEntries(['scanned', 'tried', 'firstSeen'].filter(k => r[k]).map(k => [k, r[k]]));
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned', 'tried', 'firstSeen'];
 /* Lists joined with "; " (every antivirus product, every drive) are longer than one value. */
 const LONG_TEXT = ['av', 'disk'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
@@ -236,7 +239,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     r.mask = prefixOf(r.mask) === null ? '' : r.mask;
     r.dns = String(r.dns || '').split(/[,;\s]+/).map(ip).filter(Boolean).slice(0, 4).join(', ');
     r.dhcp = /^(1|true|yes|dhcp)$/i.test(r.dhcp || '') ? 'dhcp' : /^(0|false|no|static)$/i.test(r.dhcp || '') ? 'static' : '';
-    for (const k of ['purchased', 'warranty', 'scanned']) r[k] = dayOf(r[k]);
+    for (const k of ['purchased', 'warranty', 'scanned', 'tried', 'firstSeen']) r[k] = dayOf(r[k]);
     if (Array.isArray(r.nics)) r.nics = cleanNics(r.nics, r.ip);
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
     return r;
@@ -272,7 +275,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
       s.seq = (s.seq || 100) + 1;
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...(r.scanned ? { scanned: r.scanned } : {}) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {})
@@ -284,7 +287,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     }
     pairs.push({ r, obj: found });
     const wasLinked = !!found.feed;
-    if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, assetType: r.assetType || '' };
+    /* linked: when this inventory's device was first matched to the Lansweeper asset. */
+    if (!found.feed) found.feed = { sys: 'Lansweeper', ref: r.ref, seen, linked: seen, assetType: r.assetType || '' };
     else if (!found.feed.ref) found.feed.ref = r.ref;
     if (found.feed && r.assetType) found.feed.assetType = r.assetType;   /* the type name is kept, so a type mapping can apply to it later */
     /* Windows' role and the chassis are kept with the feed's data, for the type rules (Apply to existing devices). */
@@ -292,7 +296,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     if (found.feed && r.chassis) found.feed.chassis = r.chassis;
     /* The day Lansweeper last scanned it: a device not scanned for months is flagged for a check by hand. It is not a
        change of the device, so it does not count as an update. */
-    if (found.feed && r.scanned) found.feed.scanned = r.scanned;
+    if (found.feed) Object.assign(found.feed, scanDays(r));
     let changed = false;
     for (const k of FEED_FIELDS) {
       const incoming = r[k];
