@@ -676,7 +676,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.json({ backups: db.prepare('SELECT id, at, reason, objects, LENGTH(data) AS bytes FROM backups ORDER BY id DESC').all() });
   });
   app.post('/api/backups', requireUser, requireAdmin, (req, res, next) => {
-    try { const id = takeBackup(db, 'by hand'); audit(db, req.user.id, 'backup taken by hand'); res.json({ id }); }
+    try {
+      /* The page takes one before a contact import: an automatic backup (it follows the setting and is pushed out in time). */
+      if (req.body?.reason === 'before a contact import') { const id = autoBackup(db, 'before a contact import'); res.json({ id }); return; }
+      const id = takeBackup(db, 'by hand'); audit(db, req.user.id, 'backup taken by hand'); res.json({ id });
+    }
     catch (e) { next(e); }
   });
   app.get('/api/backups/:id/download', requireUser, requireAdmin, (req, res, next) => {

@@ -1122,6 +1122,36 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
  .obj .form{grid-template-columns:minmax(0,1fr)}
  .obj .form>label{padding-bottom:0}
 }
+
+/* Contacts: the area a contact is the one to ask about, and the import dialog (file, columns, what happens). */
+.cn-area{margin:-2px 10px 6px 54px;font-size:12px;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:760px){.cn-area{margin-left:10px}}
+.imp{display:flex;flex-direction:column;gap:14px}
+.imp-pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:stretch}
+.imp-drop{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:14px 16px;border:1px dashed var(--bd);border-radius:var(--r-m);background:var(--panel);cursor:pointer}
+.imp-drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.imp-drop{position:relative}
+.imp-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.imp-drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.imp-drop .muted{font-size:12px}
+.imp-kind{display:flex;flex-direction:column;justify-content:center;gap:6px;font-size:12px;color:var(--muted)}
+.imp-kind select{width:220px}
+.imp-sec{display:flex;flex-direction:column;gap:8px}
+.imp-h{font-weight:600}
+.imp-h .muted{font-weight:400;margin-left:6px}
+.imp-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.imp-col{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--bd2);border-radius:var(--r-s);background:var(--panel);min-width:0}
+.imp-head{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-sample{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-counts{align-self:flex-start}
+.imp-table{max-height:min(46vh,420px);overflow:auto;border:1px solid var(--bd2);border-radius:var(--r-s)}
+.imp-table table{min-width:900px;table-layout:fixed}
+.imp-table th:nth-child(1){width:34px}.imp-table th:nth-child(2){width:48px}.imp-table th:nth-child(3){width:112px}
+.imp-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-table tr.imp-error td,.imp-table tr.imp-duplicate td,.imp-table tr.imp-same td{color:var(--muted)}
+.imp-table .imp-why{color:var(--badtext)!important}
+.imp-table td:last-child{white-space:normal}
+@media (max-width:760px){.imp-pick{grid-template-columns:minmax(0,1fr)}.imp-kind select{width:100%}}
 </style>
 </head>
 <body>
