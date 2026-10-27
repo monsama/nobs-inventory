@@ -348,6 +348,8 @@ svg.cu{fill:currentColor;stroke:none}
 table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
 table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+/* A chip in a cell is shortened with … like the text around it, not cut off; its tooltip has the whole of it. */
+table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;line-height:16px}
 #setUsers td>button{width:100%;padding:3px 6px}
 /* Microsoft Graph setup steps */
 .graph-steps{margin:0;padding:4px 12px 10px 34px;display:flex;flex-direction:column;gap:12px}

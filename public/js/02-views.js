@@ -333,7 +333,7 @@ export const TABLE_COLS = [
   {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
-  {k:'ls', w:200, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
+  {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off. */
 export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());

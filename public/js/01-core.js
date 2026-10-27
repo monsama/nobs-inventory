@@ -330,7 +330,7 @@ export const joinBadges = o => {
     ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}
   </div>`;
 };
-export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}">${esc(s.label)}</span>` : ''; };
+export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls}" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
 
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
 /* An object excluded from the sync, or detached, is not linked to Lansweeper: its fields are its own. */
