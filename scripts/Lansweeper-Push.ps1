@@ -905,6 +905,8 @@ try {
     catch {
         # A certificate Windows does not trust (a self-signed one, say): when someone is there, offer to trust it and send again.
         $msg = "$($_.Exception.Message) $(if ($_.Exception.InnerException) { $_.Exception.InnerException.Message })"
+        # A refused token (401): say what to do, not just the web error. The stored token no longer matches the one in NOBS.
+        if ((Get-HttpStatus $_) -eq 401) { throw 'NOBS refused the stored feed token (401): it was replaced or removed in NOBS (Settings -> Feed), or NOBS was reset. Create a token there and run .\Lansweeper-Push.ps1 -SetCredential to store it.' }
         if (-not ($script:Interactive -and -not $Config.NobsCertThumbprint -and $msg -match 'trust|certificate|SSL|TLS|Zertifikat')) { throw }
         if (-not (Confirm-TrustCertificate)) { throw }
         $totals = Send-Records $records $token
