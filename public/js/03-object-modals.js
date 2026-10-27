@@ -9,6 +9,7 @@ import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
+import { isPlaceholderSerial } from './serials.js';
 /* ---------- racks ---------- */
 /* A new rack: what a rack has (its name, room, height in U and optionally its model and serial number), nothing more.
    It is shown in Racks right away. */
@@ -170,7 +171,8 @@ export function avCtl(o, id, edit){
   const entry = (x, i) => {
     const [name, ...rest] = x.split(',').map(t => t.trim());
     const chips = live ? rest.map(t => { const s = STATE[t.toLowerCase()]; return s ? `<span class="chip ${s[0]}">${s[1]}</span>` : `<span class="chip">${esc(t)}</span>`; }).join('') : '';
-    return `<div class="entry avitem"${!live && rest.length ? ` title="${esc(x)}"` : ''}><div class="entry-head"><b>${esc(name)}</b>${edit ? `<button type="button" class="icon ghost" data-avx="${i}" aria-label="Remove ${esc(name)}" title="Remove">×</button>` : ''}</div>${chips ? `<div class="av-state">${chips}</div>` : ''}</div>`;
+    /* One line: the product, its scan state as chips of one width (chip-row), then remove. */
+    return `<div class="entry avitem"${!live && rest.length ? ` title="${esc(x)}"` : ''}><div class="entry-head"><b>${esc(name)}</b>${chips ? `<span class="chip-row av-state">${chips}</span>` : ''}${edit ? `<button type="button" class="icon ghost" data-avx="${i}" aria-label="Remove ${esc(name)}" title="Remove">×</button>` : ''}</div></div>`;
   };
   return `<div class="entries-box avpick">${items.map(entry).join('') || `<p class="note">${edit ? 'No antivirus product yet.' : 'None'}</p>`}
     ${edit ? `<input type="hidden" id="${id}" data-k="av" value="${esc(o.av || '')}"><div class="addrel entry-add av-add">${comboHtml(`<input id="${id}_add" data-combo="av" placeholder="${items.length ? 'Add another product' : 'Pick or type a product'}" aria-label="Add an antivirus product">`, id + '_add')}</div>` : ''}</div>`;
@@ -207,8 +209,8 @@ export function ipClash(o, ip){
   if (!other) return null;
   const link = `<a class="link" data-open="${esc(other.id)}">${esc(other.name)}</a>`;
   const macOf = x => [x.mac, ...(x.nics || []).map(n => n.mac)].filter(Boolean).map(m => String(m).toLowerCase().replace(/-/g, ':'));
-  /* Serial numbers a maker leaves unset ("To be filled by O.E.M.", "Default string") are shared by many machines. */
-  const realSerial = v => { const t = String(v || '').trim(); return t.length >= 4 && !/^(to be filled|default string|system serial|chassis serial|not specified|not applicable|none|n\/?a|o\.?e\.?m|0+$|1234567)/i.test(t); };
+  /* Serial numbers a maker leaves unset are shared by many machines (serials.js). */
+  const realSerial = v => !isPlaceholderSerial(v);
   const same = realSerial(o.serial) && realSerial(other.serial) && o.serial.trim().toLowerCase() === other.serial.trim().toLowerCase() ? 'serial number'
     : macOf(o).some(m => macOf(other).includes(m)) ? 'MAC address' : '';
   if (same) return { level: 'warn', other, text: `${other.name} has this address and the same ${same}: probably this device recorded twice`,
@@ -216,10 +218,11 @@ export function ipClash(o, ip){
   const sub = subnetFor({ ...o, ip, subnet: '' }), n = ipInt(ip);
   const inDhcpRange = !!sub && (sub.ranges || []).some(r => /^dhcp$/i.test(String(r.use || '').trim()) && n !== null && n >= ipInt(r.from) && n <= ipInt(r.to));
   const otherDhcp = other.dhcp === 'dhcp' || (other.nics || []).some(x => x.ip === ip && x.dhcp === 'dhcp');
-  /* This device on DHCP alone does not make it one: an address outside the subnet's DHCP ranges that another device
-     holds as static is a real clash. Without known ranges it cannot be told, so it is a note. */
+  /* Where the subnet's DHCP ranges are known, they decide: an address in one moves between devices, one outside them is
+     a real clash whichever of the two is set to DHCP, so both devices' pages say the same. Without known ranges, either
+     device being on DHCP makes it a note. */
   const rangesKnown = !!sub && (sub.ranges || []).some(r => /^dhcp$/i.test(String(r.use || '').trim()));
-  if (otherDhcp || inDhcpRange || (o.dhcp === 'dhcp' && !rangesKnown)) {
+  if (inDhcpRange || ((o.dhcp === 'dhcp' || otherDhcp) && !rangesKnown)) {
     /* Each device's own last scan (Lansweeper's scan day, else its last Intune check-in), not this app's sync run,
        which is the same for every device it receives. */
     const seen = x => Date.parse((x.feed && x.feed.scanned) || '') || Date.parse(graphLast(x)) || 0;
@@ -699,7 +702,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
         ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}</div>` : ''}
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>

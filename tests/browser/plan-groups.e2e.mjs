@@ -26,7 +26,7 @@ saveState(db, { ...s0, locs: ['HQ / Hall', 'HQ / Desk', 'HQ / Store'], sites: ['
     ...many('s', 12, 'HQ / Store'),                                             // a small area with many: a list
   ],
   rels: [],
-  plans: [{ id: 'pl1', name: 'EG', site: 'HQ', areas: [area('a1', 'Hall', 3, 5, 60, 55), area('a2', 'Desk', 70, 8, 12, 30), area('a3', 'Store', 70, 62, 6, 8)] }],
+  plans: [{ id: 'pl1', name: 'EG', site: 'HQ', areas: [area('a1', 'Hall', 3, 5, 60, 55), area('a2', 'Desk', 70, 8, 12, 14), area('a3', 'Store', 70, 62, 6, 8)] }],
   history: {} });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -66,6 +66,19 @@ try {
   await p.mouse.click(cv.x + 20, cv.y + cv.height - 20);
   assert.equal(await p.locator('.pl-pin.fanned').count(), 0, 'closed by a click beside it');
   assert.equal(await p.locator('[data-pin^=d].grouped').count(), 4);
+  // an open fan is put back when the plan changes size, so no pin keeps its fanned-out place
+  await desk.click();
+  assert.equal(await p.locator('.pl-pin.fanned').count(), 4);
+  await p.setViewportSize({ width: 1200, height: 820 });
+  await until(p, () => !document.querySelector('.pl-pin.fanned'));
+  assert.equal(await p.locator('[data-pin^=d].grouped').count(), 4);
+  await p.setViewportSize({ width: 1300, height: 850 });
+  await until(p, () => document.querySelectorAll('[data-pin^=d].grouped').length === 4);
+  // a pin opens its device from the keyboard too
+  await p.focus('[data-pin=h1]'); await p.keyboard.press('Enter');
+  await p.waitForSelector('#f_h1_name');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).renderPlans(); });
+  await p.waitForSelector('.pl-group');
   // a fanned pin is opened by clicking it
   await desk.click();
   await p.click('[data-pin=d2]');
