@@ -32,11 +32,17 @@ try {
   await page.click('[data-tab=table]'); await page.waitForSelector('table.grid');
   assert.equal(await page.locator('table.grid tbody tr').count(), 500, 'the first 500 rows');
   assert.ok(await page.isVisible('#tableAll'));
-  // sorting a column draws every row first, so the sort sees them all
+  // sorting and filtering a column work on every device, also those not drawn; still only the first 500 are drawn
   await page.locator('table.grid thead th', { hasText: 'Name' }).first().click();
   await page.locator('table.grid thead th', { hasText: 'Name' }).first().click();
-  assert.equal(await page.locator('table.grid tbody tr').count(), N);
+  assert.equal(await page.locator('table.grid tbody tr').count(), 500);
   assert.equal(await page.locator('table.grid tbody tr .rowopen').first().textContent(), 'PC-0799', 'sorted the other way over every row');
+  const nameFilter = page.locator('table.grid tr.fr th').nth(2).locator('input');
+  await nameFilter.fill('PC-07');
+  assert.equal(await page.locator('table.grid tbody tr').count(), 100, 'the filter sees every device');
+  assert.equal(await page.evaluate(() => document.activeElement.placeholder), 'filter', 'the cursor stays in the filter box');
+  assert.equal(await page.inputValue('table.grid tr.fr th:nth-child(3) input'), 'PC-07');
+  await nameFilter.fill('');
 
   // the poll: nothing changed, so the server answers 304 without the inventory
   const status = await page.evaluate(async () => {

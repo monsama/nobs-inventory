@@ -382,9 +382,16 @@ function rowsOf(s) {
 
 /* Writes the records that changed, deletes the ones that are gone, and gives each of them a new revision.
    Only changed records are written, so a small edit to a large inventory is a small write. */
-function writeDocs(db, s) {
-  const rows = rowsOf(s);
-  const current = new Map(db.prepare('SELECT kind, id, data FROM docs').all().map(r => [docKey(r.kind, r.id), r.data]));
+/* Writes what changed and gives each written record a new revision. only: the records a page save touched (their keys);
+   then only those are compared and written, not every record of the inventory. */
+function writeDocs(db, s, only = null) {
+  let rows = rowsOf(s), current;
+  if (only) {
+    rows = rows.filter(([kind, id]) => only.has(docKey(kind, id)));
+    const get = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+    current = new Map();
+    for (const key of only) { const i = key.indexOf('|'), r = get.get(key.slice(0, i), key.slice(i + 1)); if (r) current.set(key, r.data); }
+  } else current = new Map(db.prepare('SELECT kind, id, data FROM docs').all().map(r => [docKey(r.kind, r.id), r.data]));
   const wanted = new Set();
   const bumped = [];
   const bump = (kind, id) => { db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, id); bumped.push(docKey(kind, id)); };
@@ -528,7 +535,10 @@ export function applyChanges(db, body, guard = () => {}) {
     return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
   }
   guard(s);
-  writeDocs(db, s);
+  /* Only the records the page sent are written, and the code counter when a new object got its code. */
+  const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
+  if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
+  writeDocs(db, s, touched);
   const after = revsOf(db);
   const applied = {};
   for (const c of [...okPuts, ...okDels]) { const key = docKey(c.kind, c.id); applied[key] = after[key] ?? 0; }
