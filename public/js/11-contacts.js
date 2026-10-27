@@ -3,7 +3,7 @@
    responsible, on its page or for many devices at once in the table. */
 import { CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
-import { closeModal, modal } from './03-object-modals.js';
+import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
 import { USERS, canEdit, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { resetFilters } from './02-views.js';
@@ -22,6 +22,8 @@ const reach = c => [
 ].filter(Boolean).join('');
 /* The companies already named, for the company field's suggestions (and the contracts' supplier). */
 export const contactCompanies = () => [...new Set(CONTACTS.list.filter(c => c.kind === 'external' && c.company).map(c => c.company))].sort((a, b) => a.localeCompare(b));
+/* The company field of a contact offers the companies there are, in the app's own list (as Model and Supplier do). */
+COMBO_SOURCES.company = () => contactCompanies();
 
 function contactCard(c){
   const n = devicesOf(c).length;
@@ -79,7 +81,6 @@ export function showDevicesOfContact(id){ resetFilters(); st.resp = id; st.live 
 export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
   const isNew = !c, edit = canEdit();
   const cur = c || { id: newId(), kind, name: '' };
-  const companies = contactCompanies();
   const users = USERS.filter(u => u.active !== false).sort((a, b) => a.name.localeCompare(b.name));
   const ro = edit ? '' : 'disabled';
   const field = (k, label, extra = '') => `<label for="cn_${k}">${label}</label><input id="cn_${k}" maxlength="${CONTACT_MAX[k]}" value="${esc(cur[k] || '')}" ${extra} ${ro}>`;
@@ -88,7 +89,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
       <label>Kind</label><div class="ctlrow cn-kinds" role="radiogroup" aria-label="Kind">${Object.entries(CONTACT_KINDS).map(([k, l]) => `<label class="pchk"><input type="radio" name="cnKindPick" value="${k}" ${cur.kind === k ? 'checked' : ''} ${ro}> ${l}${k === 'internal' ? ' <span class="muted">(your own staff)</span>' : ' <span class="muted">(an IT partner)</span>'}</label>`).join('')}</div>
       <label for="cn_user" class="cn-in">Is the user</label><div class="cn-in"><select id="cn_user" ${ro}><option value="">— nobody in Users —</option>${users.map(u => `<option value="${esc(u.id)}" ${cur.userId === u.id ? 'selected' : ''}>${esc(u.name)}${u.dept ? ' · ' + esc(u.dept) : ''}</option>`).join('')}</select></div>
       ${field('name', 'Name', 'placeholder="First and last name, or a team (Service desk)"')}
-      ${field('company', 'Company', 'list="cnCompanies" placeholder="e.g. Muster IT AG"')}<datalist id="cnCompanies">${companies.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+      <label for="cn_company">Company</label>${comboHtml(`<input id="cn_company" data-combo="company" maxlength="${CONTACT_MAX.company}" value="${esc(cur.company || '')}" placeholder="Type or pick a company" ${ro}>`, 'cn_company')}
       ${field('area', 'Area', 'placeholder="What to ask them about, e.g. Sage200 interface, Firewall"')}
       ${field('role', 'Role', 'placeholder="e.g. Network, Field service, Account manager"')}
       ${field('email', 'E-mail', 'type="email" autocomplete="off"')}

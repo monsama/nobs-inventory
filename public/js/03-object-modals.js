@@ -4,7 +4,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -185,7 +185,17 @@ const avNames = () => [...new Set([...objs.flatMap(x => avEntries(x).map(e => e.
 export const comboHtml = (input, id) => `<div class="combo">${input.replace('<input ', `<input role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}_list" autocomplete="off" `)}<button type="button" class="combo-arrow" tabindex="-1" aria-label="Show the list"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><ul class="combo-list" id="${id}_list" role="listbox" hidden></ul></div>`;
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
-const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all) };
+export const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all),
+  port: input => { const t = byId(($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; } };
+/* The ports of a switch (1/1, 1/2 …) or patch panel (P01 …) that nothing is plugged into and that are not part of a LAG,
+   to pick from when something is plugged in. Empty for a device whose ports are not numbered. */
+export function freePorts(t){
+  const taken = new Set(rels.filter(r => r.to === t.id && r.port != null).map(r => String(r.port)));
+  if (t.type === 'patch') return Array.from({length: t.ports || 0}, (_, i) => 'P' + String(i + 1).padStart(2, '0')).filter(p => !taken.has(p));
+  if (!hasPorts(t) || !(t.ports > 0)) return [];
+  return Array.from({length: (t.ports || 0) + (t.sfp || 0)}, (_, i) => i + 1).filter(n => !taken.has(String(n)) && !lagOfPort(t, n))
+    .map(n => ({v: String(n), label: portLabel(t, n) + (n > (t.ports || 0) ? ' (SFP)' : '')}));
+}
 /* Sources that read what was typed themselves; the others are filtered by it here. */
 const SELF_FILTERED = ['ip'];
 const comboOf = el => el && el.closest && el.closest('.combo');
@@ -339,6 +349,17 @@ document.addEventListener('keydown', e => {
 document.addEventListener('focusout', e => { const c = comboOf(e.target); if (c && !c.contains(e.relatedTarget)) setTimeout(() => { if (!c.contains(document.activeElement)) comboClose(c); }, 0); });
 export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x => x[0] === k); return f ? f[2] : undefined; };
 /* A field's ⋯ menu closes on a click elsewhere or Escape. */
+/* Enter in a field of a dialog does what its main button does (Create, Save, Restore …), as in any form. Not in a row
+   that adds something of its own (it has its own button), not in a text area or a list, and not in Settings, whose
+   fields save as they are left. A field that handles Enter itself says so (preventDefault) and is left alone. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing) return;
+  const el = e.target, m = el.closest && el.closest('#mdl:not(.minimized)');
+  if (!m || m.querySelector('#setPane') || !el.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button])')) return;
+  if (el.form || el.closest('.addrel, .lpanel-add, .tf-add, .mf')) return;   /* a form (sign-in) submits by itself */
+  const ok = m.querySelector('.mf button.primary:not(:disabled), .mf button[id$="Ok"]:not(:disabled)');
+  if (ok){ e.preventDefault(); ok.click(); }
+});
 /* An open menu (a field's, or More in a toolbar) closes on a click beside it. */
 document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
@@ -712,7 +733,7 @@ export function renderObj(o){
       ${i ? `<div class="ps-hop">${esc(KINDS[n.via.kind].fwd)}${n.via.port != null ? ` <b>${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : ''}
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
-  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
+  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span><div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><button id="saveBtn" class="primary" disabled>Save</button>`;
   $('#view').innerHTML = `<div class="obj">
