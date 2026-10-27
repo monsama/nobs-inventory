@@ -68,6 +68,9 @@ try {
   await go('map');
   await p.waitForSelector('#mapSvg');
   const mapZoom = () => p.evaluate(async () => (await import('/js/02-views.js')).MAP.zoom);
+  /* start from 100% once the map has drawn and fitted itself, so the wheel below is not undone by a late fit */
+  await p.waitForSelector('#mapZoomReset'); await p.waitForTimeout(300);
+  await p.click('#mapZoomReset'); await until(p, async () => (await import('/js/02-views.js')).MAP.zoom === 1);
   const z0 = await mapZoom();
   const svg = await p.locator('#mapSvg').boundingBox();
   await p.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2);
