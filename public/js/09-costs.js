@@ -19,7 +19,8 @@ export const num = v => {
   else if (/^[1-9]\d{0,2}(,\d{3})+$/.test(t)) t = t.replace(/,/g, '');
   else if (/^[1-9]\d{0,2}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, '');
   else t = t.replace(',', '.');
-  return t === '' || !isFinite(+t) ? undefined : Math.max(0, Math.round(+t * 100) / 100);
+  /* Up to a billion, as the server takes it: a larger amount is refused here, not by every save after it. */
+  return t === '' || !isFinite(+t) || +t > 1e9 ? undefined : Math.max(0, Math.round(+t * 100) / 100);
 };
 const int = (v, max) => { const n = parseInt(v, 10); return isFinite(n) ? Math.min(max, Math.max(0, n)) : 0; };
 
@@ -148,7 +149,7 @@ export function contractModal(c, preset = []){
     const next = { id: cur.id, name, kind: $('#ctKind').value, supplier: $('#ctSupplier').value.trim() || undefined, ref: $('#ctRef').value.trim() || undefined,
       start: start || undefined, end: end || undefined, renew, notice: int($('#ctNotice').value, 36), cost: num($('#ctCost').value), per: $('#ctPer').value,
       note: $('#ctNote').value.trim() || undefined, devices: objs.filter(o => picked.has(o.id)).map(o => o.id) };
-    if ($('#ctCost').value.trim() && next.cost === undefined) return err('The cost is a number, e.g. 1200 or 99.50.');
+    if ($('#ctCost').value.trim() && next.cost === undefined) return err('The cost is a number up to 1 000 000 000, e.g. 1200 or 99.50.');
     COSTS.contracts = isNew ? [...COSTS.contracts, next] : COSTS.contracts.map(x => x.id === cur.id ? next : x);
     queueServerSave(); closeModal(); toast(isNew ? 'Contract added' : 'Contract saved'); render();
   };
@@ -230,7 +231,7 @@ export function licenceModal(l, name = ''){
     const nm = $('#licName').value.trim();
     if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }
     const cost = num($('#licCost').value);
-    if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number, e.g. 1200 or 99.50.'; $('#licErr').classList.add('err'); return; }
+    if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number up to 1 000 000 000, e.g. 1200 or 99.50.'; $('#licErr').classList.add('err'); return; }
     const next = { id: cur.id, name: nm, seats: int($('#licSeats').value, 1000000), cost, per: $('#licPer').value, end: $('#licEnd').value || undefined, note: $('#licNote').value.trim() || undefined };
     COSTS.licences = isNew ? [...COSTS.licences, next] : COSTS.licences.map(x => x.id === cur.id ? next : x);
     queueServerSave(); closeModal(); toast(isNew ? 'Licence added' : 'Licence saved'); render();

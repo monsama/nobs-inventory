@@ -1,4 +1,4 @@
-import { restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
+import { UNDO, restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
@@ -333,14 +333,14 @@ export function placeDevice(plan, o, x, y, sure = false){
     $('#pmOk').onclick = () => { closeModal(); placeDevice(plan, o, x, y, true); };
     return;
   }
-  const was = snapshot([o]), wasLoc = o.loc;
+  const was = snapshot([o]), wasLoc = o.loc, offWas = plan.off ? [...plan.off] : null;
   o.planPos = {plan: plan.id, x, y}; delete o.planOff; plan.off = (plan.off || []).filter(id => id !== o.id);
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   /* The pin just placed is marked for a moment and kept out of a group, so it can be seen where it went. */
   st.planFlash = o.id;
   planPlace = null; queueServerSave(); renderPlans();
-  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
+  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); if (offWas) plan.off = offWas; else delete plan.off; queueServerSave(); renderPlans(); });
 }
 /* From a device's page: its floor plan, with the device marked and in view. */
 export function showOnPlan(o){
@@ -792,6 +792,10 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
   applyState(d);
   SERVER.revs = d.revs || {};
   setBaseline();
+  /* Settings changed here while it loaded (contracts, plans, locations …) go back on top too; the base stays the
+     server's, so they are saved. */
+  const sets = keep ? keep.puts.filter(c => c.kind === 'setting' && !skip.includes(c.key)) : [];
+  if (sets.length){ const mine = { ...d }; for (const c of sets) mine[c.id] = JSON.parse(c.json); applyState(mine); }
   if (keep && replayLocal(keep, skip)) queueServerSave();
   dropMissingTabs();
   render();
@@ -841,6 +845,7 @@ export async function checkForChanges(){
   if (changed) await reloadFromServer();
 }
 export function applyState(d){
+  UNDO.epoch++;
   objs.splice(0, objs.length, ...d.objs);
   rels.splice(0, rels.length, ...d.rels);
   Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
