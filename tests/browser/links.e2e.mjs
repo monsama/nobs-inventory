@@ -40,6 +40,20 @@ try {
 
   await page.fill('#lnkUrl', 'javascript:alert(1)'); await page.click('#lnkAdd');
   assert.match(await page.textContent('#toast'), /not allowed/);
+  // a link is edited in place: label and address, Enter saves, Escape leaves it as it was
+  await page.click('.lnkrow:has-text("Scans") [data-lnkedit]');
+  await page.fill('#lnkEdLabel', 'Scan share'); await page.fill('#lnkEdUrl', '\\\\nas02\\scans'); await page.press('#lnkEdUrl', 'Enter');
+  await stored(st => st.objs[0].urls.some(l => l.url === '\\\\nas02\\scans' && l.label === 'Scan share'));
+  assert.match(loadState(db).history.o1.map(h => h.msg).join('\n'), /Link changed: Scans → Scan share/);
+  await page.click('.lnkrow:has-text("Scan share") [data-lnkedit]');
+  await page.fill('#lnkEdLabel', 'Not kept'); await page.press('#lnkEdLabel', 'Escape');
+  await page.waitForSelector('#lnkEdLabel', { state: 'detached' });
+  assert.equal(await page.locator('.lnkrow:has-text("Not kept")').count(), 0);
+  await page.click('.lnkrow:has-text("Scan share") [data-lnkedit]');
+  await page.fill('#lnkEdUrl', 'javascript:alert(1)'); await page.click('#lnkEdSave');
+  assert.match(await page.textContent('#toast'), /not allowed/);
+  await page.click('#lnkEdCancel');
+
   if (shots) await page.locator('.panelbox:has(.lnkrow)').screenshot({ path: path.join(shots, 'links.png') });
 
   await page.click('.lnkrow:has-text("Web interface") [data-lnkdel]');
