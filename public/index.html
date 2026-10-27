@@ -756,9 +756,10 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .ctlrow:has(>.avpick)>.pchk,.ctlrow:has(>.avpick)>.fmenu{margin-top:8px}
 .form label:has(+ .ctlrow .avpick){align-self:start;padding-top:8px}
 /* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
-input.inherit::placeholder{color:var(--muted);font-style:italic;opacity:1}
+/* A value the device takes from its subnet (gateway, DNS): shown like a value, not like an empty field's hint. */
+input.inherit::placeholder{color:var(--fg);font-style:normal;opacity:.85}
 /* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
-.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)}
+.fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)} .fieldnote.info{color:var(--muted)}
 .wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
 /* Subnets Lansweeper's adapters report that are not listed yet. */
 .sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}

@@ -1,10 +1,10 @@
-import { dateTimeText } from './dates.js';
+import { dateText, dateTimeText } from './dates.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { stampTime, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -196,6 +196,32 @@ function ipSubnet(o){
 }
 /* Who uses an address, besides this device: a device's own address or one of its other adapters. */
 const ipUser = (ip, o) => objs.find(x => x !== o && x.status !== 'retired' && (x.ip === ip || (x.nics || []).some(n => n.ip === ip)));
+/* What another device with the same address means, so the note says what to do:
+   - the same MAC or serial number: most likely one device recorded twice (renamed, or added from two sources);
+   - a DHCP address (either device is set to DHCP, or the address is in a DHCP range of its subnet): addresses move
+     between devices, and the other one's is from its own last scan, which says whose is older;
+   - otherwise two devices really claim one address.
+   Returns { level: 'warn' or 'info', html, text, other } or null. */
+export function ipClash(o, ip){
+  const other = ip ? ipUser(ip, o) : null;
+  if (!other) return null;
+  const link = `<a class="link" data-open="${esc(other.id)}">${esc(other.name)}</a>`;
+  const macOf = x => [x.mac, ...(x.nics || []).map(n => n.mac)].filter(Boolean).map(m => String(m).toLowerCase().replace(/-/g, ':'));
+  const same = o.serial && other.serial && o.serial.toLowerCase() === other.serial.toLowerCase() ? 'serial number'
+    : macOf(o).some(m => macOf(other).includes(m)) ? 'MAC address' : '';
+  if (same) return { level: 'warn', other, text: `${other.name} has this address and the same ${same}: probably this device recorded twice`,
+    html: `${link} has this address and the same ${same}: probably this device recorded twice (renamed, or from two sources). Retire or delete the older record.` };
+  const sub = subnetFor({ ...o, ip, subnet: '' }), n = ipInt(ip);
+  const inDhcpRange = !!sub && (sub.ranges || []).some(r => /^dhcp$/i.test(String(r.use || '').trim()) && n !== null && n >= ipInt(r.from) && n <= ipInt(r.to));
+  const otherDhcp = other.dhcp === 'dhcp' || (other.nics || []).some(x => x.ip === ip && x.dhcp === 'dhcp');
+  if (o.dhcp === 'dhcp' || otherDhcp || inDhcpRange) {
+    const seen = x => stampTime(x.feed && x.feed.seen) || Date.parse(graphLast(x)) || 0;
+    const a = seen(o), b = seen(other);
+    const when = b && a ? (b < a ? `the record of ${link} is older (last seen ${esc(dateText(b))}), so the address has most likely moved here` : `${link} was seen with it more recently (${esc(dateText(b))})`) : `${link} has it too`;
+    return { level: 'info', other, text: `${ip} is a DHCP address also recorded on ${other.name}`, html: `A DHCP address, also recorded on another device: ${when}. It is put right by the next scan of either device.` };
+  }
+  return { level: 'warn', other, text: `${ip} is also used by ${other.name}`, html: `In use by ${link}.` };
+}
 function ipChoices(input, all){
   const o = ipOwner(input); if (!o) return [];
   const sub = ipSubnet(o);
@@ -216,8 +242,9 @@ function ipChoices(input, all){
 function ipNote(input, note){
   const o = ipOwner(input), v = input.value.trim();
   const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };
-  const other = o && v ? ipUser(v, o) : null, sub = o && v ? subnetFor({...o, ip: v, subnet: ''}) : null;
-  const t = other ? `In use by ${other.name}.` : sub && sub.gateway === v ? `This address is the gateway of ${subnetName(sub)}.` : '';
+  const clash = o && v ? ipClash(o, v) : null, sub = o && v ? subnetFor({...o, ip: v, subnet: ''}) : null;
+  if (clash){ note.className = 'fieldnote ' + (clash.level === 'warn' ? 'warn' : 'info'); note.innerHTML = clash.html; show(true); return; }
+  const t = sub && sub.gateway === v ? `This address is the gateway of ${subnetName(sub)}.` : '';
   note.className = 'fieldnote warn'; note.textContent = t; show(!!t);
 }
 /* A subnet by its name, or by its network when it has none of its own. */
@@ -885,8 +912,9 @@ export function renderObj(o){
     /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
     const warns = [];
     /* Another device's other adapters count too: a notebook's Wi-Fi address is in use as much as its cable one. */
-    const sameIp = o.ip && o.status !== 'retired' ? objs.find(x => x !== o && x.status !== 'retired' && (x.ip === o.ip || (x.nics || []).some(n => n.ip === o.ip))) : null;
-    if (sameIp) warns.push(`${o.ip} is also used by ${sameIp.name}`);
+    /* A DHCP address on another device is only noted on the page; a real clash is said here too. */
+    const clash = o.ip && o.status !== 'retired' ? ipClash(o, o.ip) : null;
+    if (clash && clash.level === 'warn') warns.push(clash.text);
     const sn = o.subnet ? SUBNETS.find(n => n.cidr === o.subnet) : null, span = sn ? subnetSpan(sn) : null, ipn = ipInt(o.ip);
     if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
     toast('Saved ' + o.name + (kept.length ? '. Kept from feed: ' + kept.join(', ') : '') + (warns.length ? '. Check: ' + warns.join('; ') : ''));
