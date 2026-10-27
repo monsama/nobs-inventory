@@ -4,7 +4,8 @@
    with contactsProblem before it stores it. */
 export const CONTACT_KINDS = { internal: 'Internal', external: 'External' };
 /* The longest each field may be. */
-export const CONTACT_MAX = { name: 120, company: 120, role: 120, email: 200, phone: 40, mobile: 40, note: 1000 };
+/* area: what the contact is the one to ask about (a system, a service): "Sage200 interface", "Firewall". */
+export const CONTACT_MAX = { name: 120, company: 120, area: 120, role: 120, email: 200, phone: 40, mobile: 40, note: 1000 };
 const EMAIL = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
 const PHONE = /^[+\d][\d\s()./-]{2,39}$/;
 
