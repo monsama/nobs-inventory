@@ -13,7 +13,8 @@ import { typeByRules } from '../public/js/type-rules.js';
 const FEED_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
-export const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+import { stamp } from '../public/js/dates.js';
+export { stamp };
 
 
 /* A CSV export becomes records with the same fields the API gives. */

@@ -3,6 +3,7 @@ import { checkAddress } from './validate.js';
 import { overlapProblem, subnetProblem } from '../public/js/net.js';
 import { contractProblem, licenceProblem, listProblem } from '../public/js/costs.js';
 import { contactsProblem } from '../public/js/contacts.js';
+import { linksProblem } from '../public/js/links.js';
 import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
@@ -127,11 +128,12 @@ export const freeUserId = (users, id) => { let n = 1, out = id; while (users.som
 
 /* The rules a whole inventory must follow before it is stored. Something not in the expected form (a null where a
    record belongs) is refused like any other wrong value, not answered with a server error. */
-export function checkState(s) {
-  try { checkStateRules(s); }
+/* size: false skips measuring the whole inventory (a page save measures what it adds instead, see applyChanges). */
+export function checkState(s, { size = true } = {}) {
+  try { checkStateRules(s, size); }
   catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
 }
-function checkStateRules(s) {
+function checkStateRules(s, size = true) {
   const bad = msg => { throw new HttpError(400, msg); };
   /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
   for (const [name, list] of [['objects', s.objs], ['relations', s.rels], ['users', s.users]]) if (Array.isArray(list) && !list.every(x => x && typeof x === 'object' && !Array.isArray(x))) bad(`The ${name} must be a list of records.`);
@@ -247,6 +249,8 @@ function checkStateRules(s) {
     if (!types.has(o.type)) bad(`${o.name || o.id} has an unknown type: ${o.type}.`);
     if (!STATUSES.includes(o.status)) bad(`${o.name || o.id} has an unknown status: ${o.status}.`);
     if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
+    /* Its links (web interface, shares): only addresses that cannot run anything in the page (public/js/links.js). */
+    if (o.urls !== undefined) { const p = linksProblem(o.urls); if (p) bad(`${o.name}: ${p}`); }
     /* Its responsibles name a contact by id. One deleted since is cleared by the page; a dangling id only shows as none. */
     for (const k of ['respIn', 'respEx']) if (o[k] !== undefined && o[k] !== null && (typeof o[k] !== 'string' || o[k].length > 40)) bad(`${o.name}: the ${k === 'respIn' ? 'internal' : 'external'} responsible is not a contact.`);
     /* Addresses are checked and written in their stored form, however the object arrived. */
@@ -366,7 +370,7 @@ function checkStateRules(s) {
   }
   /* Measured as stored: the revisions and the empty flag that loadState adds are not part of it. */
   const { revs: _revs, empty: _empty, ...stored } = s;   // eslint-disable-line no-unused-vars
-  if (JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  if (size && JSON.stringify(stored).length > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
 }
 
 function rowsOf(s) {
@@ -382,9 +386,16 @@ function rowsOf(s) {
 
 /* Writes the records that changed, deletes the ones that are gone, and gives each of them a new revision.
    Only changed records are written, so a small edit to a large inventory is a small write. */
-function writeDocs(db, s) {
-  const rows = rowsOf(s);
-  const current = new Map(db.prepare('SELECT kind, id, data FROM docs').all().map(r => [docKey(r.kind, r.id), r.data]));
+/* Writes what changed and gives each written record a new revision. only: the records a page save touched (their keys);
+   then only those are compared and written, not every record of the inventory. */
+function writeDocs(db, s, only = null) {
+  let rows = rowsOf(s), current;
+  if (only) {
+    rows = rows.filter(([kind, id]) => only.has(docKey(kind, id)));
+    const get = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+    current = new Map();
+    for (const key of only) { const i = key.indexOf('|'), r = get.get(key.slice(0, i), key.slice(i + 1)); if (r) current.set(key, r.data); }
+  } else current = new Map(db.prepare('SELECT kind, id, data FROM docs').all().map(r => [docKey(r.kind, r.id), r.data]));
   const wanted = new Set();
   const bumped = [];
   const bump = (kind, id) => { db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, id); bumped.push(docKey(kind, id)); };
@@ -522,13 +533,23 @@ export function applyChanges(db, body, guard = () => {}) {
      Then nothing is saved and every change is answered as a conflict, so the page reloads and offers its edits again,
      instead of a refusal it would send again and again. Without a stale change the save itself is wrong: that is
      refused with the reason, since sending it again would not help. */
-  try { checkState(s); }
+  /* The size is what is stored plus what this save sends, read from the database: turning the whole inventory into
+     text only to measure it took longer than the rest of the save. */
+  /* Each record a save replaces counts once, at its new size; refused (stale) changes do not count. */
+  const storedBytes = db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM docs').get().n;
+  const sizeOf = db.prepare('SELECT LENGTH(data) AS n FROM docs WHERE kind = ? AND id = ?');
+  const delta = okPuts.reduce((t, c) => t + JSON.stringify(c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
+  if (storedBytes + delta > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
+  try { checkState(s, { size: false }); }
   catch (e) {
     if (!conflicts.length) throw e;
     return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
   }
   guard(s);
-  writeDocs(db, s);
+  /* Only the records the page sent are written, and the code counter when a new object got its code. */
+  const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
+  if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
+  writeDocs(db, s, touched);
   const after = revsOf(db);
   const applied = {};
   for (const c of [...okPuts, ...okDels]) { const key = docKey(c.kind, c.id); applied[key] = after[key] ?? 0; }

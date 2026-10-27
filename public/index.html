@@ -375,6 +375,13 @@ table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd
 .ct-sum{display:flex;flex-wrap:wrap;gap:10px;padding:12px 12px 0;align-items:flex-start}
 /* contacts: one card per person, the company's own first, then each IT partner */
 /* Under a long list drawn in part: how many are shown, and a way to show them all. */
+/* links on a device: the label opens it, the address below it; in the table a list of labels */
+.relrow.lnkrow .t{flex-direction:column;align-items:flex-start;gap:1px}
+.relrow.lnkrow .t a.lnk{font-family:inherit}
+.lnk{color:var(--linktext);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.lnk:hover{text-decoration:underline}
+.lnk-url{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.lnk-add{flex-wrap:wrap}
 .more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
 .cn{padding:12px;display:flex;flex-direction:column;gap:12px}
 .cn-group{border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}

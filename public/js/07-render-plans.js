@@ -523,7 +523,10 @@ export function deletePlanModal(plan){
     queueServerSave(); closeModal(); toast('Plan deleted'); renderPlans();
   };
 }
-export function render(){
+/* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
+   (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
+   through every record. */
+export function render({ save = true } = {}){
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -542,8 +545,10 @@ export function render(){
   $('#stRels').textContent = rels.length + ' relations';
   renderStatus();
   applyRole();
-  saveData();
+  if (save) saveData();
 }
+/* A redraw that changes nothing: another tab, filter or search. */
+export const view = () => render({ save: false });
 /* The connection to the server: what it offers (LDAP, Lansweeper, Graph), the revision of each record this page has,
    and the state of the save in progress. Every change is sent to it; nothing is kept only in this browser. */
 export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};

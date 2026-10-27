@@ -120,6 +120,10 @@ The **Contacts** tab holds the people who look after the devices: your own IT st
 
 Each device names one **internal** and one **external responsible**, on its page under Responsible, or for many devices at once in the table (select them, then Responsible…). The table has a Responsible column (under Columns), and Responsible can be a card line (Settings → Object types). A contact's "Responsible for n devices" opens those devices in the table. Deleting a contact takes it off its devices, with a line in their history. Contracts suggest the partner companies as suppliers. Contacts are in the backups.
 
+## Links on devices
+
+A device page has **Links**: its web interface, a share with its files, a remote console or documentation it hosts. Each link has a label and an address and opens in a new tab; Copy puts the address on the clipboard (useful for a share, which browsers often will not open). A device with an IP address offers its web interface (https:// or http:// with that address) in one click. Allowed are web pages (https, http), remote access (ssh, rdp, vnc, telnet), file transfer (ftp, sftp, smb) and Windows shares written as `\\server\share`; anything that could run in the page is refused, by the page and the server. The table has a Links column (under Columns), and Links can be a card line. Adding and removing a link is written in the device's history.
+
 ## Device types from Lansweeper
 
 A device from Lansweeper gets its type in this order:

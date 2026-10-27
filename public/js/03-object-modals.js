@@ -1,4 +1,6 @@
+import { dateTimeText } from './dates.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
+import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
@@ -417,7 +419,7 @@ export function feedPanel(o){
 /* What Microsoft Entra and Intune report about the device, read-only: how it is joined and managed, its compliance and
    encryption, its primary user and when it was last heard of. A device of a type expected there that was not found
    says so. */
-const graphTime = t => { const d = t ? new Date(t) : null; return d && !isNaN(d) ? `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''; };
+const graphTime = dateTimeText;
 export function graphPanel(o){
   if (!SYNC.graph) return '';
   const g = o.graph;
@@ -656,6 +658,7 @@ export function renderObj(o){
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
+      ${deviceLinksPanel(o)}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       ${deviceRespPanel(o)}
       ${deviceContractsPanel(o)}
@@ -674,6 +677,7 @@ export function renderObj(o){
   bindSoftware(o);
   bindDeviceContracts(o);
   bindDeviceResp(o);
+  bindDeviceLinks(o);
   const objView = $('#view').querySelector('.obj');
   const dirty = () => { $('#saveBtn').disabled = false; };
   objView.addEventListener('input', dirty);

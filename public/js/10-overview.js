@@ -3,7 +3,7 @@
 import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
-import { render } from './07-render-plans.js';
+import { view } from './07-render-plans.js';
 import { resetFilters } from './02-views.js';
 
 const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -84,7 +84,7 @@ export function renderOverview(){
       <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
     </div></div>`;
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
-  const go = (tab, set = {}) => { resetFilters(); Object.assign(st, set); st.tab = tab; render(); };
+  const go = (tab, set = {}) => { resetFilters(); Object.assign(st, set); st.tab = tab; view(); };
   const v = $('#view');
   v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt, live: true }));
   v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl, live: true }));
@@ -94,5 +94,5 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; render(); });
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; view(); });
 }
