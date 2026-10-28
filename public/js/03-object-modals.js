@@ -1,3 +1,4 @@
+import { dateFieldHtml, dateValue } from './datefield.js';
 import { reviewBanner, bindReviewBanner } from './15-review.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
@@ -145,7 +146,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   }
   else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
   else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
-  else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
+  else if (kind === 'date') ctl = dateFieldHtml(`id="${id}" data-k="${k}"`, /^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '');
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else if (k === 'av') ctl = avCtl(o, id, true);
   else {
@@ -925,7 +926,7 @@ export function renderObj(o){
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
-  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd}</option>`).join('');
+  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`).join('');
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
@@ -1061,7 +1062,7 @@ export function renderObj(o){
     }
     const kept = [];
     $('#view').querySelectorAll('[data-k]').forEach(el => {
-      const k = el.dataset.k; let v = el.value;
+      const k = el.dataset.k; let v = dateValue(el);
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
       if (k === 'user'){
         const was = o.hotdesk ? '__hotdesk' : (o.uid || '');

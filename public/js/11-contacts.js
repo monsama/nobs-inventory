@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
+import { editButton, CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
 import { USERS, canEdit, who } from './04-settings.js';
@@ -30,7 +30,7 @@ function contactCard(c){
   return `<div class="cn-card ${c.kind}">
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${esc(initials(c.name))}</span>
       <div class="cn-who"><b>${esc(c.name)}</b><span class="muted">${esc([c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind])}</span></div>
-      <button class="icon ghost" data-cnedit="${esc(c.id)}" aria-label="${canEdit() ? 'Edit' : 'Show'} ${esc(c.name)}" title="${canEdit() ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button></div>
+      ${editButton(`data-cnedit="${esc(c.id)}"`, c.name, canEdit())}</div>
     ${c.area ? `<div class="cn-area" title="Ask about">${esc(c.area)}</div>` : ''}
     <div class="cn-ways">${reach(c) || '<span class="muted">No e-mail or phone yet</span>'}</div>
     ${c.note ? `<p class="cn-note">${esc(c.note)}</p>` : ''}

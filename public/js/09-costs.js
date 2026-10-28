@@ -1,12 +1,14 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
-import { $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
+import { dateFieldHtml, dateValue } from './datefield.js';
+import { editButton, $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
 import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render-plans.js';
+import { canEdit } from './04-settings.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
@@ -89,7 +91,7 @@ export function renderContracts(){
     ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
-      <td class="num"><button data-contract="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">Edit</button></td></tr>`).join('')
+      <td class="num">${editButton(`data-contract="${esc(c.id)}"`, c.name, canEdit())}</td></tr>`).join('')
       || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.ctQ)}”.`}</td></tr>`}
     </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
@@ -108,8 +110,8 @@ export function contractModal(c, preset = []){
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
       <label for="ctSupplier">Supplier</label>${comboHtml(`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${esc(cur.supplier || '')}" placeholder="Type or pick a company">`, 'ctSupplier')}
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
-      <label for="ctStart">Starts</label><input id="ctStart" type="date" value="${esc(cur.start || '')}">
-      <label for="ctEnd">Ends</label><input id="ctEnd" type="date" value="${esc(cur.end || '')}">
+      <label for="ctStart">Starts</label>${dateFieldHtml('id="ctStart"', cur.start || '')}
+      <label for="ctEnd">Ends</label>${dateFieldHtml('id="ctEnd"', cur.end || '')}
       <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => `<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`).join('')}</select></div>
       <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
       <label for="ctCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
@@ -142,7 +144,7 @@ export function contractModal(c, preset = []){
     const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
     const name = $('#ctName').value.trim();
     if (!name) return err('Give the contract a name.');
-    const start = $('#ctStart').value, end = $('#ctEnd').value;
+    const start = dateValue($('#ctStart')), end = dateValue($('#ctEnd'));
     if (start && end && end < start) return err('It ends before it starts.');
     const renew = int($('#ctRenew').value, 60);
     if (renew && !end) return err('A contract that renews by itself needs the end of its current term.');
@@ -197,12 +199,12 @@ export function licencesPanel(){
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return `<tr><td><button class="link" data-lic="${esc(l.id)}"><b>${esc(l.name)}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
-      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td></tr>`;
+      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num">${editButton(`data-lic="${esc(l.id)}"`, l.name, canEdit())}</td></tr>`;
   }).join('');
   const over = licencesOver().length;
   return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
-    ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:24%"><col style="width:16%"><col style="width:14%"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     <div class="addrel"><button id="licNew">Add a licence</button></div></div>`;
 }
 export function bindLicences(){
@@ -219,7 +221,7 @@ export function licenceModal(l, name = ''){
       <label for="licName">Software</label><input id="licName" maxlength="120" value="${esc(cur.name)}" placeholder="The name, or the part of it every version has">
       <label for="licSeats">Seats</label><input id="licSeats" type="number" min="0" value="${cur.seats}" style="width:140px">
       <label for="licCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="licCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="licPer" aria-label="Cost period" style="flex:none;width:140px">${opt}</select></div>
-      <label for="licEnd">Ends</label><input id="licEnd" type="date" value="${esc(cur.end || '')}">
+      <label for="licEnd">Ends</label>${dateFieldHtml('id="licEnd"', cur.end || '')}
       <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
     </div><p class="note" id="licErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : '<button id="licDel" class="danger-text">Delete</button>'}<div class="grow"></div><button id="licCancel">Cancel</button><button id="licOk" class="primary">Save</button></div>`, 'sm');
@@ -232,7 +234,7 @@ export function licenceModal(l, name = ''){
     if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }
     const cost = num($('#licCost').value);
     if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number up to 1 000 000 000, e.g. 1200 or 99.50.'; $('#licErr').classList.add('err'); return; }
-    const next = { id: cur.id, name: nm, seats: int($('#licSeats').value, 1000000), cost, per: $('#licPer').value, end: $('#licEnd').value || undefined, note: $('#licNote').value.trim() || undefined };
+    const next = { id: cur.id, name: nm, seats: int($('#licSeats').value, 1000000), cost, per: $('#licPer').value, end: dateValue($('#licEnd')) || undefined, note: $('#licNote').value.trim() || undefined };
     COSTS.licences = isNew ? [...COSTS.licences, next] : COSTS.licences.map(x => x.id === cur.id ? next : x);
     queueServerSave(); closeModal(); toast(isNew ? 'Licence added' : 'Licence saved'); render();
   };

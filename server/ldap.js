@@ -36,6 +36,7 @@ const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
 export const LEGACY_CIPHERS = 'DEFAULT@SECLEVEL=1';
 export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
 async function connect(config) {
+  if (config.portProblem) throw new Error(config.portProblem);
   const plain = /^ldap:\/\//i.test(config.url);
   const startTls = plain && config.security === 'starttls';
   if (plain && !startTls && !config.allowPlain) throw new Error(PLAIN_LDAP_ERROR);
@@ -138,6 +139,7 @@ const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || Str
 const day = t => t ? dateText(t) || String(t) : '';
 export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
 async function peerChain(config) {
+  if (config.portProblem) return null;
   const u = new URL(config.url), host = u.hostname.replace(/^\[|\]$/g, ''), servername = isIP(host) ? undefined : host;
   if (/^ldaps:/i.test(config.url)) {
     return new Promise((resolve, reject) => {
@@ -194,6 +196,7 @@ const LDAP_HINTS = [
   [/\b32\b|No ?Such ?Object/i, 'The search base does not exist. Copy it from the directory, e.g. OU=Users,DC=example,DC=ch.'],
   [/NI_LDAP_SERVICE_DN/, 'Give the service account in Settings (and its password on the server) so the directory can be read.'],
 ];
+export const isUnreachable = message => /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|timed? ?out|socket hang up|closed/i.test(String(message || '')) && !isCertError(message);
 export const ldapHint = message => (LDAP_HINTS.find(([re]) => re.test(String(message || ''))) || [])[1] || null;
 
 /* Where the computer accounts are: the base set in Settings, else the whole domain the user search base is in (its DC= parts),

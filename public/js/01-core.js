@@ -616,3 +616,7 @@ if (typeof document !== 'undefined'){
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
    the page's, so a sync that filled it does not put its value back. */
 export function markHand(o, k){ if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'}; }
+
+/* The one way to edit a row or a card: a pencil button at its end, the same in every list (contacts, contracts, licences).
+   attr says what it opens (data-…="id"); a viewer gets Show instead of Edit. */
+export const editButton = (attr, name, edit = true) => `<button type="button" class="icon ghost editbtn" ${attr} aria-label="${edit ? 'Edit' : 'Show'} ${esc(name)}" title="${edit ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button>`;

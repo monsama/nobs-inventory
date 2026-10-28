@@ -106,6 +106,9 @@ table.locs td.site{color:var(--muted)}
 .fsrc{color:var(--muted);cursor:help}
 .fsrc svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .fsrc:hover{color:var(--fg)}
+/* On a phone the label sits above its field: the source mark moves up beside the label, and the empty columns kept
+   for alignment on a wide screen go, so the field gets the width. */
+@media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot,.obj .form .ctlrow>.pchk-slot,.obj .form .ctlrow>.fm-slot{display:none}}
 .fsrc:focus-visible{color:var(--fg);outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
 .fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
@@ -125,7 +128,7 @@ details.fmenu .menubox{min-width:210px;top:30px}
 label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
 .fm-reveal{font-size:12px}
-.ctlrow .pchk{white-space:nowrap;flex:none}
+
 /* The floor plan fills the view down to the status bar, like the relationship map. */
 .plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
 .pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 8px;min-height:38px;box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
@@ -157,20 +160,20 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-tip{margin:0;padding:10px 12px;border-top:1px solid var(--bd2)}
 .pl-stage{overflow:auto;background:var(--panel2);padding:18px;min-width:0}
 .pl-canvas{position:relative;width:100%;margin:0 auto;user-select:none;touch-action:none}
-.pl-canvas.noimg{min-height:360px;background:var(--panel);border:1px dashed var(--bd);border-radius:var(--r-m)}
-.pl-noimg{position:absolute;left:0;right:0;bottom:0;padding:16px 24px;text-align:center;color:var(--muted);font-size:13px;pointer-events:none}
+.pl-canvas.noimg{background:var(--panel);border:1px dashed var(--bd);border-radius:var(--r-m)}
+.pl-noimg{position:absolute;left:0;right:0;padding:16px 24px;text-align:center;color:var(--muted);font-size:13px;pointer-events:none}
 .pl-canvas>img{display:block;width:100%;height:auto;border-radius:var(--r-s);box-shadow:0 2px 14px rgba(0,0,0,.28);pointer-events:none}
 .pl-area{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.pl-area-fill{fill:rgba(37,99,235,.10)}
-.pl-area-edge{fill:none;stroke:var(--accent);stroke-width:2px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;padding:2px 4px 2px 8px;border-radius:4px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;pointer-events:none;white-space:nowrap}
-.pl-area-tag .pl-x{pointer-events:auto;position:static;width:18px;height:18px;border-radius:50%}
+
+.pl-area-edge{fill:none;stroke:var(--accent);vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap}
+.pl-area-tag .pl-x{pointer-events:auto;position:static;border-radius:50%}
 /* An area's svg covers the whole canvas; only the shape itself takes a click, so the rest of the plan stays free. */
 .pl-area.movable{pointer-events:none}
 .pl-area.movable .pl-area-fill,.pl-area.movable .pl-area-edge{pointer-events:visiblePainted;cursor:move}
 .pl-area.editing .pl-area-edge{stroke-width:3px}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
-.pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 6px;border-radius:12px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
+.pl-pin{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;font-size:12px;cursor:grab;white-space:nowrap;max-width:220px;z-index:2}
 .pl-code{font-family:var(--mono,monospace)}
 .pl-card{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--bg);color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:12px;font-weight:400;text-align:left;white-space:nowrap;pointer-events:none;z-index:2}
 .pl-pin:hover .pl-card,.pl-pin:focus-visible .pl-card{display:flex}
@@ -180,11 +183,11 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-riders{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bd2);font-weight:400}
 .pl-rider{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .pl-rider b{font-weight:600}
-.pl-rcount{font-size:10px;font-weight:700;padding:0 5px;border-radius:8px;background:rgba(255,255,255,.25)}
+.pl-rcount{font-size:10px;font-weight:700;padding:0 5px;border-radius:8px}
 .pl-pin.pl-droprack{outline:3px solid var(--accent);outline-offset:2px}
-.pl-pin.auto{opacity:.8;border-style:dashed}
-.pl-unpin{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;background:rgba(0,0,0,.4);font-size:13px;line-height:1;cursor:pointer}
-.pl-unpin:hover{background:rgba(0,0,0,.65)}
+
+.pl-unpin{display:inline-flex;align-items:center;justify-content:center;height:16px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer}
+
 .pl-pin:active{cursor:grabbing}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
@@ -255,7 +258,7 @@ table.types td:last-child,table.types th:last-child{padding-right:12px}
 .icondd-item[aria-selected="true"]{background:var(--panel2);font-weight:600}
 .icondd-up{display:flex;align-items:center;height:30px;padding:0 9px;margin-top:4px;border-top:1px solid var(--bd2);cursor:pointer;font-size:12px;color:var(--accent);border-radius:var(--r-s)}
 .icondd-up:hover{background:var(--hover)}
-button.danger-text{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg);font-weight:600}
+
 button.primary{background:var(--accentbtn);color:var(--accentfg);border-color:var(--accentbtn);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 button.ghost{background:transparent;border-color:transparent}
 button.icon,a.btnlike.icon{width:28px;padding:0;justify-content:center}
@@ -292,14 +295,14 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* A list's own filter, in its toolbar. */
 .listq{width:220px;max-width:100%}
 .grow{flex:1}
-.chip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--r-s);font-size:11px;font-weight:600;letter-spacing:.3px;white-space:nowrap;border:1px solid var(--bd);background:var(--panel2);color:var(--fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:var(--r-s);font-size:11px;white-space:nowrap;border:1px solid var(--bd);color:var(--fg)}
 /* The source of a user (LDAP, Lansweeper, Manual): one width, so the column lines up. */
 .chip.usrc{width:120px;max-width:100%;justify-content:center;box-sizing:border-box}
-.chip.ok{background:var(--ok);border-color:var(--ok);color:#fff}
-.chip.warn{background:var(--warnbtn);border-color:var(--warnbtn);color:#fff}
-.chip.bad{background:var(--danger-bg);border-color:var(--danger-bg);color:#fff}
-.chip.info{background:var(--accentbtn);border-color:var(--accentbtn);color:var(--accentfg)}
-.chip.kept{background:transparent;color:var(--muted);border-color:var(--bd)}
+
+
+
+
+.chip.kept{color:var(--muted)}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--okdot);flex:none}
 .dot.off{background:transparent;box-shadow:inset 0 0 0 2px var(--muted)}
 .dot.warn{background:var(--warn)} .dot.bad{background:var(--danger)}
@@ -307,13 +310,13 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* main frame */
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
-.hdr{background:var(--panel2);padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
+.hdr{padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none}
 .hdr button{height:22px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 #side>.hdr:first-child{height:38px}
 .item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
-.item.sel{background:var(--accentbtn);color:var(--accentfg)}
-.item.sel .cnt{color:inherit;opacity:.85}
+
+
 .item .lbl{flex:1;overflow:hidden;text-overflow:ellipsis}
 .item .cnt{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .item .sw{width:10px;height:10px;border-radius:2px;flex:none}
@@ -327,10 +330,10 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 @media (max-width:760px){#tabsbar>#syncBtn,#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
 .sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
 #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
-.tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;color:var(--fg)}
+.tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
-.tab.active{background:var(--bg)}
-.tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:3px;height:2px;border-radius:1px;background:var(--accent);opacity:.5;pointer-events:none}
+
+.tab.active::after{content:"";position:absolute;height:2px;border-radius:1px;background:var(--accent);pointer-events:none}
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
 .tab .x:hover{color:var(--fg);background:var(--hover)}
 #objbar{display:flex;gap:4px;background:var(--panel);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:34px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
@@ -341,9 +344,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 #objbar .grow{flex:1 1 auto}
 .objbar-close{height:24px;padding:0 10px;font-size:12px}
 .tabs-cap{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;align-self:center;padding:0 4px;flex:none}
-.tab.objtab{background:var(--panel);border-color:var(--bd);padding-left:8px;border-radius:4px}
+.tab.objtab{padding-left:8px;border-radius:4px}
 .tab.objtab .tsw{width:8px;height:8px;border-radius:50%;flex:none}
-.tab.objtab.active{background:var(--bg)}
+
 /* an open object needs no accent bar: its own tab border and background mark it */
 .tab.objtab.active::after{display:none}
 .port.single{opacity:.5;cursor:not-allowed}
@@ -372,12 +375,12 @@ table.grid tbody tr{content-visibility:auto;contain-intrinsic-size:auto 27px}
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
 .card{align-self:stretch}
 .card .kv{flex:1;align-content:start}
-.card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .card .ch{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
-.tico{width:26px;height:26px;border-radius:var(--r-s);display:grid;place-items:center;flex:none;color:#fff}
-.tico{color:#fff}
-.tico svg{width:16px;height:16px;stroke:#fff}
+.tico{width:26px;height:26px;border-radius:var(--r-s);display:grid;place-items:center;flex:none}
+
+.tico svg{width:16px;height:16px}
 .tico svg.cu{fill:currentColor;stroke:none}
 svg.cu{fill:currentColor;stroke:none}
 .tico.sm{width:20px;height:20px}.tico.sm svg{width:12px;height:12px}
@@ -399,7 +402,7 @@ svg.cu{fill:currentColor;stroke:none}
 .rels .r .t{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rels .r .p{color:var(--muted);font-family:var(--mono);flex:none}
 .rels .none{color:var(--muted);font-style:italic}
-.card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted)}
+.card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted)}
 .card .cf .grow{flex:1}
 .card .cf{white-space:nowrap}
 .card .cf .code{font-family:var(--mono);flex:none}
@@ -410,11 +413,11 @@ svg.cu{fill:currentColor;stroke:none}
 /* AD, Entra and Intune on a card: three equal marks above the footer. Lit in the colour of how the device is joined
    (the Overview's colours) or of its compliance; dashed and grey where the device is not there. */
 .jbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:6px 10px;border-top:1px solid var(--bd2)}
-.jb{--c:var(--muted);display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:5px;row-gap:2px;min-width:0;padding:4px 7px 5px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-left:3px solid var(--c);border-radius:var(--r-m);background:color-mix(in srgb,var(--c) 10%,var(--bg));font-size:11px;line-height:1.15;white-space:nowrap}
+.jb{--c:var(--muted);grid-template-columns:auto minmax(0,1fr);column-gap:5px;row-gap:2px;min-width:0;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-left:3px solid var(--c);border-radius:var(--r-m);font-size:11px;line-height:1.15;white-space:nowrap}
 .jb i{width:7px;height:7px;border-radius:50%;background:var(--c)}
 .jb b{font-weight:700;letter-spacing:.2px;color:var(--fg)}
-.jb small{grid-column:1 / -1;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--c) 50%,var(--fg))}
-.jb.no{border-style:dashed;border-color:var(--bd);border-left:1px dashed var(--bd);background:transparent}
+.jb small{font-weight:600;color:color-mix(in srgb,var(--c) 50%,var(--fg))}
+.jb.no{border-left:1px dashed var(--bd);background:transparent}
 .jb.no i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}
 .jb.no b,.jb.no small{color:var(--muted);font-weight:500}
 @media (max-width:760px){.jb small{font-size:10px}}
@@ -427,7 +430,7 @@ svg.cu{fill:currentColor;stroke:none}
 /* table */
 .gridwrap{overflow:auto;height:100%}
 table.grid{border-collapse:collapse;width:100%;font-size:13px;min-width:1000px}
-table.grid th{position:sticky;top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
+table.grid th{top:0;background:var(--gridh);border-right:1px solid var(--bd);box-shadow:inset 0 -2px 0 var(--bd);padding:4px 8px;text-align:left;white-space:nowrap;font-weight:600;z-index:1}
 table.grid td{border-right:1px solid var(--bd2);border-bottom:1px solid var(--bd2);padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 /* A chip in a cell is shortened with … like the text around it, not cut off; its tooltip has the whole of it. */
 table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;line-height:16px}
@@ -519,7 +522,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .cn-sub{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
 .cn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
 .cn-card{display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--bd);border-left:3px solid var(--cn,#2563eb);border-radius:var(--r-m);min-width:0}
-.cn-card.internal{--cn:#0d9488}.cn-card.external{--cn:#2563eb}
+
 .cn-head{display:flex;align-items:center;gap:10px;padding:10px 10px 6px}
 .cn-avatar{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--cn) 16%,var(--bg));color:color-mix(in srgb,var(--cn) 60%,var(--fg));font-weight:700;font-size:12px;letter-spacing:.5px}
 .cn-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -569,12 +572,12 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-bar{display:grid;grid-template-columns:minmax(120px,38%) 1fr 48px;gap:10px;align-items:center;padding:5px 12px;border:0;background:none;color:var(--fg);height:auto;font:inherit;font-size:13px;cursor:pointer;text-align:left;border-radius:0}
 .ov-lbl{display:flex;gap:6px;align-items:center;min-width:0}.ov-lbl>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov-track{height:10px;border-radius:0 4px 4px 0;background:transparent}
-.ov-track>span{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}.ov-track>span.bad{background:var(--danger-bg)}
+.ov-track>span{display:block;height:100%}.ov-track>span.bad{background:var(--danger-bg)}
 .ov-n{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg)}
 /* How devices are joined: one bar split by share, and a key row for each kind. Five fixed hues, the same in both themes. */
 .ov-split{display:flex;height:12px;margin:12px 12px 6px;border-radius:4px;overflow:hidden;gap:2px}
 .ov-split>span{min-width:3px}
-.j-entra{background:#2563eb}.j-hybrid{background:#0d9488}.j-adonly{background:#7c3aed}.j-registered{background:#d97706}.j-notjoined{background:var(--bd)}
+.j-notjoined{background:var(--bd)}
 .ov-key{width:10px;height:10px;border-radius:3px;flex:none}
 .ov-row .ov-num{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .ov-row .ov-num small{font-weight:400}
@@ -597,7 +600,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .lic-bar>span{display:block;height:100%;background:var(--accent)}
 .lic-bar.over>span{background:var(--danger)}
 .lic-mark{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--bd);border-radius:var(--r-s);font-size:11px;font-weight:600;letter-spacing:.3px;line-height:16px;color:var(--muted);vertical-align:1px}
-.lic-mark.over{background:var(--danger-bg);border-color:var(--danger-bg);color:#fff}
+
 .ct-devs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;margin-top:6px}
 .ct-devs .pchk{font-size:13px}
 /* Counts and amounts: right-aligned in the text font, digits of equal width so a column lines up. */
@@ -748,7 +751,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .chassis .model{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;text-align:left}
 .pgroups{display:flex;gap:10px}
 .pgroup{display:grid;grid-template-rows:repeat(2,26px);grid-auto-flow:column;grid-auto-columns:28px;gap:4px}
-.port{width:28px;height:26px;border-radius:2px;border:1px solid var(--portbd);background:var(--port);font-family:var(--mono);font-size:10px;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;position:relative}
+.port{width:28px;height:26px;border:1px solid var(--portbd);background:var(--port);font-family:var(--mono);font-size:10px;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0;position:relative}
 .port.used{background:var(--used);border-color:var(--used);color:#fff}
 .port.upl{background:var(--upl);border-color:var(--upl);color:#fff}
 .port.poe::after{content:"";position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--poe);box-shadow:0 0 0 1px var(--bg)}
@@ -827,7 +830,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .rack{display:grid;grid-template-columns:44px minmax(0,1fr);border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2);width:min(520px,100%);position:relative}
 .rack .uno{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;height:24px;border-bottom:1px solid var(--bd2);box-sizing:border-box}
 .rack .slot{height:24px;border-bottom:1px solid var(--bd2);background:repeating-linear-gradient(90deg,transparent 0 22px,var(--bd2) 22px 23px);opacity:.6;box-sizing:border-box}
-.rack .unit{margin:1px 4px;border-radius:var(--r-s);background:var(--bg);border:1px solid var(--bd);border-left:5px solid var(--c,#888);padding:2px 8px;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;overflow:hidden;z-index:1}
+.rack .unit{margin:1px 4px;border-radius:var(--r-s);border:1px solid var(--bd);border-left:5px solid var(--c,#888);padding:2px 8px;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;overflow:hidden;z-index:1}
 .rack .unit:hover{border-color:var(--accent)}
 .rack .unit.one{flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;padding:0 8px}
 .rack .unit.one .sub{font-size:11px;flex:none}
@@ -882,7 +885,7 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 .disk-size b{font-family:var(--mono)}
 /* Antivirus: laid out like Attachments, one entry per product, in a shade of the accent so the two are told apart. */
 .avpick{min-width:0;width:100%}
-.avpick .entry.avitem{background:color-mix(in srgb, var(--accent) 7%, var(--panel));border-color:color-mix(in srgb, var(--accent) 30%, var(--bd2))}
+
 .avpick .entry-head b{font-weight:600}
 .av-add>.combo{flex:1 1 100%}
 .av-state{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
@@ -916,6 +919,8 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2);min-width:0}
 .relrow:last-child{border-bottom:none}
 .relrow .k{color:var(--muted);width:118px;flex:none;font-size:12px}
+/* Relation names are written lower case for sentences ("attached to PC-1"); as a label they start with a capital. */
+.relrow .k::first-letter{text-transform:uppercase}
 .relrow .t{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
@@ -973,9 +978,9 @@ a.link:hover{text-decoration:underline}
 .sess-main{flex:1;min-width:0}
 .sess-name{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sess-when{font-size:12px;color:var(--muted);margin-top:2px}
-.sess-here{font-size:11px;font-weight:600;padding:1px 8px;border-radius:10px;background:var(--accentbtn);color:#fff}
+.sess-here{font-size:11px;font-weight:600;padding:1px 8px;border-radius:10px}
 .sess-foot{display:flex;justify-content:flex-end;padding:10px 0 0}
-.lsbox{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 10px;padding:10px 12px;font-size:12px;margin:0}
+.lsbox{display:grid;gap:4px 10px;padding:10px 12px;font-size:12px;margin:0}
 .lsbox dt{color:var(--muted)} .lsbox dd{margin:0;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis}
 .lsbox dd.plain{font-family:inherit}
 .lsbox .lsbox-check{width:auto;white-space:normal;gap:6px;margin:0}
@@ -1002,7 +1007,7 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .modal .box.wide{width:min(1000px,100%)}
 .modal .box.settings{width:min(1200px,100%);height:min(860px,calc(100vh - 40px))}
 .modal .box.settings>.mb{flex:1}
-.settabs{display:flex;gap:4px;padding:6px 10px;background:var(--panel2);border-bottom:1px solid var(--bd);overflow-x:auto;flex:none}
+.settabs{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--bd);overflow-x:auto;flex:none}
 .modal .mh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);font-weight:600;font-size:14px}
 /* Minimize, maximize and close in the top right corner of a dialog. */
 .wctl{display:inline-flex;gap:2px;align-items:center;margin-left:auto;flex:none}
@@ -1096,9 +1101,9 @@ table.grid a.rowopen:hover{text-decoration:underline}
 
 /* Calm look: one accent colour; type colours only where they carry meaning (plans, the relationship map, rack units);
    status as a soft tint with coloured text instead of a solid fill. */
-.tico{background:var(--tile);color:color-mix(in srgb,var(--tc,var(--muted)) 55%,var(--fg));box-shadow:inset 0 0 0 1px var(--bd2)}
+.tico{background:var(--tile);box-shadow:inset 0 0 0 1px var(--bd2)}
 .tico svg{stroke:currentColor}
-.pl-pin .tico,.pl-rider .tico,.pl-item .tico,.lgtypes .tico{background:var(--tc);color:#fff;box-shadow:none}
+.pl-pin .tico,.pl-rider .tico,.pl-item .tico,.lgtypes .tico{background:var(--tc);box-shadow:none}
 .chip{background:var(--panel2);border-color:transparent;font-weight:600;letter-spacing:.1px}
 .chip.ok{background:color-mix(in srgb,var(--okdot) 14%,transparent);border-color:color-mix(in srgb,var(--okdot) 28%,transparent);color:var(--oktext)}
 .chip.warn{background:color-mix(in srgb,var(--warn) 15%,transparent);border-color:color-mix(in srgb,var(--warn) 32%,transparent);color:var(--warntext)}
@@ -1140,7 +1145,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .tsw{opacity:.75}
 .jb.ad,.jb.en,.jb.hy,.jb.reg{--c:var(--accent)}
 .jb{border-left-width:1px;background:color-mix(in srgb,var(--c) 7%,transparent)}
-.jb.on i{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 22%,transparent)}
+
 /* One line each: the dot, the name, and the state after it. */
 .jb{display:flex;align-items:center;gap:5px;padding:3px 7px;height:22px;box-sizing:border-box}
 .jb b{flex:none}.jb i{flex:none}
@@ -1148,7 +1153,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* On a card only the dot and the name; the state is in the tooltip and on the device page. */
 .card .jb small{display:none}
 /* Not known (no Microsoft Graph): faded, so it does not read as "not joined". */
-.jb.unk{border-style:dotted;border-color:var(--bd);background:transparent;opacity:.6}
+.jb.unk{background:transparent;opacity:.6}
 .jb.unk i{background:transparent;box-shadow:none}
 .jb.unk b,.jb.unk small{color:var(--muted);font-weight:500}
 .card .jb{justify-content:center}
@@ -1162,11 +1167,18 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .sechdr::before{color:var(--muted);font-size:11px}
 .sechdr:hover{background:var(--hover)}
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
-button.danger-text{background:transparent;color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 40%,var(--bd));font-weight:600}
+button.danger-text{background:transparent}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent)}
 .box.sm .mf button.danger-text[id$="Ok"]{background:var(--danger-bg);color:#fff;border-color:var(--danger-bg);font-weight:600}
-button.primary:disabled{background:var(--panel2);color:var(--muted);border-color:var(--bd);box-shadow:none;opacity:1}
+button.primary:disabled{box-shadow:none}
 input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
+.datefield{position:relative;display:inline-flex;align-items:center;min-width:0}
+.datefield>input[type=text]{flex:1;min-width:0;width:100%;padding-right:32px}
+.datefield .df-cal{position:absolute;right:2px;height:24px;width:28px;min-height:0;padding:0;border:0;background:transparent;color:var(--muted)}
+.datefield .df-cal:hover:not(:disabled){color:var(--fg)}
+.datefield .df-native{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+input.bad{border-color:var(--danger);outline-color:var(--danger)}
+.timefield{width:72px;text-align:center}
 .filepick{display:flex;align-items:center;gap:8px;min-width:0}.filepick>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
 /* Leftover colour outside plans and the map: shades of the one accent instead. */
@@ -1187,8 +1199,8 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .rack .unit{background:var(--panel2)}
 /* Plan pins: an automatic one is solid too, so two that meet stay readable; the one under the pointer comes to the top. */
 .pl-pin{border-width:1px;border-color:var(--bg)}
-.pl-pin.auto{opacity:1}
-.pl-pin:hover,.pl-pin:focus-visible{z-index:5}
+
+
 .settabs{background:transparent}
 /* Status chips side by side are one width, the widest one's, so a row of them reads as a set. */
 .chip-row{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;flex:none;margin:0}
@@ -1203,10 +1215,10 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .pl-canvas.noimg{min-height:0;aspect-ratio:16/10}
 .pl-noimg{top:50%;bottom:auto;transform:translateY(-50%)}
 .pl-canvas.fanning .pl-pin:not(.fanned),.pl-canvas.fanning .pl-group:not(.open){opacity:.3}
-.pl-fanring{background:color-mix(in srgb,var(--bg) 85%,transparent);border-color:var(--bd)}
-.pl-pin:hover,.pl-pin:focus-visible{z-index:24}
+.pl-fanring{border-color:var(--bd)}
+
 .pl-code{font-weight:500}
-.pl-glist{width:290px;mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.pl-glist{mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
 .pl-ghead{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
 .pl-ghead .muted{font-weight:400;font-size:11px}
 :root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
