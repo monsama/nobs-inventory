@@ -113,7 +113,7 @@ try {
 
   // Settings: a Graph record that fits two devices here is listed there
   await p.click('#clearF');
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=entra]');
   await p.waitForSelector('#gaList');
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
   assert.equal(await p.inputValue('#intake_graph'), 'review', 'new devices from Graph wait in To review by default');

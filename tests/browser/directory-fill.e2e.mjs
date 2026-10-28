@@ -70,14 +70,15 @@ try {
   assert.equal(await p.isChecked('#lk_fillAd'), true);
   await p.uncheck('#lk_fillAd');
   await stored(st => st.fillAd === false);
+  assert.equal(await p.inputValue('#intake_ad'), 'review', 'new devices from AD wait in To review by default');
+  await p.selectOption('#intake_ad', 'direct');
+  await stored(st => st.intake && st.intake.ad === 'direct');
+  await p.click('#setTabs [data-st=entra]');
   await p.waitForSelector('#gFill');
   assert.equal(await p.isChecked('#gFill'), true);
   await p.uncheck('#gFill');
   await stored(st => st.fillGraph === false);
 
-  assert.equal(await p.inputValue('#intake_ad'), 'review', 'new devices from AD wait in To review by default');
-  await p.selectOption('#intake_ad', 'direct');
-  await stored(st => st.intake && st.intake.ad === 'direct');
   await p.click('.wc-close');
 
   // To review: the two AD devices, in no count; the stale one grey and left out of Accept all

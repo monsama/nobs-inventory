@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { readSecret } from './secrets.js';
 import { HttpError } from './errors.js';
 
-/* The directory settings. They are edited in Settings → LDAP sync and saved in the inventory, so an administrator
+/* The directory settings. They are edited in Settings → Active Directory and saved in the inventory, so an administrator
    can change them without a restart. The service account's password is never stored there: it is set in Settings
    and kept encrypted beside the inventory (app secrets), or comes from the server's environment
    (NI_LDAP_SERVICE_PASSWORD, or NI_LDAP_SERVICE_PASSWORD_FILE for a secret file). It never goes to the page. The settings

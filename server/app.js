@@ -380,7 +380,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
-      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
       const people = await ldapListUsers(lc);
       res.json({ people: people.length, admins: people.filter(p => p.admin).length });
     } catch (e) {
@@ -568,7 +568,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
-      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
       let counts;
       try { counts = await syncLdapUsers(db, lc); }
       catch (e) {

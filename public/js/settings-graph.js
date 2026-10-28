@@ -1,4 +1,4 @@
-/* Settings → LDAP & Graph, the Microsoft Graph half: the app registration, certificates, people from Entra, test
+/* Settings → Entra & Intune, through Microsoft Graph: the app registration, certificates, people from Entra, test
    and sync, and the devices Graph has that the inventory does not. */
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';

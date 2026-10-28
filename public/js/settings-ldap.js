@@ -1,4 +1,4 @@
-/* Settings → LDAP & Graph, the directory half: the LDAP connection, its security and CA, the service password,
+/* Settings → Active Directory: the LDAP connection, its security and CA, the service password,
    test and sync. */
 import { scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { canEdit } from './04-settings.js';

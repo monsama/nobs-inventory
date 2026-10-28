@@ -184,7 +184,7 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
 }
 
 /* ---------- people from Entra ----------
-   Entra's members (guests left out) beside the inventory's people. Settings → LDAP & Graph decides how far it goes:
+   Entra's members (guests left out) beside the inventory's people. Settings → Entra & Intune decides how far it goes:
    off; match (the default): a person whose login is an Entra user's on-premises login (sAMAccountName) or user
    principal name gets a note of it (p.entra), so the Users list shows who is in AD, in Entra, or in both; add: as
    match, and the primary users Intune names on the inventory's devices who are nobody here yet are added (source

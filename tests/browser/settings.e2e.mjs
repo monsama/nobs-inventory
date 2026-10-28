@@ -24,14 +24,18 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForFunction(() => /Admin/.test(document.querySelector('#whoBtn').textContent));
   await page.click('#setBtn');
-  for (const tab of ['feed', 'directory', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
+  for (const tab of ['feed', 'directory', 'entra', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
     await page.click(`#setTabs [data-st=${tab}]`); await page.waitForTimeout(120);
     const len = (await page.locator('#setPane').innerHTML()).length;
     assert.ok(len > 100, `Settings tab "${tab}" is empty`);
   }
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
-  // LDAP and Microsoft Graph share a tab of their own; Feed and Users no longer show them
-  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setGraph .panelbox'); await page.waitForSelector('#setLdap #lk_url');
+  // Active Directory and Entra & Intune have a tab each; Feed and Users do not show them
+  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setLdap #lk_url');
+  assert.equal(await page.locator('#setGraph').count(), 0, 'Active Directory does not show Microsoft Graph');
+  await page.click('#setTabs [data-st=entra]'); await page.waitForSelector('#setGraph .panelbox');
+  assert.equal(await page.locator('#setLdap').count(), 0, 'Entra & Intune does not show LDAP');
+  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setLdap #lk_url');
   // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
   await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
   await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');
@@ -71,11 +75,13 @@ try {
   page.once('dialog', d => d.accept()); await page.click('#lpRemove');
   await page.waitForSelector('#lk_pw');
   // the schedule of a sync: Graph every 4 hours by default; changed here, saved to the server
-  assert.equal(await page.inputValue('[data-sched-every="graph"]'), '4');
   assert.equal(await page.inputValue('[data-sched-every="ldap"]'), '24');
+  await page.click('#setTabs [data-st=entra]'); await page.waitForSelector('[data-sched-every="graph"]');
+  assert.equal(await page.inputValue('[data-sched-every="graph"]'), '4');
   await page.selectOption('[data-sched-every="graph"]', '2');
   await page.waitForFunction(() => /every 2 hours from 06:00/.test(document.querySelector('#toast').textContent));
   await until(page, async () => { const r = await fetch('api/state', { credentials: 'same-origin' }); const d = await r.json(); return d.syncSchedule && d.syncSchedule.graph && d.syncSchedule.graph.every === 2; });
+  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('[data-sched-every="ldap"]');
   await page.selectOption('[data-sched-every="ldap"]', '0');
   assert.equal(await page.isHidden('[data-sched-at="ldap"]'), true, 'off has no start time');
   await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
