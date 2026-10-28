@@ -162,7 +162,7 @@ export function userLoginModal(u){
 /* Shows one user's devices in Cards, by searching for the name. */
 export function showDevicesOf(name){
   closeModal();
-  st.q = name; $('#search').value = name; st.tab = 'cards'; st.cardsGroup = 'none';
+  st.q = name; st.tab = 'cards'; st.cardsGroup = 'none';   /* the cards' own filter holds the name */
   render();
 }
 export function passwordModal(u){

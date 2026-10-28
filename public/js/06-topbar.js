@@ -1,4 +1,4 @@
-import { $, filtered, st } from './01-core.js';
+import { $, esc, filtered, st } from './01-core.js';
 import { newObjModal, linkObjModal } from './05-new-object.js';
 import { me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render-plans.js';
@@ -16,18 +16,23 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
-/* On the floor plan, the search marks the devices it finds there; elsewhere it shows them in the cards. */
-$('#search').addEventListener('input', e => { st.q = e.target.value; if (!['cards','table','map','plans'].includes(st.tab)) st.tab = 'cards'; view(); });
-/* Enter in the search: the one object it finds opens; with several, the first result takes the focus, so the arrow keys
-   and Tab go on from there instead of through the whole sidebar. */
-$('#search').addEventListener('keydown', e => {
-  if (e.key !== 'Enter' || !st.q.trim()) return;
-  e.preventDefault();
-  const hits = filtered();
-  if (hits.length === 1){ openObj(hits[0].id); return; }
-  const first = $('#view').querySelector('.card[data-open], a.rowopen[data-open], .mnode, .pl-pin.hit:not(.grouped), .pl-group.hit');
-  if (first) first.focus();
-});
+/* The search at the top is 14-global-search.js. A list's own filter (Cards, Table, Relationships) narrows that list:
+   Enter there opens the one object it leaves, or puts the focus on the first, so the arrow keys and Tab go on from there. */
+export function bindListFilter(){
+  const f = $('#listQ'); if (!f) return;
+  f.oninput = () => { st.q = f.value; view(); const g = $('#listQ'); if (g){ g.focus(); g.setSelectionRange(g.value.length, g.value.length); } };
+  f.onkeydown = e => {
+    if (e.key === 'Escape' && f.value){ e.preventDefault(); e.stopPropagation(); f.value = ''; f.oninput(); return; }
+    if (e.key !== 'Enter' || !st.q.trim()) return;
+    e.preventDefault();
+    const hits = filtered();
+    if (hits.length === 1){ openObj(hits[0].id); return; }
+    const first = $('#view').querySelector('.card[data-open], a.rowopen[data-open], .mnode');
+    if (first) first.focus();
+  };
+}
+/* The filter field of a list, for its toolbar. */
+export const listFilterHtml = () => `<input id="listQ" class="listq" type="search" placeholder="Filter this list…  /" aria-label="Filter this list" value="${esc(st.q)}">`;
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */
 document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]') && !e.target.closest('a[href]')) openObj(t.dataset.open); });
 

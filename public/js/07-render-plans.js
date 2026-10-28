@@ -160,7 +160,7 @@ export function renderPlans(){
     </div>`;
   const body = plan ? `<div class="pl-body">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
-        <div class="pl-q"><input id="plQ" type="search" placeholder="Search devices" aria-label="Search devices">
+        <div class="pl-q"><input id="plQ" type="search" placeholder="Find devices…  /" aria-label="Find devices: marks them on the plan and narrows this list" value="${esc(st.q)}">
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => `<option value="${k}" ${st.plType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? `<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${esc(plan.site)}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
@@ -209,7 +209,8 @@ export function renderPlans(){
   on('#plDel', () => deletePlanModal(plan));
   if (!plan) return;
   renderPlanList(plan);
-  $('#plQ').oninput = () => renderPlanList(plan);
+  /* The plan's own search: it narrows the list beside it and marks what it finds on the plan. */
+  $('#plQ').oninput = () => { st.q = $('#plQ').value; renderPlans(); const f = $('#plQ'); if (f){ f.focus(); f.setSelectionRange(f.value.length, f.value.length); } };
   $('#plType').onchange = e => { st.plType = e.target.value || null; renderPlanList(plan); };
   $('#plWhere').onchange = e => { st.plWhere = e.target.value || null; renderPlanList(plan); };
   $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
@@ -929,7 +930,7 @@ export async function clearAll(){
   toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-export const SHORTCUTS = [['N','New object'],['/','Search'],['Enter','In the search: open the one object found, or go to the first result'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
+export const SHORTCUTS = [['N','New object'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','Filter the list of this view'],['↑ ↓ Enter','In the search: pick a hit and open it'],['Enter','In a list filter: open the one object left, or go to the first'],['C','Cards'],['T','Table'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
 export function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
     ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table></div>
@@ -942,7 +943,8 @@ document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, select') || $('#mdl')) return;
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
-  if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
+  /* / goes to the list's own filter where the view has one (Cards, Table, Relationships, Contracts …), else to the search. */
+  if (e.key === '/'){ e.preventDefault(); const f = $('#listQ') || $('#plQ') || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
   if (key === 'n' && canEdit()){ e.preventDefault(); newObjModal(); return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
   if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }

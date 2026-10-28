@@ -83,7 +83,7 @@ try {
   await p.click('#mapZoomOut'); assert.equal((await p.textContent('#mapZoomReset')).trim(), '100%');
 
   // PC picked on the left, a search for the switch: every view says it is there, of another type
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = 'pc'; c.st.q = '172.21.103.2'; document.querySelector('#search').value = c.st.q; });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.type = 'pc'; c.st.q = '172.21.103.2'; });
   for (const tab of ['cards', 'table', 'map']) {
     await go(tab);
     await p.waitForSelector('#searchAllBtn');
@@ -95,7 +95,7 @@ try {
   await p.waitForSelector('#mapSvg .mnode[data-id=s1]');
   assert.equal(await p.locator('#mapSvg .mnode[data-id=p2]').count(), 1, 'the PC linked to it is drawn too');
   assert.equal(await p.evaluate(async () => { const c = await import('/js/01-core.js'); return [c.st.type, c.st.q].join('|'); }), '|172.21.103.2');
-  assert.equal(await p.inputValue('#search'), '172.21.103.2');
+  assert.equal(await p.inputValue('#listQ'), '172.21.103.2', 'the list filter keeps the text');
 
   assert.deepEqual(errors, []);
   console.log('view zoom and hidden search hits: all checks passed');

@@ -5,7 +5,7 @@ import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
 import { lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
-import { TBL, cmpCells, saveTBL } from './06-topbar.js';
+import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, modal } from './03-object-modals.js';
@@ -85,7 +85,6 @@ $('#side').addEventListener('click', e => {
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
   st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = null; st.scanOld = st.live = false; st.q = '';
-  const s = $('#search'); if (s) s.value = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -106,7 +105,7 @@ export function renderFilterBar(){
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
     st.adGroup && ['adGroup', 'AD group', st.adGroup],
-    st.q.trim() && ['q', 'Search', '“' + st.q.trim() + '”'],
+    st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   bar.hidden = !chips.length;
   bar.innerHTML = chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '';
@@ -115,7 +114,7 @@ $('#fbar').addEventListener('click', e => {
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
-  else if (k === 'q'){ st.q = ''; const s = $('#search'); if (s) s.value = ''; }
+  else if (k === 'q') st.q = '';
   else if (k === 'scanOld' || k === 'live') st[k] = false;
   else st[k] = null;
   view();
@@ -130,7 +129,7 @@ export function hiddenHits(){
 }
 export function bindHiddenHits(){
   const b = $('#searchAllBtn');
-  if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; const s = $('#search'); if (s) s.value = q; view(); };
+  if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
 
@@ -318,11 +317,12 @@ export function cardHtml(o, idx, join = showJoin()){
 export const SHOW_FIRST = 500;
 export function renderCardsBody(){
   let list = filtered();
-  $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
     <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
+  bindListFilter();
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
@@ -376,7 +376,7 @@ export function addSearchHits(){
   for (const o of objs) if (o.user) count.set(o.user, (count.get(o.user) || 0) + 1);
   $('#view').insertAdjacentHTML('afterbegin', `<div class="hits">${people.map(u => `<button class="chip info" data-person="${esc(u.name)}">${esc(u.name)} · ${count.get(u.name) || 0} devices</button>`).join('')}${locs.map(l => `<button class="chip ls" data-loc="${esc(l)}">${esc(l)}</button>`).join('')}</div>`);
   $('#view').querySelectorAll('[data-person]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.person));
-  $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; $('#search').value = ''; view(); });
+  $('#view').querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { st.loc = b.dataset.loc; st.q = ''; view(); });
 }
 
 /* ---------- table ---------- */
@@ -439,10 +439,11 @@ export function renderTable(){
   st.bulk ??= new Set();
   st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
     ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
+  bindListFilter();
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();
     setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);
@@ -804,7 +805,7 @@ export function renderMap(){
   }
   const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
   const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
-  $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
     <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
@@ -866,6 +867,7 @@ export function renderMap(){
   }, {passive: false});
   bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
+  bindListFilter();
   $('#mapFind').addEventListener('input', e => {
     st.mapFind = e.target.value;
     const t = st.mapFind.trim().toLowerCase();
