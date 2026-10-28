@@ -1,4 +1,5 @@
 import { dateText, dateTimeText } from './dates.js';
+import { isIntune, otherManager } from './intune.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
@@ -532,8 +533,8 @@ export function graphPanel(o){
     ${others.length ? `<div class="note" style="padding:10px 12px 0"><span class="chip warn">${others.length + 1} records in Entra</span> This device is listed more than once. The current record is shown below; the other${others.length === 1 ? ' is' : 's are'}:<ul style="margin:4px 0 0 18px;padding:0">${otherRows}</ul>Delete old records in the Entra admin center (Devices → All devices) so sign-in and policies use the right one.</div>` : ''}
     <dl class="lsbox">
       ${row(g.gone ? 'Was' : 'Joined', g.gone ? esc(g.join || '') : `<span title="${esc(JOIN_INFO[joinOf(o)] || '')}">${esc(joinOf(o) || 'Not joined')}</span>${JOIN_INFO[joinOf(o)] ? `<span class="muted"> · ${esc(JOIN_INFO[joinOf(o)])}</span>` : ''}`)}
-      ${row('Intune', g.managed ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : 'Not managed')}
-      ${row('Compliance', complianceChip(g.compliance))}
+      ${row('Intune', isIntune(g.managed) ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : `Not managed${otherManager(g.managed) ? ` <span class="muted">· ${esc(otherManager(g.managed))}</span>` : ''}`)}
+      ${isIntune(g.managed) ? row('Compliance', complianceChip(g.compliance)) : ''}
       ${row('Encryption', enc)}
       ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
       ${row('Operating system', esc(g.os || ''))}

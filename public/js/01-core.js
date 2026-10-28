@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { isIntune, otherManager } from './intune.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -289,8 +290,8 @@ export const GRAPH_FILTERS = {
   registered: ['Entra registered', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra registered'],
   notjoined: ['Not joined', 'join', o => o.status !== 'retired' && GRAPH_TYPES.includes(o.type) && !joinOf(o)],
   /* Opened from the Overview; in the sidebar only while they filter. */
-  managed: ['Managed by Intune', 'ok', o => inGraph(o) && !!o.graph.managed, true, true],
-  unmanaged: ['In Entra, not managed by Intune', 'off', o => inGraph(o) && !o.graph.managed, true, true],
+  managed: ['Managed by Intune', 'ok', o => inGraph(o) && isIntune(o.graph.managed), true, true],
+  unmanaged: ['In Entra, not managed by Intune', 'off', o => inGraph(o) && !isIntune(o.graph.managed), true, true],
   compliant: ['Compliant', 'ok', o => inGraph(o) && o.graph.compliance === 'compliant', true, true],
   grace: ['In grace period', 'warn', o => inGraph(o) && o.graph.compliance === 'inGracePeriod', true, true],
 };
@@ -355,13 +356,13 @@ export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
   /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
-  const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && g.managed);
+  const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
   const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
-    it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? 'Microsoft Intune: in Entra, not managed' : 'Microsoft Intune: not managed',
+    it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
   const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
