@@ -717,11 +717,12 @@ export function mapInner(L){
   }).join('');
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
-    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})">
+    /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
+    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
       <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
-      <text x="9" y="14" font-size="10" font-family="var(--mono)" fill="var(--muted)">${esc(o.code)}</text>
+      <text x="9" y="14" font-size="10" fill="var(--muted)"><tspan font-family="var(--mono)">${esc(o.code)}</tspan> · ${esc(TYPES[o.type] ? (o.status !== 'active' ? TYPES[o.type].short : TYPES[o.type].label) : o.type)}</text>
       <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
       ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
       ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}
