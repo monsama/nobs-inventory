@@ -88,7 +88,8 @@ export function createSheet(db, key, state, { userId, deviceIds = [], login = ''
   if (devices.length !== ids.size) throw new HttpError(400, 'A device on the sheet is not in the inventory.');
   const account = String(login || person.login || '').trim().slice(0, 120);
   if (!account) throw new HttpError(400, 'Give the Windows sign-in name of the person.');
-  const sheet = { person: { name: person.name, dept: person.dept || '' }, login: account, devices, note: String(note || '').slice(0, 500),
+  const pr = person.profile || {};
+  const sheet = { person: { name: person.name, dept: person.dept || '', ...Object.fromEntries(['title', 'office', 'manager', 'mail'].filter(k => pr[k]).map(k => [k, String(pr[k]).slice(0, 200)])) }, login: account, devices, note: String(note || '').slice(0, 500),
     issued: now.toISOString(), by, password: newPassword(), passwordDays: PASSWORD_DAYS };
   const id = 'sh' + crypto.randomBytes(8).toString('hex');
   db.prepare("INSERT INTO sheets (id, user_id, created, by, password, data) VALUES (?, ?, ?, ?, 'kept', ?)")

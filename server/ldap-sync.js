@@ -24,20 +24,22 @@ export async function syncLdapUsers(db, config) {
        the sync keeps; an admin who left the admin group has none again. */
     const role = p.admin ? 'admin' : u && u.role === 'viewer' ? 'viewer' : 'none';
     if (!u) {
-      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, ...(p.dept ? { dept: p.dept } : {}), groups: p.groups, source: 'ldap', active: true, role });
+      s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, ...(p.dept ? { dept: p.dept } : {}), groups: p.groups, source: 'ldap', active: true, role, ...profileOf(p) });
       counts.created++;
     } else if (u.source === 'lansweeper' || u.source === 'entra') {
       /* A person Lansweeper (or Entra) named by this login: the same person, now from the directory. Kept as the same record, so
          devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
          removed after the save: from now on the directory checks it. */
-      Object.assign(u, { login: p.login, name: p.name, dept: deptOf(u, p), groups: p.groups, role, source: 'ldap' });
+      Object.assign(u, { login: p.login, name: p.name, dept: deptOf(u, p), groups: p.groups, role, source: 'ldap' }, profileOf(p));
+      if (!profileOf(p).profile) delete u.profile;
       if (p.dept) delete u.deptFrom;
       linked.push(u.id);
     } else if (u.source === 'ldap') {
-      const next = { name: p.name, dept: deptOf(u, p), groups: p.groups, role };
+      const next = { name: p.name, dept: deptOf(u, p), groups: p.groups, role, profile: profileOf(p).profile };
       if (p.dept) delete u.deptFrom;
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
       Object.assign(u, next);
+      if (!u.profile) delete u.profile;
       /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
       if (u.syncOff) { u.active = true; delete u.syncOff; }
       if (changed) counts.updated++;
@@ -72,6 +74,8 @@ export async function syncLdapUsers(db, config) {
 
 /* The directory's department; when it has none, the one Entra gave (deptFrom 'entra') stays. */
 const deptOf = (u, p) => p.dept || (u.deptFrom === 'entra' ? u.dept : '') || '';
+/* Title, phones, office, manager and e-mail from the directory: they replace what Entra gave. */
+const profileOf = p => p.profile && Object.keys(p.profile).length ? { profile: { ...p.profile, from: 'ldap' } } : {};
 
 /* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name) as
    adGroups, and is marked as being in Active Directory (inAd), with the account's last logon and creation day (o.ad).
@@ -89,12 +93,14 @@ export function applyComputers(s, computers, now = new Date()) {
     const key = String(o.name).toLowerCase(), c = byName.get(key) || byName.get(key.split('.')[0]);
     const groups = c && c.groups.length ? c.groups : null;
     /* Whether the device has a computer account in Active Directory: with Graph, this tells an AD-only device apart. */
-    const ad = c && (c.logon || c.created) ? { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}) } : null;
+    const ad = c ? adOf(c) : null;
     let changed = false;
     /* Detached or excluded from sync, a device keeps its fields; what AD says of the account is still shown. */
     if (c && s.fillAd !== false && !o.excluded && !o.detached) {
-      /* A field Lansweeper fills in gets only filled while it is empty. */
-      for (const [k, v, label] of [['os', c.os, 'Operating system'], ['domain', c.domain, 'Domain']]) {
+      /* A field Lansweeper fills in gets only filled while it is empty. The account's description fills the purpose; its
+         location only a location the inventory knows by that name, so a free text never makes a new one. */
+      const loc = c.location && (s.locs || []).find(l => low(l) === low(c.location));
+      for (const [k, v, label] of [['os', c.os, 'Operating system'], ['domain', c.domain, 'Domain'], ['purpose', c.description, 'Purpose'], ['loc', loc || '', 'Location']]) {
         if (lsOwns(s, o, k) && o[k]) continue;
         if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
       }
@@ -108,6 +114,13 @@ export function applyComputers(s, computers, now = new Date()) {
   return n;
 }
 const low = v => String(v || '').trim().toLowerCase();
+/* What AD says of a computer account, kept on its device: last logon, creation day, who manages it, its location as
+   written there and what it runs (from its service principal names). */
+function adOf(c) {
+  const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
+    ...(c.location ? { location: c.location } : {}), ...(c.description ? { description: c.description } : {}), ...(c.services && c.services.length ? { services: c.services } : {}) };
+  return Object.keys(ad).length ? ad : null;
+}
 /* The computer accounts no device here stands for (by name, or the first part of the DNS name; retired devices count,
    so they are not offered again), as s.adUnmatched for intakeFromAd. A disabled account is not offered.
    Returns { adUnmatched, adDisabled }. */

@@ -5,6 +5,8 @@ import PDFDocument from 'pdfkit';
 
 const M = 50, W = 595.28 - 2 * M;   /* A4 width, margins */
 const day = dateText;
+/* The person's title, office, manager and e-mail, when the directory or Entra gave them. */
+const SHEET_PROFILE = [['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['mail', 'E-mail']];
 
 /* The NOBS mark, drawn: a rounded square with the three faces of a box. Used when no company logo is set. */
 function nobsMark(doc, x, y, s) {
@@ -39,7 +41,7 @@ export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
     doc.y = top + 48;
 
     heading('Person');
-    for (const [k, v] of [['Name', sheet.person.name], ['Department', sheet.person.dept || '-'], ['Windows sign-in name', sheet.login]]) {
+    for (const [k, v] of [['Name', sheet.person.name], ['Department', sheet.person.dept || '-'], ...SHEET_PROFILE.filter(([f]) => sheet.person[f]).map(([f, l]) => [l, sheet.person[f]]), ['Windows sign-in name', sheet.login]]) {
       const y = doc.y;
       doc.font('Helvetica').fontSize(10).fillColor('#555').text(k, M, y, { width: 150 });
       doc.font('Helvetica-Bold').fillColor('#111').text(v, M + 160, y, { width: W - 160 });

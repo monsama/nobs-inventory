@@ -7,7 +7,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
 import { checkAddress } from './validate.js';
-import { fillField, lsOwns } from './fill.js';
+import { fillField, lsOwns, profileFields } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
@@ -89,6 +89,11 @@ export async function testGraph(cfg, fetchImpl = fetch) {
       if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? DEFENDER_PERMISSION : `${DEFENDER_PERMISSION} (Defender answered ${r.status})`);
     } catch (e) { out.defender = false; out.missing.push(`${DEFENDER_PERMISSION} (${e.message})`); }
   }
+  if (cfg.autopilot === 'on') {
+    const r = await fetchImpl(`${GRAPH}/deviceManagement/windowsAutopilotDeviceIdentities?$top=1`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
+    out.autopilot = r.ok;
+    if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? AUTOPILOT_PERMISSION : `${AUTOPILOT_PERMISSION} (Microsoft Graph answered ${r.status})`);
+  }
   /* People are read only when Settings asks for them; then their permission is checked too. */
   if (cfg.people && cfg.people !== 'off') {
     const r = await fetchImpl(`${GRAPH}/users?$top=1&$select=id`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
@@ -118,8 +123,9 @@ export async function graphAll(token, url, fetchImpl = fetch, origin = GRAPH_ORI
 /* Microsoft Defender for Endpoint: its machines, read with the same app and certificate, from its own API. */
 const DEFENDER_ORIGIN = 'https://api.securitycenter.microsoft.com';
 const DEFENDER_PERMISSION = 'Machine.Read.All (WindowsDefenderATP)';
+const AUTOPILOT_PERMISSION = 'DeviceManagementServiceConfig.Read.All';
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime,accountEnabled';
-const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType';
+const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType,deviceCategoryDisplayName,autopilotEnrolled,jailBroken,isSupervised';
 /* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
@@ -146,6 +152,9 @@ export function toRecords(devices, managed) {
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes), free: gb(m.freeStorageSpaceInBytes),
       /* A phone's number and IMEI, and whether the company or the person owns it. */
       imei: clean(m.imei).replace(/\s+/g, ''), phone: clean(m.phoneNumber), ownership: OWNERSHIP[m.managedDeviceOwnerType] || '',
+      /* Its category in Intune, whether Autopilot set it up, a jailbroken or rooted phone, a supervised iPhone or iPad. */
+      category: /^unknown$/i.test(clean(m.deviceCategoryDisplayName)) ? '' : clean(m.deviceCategoryDisplayName).slice(0, 60),
+      autopilot: m.autopilotEnrolled === true ? 'yes' : '', jailbroken: /^true$/i.test(clean(m.jailBroken)) ? 'yes' : '', supervised: m.isSupervised === true ? 'yes' : '',
     };
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
@@ -166,7 +175,12 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
   const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl);
   let users = null, peopleError = '';
   if (cfg.people && cfg.people !== 'off') {
-    try { users = (await graphAll(token, `${GRAPH}/users?$select=${USER_SELECT}`, fetchImpl)).filter(u => u.userType !== 'Guest'); }
+    try {
+      /* With each person's manager when Graph gives it with the list; without, when it will not (the rest is the same). */
+      const list = await graphAll(token, `${GRAPH}/users?$select=${USER_SELECT}&$expand=manager($select=displayName)`, fetchImpl)
+        .catch(e => (e.upstream === 400 ? graphAll(token, `${GRAPH}/users?$select=${USER_SELECT}`, fetchImpl) : Promise.reject(e)));
+      users = list.filter(u => u.userType !== 'Guest');
+    }
     catch (e) { peopleError = /answered 40[13]/.test(e.message) ? 'People were not read: the app needs the permission User.Read.All (Application), with admin consent.' : 'People were not read: ' + e.message; }
   }
   let machines = null, defenderError = '';
@@ -180,7 +194,13 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
         : 'Defender was not read: ' + e.message;
     }
   }
-  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError };
+  /* Windows Autopilot: the devices registered for it, read only when Settings asks for it, with its own permission. */
+  let autopilot = null, autopilotError = '';
+  if (cfg.autopilot === 'on') {
+    try { autopilot = await graphAll(token, `${GRAPH}/deviceManagement/windowsAutopilotDeviceIdentities`, fetchImpl, GRAPH_ORIGIN, 'Windows Autopilot'); }
+    catch (e) { autopilotError = [401, 403].includes(e.upstream) ? `Autopilot was not read: the app needs the permission ${AUTOPILOT_PERMISSION}, type Application, with admin consent.` : 'Autopilot was not read: ' + e.message; }
+  }
+  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError };
 }
 
 /* ---------- people from Entra ----------
@@ -191,7 +211,11 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
    entra). Entra never takes over a person from LDAP, Lansweeper or by hand: it fills in an empty name or department of
    one from Lansweeper, as Lansweeper does, and keeps the ones it added in step (name, department, switched off with the
    Entra account). The LDAP sync takes over a person from Entra with the same login, as one from Lansweeper. */
-const USER_SELECT = 'id,userPrincipalName,displayName,department,accountEnabled,onPremisesSamAccountName,onPremisesSyncEnabled,userType';
+const USER_SELECT = 'id,userPrincipalName,displayName,department,accountEnabled,onPremisesSamAccountName,onPremisesSyncEnabled,userType,jobTitle,officeLocation,businessPhones,mobilePhone,mail';
+const profileOfEntra = u => {
+  const f = profileFields({ title: u.jobTitle, phone: (u.businessPhones || [])[0], mobile: u.mobilePhone, office: u.officeLocation, manager: u.manager && u.manager.displayName, mail: u.mail });
+  return Object.keys(f).length ? { ...f, from: 'entra' } : null;
+};
 export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const at = stamp(now), counts = { inEntra: 0, added: 0, gone: 0, bound: 0 };
   if (!users || mode === 'off') return counts;
@@ -203,6 +227,8 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login)))) || null;
     if (u && !taken.has(u.id)) {
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
+      /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
+      if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
       if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; p.active = u.accountEnabled !== false; }
       else {
@@ -220,7 +246,8 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
       const login = clean(u.onPremisesSamAccountName) || clean(u.userPrincipalName);
       if (!login || s.users.some(x => low(x.login) === low(login))) continue;
       s.users.push({ id: freeUserId(s.users, 'entra-' + low(login).replace(/[^a-z0-9._-]+/g, '-').slice(0, 40)), login, name: clean(u.displayName).slice(0, 120) || login,
-        ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'none', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u) });
+        ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'none', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u),
+        ...(profileOfEntra(u) ? { profile: profileOfEntra(u) } : {}) });
       taken.add(u.id); counts.added++;
     }
   }
@@ -242,7 +269,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
 const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, ...(r.entraId ? { entraId: r.entraId } : {}), ...(r.intuneId ? { intuneId: r.intuneId } : {}), join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
-  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership'].map(k => [k, r[k]]).filter(([, v]) => v)) });
+  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised'].map(k => [k, r[k]]).filter(([, v]) => v)) });
 /* The fields Graph can give a device, with their names for the history. */
 const FILL = { os: 'Operating system', model: 'Model', mac: 'MAC address', ram: 'Memory', disk: 'Disks' };
 /* When a record was last heard of: its last Intune check-in or Entra sign-in. */
@@ -310,6 +337,11 @@ export function applyGraph(s, records, now = new Date()) {
     const owns = !!before.added && !o.feed;
     o.graph = graphOf(r, at, owns);
     if (list.length > 1) o.graph.others = othersOf(list, r);
+    /* A device Autopilot brought in before it was set up is named by its serial number: its name in Intune replaces it. */
+    if (o.autopilot && o.serial && o.name === o.serial && r.name && low(r.name) !== low(o.serial)) {
+      (s.history[o.id] ??= []).unshift({ t: at, msg: `Name changed from ${o.name} to ${r.name}: set up with Autopilot (Microsoft Graph)` });
+      o.name = r.name;
+    }
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
@@ -405,6 +437,39 @@ export function addFromGraph(s, ids, who, now = new Date(), { review = false } =
   return added;
 }
 
+/* Windows Autopilot: what it says of a device it has registered (its group tag, the order number it was bought under,
+   whether it is set up yet, when it last called in), kept as o.autopilot, matched by serial number. A device it has
+   that the inventory does not is one bought and not set up yet: it is added by its serial number (as its name, until
+   Intune names it) and waits in To review, or goes straight in when Settings says so for Graph. */
+export function applyAutopilot(s, list, now = new Date()) {
+  const at = stamp(now), counts = { autopilot: 0, autopilotNew: 0 };
+  const bySerial = new Map(s.objs.filter(o => o.serial).map(o => [low(o.serial), o]));
+  const codes = new Set(s.objs.map(o => o.code)), ids = new Set(s.objs.map(o => o.id)), hit = new Set();
+  for (const a of list) {
+    const serial = clean(a.serialNumber);
+    if (!serial) continue;
+    const info = Object.fromEntries(Object.entries({ groupTag: clean(a.groupTag).slice(0, 60), order: clean(a.purchaseOrderIdentifier).slice(0, 60),
+      state: clean(a.enrollmentState).slice(0, 40), lastContact: clean(a.lastContactedDateTime).slice(0, 40) }).filter(([, v]) => v));
+    const o = bySerial.get(low(serial));
+    if (o) { o.autopilot = { ...info, seen: at }; hit.add(o); counts.autopilot++; continue; }
+    do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
+    do { s.seq = (s.seq || 100) + 1; } while (ids.has('o' + s.seq));
+    const code = 'INV-' + String(s.codeN).padStart(4, '0'), id = 'o' + s.seq;
+    codes.add(code); ids.add(id);
+    const model = clean([a.manufacturer, a.model].filter(Boolean).join(' '));
+    const t = typeFor(s, '', model, '', serial, '');
+    const n = { id, code, type: t === 'other' ? 'pc' : t, name: serial, serial, status: 'active', loc: '', ovr: {}, feed: null,
+      ...(model ? { model, src: { model: 'graph', serial: 'graph' } } : { src: { serial: 'graph' } }), autopilot: { ...info, seen: at },
+      ...(intakeOf(s, 'graph') === 'direct' ? {} : { review: { src: 'graph', at } }) };
+    s.objs.push(n); bySerial.set(low(serial), n); hit.add(n);
+    (s.history[id] ??= []).unshift({ t: at, msg: n.review ? 'Registered in Windows Autopilot, not set up yet: waiting in To review' : 'Added from Windows Autopilot (Microsoft Graph)' });
+    counts.autopilotNew++;
+  }
+  /* A device taken out of Autopilot loses what Autopilot said. */
+  for (const o of s.objs) if (o.autopilot && !hit.has(o)) delete o.autopilot;
+  return counts;
+}
+
 /* What Defender says of a machine, kept on the device as o.defender. */
 const defenderOf = (m, at) => ({ health: clean(m.healthStatus), onboarding: clean(m.onboardingStatus), risk: clean(m.riskScore),
   exposure: clean(m.exposureLevel), av: clean(m.defenderAvStatus), lastSeen: clean(m.lastSeen), seen: at });
@@ -428,7 +493,7 @@ export function applyDefender(s, machines, now = new Date()) {
   return n;
 }
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const { records, users, peopleError, machines, defenderError } = await fetchGraphAll(cfg, now, fetchImpl);
+  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   const counts = applyGraph(s, records, now);
   const added = intakeFromGraph(s, now);
@@ -438,6 +503,8 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (peopleError) counts.peopleError = peopleError;
   if (machines) counts.defender = applyDefender(s, machines, now);
   if (defenderError) counts.defenderError = defenderError;
+  if (autopilot) Object.assign(counts, applyAutopilot(s, autopilot, now));
+  if (autopilotError) counts.autopilotError = autopilotError;
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

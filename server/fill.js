@@ -34,3 +34,8 @@ export function dropFill(o, k) {
   delete o.src[k];
   if (!Object.keys(o.src).length) delete o.src;
 }
+
+/* What a person's card says of them, from the directory or Entra: job title, phones, office, manager and e-mail. Only
+   the fields that have something, each cut to 200 characters. */
+export const PROFILE_FIELDS = ['title', 'phone', 'mobile', 'office', 'manager', 'mail'];
+export const profileFields = f => Object.fromEntries(PROFILE_FIELDS.map(k => [k, String(f[k] ?? '').trim().slice(0, 200)]).filter(([, v]) => v));

@@ -30,8 +30,12 @@ export function renderSetUsers(){
   const DIRS = {both: ['LDAP and Entra', u => inLdap(u) && inEntra(u)], ldap: ['LDAP only', u => inLdap(u) && !inEntra(u)], entra: ['Entra only', u => !inLdap(u) && inEntra(u)], none: ['Neither', u => !inLdap(u) && !inEntra(u)]};
   const dirOn = USERS.some(inLdap) || USERS.some(u => u.entra);
   if (!dirOn || !DIRS[st.userDir]) st.userDir = '';
+  /* Title, office, manager, phones and e-mail from the directory or Entra: the title and office under the name, all of it on hover. */
+  const PROFILE = [['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['phone', 'Phone'], ['mobile', 'Mobile'], ['mail', 'E-mail']];
+  const profileTip = u => u.profile ? PROFILE.filter(([k]) => u.profile[k]).map(([k, l]) => `\n${l}: ${u.profile[k]}`).join('') : '';
+  const profileLine = u => u.profile && (u.profile.title || u.profile.office) ? `<div class="usub">${esc([u.profile.title, u.profile.office].filter(Boolean).join(' · '))}</div>` : '';
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => !st.userDir || DIRS[st.userDir][1](u)).map(([u, i]) => `<tr>
-      ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there">${esc(u.name)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
+      ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${esc(profileTip(u))}">${esc(u.name)}${profileLine(u)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>

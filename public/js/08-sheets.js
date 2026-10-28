@@ -55,7 +55,7 @@ export function sheetHtml(sh, logoSvg = ''){
   return `<div class="sheet">
     <div class="top"><div class="logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="">` : logoSvg}</div><div><div class="brand">${esc(COMPANY.name || 'NOBS Inventory')}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${esc(day(sh.issued))}<br>by ${esc(sh.by)}</div></div>
     <h2>Person</h2>
-    <dl><dt>Name</dt><dd>${esc(sh.person.name)}</dd><dt>Department</dt><dd>${esc(sh.person.dept || '—')}</dd><dt>Windows sign-in name</dt><dd>${esc(sh.login)}</dd></dl>
+    <dl><dt>Name</dt><dd>${esc(sh.person.name)}</dd><dt>Department</dt><dd>${esc(sh.person.dept || '—')}</dd>${[['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['mail', 'E-mail']].filter(([f]) => sh.person[f]).map(([f, l]) => `<dt>${l}</dt><dd>${esc(sh.person[f])}</dd>`).join('')}<dt>Windows sign-in name</dt><dd>${esc(sh.login)}</dd></dl>
     <h2>Sign-in</h2>${pw}
     <h2>Devices handed out</h2>${devices}
     ${sh.note ? `<h2>Note</h2><div class="note">${esc(sh.note)}</div>` : ''}
