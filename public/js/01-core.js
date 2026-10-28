@@ -650,6 +650,16 @@ if (typeof document !== 'undefined'){
     }
     else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
   });
+  /* On a phone, More in the top bar opens the account, sign-out and display buttons; any choice or a click elsewhere
+     closes it. The search hint for Ctrl+K is left out where there is no keyboard. */
+  const moreBtn = document.getElementById('barMoreBtn');
+  const setMore = open => { document.body.classList.toggle('bar-more', open); if (moreBtn) moreBtn.setAttribute('aria-expanded', String(open)); };
+  document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('#barMoreBtn')) { setMore(!document.body.classList.contains('bar-more')); return; }
+    if (document.body.classList.contains('bar-more')) setMore(false);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('bar-more')){ setMore(false); if (moreBtn) moreBtn.focus(); } });
+  if (window.matchMedia && matchMedia('(hover:none)').matches){ const q = document.getElementById('search'); if (q) q.placeholder = 'Search…'; }
   /* A file button (a label around a hidden file field) opens the file dialog from the keyboard too. */
   document.addEventListener('keydown', e => {
     const l = (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('label.btnlike[role=button]') ? e.target : null;

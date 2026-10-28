@@ -543,7 +543,7 @@ export function planModal(existing){
     if (!r.ok){ const j = await r.json().catch(() => ({})); toast(j.error || 'The image could not be saved.'); return; }
     delete p.image; p.imageAt = Date.now();
     if (!existing){ PLANS.push(p); planSel = p.id; }
-    planMode = 'view'; queueServerSave(); closeModal(); toast('Plan saved'); renderPlans();
+    planMode = 'view'; queueServerSave(); closeModal(); toast(existing ? 'Plan saved' : 'Plan added'); renderPlans();
   };
   if (!existing) $('#plName').focus();
 }

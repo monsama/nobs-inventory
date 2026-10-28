@@ -50,6 +50,16 @@ fetch_release() {
   curl -fsSL -o "$2/nobs-inventory-$1.tar.gz" "$RELEASES/v$1/nobs-inventory-$1.tar.gz"
   curl -fsSL -o "$2/nobs-inventory-$1.tar.gz.sha256" "$RELEASES/v$1/nobs-inventory-$1.tar.gz.sha256"
   (cd "$2" && sha256sum -c --quiet "nobs-inventory-$1.tar.gz.sha256")
+  # The checksum says the download is whole, not who made it. Where the GitHub CLI is installed (and signed in), the
+  # archive's attestation is checked too: it was built by this repository's release workflow. NI_VERIFY_RELEASE=1
+  # makes that check required; without gh it is skipped with a note.
+  local repo="$REPO"
+  if command -v gh >/dev/null 2>&1; then
+    if gh attestation verify "$2/nobs-inventory-$1.tar.gz" --repo "$repo" >/dev/null 2>&1; then echo "[INFO]  Attestation checked: built by $repo's release workflow."
+    elif [ "${NI_VERIFY_RELEASE:-}" = 1 ]; then echo "[ERROR] The archive's attestation could not be checked (gh attestation verify). Not installed." >&2; exit 1
+    else echo "[WARN]  The archive's attestation could not be checked; going on (set NI_VERIFY_RELEASE=1 to require it)."; fi
+  elif [ "${NI_VERIFY_RELEASE:-}" = 1 ]; then echo "[ERROR] NI_VERIFY_RELEASE=1 needs the GitHub CLI (gh) to check the archive's attestation." >&2; exit 1
+  fi
 }
 
 # Second half: the new code is installed and this is the new version's own script, started by the old one (below), so

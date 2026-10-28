@@ -78,8 +78,8 @@ export function renderContracts(){
   const due = contractsDue().length, late = contractsLate().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost"><button id="ctNew" class="primary">New contract</button>`;
-  $('#ctNew').onclick = () => contractModal(null);
+    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost">${canEdit() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
+  const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
@@ -147,9 +147,10 @@ export function contractModal(c, preset = []){
     const badDay = ['#ctStart', '#ctEnd'].find(id => dateBad($(id)));
     if (badDay){ toast('Write the day as dd.mm.yyyy.', 'err'); $(badDay).focus(); return; }
     const start = dateValue($('#ctStart')), end = dateValue($('#ctEnd'));
-    if (start && end && end < start) return err('It ends before it starts.');
+    if (start && end && end < start){ $('#ctEnd').focus(); return err('It ends before it starts.'); }
     const renew = int($('#ctRenew').value, 60);
-    if (renew && !end) return err('A contract that renews by itself needs the end of its current term.');
+    /* The term's end is what the notice date counts from: the field is marked and takes the focus. */
+    if (renew && !end){ $('#ctEnd').classList.add('bad'); $('#ctEnd').focus(); return err('Give the end of the current term (Ends): a contract that renews by itself needs it, or set Renews by itself to No.'); }
     const next = { id: cur.id, name, kind: $('#ctKind').value, supplier: $('#ctSupplier').value.trim() || undefined, ref: $('#ctRef').value.trim() || undefined,
       start: start || undefined, end: end || undefined, renew, notice: int($('#ctNotice').value, 36), cost: num($('#ctCost').value), per: $('#ctPer').value,
       note: $('#ctNote').value.trim() || undefined, devices: objs.filter(o => picked.has(o.id)).map(o => o.id) };
@@ -207,7 +208,7 @@ export function licencesPanel(){
   return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
     ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-    <div class="addrel"><button id="licNew">Add a licence</button></div></div>`;
+    ${canEdit() ? '<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>' : ''}</div>`;
 }
 export function bindLicences(){
   const nb = $('#licNew'); if (nb) nb.onclick = () => licenceModal(null);

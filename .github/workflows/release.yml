@@ -25,8 +25,8 @@ jobs:
     # By hand, only main is released: a release from another branch would publish code that is not on main.
     if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
           cache: npm
@@ -41,9 +41,12 @@ jobs:
     permissions:
       contents: write
       packages: write
+      # A signed statement of where the archive was built (GitHub artifact attestation, Sigstore).
+      id-token: write
+      attestations: write
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Version from the tag must match the VERSION file
         id: v
         run: |
@@ -67,8 +70,15 @@ jobs:
             deploy-nobs.sh scripts Dockerfile docker-compose.yml proxy .env.example \
             package.json package-lock.json server public VERSION README.md
           (cd dist && sha256sum "nobs-inventory-$V.tar.gz" > "nobs-inventory-$V.tar.gz.sha256")
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v3
+      # Signs that this archive was built here, from this commit, by this workflow: `gh attestation verify <archive>
+      # --repo <owner>/nobs-inventory` checks it. A plan that has no attestations for this repository does not stop
+      # the release.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        continue-on-error: true
+        with:
+          subject-path: dist/nobs-inventory-${{ steps.v.outputs.version }}.tar.gz
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -76,14 +86,14 @@ jobs:
       # The image is built and scanned before anything is published: a high or critical problem in it stops the release.
       # The image pushed is the one scanned, and the release with its archive comes last, so there is never a release
       # without its image.
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           load: true
           tags: |
             nobs-inventory:scan
             ghcr.io/${{ github.repository }}:${{ steps.v.outputs.version }}
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: nobs-inventory:scan
           severity: HIGH,CRITICAL
@@ -96,7 +106,7 @@ jobs:
         run: |
           t="v${{ steps.v.outputs.version }}"
           git tag "$t" "$GITHUB_SHA" && git push origin "$t"
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: v${{ steps.v.outputs.version }}
           files: dist/*

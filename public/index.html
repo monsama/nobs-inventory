@@ -1105,6 +1105,25 @@ table.grid a.rowopen:hover{text-decoration:underline}
  .form{grid-template-columns:90px minmax(0,1fr)}
  #cards{grid-template-columns:minmax(0,1fr)}
 }
+/* On a phone the top bar is one row: menu, logo, search, New, More and Settings. The account, sign-out, light / dark and
+   the coffee link open from More, so the page keeps its height for the inventory. */
+#barMoreBtn{display:none}
+#barMore{display:contents}
+@media (max-width:760px){
+ #bar{flex-wrap:nowrap;position:relative}
+ #bar>.grow{display:none}
+ #brand{margin-right:0}
+ #brand>span{display:none}
+ .gs{order:0;flex:1 1 auto;min-width:0;width:auto}
+ #barMoreBtn{display:inline-flex}
+ #barMore{display:none;position:absolute;right:8px;top:calc(100% + 4px);z-index:40;flex-direction:column;align-items:stretch;gap:2px;min-width:200px;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+ body.bar-more #barMore{display:flex}
+ #barMore>*{justify-content:flex-start;width:100%;height:40px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
+ #barMore>*:hover{background:var(--hover)}
+ #barMore #coffeeBtn{display:inline-flex}
+ #barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
+ #barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
 @media (pointer:coarse){
@@ -1386,12 +1405,15 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
   <button id="sideBtn" class="icon" title="Filters" aria-label="Show filters"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   <div id="brand"><img class="logo" src="logo.svg" alt=""><span><b>NOBS</b> <span class="word">Inventory</span></span></div>
   <div class="gs" id="gsBox"><input id="search" type="search" placeholder="Search everything…  Ctrl+K" aria-label="Search everything: devices, people, contacts, contracts, rooms" autocomplete="off"><ul id="gsList" class="gs-list" role="listbox" aria-label="Search results" hidden></ul></div>
-  <button id="newBtn" class="primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New object</button>
+  <button id="newBtn" class="primary" aria-label="New object"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hide-n">New object</span></button>
   <button id="linkBtn" title="Connect an object that already exists" aria-label="Link object"><svg class="i" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span class="hide-n">Link object</span></button>
   <div class="grow"></div>
+  <button id="barMoreBtn" class="icon" aria-label="Account, sign out and display" aria-expanded="false" aria-controls="barMore" title="Account, sign out and display"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+  <div id="barMore">
   <button id="whoBtn" class="ghost" title="Your account: name, department and password">Signed out</button><button id="signOutBtn" class="ghost" title="Sign out of this browser" hidden>Sign out</button>
   <button id="themeBtn" class="icon" title="Switch light / dark" aria-label="Switch light or dark"><svg class="i" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
   <a id="coffeeBtn" class="btnlike icon" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="Buy me a coffee: if NOBS Inventory saves you some time" aria-label="Buy me a coffee"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/></svg></a>
+  </div>
   <button id="setBtn" class="icon" title="Settings" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </div>
 

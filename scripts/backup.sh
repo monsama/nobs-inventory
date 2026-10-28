@@ -4,6 +4,8 @@
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+# The passphrase file for encrypted backups, from the environment or .env (BACKUP_PASSPHRASE_FILE=/path).
+[ -z "${BACKUP_PASSPHRASE_FILE:-}" ] && [ -f .env ] && BACKUP_PASSPHRASE_FILE="$(sed -n 's/^BACKUP_PASSPHRASE_FILE=//p' .env | tail -1)"
 VOLUME=nobs-inventory-data
 APP=nobs-inventory
 mkdir -p backup && chmod 700 backup
@@ -59,6 +61,15 @@ if [ "$RUNNING" = yes ] && docker exec "$APP" test -f /data/sheet.key; then dock
 
 ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"
 ( umask 077; tar -czf "$ARCHIVE" -C "$WORK" . )
+# The archive holds the secrets and the key that opens the saved passwords. With BACKUP_PASSPHRASE_FILE (a file kept
+# away from this server's backups, e.g. on the backup host or a password safe's export) it is encrypted with that
+# passphrase: a copy of the archive alone then opens nothing. restore.sh asks for it, or reads the same file.
+if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ]; then
+  [ -s "$BACKUP_PASSPHRASE_FILE" ] || { echo "[ERROR] BACKUP_PASSPHRASE_FILE is set but $BACKUP_PASSPHRASE_FILE is missing or empty." >&2; rm -f "$ARCHIVE"; exit 1; }
+  ( umask 077; openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:$BACKUP_PASSPHRASE_FILE" -in "$ARCHIVE" -out "$ARCHIVE.enc" )
+  rm -f "$ARCHIVE"; ARCHIVE="$ARCHIVE.enc"
+  echo "[INFO]  Encrypted with the passphrase in $BACKUP_PASSPHRASE_FILE"
+fi
 ( cd backup && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256" )
 chmod 600 "$ARCHIVE" "$ARCHIVE.sha256"
 echo "[INFO]  Backup: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
