@@ -71,7 +71,8 @@ const TIPS = [
   ['.panelbox > .hdr.sechdr, details.fold > summary', 'Click to collapse or expand'],
   /* Settings. */
   ['[data-st="feed"]', 'Lansweeper: how its data comes in, what it may overwrite, and the type rules'],
-  ['[data-st="directory"]', 'Sign-in with Active Directory, the directory sync, and Microsoft Entra and Intune'],
+  ['[data-st="directory"]', 'Sign-in with Active Directory, and the sync of its users and computer accounts'],
+  ['[data-st="entra"]', 'Microsoft Entra, Intune and Defender: devices, people and compliance'],
   ['[data-st="locations"]', 'Sites and the rooms in them'],
   ['[data-st="vlans"]', 'VLANs, subnets with their address ranges, and domains'],
   ['[data-st="types"]', 'Object types, the fields of each type, and models'],

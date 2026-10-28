@@ -113,3 +113,21 @@ test('a restore puts every setting back as it was, also those that were not ther
   assert.equal(loadState(fresh).graph.tenant, 'contoso.onmicrosoft.com');
   db.close(); fresh.close();
 });
+
+test('To review: the review mark on a device and where each source sends its new devices are checked and kept', async () => {
+  const { checkState } = await import('../server/state.js');
+  const db = freshDb();
+  const s = loadState(db);
+  s.intake = { lansweeper: 'direct' };
+  s.objs.push({ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-1', status: 'active', loc: '', ovr: {}, feed: null, review: { src: 'ad', at: '27.10.2026 06:00', ignored: '28.10.2026 09:00' }, excluded: true });
+  saveState(db, s);
+  const again = loadState(db);
+  assert.deepEqual(again.intake, { lansweeper: 'direct' });
+  assert.deepEqual(again.objs.find(o => o.id === 'o1').review, { src: 'ad', at: '27.10.2026 06:00', ignored: '28.10.2026 09:00' });
+  const bad = over => { try { checkState({ ...again, ...over }, { size: false }); return null; } catch (e) { return e.message; } };
+  assert.match(bad({ intake: { lansweeper: 'always' } }), /review or straight in/);
+  assert.match(bad({ intake: { sccm: 'direct' } }), /review or straight in/);
+  assert.match(bad({ objs: [{ ...again.objs[0], review: { src: 'sccm', at: 'x' } }] }), /review mark/);
+  assert.match(bad({ objs: [{ ...again.objs[0], review: { src: 'ad', at: 'x', who: 'me' } }] }), /review mark/);
+  db.close();
+});

@@ -21,11 +21,11 @@ saveState(db, { ...loadState(db), locs: ['HQ'], sites: ['HQ'],
       os: 'Windows Server 2019 Standard (10.0.17763)', domain: 'corp.ch', src: { os: 'ad', domain: 'ad' }, ad: { logon: old, created: '2020-01-02' } },
     { id: 'm1', code: 'INV-0002', type: 'mobile', name: 'iPhone Ana', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'iOS 18.1', src: { os: 'graph' },
       graph: { join: 'Entra registered', managed: 'mdm', compliance: 'compliant', os: 'iOS 18.1', phone: '+41 79 123 45 67', imei: '351234567890123', ownership: 'Company', free: '32 GB', seen: '27.10.2026 06:00' } },
-  ], rels: [], history: {},
-  adUnmatched: [
-    { id: 'nb-20', name: 'NB-20', os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch', logon: new Date().toISOString().slice(0, 10), created: '2024-01-02', ou: 'Clients / Notebooks' },
-    { id: 'pc-old', name: 'PC-OLD', os: 'Windows 10 Pro', logon: old, ou: 'Clients' },
-  ] });
+    /* Found by the directory sync, waiting in To review: one seen today, one not for 200 days */
+    { id: 'n20', code: 'INV-0003', type: 'notebook', name: 'NB-20', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch',
+      src: { os: 'ad', domain: 'ad' }, ad: { logon: new Date().toISOString().slice(0, 10), created: '2024-01-02' }, review: { src: 'ad', at: '27.10.2026 06:00' } },
+    { id: 'pold', code: 'INV-0004', type: 'pc', name: 'PC-OLD', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 10 Pro', ad: { logon: old }, review: { src: 'ad', at: '27.10.2026 06:00' } },
+  ], rels: [], history: {} });
 const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -70,24 +70,42 @@ try {
   assert.equal(await p.isChecked('#lk_fillAd'), true);
   await p.uncheck('#lk_fillAd');
   await stored(st => st.fillAd === false);
+  assert.equal(await p.inputValue('#intake_ad'), 'review', 'new devices from AD wait in To review by default');
+  await p.selectOption('#intake_ad', 'direct');
+  await stored(st => st.intake && st.intake.ad === 'direct');
+  await p.click('#setTabs [data-st=entra]');
   await p.waitForSelector('#gFill');
   assert.equal(await p.isChecked('#gFill'), true);
   await p.uncheck('#gFill');
   await stored(st => st.fillGraph === false);
 
-  // Settings → directory: the computer accounts not in the inventory, the stale one grey and left out of "Add all"
-  await p.waitForSelector('#auList');
-  assert.equal(await p.locator('#auList tbody tr').count(), 2);
-  assert.match(await p.textContent('#auList'), /Clients \/ Notebooks/);
-  assert.match(await p.getAttribute('#auList tbody tr:has-text("PC-OLD")', 'class'), /muted/, 'no logon for 200 days: grey');
-  assert.equal((await p.textContent('#auAddAll')).trim(), 'Add all 1 active');
-  await p.check('[data-au="nb-20"]');
-  assert.equal((await p.textContent('#auAdd')).trim(), 'Add 1 selected');
-  await p.click('#auAdd');
-  await stored(st => st.objs.some(o => o.name === 'NB-20'));
-  const nb = loadState(db).objs.find(o => o.name === 'NB-20');
-  assert.equal(nb.type, 'notebook'); assert.equal(nb.inAd, true); assert.deepEqual(nb.src, { os: 'ad', domain: 'ad' });
-  await until(p, () => document.querySelectorAll('#auList tbody tr').length === 1);
+  await p.click('.wc-close');
+
+  // To review: the two AD devices, in no count; the stale one grey and left out of Accept all
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 2, 'waiting devices are not in the inventory');
+  await p.click('#tabsbar [data-tab=review]');
+  await p.waitForSelector('.rv-item');
+  assert.equal(await p.locator('.rv-item').count(), 2);
+  assert.match(await p.getAttribute('.rv-item[data-rv="pold"]', 'class'), /stale/);
+  assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
+  // ignore, undo, ignore again: kept out of every sync, listed under Ignored, and back from there
+  await p.click('[data-rvignore="pold"]');
+  await p.waitForSelector('.rv-item[data-rv="pold"]', { state: 'detached' });
+  await p.click('#toast .t-undo');
+  await p.waitForSelector('.rv-item[data-rv="pold"]');
+  await p.click('[data-rvignore="pold"]');
+  await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review.ignored && o.excluded === true; });
+  await p.click('[data-rvsrc="ignored"]');
+  await p.waitForSelector('[data-rvrestore="pold"]');
+  await p.click('[data-rvsrc=""]');
+  // accept all: only the one seen recently
+  p.once('dialog', d => d.accept());
+  await p.click('#rvAcceptAll');
+  await stored(st => !st.objs.find(o => o.id === 'n20').review);
+  const nb = loadState(db).objs.find(o => o.id === 'n20');
+  assert.equal(nb.type, 'notebook'); assert.equal(nb.inAd, true);
+  assert.match(loadState(db).history.n20[0].msg, /Accepted into the inventory by .* \(found by Active Directory\)/);
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => o.id === 'n20')), true);
 
   assert.deepEqual(errors, []);
   console.log('directory fill: all checks passed');

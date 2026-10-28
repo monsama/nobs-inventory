@@ -10,11 +10,14 @@ import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
-export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd'];
+/* The syncs that bring in devices of their own: their new devices wait in To review unless Settings says otherwise. */
+export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
+export const intakeOf = (s, src) => ((s.intake || {})[src] === 'direct' ? 'direct' : 'review');
+export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. */
@@ -173,6 +176,9 @@ function checkStateRules(s, size = true) {
   }
   if (s.graph !== undefined) { const p = graphSettingsProblem(s.graph); if (p) bad(p); }
   for (const k of ['fillGraph', 'fillAd']) if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(`${k} is on or off.`);
+  /* Where each source's new devices go: To review (the default) or straight into the inventory. */
+  if (s.intake !== undefined && s.intake !== null && (typeof s.intake !== 'object' || Array.isArray(s.intake)
+    || Object.entries(s.intake).some(([k, v]) => !INTAKE_SOURCES.includes(k) || !['review', 'direct'].includes(v)))) bad('New devices go to review or straight in, for Lansweeper, AD and Graph.');
   { const p = scheduleProblem(s.syncSchedule); if (p) bad(p); }
   /* The type rules: null for the ones shipped, or the list edited in Settings → Feed. */
   if (s.typeRules !== undefined && s.typeRules !== null) { const p = typeRulesProblem(s.typeRules, new Set([...KNOWN_TYPES, ...Object.keys(s.types || {})])); if (p) bad(p); }
@@ -290,6 +296,9 @@ function checkStateRules(s, size = true) {
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => v !== 'graph' && v !== 'ad'))) bad(`${o.name}: the sources of its fields are Intune or AD.`);
     if (o.defender !== undefined && (!o.defender || typeof o.defender !== 'object' || Array.isArray(o.defender) || Object.values(o.defender).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Defender says is an object of short texts.`);
+    /* A device found by a sync and waiting in To review: which source found it, when, and when it was ignored. */
+    if (o.review !== undefined && (!o.review || typeof o.review !== 'object' || Array.isArray(o.review) || !INTAKE_SOURCES.includes(o.review.src)
+      || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored'].includes(k) || typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the review mark names its source and when.`);
     if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad) || Object.values(o.ad).some(v => typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
     if (o.accessories !== undefined) {
       if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);

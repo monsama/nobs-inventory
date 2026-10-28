@@ -12,14 +12,14 @@ import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSet
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { BEFORE_CLEAR, autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
 import { syncLansweeper } from './lansweeper.js';
-import { entraThumbprintOf, syncGraph, testGraph, addGraphDevices } from './graph.js';
+import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
 import { sheetPdf } from './sheet-pdf.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import { certReport, probeCert } from './proxy-cert.js';
 import crypto from 'node:crypto';
-import { syncLdapUsers, addAdDevices } from './ldap-sync.js';
+import { syncLdapUsers } from './ldap-sync.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -380,7 +380,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/ldap/test', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
-      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
       const people = await ldapListUsers(lc);
       res.json({ people: people.length, admins: people.filter(p => p.admin).length });
     } catch (e) {
@@ -530,16 +530,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
   });
-  /* Adds devices Graph has that the inventory does not: the ones picked, or all of them. */
-  app.post('/api/graph/add', requireUser, requireAdmin, (req, res, next) => {
-    try {
-      const ids = req.body && req.body.ids === 'all' ? 'all' : Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String).slice(0, 2000) : null;
-      if (!ids) throw new HttpError(400, 'Say which devices to add.');
-      const added = addGraphDevices(db, ids, req.user.name || req.user.login || 'an admin');
-      audit(db, req.user.id, `added ${added.length} devices from Microsoft Graph`);
-      res.json({ added: added.length });
-    } catch (e) { next(e); }
-  });
   /* The nightly run uses the same connection as the buttons. */
   app.locals.graphConfig = cfgGraph;
   /* Entry sheets: admins only. The password is in the answer that makes the sheet and in a re-download until it is
@@ -578,7 +568,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
-      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → LDAP sync first.');
+      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
       let counts;
       try { counts = await syncLdapUsers(db, lc); }
       catch (e) {
@@ -589,17 +579,6 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         throw new HttpError(503, report ? 'The directory could not be read. ' + report.text : 'The directory could not be read. Check the service account.');
       }
       res.json({ counts });
-    } catch (e) { next(e); }
-  });
-
-  /* Adds devices AD has a computer account for and the inventory does not: the ones picked, or all of them. */
-  app.post('/api/ldap/add', requireUser, requireAdmin, (req, res, next) => {
-    try {
-      const ids = req.body && req.body.ids === 'all' ? 'all' : Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String).slice(0, 2000) : null;
-      if (!ids) throw new HttpError(400, 'Say which devices to add.');
-      const added = addAdDevices(db, ids, req.user.name || req.user.login || 'an admin');
-      audit(db, req.user.id, `added ${added.length} devices from Active Directory`);
-      res.json({ added: added.length });
     } catch (e) { next(e); }
   });
 
@@ -773,7 +752,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const text = typeof req.body === 'string' ? req.body : '';
       if (!text) throw new HttpError(400, 'Send the export as CSV text.');
       const s = loadState(db);
-      const counts = mergeFeed(s, text);
+      const counts = mergeFeed(s, text, new Date(), { byHand: true });
       if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper import'); saveState(db, s); }
       audit(db, req.user.id, 'feed import: ' + JSON.stringify(counts));
       res.json({ counts });

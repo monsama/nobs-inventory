@@ -2,7 +2,7 @@
    the inventory does not have yet. It signs in with a certificate, so no password is kept, and it only reads. */
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
-import { freeUserId, loadState, saveState } from './state.js';
+import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
@@ -184,7 +184,7 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
 }
 
 /* ---------- people from Entra ----------
-   Entra's members (guests left out) beside the inventory's people. Settings → LDAP & Graph decides how far it goes:
+   Entra's members (guests left out) beside the inventory's people. Settings → Entra & Intune decides how far it goes:
    off; match (the default): a person whose login is an Entra user's on-premises login (sAMAccountName) or user
    principal name gets a note of it (p.entra), so the Users list shows who is in AD, in Entra, or in both; add: as
    match, and the primary users Intune names on the inventory's devices who are nobody here yet are added (source
@@ -365,22 +365,39 @@ export function graphType(s, d) {
 }
 /* Adds devices from the list of those Graph has and the inventory does not. Each gets the next code, its type from its
    platform, what Graph knows of it, and is kept up to date by Graph from then on. */
-export function addFromGraph(s, ids, who, now = new Date()) {
+/* A device Graph has not heard from for this many days (or never) is likely gone: it always waits in To review. */
+export const GRAPH_INTAKE_STALE_DAYS = 90;
+/* The devices Graph has and the inventory does not become devices: waiting in To review, or straight in when Settings
+   says so (one not heard from for long still waits). The list is used up. */
+export function intakeFromGraph(s, now = new Date()) {
+  const list = s.graphUnmatched || [], direct = intakeOf(s, 'graph') === 'direct';
+  const stale = d => !Date.parse(d.lastSync) || (now - Date.parse(d.lastSync)) / 864e5 > GRAPH_INTAKE_STALE_DAYS;
+  const n = addFromGraph(s, list.filter(d => direct && !stale(d)).map(d => d.id), 'the Microsoft Graph sync', now).length;
+  const m = addFromGraph(s, 'all', 'the Microsoft Graph sync', now, { review: true }).length;
+  s.graphUnmatched = [];
+  return { direct: n, review: m };
+}
+export function addFromGraph(s, ids, who, now = new Date(), { review = false } = {}) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids);
   const list = (s.graphUnmatched || []).filter(d => !want || want.has(d.id));
   const added = [];
   /* The list is from the last sync: a device the inventory got since (from Lansweeper, say), or one listed twice in Graph
      (enrolled again), is not added a second time. Retired devices count, so they are not brought back as new ones. */
   const names = new Set(s.objs.map(o => low(o.name)).filter(Boolean)), serials = new Set(s.objs.map(o => low(o.serial)).filter(Boolean));
+  const codes = new Set(s.objs.map(o => o.code)), taken = new Set(s.objs.map(o => o.id));
   for (const d of list) {
     if (!d.name || names.has(low(d.name)) || (d.serial && serials.has(low(d.serial)))) continue;
     names.add(low(d.name)); if (d.serial) serials.add(low(d.serial));
-    s.codeN = (s.codeN || 0) + 1; s.seq = (s.seq || 100) + 1;
+    /* The next free code and id: one taken by hand (or an older counter) is passed over. */
+    do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
+    do { s.seq = (s.seq || 100) + 1; } while (taken.has('o' + s.seq));
+    codes.add('INV-' + String(s.codeN).padStart(4, '0')); taken.add('o' + s.seq);
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: graphType(s, d), name: d.name, serial: d.serial || '', status: 'active',
       loc: '', ovr: {}, feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
-      graph: { id: d.id, join: d.join, managed: d.managed, compliance: d.compliance, lastSync: d.lastSync, seen: at, added: true } };
+      graph: { id: d.id, join: d.join, managed: d.managed, compliance: d.compliance, lastSync: d.lastSync, seen: at, added: true },
+      ...(review ? { review: { src: 'graph', at } } : {}) };
     s.objs.push(o);
-    (s.history[o.id] ??= []).unshift({ t: at, msg: `Added from Microsoft Graph by ${who}` });
+    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Microsoft Entra or Intune: waiting in To review' : `Added from Microsoft Graph by ${who}` });
     added.push(o.id);
   }
   const done = new Set(list.map(d => d.id));
@@ -414,6 +431,9 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const { records, users, peopleError, machines, defenderError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   const counts = applyGraph(s, records, now);
+  const added = intakeFromGraph(s, now);
+  if (added.review) counts.review = added.review;
+  if (added.direct) counts.added = added.direct;
   if (users) counts.people = applyGraphPeople(s, users, cfg.people, now);
   if (peopleError) counts.peopleError = peopleError;
   if (machines) counts.defender = applyDefender(s, machines, now);
@@ -421,11 +441,4 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;
-}
-export function addGraphDevices(db, ids, who) {
-  const s = loadState(db);
-  autoBackup(db, 'before adding devices from Microsoft Graph');
-  const added = addFromGraph(s, ids, who);
-  saveState(db, s);
-  return added;
 }

@@ -1,3 +1,4 @@
+import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { renderSetMaint, renderSetLog } from './settings-maint.js';
 import { renderSetUsers, renderSetCompany } from './settings-users.js';
 import { renderSetTypes } from './settings-types.js';
@@ -19,7 +20,7 @@ export * from './settings-network.js';
 export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['directory','LDAP & Graph'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Feed'],['directory','Active Directory'],['entra','Entra & Intune'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
@@ -52,10 +53,11 @@ export function collapsibleSections(root, prefix){
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p><div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Skip devices named only by an IP address (no serial number)</label></div></div>`;
+  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div></div>`;
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
-    directory: '<div id="setLdap"></div><div id="setGraph"></div>',
+    directory: '<div id="setLdap"></div>',
+    entra: '<div id="setGraph"></div>',
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div><div class="panelbox" id="setSubnets"></div><div class="panelbox" id="setDomains"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
@@ -67,8 +69,9 @@ export function renderSetPane(){
   pane.innerHTML = html;
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
+  bindIntakeRows(document);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: () => { renderSetLdap(); renderSetGraph(); }, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 

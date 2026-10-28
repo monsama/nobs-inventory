@@ -2,7 +2,7 @@
    It finds devices, people, contacts, contracts and rooms and lists them under the field, grouped; a hit opens where it
    lives, and the view the person is in stays as it is. The lists narrow themselves with the filter field in their own
    toolbar (st.q), not with this one. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
-import { $, COSTS, CONTACTS, LOCS, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
+import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { render } from './07-render-plans.js';
@@ -28,6 +28,11 @@ function results(q){
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: tico(o.type, 'tico sm'), main: o.name,
     sub: [TYPES[o.type] ? TYPES[o.type].label : o.type, o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
+    go: () => openObj(o.id) }))]);
+  /* Devices a sync found that wait in To review: found here too, marked as such. */
+  const waiting = REVIEW.filter(o => !o.review.ignored && matchesQ(o, q));
+  if (waiting.length) out.push(['To review', waiting.length, waiting.slice(0, MAX.other).map(o => ({
+    icon: tico(o.type, 'tico sm'), main: o.name, sub: ['Waiting in To review', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
   const people = USERS.filter(u => has(q, u.name, u.login, u.dept));
   const owned = new Map(); for (const o of objs) if (o.user && o.status !== 'retired') owned.set(o.user, (owned.get(o.user) || 0) + 1);
