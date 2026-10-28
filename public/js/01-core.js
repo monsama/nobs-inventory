@@ -281,7 +281,8 @@ export const GRAPH_FILTERS = {
   unencrypted: ['Not encrypted', 'warn', o => inGraph(o) && o.graph.encrypted === 'no'],
   stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => inGraph(o) && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => (!o.graph || !!o.graph.gone) && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
-  duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).length > 0, true],
+  /* Records disabled in Entra are not duplicates to clean up: Entra keeps them switched off before they are deleted. */
+  duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).some(x => !x.disabled), true],
   ambiguous: ['Name or serial used twice', 'warn', o => o.status !== 'retired' && !!graphAmbiguousOf(o), true],
   /* By how the device is joined. */
   entra: ['Entra joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra joined'],
