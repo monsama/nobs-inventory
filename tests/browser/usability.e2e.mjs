@@ -54,22 +54,46 @@ try {
   // 1. the filters in force show over the list, each taken off on its own
   await p.click('#tabsbar [data-tab=cards]');
   await p.click('#typeList [data-type=notebook]');
-  await p.fill('#search', 'NB-0002');
+  await p.fill('#listQ', 'NB-0002');
   await p.waitForSelector('#fbar:not([hidden])');
-  assert.match(await p.textContent('#fbar'), /Type: Notebook.*Search: “NB-0002”.*Clear all/s);
+  assert.match(await p.textContent('#fbar'), /Type: Notebook.*Filter: “NB-0002”.*Clear all/s);
+  assert.equal(await core(() => document.activeElement.id), 'listQ', 'typing keeps the cursor in the filter');
   assert.equal(await p.locator('#typeList .item.sel[data-type=""]').count(), 0, '"All objects" is not marked while a filter is on');
   await p.click('#fbar [data-fx=type]');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null);
-  assert.match(await p.textContent('#fbar'), /Search/);
+  assert.match(await p.textContent('#fbar'), /Filter/);
   await p.click('#fbar [data-fx=q]');
   await p.waitForSelector('#fbar[hidden]', { state: 'attached' });
-  assert.equal(await p.inputValue('#search'), '');
+  assert.equal(await p.inputValue('#listQ'), '');
 
-  // 6. Enter in the search opens the one object found; its name takes the focus
-  await p.fill('#search', 'SRV-APP'); await p.press('#search', 'Enter');
+  // 6. the search at the top looks through everything, whatever the filters, and lists what it finds by kind;
+  //    Enter opens the first hit, and the object's name takes the focus
+  await p.click('#typeList [data-type=notebook]');
+  await p.keyboard.press('Control+k');
+  assert.equal(await core(() => document.activeElement.id), 'search', 'Ctrl+K goes to the search');
+  await p.fill('#search', 'SRV-APP');
+  await p.waitForSelector('#gsList:not([hidden]) li[data-i]');
+  assert.match(await p.textContent('#gsList'), /Devices\s*SRV-APP/, 'a server is found though Notebook is picked on the left');
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.q), '', 'the search does not filter the lists');
+  await p.press('#search', 'Enter');
   await p.waitForSelector('#objTitle');
   assert.equal(await core(() => document.activeElement.id), 'objTitle');
-  await p.fill('#search', ''); await p.dispatchEvent('#search', 'input');
+  assert.equal(await p.inputValue('#search'), '', 'the field is cleared once a hit is opened');
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.type = null; });
+  // people, contacts, contracts and rooms are found too, each opening where it lives
+  const gs = async (q, group, name) => { await p.fill('#search', q); await p.waitForSelector(`#gsList li[data-i]:has-text("${name}")`); assert.match(await p.textContent('#gsList'), new RegExp(group)); await p.click(`#gsList li[data-i]:has-text("${name}")`); };
+  await gs('Partner', 'Contacts', 'Peter Partner');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contacts' && c.st.cnQ === 'Peter Partner'; });
+  await gs('Lease', 'Contracts', 'Lease NB');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contracts' && c.st.ctQ === 'Lease NB'; });
+  await gs('Jane', 'People', 'Jane Doe');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'cards' && c.st.q === 'Jane Doe'; });
+  assert.equal(await p.inputValue('#listQ'), 'Jane Doe', 'a person opens their devices, in the cards\' own filter');
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; (await import('/js/07-render-plans.js')).render(); });
+  await p.fill('#search', 'zzz-nothing');
+  await p.waitForSelector('#gsList .gs-none');
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#gsList[hidden]', { state: 'attached' });
 
   // 8. Ports opens on the switch, not on the server that comes first
   await core(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = null; try { localStorage.removeItem('ni-ports-device'); } catch { /* not kept */ } });
@@ -126,11 +150,12 @@ try {
   await p.click('#onPlanBtn');
   await p.waitForSelector('[data-pin=nb1].flash');
   assert.match(await p.textContent('[data-pin=nb1] .pl-code'), /NB-0001/);
-  // the top search stays on the plan and marks what it finds
-  await p.fill('#search', 'NB-0001');
+  // the plan's own search stays on the plan and marks what it finds
+  await p.fill('#plQ', 'NB-0001');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.tab), 'plans');
   await p.waitForSelector('#plCanvas.searching [data-pin=nb1].hit');
-  await p.fill('#search', ''); await p.dispatchEvent('#search', 'input');
+  assert.equal(await core(() => document.activeElement.id), 'plQ');
+  await p.fill('#plQ', '');
   // placing a device of another site asks first
   await core(async () => { const r = await import('/js/07-render-plans.js'), c = await import('/js/01-core.js'); r.placeDevice(c.PLANS[0], c.byId('nb2'), 20, 20); });
   await p.waitForSelector('#pmOk');

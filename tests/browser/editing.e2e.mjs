@@ -151,7 +151,7 @@ try {
   // the sidebar: a search stays on while switching types and looks within the type; a type clicked again shows all
   assert.equal(await p.locator('#searchAll').count(), 0, 'no separate All devices option');
   await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render(); });
-  await p.fill('#search', 'SW-'); await p.waitForTimeout(200);
+  await p.fill('#listQ', 'SW-'); await p.waitForTimeout(200);
   const cards = () => p.$$eval('#view .card', cs => cs.map(c => c.dataset.open).sort());
   assert.deepEqual(await cards(), ['s1', 's2'], 'both switches match');
   await p.click('#typeList [data-type=pc]');
@@ -160,7 +160,7 @@ try {
   assert.deepEqual(await cards(), ['s1', 's2']);
   await p.click('#typeList [data-type=switch]');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null, 'a type clicked again goes back to all');
-  await p.fill('#search', ''); await p.waitForTimeout(150);
+  await p.fill('#listQ', ''); await p.waitForTimeout(150);
 
   // leaving Settings, also with Escape, draws the view behind it again: a renamed type shows on the cards at once
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.setTab = 'types'; (await import('/js/04-settings.js')).openSettings(); });
