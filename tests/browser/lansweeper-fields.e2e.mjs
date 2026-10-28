@@ -53,7 +53,8 @@ try {
   assert.equal(await page.inputValue('[data-k=dhcp]'), 'dhcp');
   assert.match(await page.textContent('.obj .form'), /Not the gateway of Office, which is 10\.10\.20\.1/);
   assert.match(await page.textContent('.obj .form'), /The warranty ends within 90 days/);
-  assert.equal(await page.inputValue('[data-k=warranty]'), day(30));
+  assert.equal(await page.inputValue('[data-k=warranty]'), day(30).split('-').reverse().join('.'), 'shown as dd.mm.yyyy');
+  assert.equal(await page.getAttribute('[data-k=warranty]', 'data-date'), day(30));
   if (shots) await page.locator('.obj .col .panelbox').first().screenshot({ path: path.join(shots, 'device-network.png') });
 
   // a date typed on the page is saved as a date

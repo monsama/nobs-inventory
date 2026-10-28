@@ -1,4 +1,4 @@
-import { REVIEW, UNDO, restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
+import { markHand, REVIEW, UNDO, restoreSnapshot, snapshot, toastUndo, CONTACTS, setAppVersion, setPlans, lsLive, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, DEFAULT_TYPES, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, hist, now, objs, rels, rid, st, tcol, tico, toast, isAttached, rackUnits } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate, siteOf, who, RACKABLE, TYPE_U, rackCheck } from './04-settings.js';
@@ -45,7 +45,7 @@ export function rackDropModal(o, rack){
     if (err){ $('#rdErr').textContent = err; return; }
     const prevRack = o.rack;
     Object.assign(o, {rack: rack.id, u, h}); delete o.ontop; delete o.planPos;
-    if (rack.loc) o.loc = rack.loc;
+    if (rack.loc){ o.loc = rack.loc; markHand(o, 'loc'); }
     followOnTop(o, prevRack);
     hist(o, now(), `Mounted in ${rack.name} at U${u}, ${h} U high, by ${who()}`);
     queueServerSave(); closeModal(); toast(`${o.name} mounted in ${rack.name} at U${u}`); renderPlans();
@@ -137,7 +137,7 @@ export function areaLoc(plan, area){
 export function locateOnPlan(plan, o, x, y){
   const a = areaAt(plan, x, y);
   if (!a || !plan.site) return null;
-  o.loc = areaLoc(plan, a);
+  o.loc = areaLoc(plan, a); markHand(o, 'loc');
   return a.name;
 }
 export function renderPlans(){
@@ -146,7 +146,7 @@ export function renderPlans(){
   planSel = plan ? plan.id : null;
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = `<div class="pl-bar">
-      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet.</span>'}
+      ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${esc(p.id)}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet.</span>'}
       <button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>
       ${plan ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
@@ -295,7 +295,7 @@ export function areaShape(rects, cls = '', attrs = ''){
 /* The name of an area and its ×, placed at the top left of the area. */
 export function areaTag(a, removable, count = 0){
   const r = areaRects(a)[0];
-  return `<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${count ? `<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? `<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
+  return `<div class="pl-area-tag" data-area-tag="${esc(a.id)}" style="left:${r.x}%;top:${r.y}%"><span>${esc(a.name)}</span>${count ? `<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? `<button class="pl-x" data-area="${esc(a.id)}" aria-label="Remove area ${esc(a.name)}" title="Remove area">×</button>` : ''}</div>`;
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
@@ -310,9 +310,9 @@ export function planCanvas(plan){
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${a.id}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
+    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${esc(a.id)}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
-    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
+    ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${esc(o.id)}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${esc(o.id)}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
 }
 export function renderPlanList(plan){
@@ -323,7 +323,7 @@ export function renderPlanList(plan){
   const where = st.plWhere === 'site' && plan && plan.site ? o => String(o.loc || '').split(' / ')[0] === plan.site : st.plWhere === 'none' ? o => !o.loc : () => true;
   const rows = objs.filter(o => !onPlan.has(o.id) && !rides(o) && o.status !== 'retired' && (!st.plType || o.type === st.plType) && where(o)
     && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
-  $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
+  $('#plList').innerHTML = rows.length ? rows.map(o => `<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${esc(o.id)}">${tico(o.type, 'tico sm')}<span class="pl-n">${esc(o.name)}</span><span class="muted">${esc(TYPES[o.type].short)}</span></button>`).join('') : '<p class="note pl-none">No devices to place.</p>';
 }
 export function placeDevice(plan, o, x, y, sure = false){
   /* A device at another site would move there: that is asked first, not done quietly. */
@@ -381,12 +381,12 @@ document.addEventListener('pointermove', e => {
     /* The shape and its name tag follow the pointer by the drag's offset; the drop writes the new place. */
     const tx = d.dx * r.width / 100, ty = d.dy * r.height / 100;
     c.querySelectorAll(`[data-area-drag="${d.area.id}"],[data-area-tag="${d.area.id}"]`).forEach(el => { el.style.transform = `translate(${tx}px, ${ty}px)`; });
-    d.pins.forEach(p => { const pin = c.querySelector(`[data-pin="${p.id}"]`); if (pin){ pin.style.left = p.x + d.dx + '%'; pin.style.top = p.y + d.dy + '%'; } });
+    d.pins.forEach(p => { const pin = c.querySelector(`[data-pin="${esc(p.id)}"]`); if (pin){ pin.style.left = p.x + d.dx + '%'; pin.style.top = p.y + d.dy + '%'; } });
   }
   if (planDrag){
     const r = c.getBoundingClientRect();
     planDrag.x = pctOf(e.clientX, r.left, r.width); planDrag.y = pctOf(e.clientY, r.top, r.height); planDrag.moved = true;
-    const pin = c.querySelector(`[data-pin="${planDrag.id}"]`);
+    const pin = c.querySelector(`[data-pin="${esc(planDrag.id)}"]`);
     if (pin){ pin.style.left = planDrag.x + '%'; pin.style.top = planDrag.y + '%'; }
     planDrag.rack = rackPinAt(e.clientX, e.clientY, byId(planDrag.id)); markRack(planDrag.rack);
   }
@@ -524,10 +524,11 @@ export function shrinkPlanImage(img){
 export function planModal(existing){
   modal(`<div class="mh">${existing ? 'Replace image' : 'New floor plan'}</div><div class="mb">
     <div class="form" style="padding:0">${existing ? '' : `<label for="plName">Name</label><input id="plName" placeholder="e.g. Ground floor" maxlength="60"><label for="plSite">Site</label><select id="plSite">${SITES.map(s => `<option>${esc(s)}</option>`).join('')}</select>`}
-    <label for="plFile">Image</label><input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp"></div>
+    <label for="plFile">Image</label><div class="filepick"><label class="btnlike">Choose image…<input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span class="muted" id="plFileName">No image chosen</span></div></div>
     <p class="note">PNG, JPG, GIF or WebP.</p></div>
     <div class="mf"><button id="plCancel">Cancel</button><button id="plOk" class="primary">Save</button></div>`, 'sm');
   $('#plCancel').onclick = closeModal;
+  $('#plFile').onchange = e => { const f = e.target.files[0]; $('#plFileName').textContent = f ? f.name : 'No image chosen'; };
   $('#plOk').onclick = async () => {
     const name = existing ? existing.name : $('#plName').value.trim();
     const file = $('#plFile').files[0];
@@ -777,7 +778,7 @@ export function refusedModal(items){
   $('#rfKeep').onclick = closeModal;
   $('#rfApply').onclick = () => {
     let n = 0;
-    for (const it of items){ const o = byId(it.id); if (!o || it.gone) continue; for (const f of it.fields){ o[f.k] = f.mine; n++; } }
+    for (const it of items){ const o = byId(it.id); if (!o || it.gone) continue; for (const f of it.fields){ o[f.k] = f.mine; if (f.k !== 'src') markHand(o, f.k); n++; } }
     closeModal(); saveData(); render(); toast(n ? 'Your changes are applied again' : 'Nothing to apply');
   };
 }

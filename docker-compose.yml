@@ -6,9 +6,12 @@ services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.47}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.48}
     build: .
     restart: unless-stopped
+    # No extra rights inside the container: it needs none to serve the inventory.
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     expose:
       - "8080"
     environment:
@@ -29,6 +32,10 @@ services:
       NI_LDAP_SERVICE_DN: ${NI_LDAP_SERVICE_DN:-}
       NI_LDAP_USER_FILTER: ${NI_LDAP_USER_FILTER:-}
       NI_LDAP_CA: ${NI_LDAP_CA:-}
+      # Directory ports allowed beside 389/636/3268/3269 for an address saved in Settings (comma separated).
+      NI_LDAP_PORTS: ${NI_LDAP_PORTS:-}
+      # The proxy whose forwarded client address is believed: the shared Caddy container.
+      NI_TRUSTED_PROXY: ${NI_TRUSTED_PROXY:-nobs-proxy}
       NI_LS_URL: ${NI_LS_URL:-}
       NI_LS_AUTH_SCHEME: ${NI_LS_AUTH_SCHEME:-}
       NI_LS_SITE: ${NI_LS_SITE:-}

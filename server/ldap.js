@@ -11,12 +11,19 @@ import { isIP } from 'node:net';
    the users with a service account. Both use the same connection settings. */
 export const ldapEnabled = config => !!config?.url;
 /* All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs. */
-const USER_ATTRS = ['*'];
+/* What is read of a person, by name: never everything, so a user filter that also matches computer accounts never
+   asks for their LAPS password or BitLocker keys. The login attribute (set in Settings) is added to it. */
+const USER_ATTRS = ['displayname', 'department', 'mail', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
+const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])];
 const LOGIN_OK = /^[\w.@-]{1,64}$/;
 export const DEFAULT_USER_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
 const escapeFilter = v => String(v).replace(/[\\*()\0]/g, c => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
-const cnOf = dn => String(dn).replace(/^CN=/i, '').split(',')[0];
+/* The name in a DN's first part: CN=Doe\, John,OU=Staff → Doe, John. A comma written \, (or as \2C) is part of the name. */
+export const cnOf = dn => {
+  const first = (String(dn).match(/^(?:[^,\\]|\\.)*/) || [''])[0];
+  return first.replace(/^CN=/i, '').replace(/\\([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1');
+};
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 /* A group given as a distinguished name (CN=…,OU=…) is matched with its nested groups too. */
 const isDn = g => /=/.test(String(g || ''));
@@ -29,6 +36,7 @@ const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
 export const LEGACY_CIPHERS = 'DEFAULT@SECLEVEL=1';
 export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
 async function connect(config) {
+  if (config.portProblem) throw new Error(config.portProblem);
   const plain = /^ldap:\/\//i.test(config.url);
   const startTls = plain && config.security === 'starttls';
   if (plain && !startTls && !config.allowPlain) throw new Error(PLAIN_LDAP_ERROR);
@@ -113,7 +121,7 @@ export async function ldapLogin(config, login, password) {
   const client = await connect(config);
   try {
     await bind(client, config.bindTemplate.replace('{login}', login), password);
-    const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`);
+    const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, userAttrs(config));
     if (!entry) return null;
     const profile = profileOf(entry.attrs, config);
     profile.allowed = await isMember(client, config, login, profile, config.group);
@@ -131,6 +139,7 @@ const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || Str
 const day = t => t ? dateText(t) || String(t) : '';
 export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
 async function peerChain(config) {
+  if (config.portProblem) return null;
   const u = new URL(config.url), host = u.hostname.replace(/^\[|\]$/g, ''), servername = isIP(host) ? undefined : host;
   if (/^ldaps:/i.test(config.url)) {
     return new Promise((resolve, reject) => {
@@ -187,6 +196,7 @@ const LDAP_HINTS = [
   [/\b32\b|No ?Such ?Object/i, 'The search base does not exist. Copy it from the directory, e.g. OU=Users,DC=example,DC=ch.'],
   [/NI_LDAP_SERVICE_DN/, 'Give the service account in Settings (and its password on the server) so the directory can be read.'],
 ];
+export const isUnreachable = message => /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|timed? ?out|socket hang up|closed/i.test(String(message || '')) && !isCertError(message);
 export const ldapHint = message => (LDAP_HINTS.find(([re]) => re.test(String(message || ''))) || [])[1] || null;
 
 /* Where the computer accounts are: the base set in Settings, else the whole domain the user search base is in (its DC= parts),
@@ -270,9 +280,9 @@ export async function ldapListUsers(config) {
     await bind(client, config.serviceDn, config.servicePassword);
     /* In Active Directory a computer account is a person too: it is left out, so PC01$ never becomes a user. */
     const userFilter = config.userFilter || DEFAULT_USER_FILTER;
-    const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`))
+    const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`, userAttrs(config)))
       .map(e => profileOf(e.attrs, config)).filter(p => p.login);
-    const everyone = (await ldapSearch(client, config.searchBase, userFilter)).map(e => profileOf(e.attrs, config)).filter(p => p.login);
+    const everyone = (await ldapSearch(client, config.searchBase, userFilter, userAttrs(config))).map(e => profileOf(e.attrs, config)).filter(p => p.login);
     const sameLogin = (a, list) => { const set = new Set(list.map(p => p.login.toLowerCase())); return p => set.has(p.login.toLowerCase()); };
     const people = isDn(config.group) ? everyone.filter(sameLogin(null, await members(config.group)))
       : everyone.filter(p => inGroup(p, config.group));

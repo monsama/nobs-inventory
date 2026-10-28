@@ -117,7 +117,10 @@ export function start(env = process.env) {
   const secure = env.NI_SECURE_COOKIE ? env.NI_SECURE_COOKIE === '1' : env.NODE_ENV === 'production';
   const graphConfig = () => graphConfigOf(resolved);
   const sheetKey = sheetKeyOf(env, dataDir);
-  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey });
+  /* The proxy whose forwarded client address is believed: the shared Caddy (its container name), unless NI_TRUSTED_PROXY
+     names another (or is empty, behind no proxy). */
+  const trustedProxy = env.NI_TRUSTED_PROXY !== undefined ? env.NI_TRUSTED_PROXY : env.NODE_ENV === 'production' ? 'nobs-proxy' : '';
+  const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey, trustedProxy, loginFailMs: 1000 });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
   const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig() });

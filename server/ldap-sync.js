@@ -30,12 +30,15 @@ export async function syncLdapUsers(db, config) {
       /* A person Lansweeper (or Entra) named by this login: the same person, now from the directory. Kept as the same record, so
          devices assigned to them stay theirs. One an admin switched off stays off, and a password set for them here is
          removed after the save: from now on the directory checks it. */
-      Object.assign(u, { login: p.login, name: p.name, dept: deptOf(u, p), groups: p.groups, role, source: 'ldap' }, profileOf(p));
-      if (!profileOf(p).profile) delete u.profile;
+      /* A department Lansweeper gave stays while the directory has none, noted as Lansweeper's. */
+      const keepDept = !p.dept && u.source === 'lansweeper' && u.dept;
+      Object.assign(u, { login: p.login, name: p.name, dept: keepDept ? u.dept : deptOf(u, p), groups: p.groups, role, source: 'ldap' });
+      if (keepDept) u.deptFrom = 'lansweeper';
+      const pr = profileNext(u, p); if (pr) u.profile = pr; else delete u.profile;
       if (p.dept) delete u.deptFrom;
       linked.push(u.id);
     } else if (u.source === 'ldap') {
-      const next = { name: p.name, dept: deptOf(u, p), groups: p.groups, role, profile: profileOf(p).profile };
+      const next = { name: p.name, dept: deptOf(u, p), groups: p.groups, role, profile: profileNext(u, p) };
       if (p.dept) delete u.deptFrom;
       const changed = u.syncOff || Object.keys(next).some(k => JSON.stringify(u[k]) !== JSON.stringify(next[k]));
       Object.assign(u, next);
@@ -73,9 +76,11 @@ export async function syncLdapUsers(db, config) {
 }
 
 /* The directory's department; when it has none, the one Entra gave (deptFrom 'entra') stays. */
-const deptOf = (u, p) => p.dept || (u.deptFrom === 'entra' ? u.dept : '') || '';
+const deptOf = (u, p) => p.dept || (['entra', 'lansweeper'].includes(u.deptFrom) ? u.dept : '') || '';
 /* Title, phones, office, manager and e-mail from the directory: they replace what Entra gave. */
 const profileOf = p => p.profile && Object.keys(p.profile).length ? { profile: { ...p.profile, from: 'ldap' } } : {};
+/* A directory entry with none of them keeps what Entra gave, so the two syncs do not take it away from each other. */
+const profileNext = (u, p) => profileOf(p).profile || (u.profile && u.profile.from === 'entra' ? u.profile : undefined);
 
 /* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name) as
    adGroups, and is marked as being in Active Directory (inAd), with the account's last logon and creation day (o.ad).
@@ -135,7 +140,8 @@ export function listAdUnmatched(s, computers) {
     if (c.disabled) { disabled++; continue; }
     seen.add(low(c.name));
     list.push({ id: low(c.name), name: c.name, ...(c.dns ? { dns: c.dns } : {}), ...(c.os ? { os: c.os } : {}), ...(c.domain ? { domain: c.domain } : {}),
-      ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.ou ? { ou: c.ou } : {}), ...(c.groups && c.groups.length ? { groups: c.groups } : {}) });
+      ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.ou ? { ou: c.ou } : {}), ...(c.groups && c.groups.length ? { groups: c.groups } : {}),
+      ...Object.fromEntries(['description', 'managedBy', 'location'].filter(k => c[k]).map(k => [k, c[k]])), ...(c.services && c.services.length ? { services: c.services } : {}) });
   }
   s.adUnmatched = list.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);
   return { adUnmatched: list.length, adDisabled: disabled };
@@ -176,10 +182,10 @@ export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}
     do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
     do { s.seq = (s.seq || 100) + 1; } while (ids2.has('o' + s.seq));
     codes.add('INV-' + String(s.codeN).padStart(4, '0')); ids2.add('o' + s.seq);
-    const src = { ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}) };
+    const src = { ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}), ...(d.description ? { purpose: 'ad' } : {}) };
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
-      loc: '', ovr: {}, feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(Object.keys(src).length ? { src } : {}),
-      inAd: true, ...(d.logon || d.created ? { ad: { ...(d.logon ? { logon: d.logon } : {}), ...(d.created ? { created: d.created } : {}) } } : {}),
+      loc: '', ovr: {}, feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(d.description ? { purpose: d.description } : {}), ...(Object.keys(src).length ? { src } : {}),
+      inAd: true, ...(adOf(d) ? { ad: adOf(d) } : {}),
       ...(d.groups ? { adGroups: d.groups } : {}), ...(review ? { review: { src: 'ad', at } } : {}) };
     s.objs.push(o);
     (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Active Directory: waiting in To review' : `Added from Active Directory by ${who}` });

@@ -43,6 +43,17 @@ export function parseCaCerts(base64) {
   };
 }
 export const ldapHostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
+/* The ports a directory address saved in Settings may use: LDAP's own (389 and 636, 3268 and 3269 for the global
+   catalog), and any the server allows with NI_LDAP_PORTS (comma separated). So the connection test cannot be used to
+   probe other services on the network. An address the server names (NI_LDAP_URL) is the server's choice. */
+export const LDAP_PORTS = [389, 636, 3268, 3269];
+export function ldapPortProblem(url, env = process.env) {
+  let u; try { u = new URL(url); } catch { return ''; }
+  const port = Number(u.port) || (/^ldaps:/i.test(url) ? 636 : 389);
+  const extra = String(env.NI_LDAP_PORTS || '').split(',').map(x => Number(x.trim())).filter(Boolean);
+  return [...LDAP_PORTS, ...extra].includes(port) ? ''
+    : `Port ${port} is not a directory port. Use 389 or 636 (3268 or 3269 for the global catalog), or allow it on the server with NI_LDAP_PORTS=${port}.`;
+}
 const savedCa = db => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const v = r ? JSON.parse(r.data) : null; return v && typeof v.pem === 'string' ? v.pem : ''; };
 
 export function configFromEnv(env) {
@@ -79,6 +90,7 @@ export function ldapConfigOf(db, env) {
   const envPw = readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), envHost = ldapHostOf(env.NI_LDAP_URL || '');
   const pwHere = !envPw || !envHost || envHost === ldapHostOf(cfg.url);
   return { ...cfg, searchBase: cfg.searchBase, caFile: env.NI_LDAP_CA || '', allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1' || cfg.security === 'plain',
-    servicePassword: pwHere ? envPw : '', caPem: savedCa(db),
+    servicePassword: pwHere ? envPw : '', caPem: savedCa(db), ...(envPw && !envHost ? { envPasswordUnpinned: true } : {}),
+    ...(ldapPortProblem(cfg.url, env) ? { portProblem: ldapPortProblem(cfg.url, env) } : {}),
     ...(pwHere ? {} : { passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is for ${envHost}, not ${ldapHostOf(cfg.url)}. Set NI_LDAP_URL to the new server, or change the address back.` }) };
 }

@@ -93,9 +93,11 @@ async function run(which){
   /* All of them in the order the server runs them by itself: Lansweeper first, so Graph finds the devices it adds. */
   const order = which === 'all' ? sources().filter(([, c]) => c).map(([s]) => s) : [which];
   const results = [];
-  for (const src of order) results.push(await syncOne(src));
-  running = '';
-  await reloadFromServer();
+  /* A dropped connection or a server restart ends the run with a message: the button never stays busy. */
+  try {
+    for (const src of order) results.push(await syncOne(src).catch(e => ({ ok: false, text: `${SOURCES[src].label}: ${e.message || 'no answer from the server'}` })));
+  } finally { running = ''; }
+  await reloadFromServer().catch(() => {});
   render({ save: false });
   if ($('#syncMenu') || open) openMenu();
   const bad = results.filter(x => !x.ok);

@@ -1,5 +1,6 @@
 /* Settings → Feed: Lansweeper on or off, its source (push or API), the push token and script, the type names and
    type rules, the model renames, and the sync schedule rows every sync uses. */
+import { timeFieldHtml } from './datefield.js';
 import { dateTimeText } from './dates.js';
 import { scheduleOf, SCHEDULE_JOBS, EVERY_HOURS, nextRun, scheduleText } from './schedule.js';
 import { modal, closeModal } from './03-object-modals.js';
@@ -194,7 +195,7 @@ export function scheduleRowHtml(job, edit){
   const label = h => h === 0 ? 'Off (only Sync now)' : h === 24 ? 'Daily' : h === 1 ? 'Every hour' : `Every ${h} hours`;
   return `<div class="sched-row" data-sched="${job}"><span class="sched-l">Runs by itself</span>
     <select data-sched-every="${job}" aria-label="How often ${esc(SCHEDULE_JOBS[job])} syncs" ${ro}>${EVERY_HOURS.map(h => `<option value="${h}" ${h === plan.every ? 'selected' : ''}>${label(h)}</option>`).join('')}</select>
-    <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span><input type="time" data-sched-at="${job}" value="${esc(plan.at)}" aria-label="Start time" ${plan.every ? '' : 'hidden'} ${ro}>
+    <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span>${timeFieldHtml(`data-sched-at="${job}" aria-label="Start time" ${ro}`, plan.at, { hidden: !plan.every })}
     <span class="muted sched-next">${plan.every ? 'next at ' + nextRun(plan) : ''}</span></div>`;
 }
 export function bindScheduleRows(root){

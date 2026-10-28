@@ -1,11 +1,12 @@
 import express from 'express';
 import fs from 'node:fs';
+import dns from 'node:dns/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
-import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError } from './ldap.js';
+import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
@@ -30,7 +31,7 @@ export const publicDir = path.join(here, '..', 'public');
 const COOKIE = 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 } }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   setBackupSheetKey(SHEET_KEY);
@@ -43,6 +44,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let c = ldapConfig ? ldapConfig() : ldap;
     /* The CA certificate added in Settings, whichever way the settings came. */
     if (c && !c.caPem) { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const pem = r && JSON.parse(r.data)?.pem; if (pem) c = { ...c, caPem: pem }; }
+    /* The server's password with no NI_LDAP_URL naming its directory: tied to the directory it is first used with, like
+       one saved here, so an address changed in Settings later (or by someone with a stolen session) does not get it. */
+    if (c && c.envPasswordUnpinned && c.servicePassword) {
+      const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost');
+      if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost', host);
+      else if (pinned && pinned !== host) return { ...c, servicePassword: '', passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is used with ${pinned}; the directory server is now ${host}. Set NI_LDAP_URL to the new server, or change the address back.` };
+    }
     if (!c || c.servicePassword || c.passwordProblem) return c;
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
     if (!saved) return c;
@@ -56,8 +64,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
   const app = express();
   app.disable('x-powered-by');
-  /* Caddy is the only proxy in front of the app: its forwarded address is the client's, so login throttling is per user. */
-  app.set('trust proxy', 1);
+  /* Caddy is the only proxy in front of the app: the client address it forwards is believed only when the request
+     comes from Caddy itself (trustedProxy, its container name, looked up again every minute as its address can change)
+     or from this machine. Another container on the shared proxy network cannot make up addresses to get past the
+     sign-in throttle. */
+  const proxyAddrs = new Set();
+  const plainAddr = a => String(a || '').replace(/^::ffff:/, '');
+  if (trustedProxy) {
+    const look = () => dns.lookup(trustedProxy, { all: true }).then(list => { proxyAddrs.clear(); for (const x of list) proxyAddrs.add(plainAddr(x.address)); }).catch(() => {});
+    look(); const t = setInterval(look, 60_000); t.unref();
+  }
+  app.set('trust proxy', (addr, i) => i === 0 && (['127.0.0.1', '::1'].includes(plainAddr(addr)) || proxyAddrs.has(plainAddr(addr))));
   const throttle = createThrottle();
   /* Browser protections: the page's script is a file of its own, so no inline script runs. */
   app.use((req, res, next) => {
@@ -131,6 +148,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
      account names from being discovered, and the throttle counts every failure against the login and the address. */
   const FAILED = 'The login or password is not right.';
   app.post('/api/login', async (req, res, next) => {
+    /* A failed sign-in answers after the same time (loginFailMs) whatever failed: a local account or one checked against
+       the directory, a known or unknown login. The time does not tell which logins exist, and guessing is slower. */
+    const t0 = Date.now();
+    const failFloor = () => new Promise(r => setTimeout(r, Math.max(0, loginFailMs - (Date.now() - t0))));
     try {
       const login = String(req.body?.login ?? '').trim().slice(0, 200);
       const password = String(req.body?.password ?? '');
@@ -140,7 +161,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         audit(db, null, 'sign in throttled for ' + (known ? login : 'an unknown login'));
         throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.');
       }
-      if (!login || !password || password.length > 256) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
+      if (!login || !password || password.length > 256) { throttle.recordFailure(keys); await failFloor(); throw new HttpError(401, FAILED); }
       /* Only the user records are read; a sign-in does not load the whole inventory. */
       const findUser = () => {
         for (const r of db.prepare("SELECT data FROM docs WHERE kind = 'user'").all()) {
@@ -167,7 +188,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
              meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
              its role. Nothing below waits, so no other request comes between this read and the save. */
           user = findUser();
-          if (user && !['ldap', 'lansweeper', 'entra'].includes(user.source)) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
+          if (user && !['ldap', 'lansweeper', 'entra'].includes(user.source)) { throttle.recordFailure(keys); await failFloor(); throw new HttpError(401, FAILED); }
           let isAdmin = !!d.admin;
           const wasLansweeper = !!user && (user.source === 'lansweeper' || user.source === 'entra');
           /* Someone new from the directory has no access (role none) until an admin gives them one; the admin group is admin. */
@@ -178,8 +199,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             isAdmin = true;
             audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
           }
-          /* The directory's department; with none there, one Entra gave stays (deptFrom 'entra'). */
-          Object.assign(user, { name: d.name, dept: d.dept || (user.deptFrom === 'entra' ? user.dept : d.dept), groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
+          /* The directory's department; with none there, one Entra or Lansweeper gave stays (deptFrom says whose). */
+          const keepDept = !d.dept && user.dept && (['entra', 'lansweeper'].includes(user.deptFrom) || user.source === 'lansweeper');
+          if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
+          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
           if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
@@ -190,11 +213,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       }
       if (!ok || !user || user.active === false) {
         throttle.recordFailure(keys);
+        await failFloor();
         /* The login as typed is logged only when it is one: a password typed into the login field must not end up in the log. */
         audit(db, null, 'failed sign in for ' + (user ? user.login : 'an unknown login'));
         throw new HttpError(401, FAILED);
       }
-      throttle.clearFailures(keys.slice(0, 1));   /* only this login: a success must not clear the address count */
+      throttle.clearFailures(keys.slice(0, 1)); throttle.rememberSuccess(keys);   /* only this login: a success must not clear the address count */
       /* The right password, but no access given yet: said plainly, so the person knows whom to ask. */
       if (user.role === 'none') {
         audit(db, user.id, 'sign in refused: no role');
@@ -396,6 +420,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       /* A certificate that is not trusted: what the server presented, so nobody has to look on the server. */
       const report = isCertError(e.message) ? await ldapCertReport(cfgLdap()).catch(() => null) : null;
       const hint = report ? report.text : ldapHint(e.message);
+      /* Not reached: the same words whatever the reason (refused, no such host, timed out), so the test says nothing about
+         what else listens on the network. */
+      if (isUnreachable(e.message)) return next(new HttpError(502, ldapHint('connect')));
       next(new HttpError(502, (hint || 'The directory cannot be read.') + ' (' + String(e.message).slice(0, 200) + ')'));
     }
   });

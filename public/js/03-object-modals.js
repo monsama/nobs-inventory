@@ -1,3 +1,4 @@
+import { dateFieldHtml, dateValue } from './datefield.js';
 import { reviewBanner, bindReviewBanner } from './15-review.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
@@ -51,7 +52,7 @@ export function renderRack(){
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
-  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${esc(r.id)}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
     ${canEdit() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
@@ -65,7 +66,7 @@ export function renderRack(){
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
-      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
+      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${esc(top.id)}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
         <span class="nm">${esc(top.name)}</span><span class="sub">${[esc(top.code), esc(sub)].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
@@ -81,7 +82,7 @@ export function renderRack(){
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${esc(R_.name)}</div>
         <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${esc(o.id)}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
       </div>
     </div></div>`;
 }
@@ -124,7 +125,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.loc ? '' : 'selected'}>No location</option>${(o.loc && !LOCS.includes(o.loc) ? [o.loc, ...LOCS] : LOCS).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${esc(u.id)}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
   else if (kind === 'subnet'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
@@ -145,7 +146,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   }
   else if (kind === 'dhcp') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.dhcp ? '' : 'selected'}>Not known</option><option value="dhcp" ${o.dhcp === 'dhcp' ? 'selected' : ''}>DHCP</option><option value="static" ${o.dhcp === 'static' ? 'selected' : ''}>Static</option></select>`;
   else if (kind === 'money') ctl = `<input id="${id}" data-k="${k}" inputmode="decimal" value="${typeof o[k] === 'number' ? o[k] : ''}" placeholder="0.00">`;
-  else if (kind === 'date') ctl = `<input id="${id}" data-k="${k}" type="date" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '')}">`;
+  else if (kind === 'date') ctl = dateFieldHtml(`id="${id}" data-k="${k}"`, /^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') ? o[k] : '');
   else if (kind === 'status') ctl = `<select id="${id}" data-k="${k}">${Object.entries(STATUS).map(([s,v]) => `<option value="${s}" ${s===o.status?'selected':''}>${v.label}</option>`).join('')}</select>`;
   else if (k === 'av') ctl = avCtl(o, id, true);
   else {
@@ -521,7 +522,7 @@ export function graphPanel(o){
   const ambNote = amb ? `<p class="note" style="padding:10px 12px 0"><span class="chip warn">Not matched</span> Graph has a device ${amb.by === 'serial' ? `with the serial number ${esc(amb.serial)}` : `named ${esc(amb.name)}`}, and so do ${amb.devices.length - 1 === 1 ? 'another device' : (amb.devices.length - 1) + ' other devices'} here: ${amb.devices.filter(id => id !== o.id).map(id => { const x = byId(id); return x ? esc(x.code + ' ' + x.name) : ''; }).filter(Boolean).join(', ')}. It was put on none of them. Give them distinct ${amb.by === 'serial' ? 'serial numbers' : 'names'}.</p>` : '';
   const adOnly = o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : '';
   /* A server is in Defender, not in Entra or Intune: Defender alone, in a panel of its own. */
-  if (!g && !GRAPH_TYPES.includes(o.type) && !amb && o.defender) return `<div class="panelbox"><div class="hdr">Defender for Endpoint</div><dl class="lsbox"><dt>State</dt><dd style="font-family:inherit">${defenderRow(o)}</dd></dl></div>`;
+  if (!g && !GRAPH_TYPES.includes(o.type) && !amb && o.defender) return `<div class="panelbox"><div class="hdr">Defender for Endpoint</div><dl class="lsbox"><dt>Defender</dt><dd style="font-family:inherit">${defenderRow(o)}</dd></dl></div>`;
   const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
   /* Registered in Windows Autopilot but not set up yet: no record in Entra or Intune, only Autopilot's. */
   if (!g && o.autopilot) return `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px 0">Registered in Windows Autopilot, not set up yet: Intune names it once it is.</p><dl class="lsbox">${row('Autopilot', autopilotText(o.autopilot))}</dl></div>`;
@@ -565,22 +566,22 @@ export function graphPanel(o){
 /* Defender for Endpoint on the device page: health, risk, exposure, antivirus and when it last saw the device. */
 function defenderRow(o){
   const d = o.defender, s = defenderState(o);
-  const bits = [d.risk && d.risk !== 'None' ? `risk ${d.risk.toLowerCase()}` : '', d.exposure && d.exposure !== 'None' ? `exposure ${d.exposure.toLowerCase()}` : '',
+  const bits = [d.risk && d.risk !== 'None' && !/risk/i.test(s.state) ? `risk ${d.risk.toLowerCase()}` : '', d.exposure && d.exposure !== 'None' ? `exposure ${d.exposure.toLowerCase()}` : '',
     d.av ? `antivirus ${d.av.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()}` : '', d.lastSeen ? `last seen ${graphTime(d.lastSeen).slice(0, 10)}` : ''].filter(Boolean);
   return `<span class="chip ${s.cls}">${esc(s.state[0].toUpperCase() + s.state.slice(1))}</span>${bits.length ? ` <span class="muted">· ${esc(bits.join(' · '))}</span>` : ''}`;
 }
 /* What Windows Autopilot says of a device: its group tag, order number and enrolment state. */
 const AP_STATE = { enrolled: 'enrolled', notContacted: 'not set up yet', failed: 'enrolment failed', pendingReset: 'waiting for a reset', blocked: 'blocked' };
 function autopilotText(a){
-  return [a.groupTag ? `Group tag <b>${esc(a.groupTag)}</b>` : 'No group tag', a.order ? `order ${esc(a.order)}` : '', a.state ? esc(AP_STATE[a.state] || a.state) : '',
+  return [a.groupTag ? `Group tag ${esc(a.groupTag)}` : 'No group tag', a.order ? `order ${esc(a.order)}` : '', a.state ? esc(AP_STATE[a.state] || a.state) : '',
     a.lastContact ? `last contact ${esc(graphTime(a.lastContact).slice(0, 10))}` : ''].filter(Boolean).join(' <span class="muted">·</span> ');
 }
 /* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
 export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
   const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
-  const logon = ad.logon ? `Last logon ${esc(ad.logon)}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
-  return `${logon}${ad.created ? ` <span class="muted">· created ${esc(ad.created)}</span>` : ''}`;
+  const logon = ad.logon ? `Last logon ${esc(dayText(ad.logon))}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
+  return `${logon}${ad.created ? ` <span class="muted">· created ${esc(dayText(ad.created))}</span>` : ''}`;
 }
 /* Who manages the account, where AD says it is and what it runs (from its service principal names). */
 function adMoreHtml(ad){
@@ -628,7 +629,7 @@ function swDetailHtml(r){
   return `<tr class="sw-detail" data-swd="${esc(r.name)}"><td colspan="4"><div class="sw-devs">
     <table class="sw-sub"><thead><tr><th>Device</th><th class="sw-opt">Type</th><th>Location</th><th class="sw-opt">User</th><th>Version</th></tr></thead><tbody>
     ${devs.map(d => { const v = versionOf(d, r.name), odd = mixed && v !== common; return `<tr>
-      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link mono" data-open="${d.id}">${esc(d.name)}</a></span></td>
+      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link mono" data-open="${esc(d.id)}">${esc(d.name)}</a></span></td>
       <td class="sw-opt">${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc((d.loc || '').replace(' / ', ' · '))}</td><td class="sw-opt">${esc(d.user || '')}</td>
       <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? `title="Most devices have ${esc(common)}"` : ''}>${esc(v)}</span></td></tr>`; }).join('')}
     </tbody></table></div></td></tr>`;
@@ -863,7 +864,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<br>${adMoreHtml(o.ad)}` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${o.ad ? `<label>AD account</label><div class="ctlrow entries"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<span class="admore">${adMoreHtml(o.ad)}</span>` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
@@ -920,12 +921,12 @@ export function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${esc(t.id)}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
-  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd}</option>`).join('');
+  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`).join('');
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
@@ -1061,7 +1062,7 @@ export function renderObj(o){
     }
     const kept = [];
     $('#view').querySelectorAll('[data-k]').forEach(el => {
-      const k = el.dataset.k; let v = el.value;
+      const k = el.dataset.k; let v = dateValue(el);
       if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
       if (k === 'user'){
         const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
@@ -1087,7 +1088,7 @@ export function renderObj(o){
       if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       /* A value changed here is noted as set by hand, over any sync's (and kept from them); cleared, it stays empty: no
          sync fills it again. */
-      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
+      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
         if (String(v ?? '') === ''){
           if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; o.ovr = {...(o.ovr || {}), [k]: false}; }
         } else o.src = {...(o.src || {}), [k]: 'hand'};
