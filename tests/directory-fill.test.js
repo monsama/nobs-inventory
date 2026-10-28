@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toRecords, applyGraph, applyGraphPeople } from '../server/graph.js';
-import { applyComputers, listAdUnmatched, addFromAd, adType } from '../server/ldap-sync.js';
+import { toRecords, applyGraph, applyGraphPeople, intakeFromGraph } from '../server/graph.js';
+import { applyComputers, listAdUnmatched, addFromAd, adType, intakeFromAd } from '../server/ldap-sync.js';
 import { adDay, adOs, computerOf, COMPUTER_ATTRS } from '../server/ldap.js';
 import { fillField } from '../server/fill.js';
 import { mergeRecords } from '../server/feed.js';
@@ -138,4 +138,27 @@ test('computer accounts the inventory does not have are listed, and added on req
   s.objs.push({ id: 'x', name: 'srv-new', status: 'active' });
   assert.equal(addFromAd(s, 'all', 'Ana', NOW).length, 0);
   assert.equal(s.adUnmatched.length, 0);
+});
+
+test('found devices wait in To review by default; a source set to add directly adds them, except ones not seen for long', () => {
+  const comp = (name, logon) => ({ id: name.toLowerCase(), name, os: 'Windows 11 Enterprise', domain: 'corp.ch', ...(logon ? { logon } : {}) });
+  const s = { ...state([]), seq: 100, codeN: 0, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01'), comp('PC-NEVER')] };
+  assert.deepEqual(intakeFromAd(s, NOW), { direct: 0, review: 3 });
+  assert.deepEqual(s.objs.map(o => [o.name, o.review && o.review.src]), [['PC-NEW', 'ad'], ['PC-OLD', 'ad'], ['PC-NEVER', 'ad']]);
+  assert.match(s.history[s.objs[0].id][0].msg, /waiting in To review/);
+  assert.deepEqual(s.adUnmatched, [], 'the list is used up');
+
+  const t = { ...state([]), seq: 100, codeN: 0, intake: { ad: 'direct' }, adUnmatched: [comp('PC-NEW', '2026-10-20'), comp('PC-OLD', '2025-01-01')] };
+  assert.deepEqual(intakeFromAd(t, NOW), { direct: 1, review: 1 });
+  assert.equal(t.objs.find(o => o.name === 'PC-NEW').review, undefined, 'straight in');
+  assert.equal(t.objs.find(o => o.name === 'PC-OLD').review.src, 'ad', 'no logon for long: still waits');
+
+  const g = { ...state([]), seq: 100, codeN: 0, graphUnmatched: [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] };
+  assert.deepEqual(intakeFromGraph(g, NOW), { direct: 0, review: 2 });
+  assert.deepEqual(g.objs.map(o => [o.name, o.type, o.review.src]), [['iPhone Ana', 'ios', 'graph'], ['OLD-TAB', 'android', 'graph']]);
+  const h = { ...state([]), seq: 100, codeN: 0, intake: { graph: 'direct' }, graphUnmatched: g.objs.length ? [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }, { id: 'm2', name: 'OLD-TAB', platform: 'Android', lastSync: '2025-02-01T08:00:00Z' }] : [] };
+  assert.deepEqual(intakeFromGraph(h, NOW), { direct: 1, review: 1 });
+  // a device that waits (or was ignored) is in the inventory's list, so no sync offers it again
+  g.graphUnmatched = [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }];
+  assert.deepEqual(intakeFromGraph(g, NOW), { direct: 0, review: 0 });
 });

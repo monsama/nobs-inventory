@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { HttpError } from './errors.js';
-import { KNOWN_TYPES } from './state.js';
+import { KNOWN_TYPES, intakeOf } from './state.js';
 
 /* Lansweeper merge rules, shared by the file import and the API sync.
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
@@ -228,7 +228,8 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'people', 'networks'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
-export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
+/* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
+export function mergeRecords(s, records, now = new Date(), ipLocations = null, { byHand = false } = {}) {
   const before = { ipLocations: s.lsIpLocations || [] };
   if (ipLocations) s.lsIpLocations = ipLocations; else ipLocations = s.lsIpLocations || [];
   for (const r of records) if (r.model) r.model = modelFor(s, r.model);
@@ -267,8 +268,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
     const r = clean(raw);
     cleaned.push(r);
     if (!r.name && !r.serial) continue;
-    /* With "skip IP-only devices" on, a device named only by its IP address (no serial number) is left out. */
-    if (s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial){ counts.skippedIp = (counts.skippedIp || 0) + 1; continue; }
+    /* With "IP-only devices to review" on, a device named only by its IP address (no serial number) is never added
+       straight away: it waits in To review, like every new device does unless Settings adds them directly. */
+    const ipOnly = !!s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial;
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
@@ -288,11 +290,13 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
         feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
-        ...(r.nics && r.nics.length ? { nics: r.nics } : {})
+        ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
+        ...(ipOnly || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
       };
       s.objs.push(obj); index(obj);
       pairs.push({ r, obj });
       counts.created++;
+      if (obj.review) counts.review = (counts.review || 0) + 1;
       continue;
     }
     pairs.push({ r, obj: found });
@@ -361,6 +365,6 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null) {
   return counts;
 }
 
-export function mergeFeed(s, text, now = new Date()) {
-  return mergeRecords(s, recordsFromCsv(text), now);
+export function mergeFeed(s, text, now = new Date(), opts = {}) {
+  return mergeRecords(s, recordsFromCsv(text), now, null, opts);
 }

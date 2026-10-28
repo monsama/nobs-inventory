@@ -1,33 +1,22 @@
 /* Settings → LDAP & Graph, the Microsoft Graph half: the app registration, certificates, people from Entra, test
    and sync, and the devices Graph has that the inventory does not. */
+import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { SERVER, reloadFromServer, queueServerSave } from './07-render-plans.js';
 import { canEdit, applyRole } from './04-settings.js';
-import { dateText } from './dates.js';
-import { st, esc, complianceChip, byId, $, dayText, toast, SYNC } from './01-core.js';
+import { st, esc, byId, $, dayText, toast, SYNC } from './01-core.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
   const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
   const devices = c.devices ?? c.records;
   return [`${c.records ?? devices} records in Entra and Intune for ${devices} devices: ${c.matched} matched${c.filled ? `, ${c.filled} empty fields filled in` : ''}.`,
     c.duplicates ? `${c.duplicates} duplicate record${c.duplicates === 1 ? '' : 's'}: the current one is used (filter Duplicates in Entra).` : '',
-    c.unmatched ? `${c.unmatched} not in the inventory: see the list below.` : '',
+    c.review ? `${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To review.` : '',
+    c.added ? `${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '',
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
     c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',
     c.people ? `People: ${c.people.inEntra} in Entra${c.people.added ? `, ${c.people.added} added` : ''}${c.people.bound ? `, ${c.people.bound} devices given their user` : ''}${c.people.gone ? `, ${c.people.gone} no longer in Entra` : ''}.` : '',
     c.peopleError || ''].filter(Boolean).join(' ');
-}
-/* The devices Graph has that the inventory does not, from the last sync: each can be added, with what Graph knows. */
-function unmatchedHtml(edit){
-  const list = st.graphUnmatched || [];
-  if (!list.length) return '';
-  const day = dateText;
-  return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Entra or Intune, not in the inventory</b><span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:4px 12px 8px">Found at the last sync, by neither serial number nor name. Often phones and tablets Lansweeper does not scan, or devices named differently. Added ones get their type from their system, and Graph keeps them up to date.</p>
-    <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="guList" style="min-width:0"><thead><tr><th><input type="checkbox" id="guAllBox" aria-label="Select all" ${edit ? '' : 'disabled'}></th><th>Name</th><th>System</th><th>Model</th><th>Serial</th><th>Primary user</th><th>Compliance</th><th>Last contact</th></tr></thead><tbody>
-      ${list.map(d => `<tr><td><input type="checkbox" data-gu="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${edit ? '' : 'disabled'}></td><td>${esc(d.name)}${d.others ? ` <span class="chip warn" title="Entra lists this device ${d.others + 1} times; the current record is shown">×${d.others + 1}</span>` : ''}</td><td>${esc(d.os || d.platform || (d.join ? d.join : ''))}</td><td>${esc(d.model || '')}</td><td class="mono">${esc(d.serial || '')}</td><td>${esc(d.owner || '')}</td><td>${complianceChip(d.compliance)}</td><td>${esc(day(d.lastSync))}</td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="addrel" style="padding:8px 12px"><button id="guAdd" disabled>Add selected</button><button id="guAddAll" ${edit ? '' : 'disabled'}>Add all ${list.length}</button></div></div>`;
 }
 /* Graph records that fit more than one device here, by serial number or name: put on none of them, listed to be fixed. */
 function ambiguousHtml(){
@@ -114,7 +103,7 @@ export async function renderSetGraph(){
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
-    ${unmatchedHtml(edit)}${ambiguousHtml()}</div>`;
+    <div style="padding:0 0 8px">${intakeRowHtml('graph')}<p class="note" style="padding:0 12px">Devices Graph has and the inventory does not become devices; disabled records never do, and ones not heard from for 90 days always wait in To review.</p></div>${ambiguousHtml()}</div>`;
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
@@ -159,22 +148,7 @@ export async function renderSetGraph(){
     if (!x.ok){ toast(x.j.error || 'Not changed.'); return; }
     toast('The server signs in with this certificate now'); await refreshGraph();
   });
-  /* Devices Graph has that the inventory does not: add the ticked ones, or all. */
-  const addGraph = async ids => {
-    const x = await post('api/graph/add', {ids});
-    if (!x.ok){ toast(x.j.error || 'Not added.'); return; }
-    toast(`${x.j.added} ${x.j.added === 1 ? 'device' : 'devices'} added from Microsoft Graph`);
-    await reloadFromServer(); await renderSetGraph();
-  };
-  const gu = $('#guList');
-  if (gu){
-    const picked = () => [...gu.querySelectorAll('[data-gu]:checked')].map(c => c.dataset.gu);
-    const fit = () => { const n = picked().length; $('#guAdd').disabled = !n; $('#guAdd').textContent = n ? `Add ${n} selected` : 'Add selected'; };
-    gu.querySelectorAll('[data-gu]').forEach(c => c.onchange = fit);
-    $('#guAllBox').onchange = e => { gu.querySelectorAll('[data-gu]').forEach(c => { c.checked = e.target.checked; }); fit(); };
-    $('#guAdd').onclick = () => addGraph(picked());
-    $('#guAddAll').onclick = () => { if (confirm(`Add all ${(st.graphUnmatched || []).length} devices to the inventory?`)) addGraph('all'); };
-  }
+  bindIntakeRows(root);
   /* Deleting a certificate removes its key from the server. The one in use can go too: Graph then stops until another
      certificate is created and uploaded. */
   root.querySelectorAll('[data-gcdel]').forEach(b => b.onclick = async () => {

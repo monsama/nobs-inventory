@@ -262,10 +262,10 @@ test('the log shows what happened, and a refused push is an error', async () => 
   } finally { await srv.close(); }
 });
 
-test('the type table in Settings decides the type of a Lansweeper name; IP-only devices can be skipped', async () => {
+test('the type table in Settings decides the type of a Lansweeper name; IP-only devices always wait in To review', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0,
-    typeMap: { 'DECT base': 'sip', 'IOS': 'ios' }, skipIpOnly: true };
+    typeMap: { 'DECT base': 'sip', 'IOS': 'ios' }, skipIpOnly: true, intake: { lansweeper: 'direct' } };
   mergeRecords(s, recordsFromJson([
     { name: 'DB-1', assetType: 'dect base', ref: 'd1' },
     { name: 'IOS-1', assetType: 'IOS', ref: 'i1' },
@@ -274,8 +274,18 @@ test('the type table in Settings decides the type of a Lansweeper name; IP-only 
   ]));
   assert.equal(s.objs.find(o => o.name === 'DB-1').type, 'sip');
   assert.equal(s.objs.find(o => o.name === 'IOS-1').type, 'ios');
-  assert.equal(s.objs.some(o => o.name === '172.21.1.9'), false, 'an IP-only device is skipped');
-  assert.equal(s.objs.some(o => o.name === '172.21.1.10'), true, 'an IP device with a serial number is kept');
+  assert.equal(s.objs.find(o => o.name === 'DB-1').review, undefined, 'Lansweeper set to add directly');
+  assert.deepEqual(s.objs.find(o => o.name === '172.21.1.9').review.src, 'lansweeper', 'an IP-only device waits in To review all the same');
+  assert.equal(s.objs.find(o => o.name === '172.21.1.10').review, undefined, 'an IP device with a serial number is added');
+  // by default every new device waits in To review
+  const t = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  const counts = mergeRecords(t, recordsFromJson([{ name: 'PC-NEW', serial: 'S9', ref: 'p9' }]));
+  assert.equal(t.objs[0].review.src, 'lansweeper'); assert.equal(counts.review, 1);
+  // an export an admin uploads goes straight in; an IP-only device still waits
+  const u = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0, skipIpOnly: true };
+  mergeRecords(u, recordsFromJson([{ name: 'PC-UP', serial: 'S8', ref: 'p8' }, { name: '10.0.0.7', ref: 'n7' }]), new Date(), null, { byHand: true });
+  assert.equal(u.objs.find(o => o.name === 'PC-UP').review, undefined);
+  assert.equal(u.objs.find(o => o.name === '10.0.0.7').review.src, 'lansweeper');
 });
 
 test('a detached object is left alone by the sync until it is attached; an attached one takes its reference on the next sync', async () => {

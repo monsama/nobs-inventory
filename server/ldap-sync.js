@@ -1,6 +1,6 @@
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
-import { freeUserId, loadState, saveState } from './state.js';
+import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, lsOwns } from './fill.js';
@@ -49,9 +49,11 @@ export async function syncLdapUsers(db, config) {
   if (computerError) counts.computerError = computerError;
   else if (computers && computers.length) {
     counts.computers = applyComputers(s, computers);
-    const before = JSON.stringify(s.adUnmatched || []);
     Object.assign(counts, listAdUnmatched(s, computers));
-    if (JSON.stringify(s.adUnmatched) !== before) counts.listChanged = true;
+    const added = intakeFromAd(s);
+    if (added.review) counts.review = added.review;
+    if (added.direct) counts.added = added.direct;
+    if (added.review || added.direct) counts.listChanged = true;
   }
   else if (computers) counts.computerError = 'No computer accounts were found in the computers search base.';
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
@@ -105,7 +107,7 @@ export function applyComputers(s, computers, now = new Date()) {
 }
 const low = v => String(v || '').trim().toLowerCase();
 /* The computer accounts no device here stands for (by name, or the first part of the DNS name; retired devices count,
-   so they are not offered again), kept as s.adUnmatched to be added from Settings. A disabled account is not offered.
+   so they are not offered again), as s.adUnmatched for intakeFromAd. A disabled account is not offered.
    Returns { adUnmatched, adDisabled }. */
 export function listAdUnmatched(s, computers) {
   const known = new Set();
@@ -133,7 +135,20 @@ export function adType(s, d) {
 /* Adds devices from the list of computer accounts the inventory does not have. Each gets the next code, its type from
    the rules, its operating system and domain (marked as from AD, so Lansweeper and Intune can replace them), and what
    AD says of the account; the sync keeps that up to date from then on. */
-export function addFromAd(s, ids, who, now = new Date()) {
+/* A computer account with no logon for this many days (or none at all) is likely gone: it always waits in To review. */
+export const AD_STALE_DAYS = 90;
+const adStale = (d, now) => !d.logon || (now - Date.parse(d.logon + 'T00:00:00Z')) / 864e5 > AD_STALE_DAYS;
+/* The computer accounts the sync found and the inventory does not have become devices: waiting in To review, or straight
+   in when Settings says so (a stale account still waits). The list is used up. */
+export function intakeFromAd(s, now = new Date()) {
+  const list = s.adUnmatched || [], direct = intakeOf(s, 'ad') === 'direct';
+  const live = new Set(list.filter(d => direct && !adStale(d, now)).map(d => d.id));
+  const n = addFromAd(s, list.filter(d => live.has(d.id)).map(d => d.id), 'the directory sync', now).length;
+  const m = addFromAd(s, 'all', 'the directory sync', now, { review: true }).length;
+  s.adUnmatched = [];
+  return { direct: n, review: m };
+}
+export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids.map(low));
   const list = (s.adUnmatched || []).filter(d => !want || want.has(d.id));
   const names = new Set(s.objs.map(o => low(o.name)).filter(Boolean)), codes = new Set(s.objs.map(o => o.code)), ids2 = new Set(s.objs.map(o => o.id));
@@ -150,20 +165,13 @@ export function addFromAd(s, ids, who, now = new Date()) {
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
       loc: '', ovr: {}, feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(Object.keys(src).length ? { src } : {}),
       inAd: true, ...(d.logon || d.created ? { ad: { ...(d.logon ? { logon: d.logon } : {}), ...(d.created ? { created: d.created } : {}) } } : {}),
-      ...(d.groups ? { adGroups: d.groups } : {}) };
+      ...(d.groups ? { adGroups: d.groups } : {}), ...(review ? { review: { src: 'ad', at } } : {}) };
     s.objs.push(o);
-    (s.history[o.id] ??= []).unshift({ t: at, msg: `Added from Active Directory by ${who}` });
+    (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Active Directory: waiting in To review' : `Added from Active Directory by ${who}` });
     added.push(o.id);
   }
   const done = new Set(list.map(d => d.id));
   s.adUnmatched = (s.adUnmatched || []).filter(d => !done.has(d.id));
-  return added;
-}
-export function addAdDevices(db, ids, who) {
-  const s = loadState(db);
-  autoBackup(db, 'before adding devices from Active Directory');
-  const added = addFromAd(s, ids, who);
-  saveState(db, s);
   return added;
 }
 /* The name the tests and older callers know. */

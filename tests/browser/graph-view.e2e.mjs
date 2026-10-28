@@ -19,8 +19,10 @@ const recent = new Date(Date.now() - 2 * 864e5).toISOString(), old = new Date(Da
 const pc = (id, name, graph) => ({ id, code: 'INV-' + id, type: 'pc', name, status: 'active', loc: 'HQ', ovr: {}, feed: null, ...(graph ? { graph } : {}) });
 saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
   graph: { tenant: '1b2c3d4e-5f60-4a1b-9c2d-3e4f5a6b7c8d', clientId: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' },
-  graphUnmatched: [{ id: 'm9', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', platform: 'iOS', owner: 'Ana Muster', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent }],
   objs: [
+    /* Found by the Graph sync, waiting in To review */
+    { id: 'm9o', code: 'INV-0901', type: 'ios', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', user: 'Ana Muster', status: 'active', loc: '', ovr: {}, feed: null,
+      graph: { id: 'm9', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent, lastCheckIn: recent, seen: '26.10.2026 06:00', added: true }, review: { src: 'graph', at: '26.10.2026 06:00' } },
     { ...pc('a', 'PC-OK'), os: 'Windows 11 Pro', graph: { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' } },
     { ...pc('b', 'PC-BAD'), os: 'Windows 10 Pro', graph: { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' } },
     { ...pc('c', 'PC-NONE'), inAd: true },
@@ -109,20 +111,28 @@ try {
     return [{ name: 'FortiGate_40F_Office' }, { name: 'acmeesxi21.corp.local' }, { name: 'jdoe-iphone' }, { name: 'PRN-01', os: 'Weird OS 2' }, { name: 'PRN-02' }].map(osFamily); }),
     ['FortiOS', 'VMware ESXi', 'iOS / iPadOS', 'Other', '']);
 
-  // Settings: the device Graph has that the inventory does not, added from there
+  // Settings: a Graph record that fits two devices here is listed there
   await p.click('#clearF');
   await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
-  await p.waitForSelector('#guList');
+  await p.waitForSelector('#gaList');
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
-  if (process.env.NI_SHOTS){ await p.click('.wc-max'); await p.locator('.gu-box:has(#guList)').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-unmatched.png') }); }
-  assert.match(await p.textContent('#guList'), /iPhone Ana.*iOS 18\.1.*Apple iPhone 15.*F2LX.*Ana Muster/s);
-  await p.check('[data-gu="m9"]'); await p.click('#guAdd');
-  await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana'));
-  const added = await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana'); return [o.type, o.serial, o.code]; });
-  assert.deepEqual(added, ['ios', 'F2LX', 'INV-0001']);
-  await p.waitForSelector('#guList', { state: 'detached' });
-  // a model corrected by hand on a device added from Graph is kept from the next sync
+  assert.equal(await p.inputValue('#intake_graph'), 'review', 'new devices from Graph wait in To review by default');
   await p.click('.wc-close');
+  // To review: the device Graph found waits there, in no list or count, and is accepted from its card
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana')), false, 'not in the inventory yet');
+  await p.click('#tabsbar [data-tab=review]');
+  await p.waitForSelector('.rv-item[data-rv="m9o"]');
+  assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To review\s*1/);
+  assert.match(await p.textContent('.rv-item[data-rv="m9o"]'), /iPhone Ana.*Entra \/ Intune/s);
+  if (process.env.NI_SHOTS) await p.locator('#view').screenshot({ path: path.join(process.env.NI_SHOTS, 'to-review.png') });
+  await p.click('[data-rvaccept="m9o"]');
+  await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana'));
+  const added = await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana'); return [o.type, o.serial, o.code, o.review]; });
+  assert.deepEqual(added, ['ios', 'F2LX', 'INV-0901', undefined]);
+  await until(p, () => !document.querySelector('.rv-item'));
+  const savedAccept = async () => { const t0 = Date.now(); while (loadState(db).objs.find(o => o.id === 'm9o').review) { if (Date.now() - t0 > 8000) throw new Error('accept not saved'); await new Promise(r => setTimeout(r, 100)); } };
+  await savedAccept();
+  // a model corrected by hand on a device added from Graph is kept from the next sync
   const id = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').id);
   await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id);
   await p.fill(`#f_${id}_model`, 'iPhone 15 (blue)'); await p.press(`#f_${id}_model`, 'Tab');

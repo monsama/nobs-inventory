@@ -5,6 +5,7 @@ import { canEdit } from './04-settings.js';
 import { flushSave, reloadFromServer, queueServerSave } from './07-render-plans.js';
 import { dateText } from './dates.js';
 import { st, esc, $, toast } from './01-core.js';
+import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 /* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
    service account's password is not in the inventory: it is saved here into the server's encrypted store (or set in
    the server's environment) and never sent back to the page. ---------- */
@@ -57,43 +58,6 @@ function bindCa(){
     if (r.ok){ toast('CA certificate removed'); await reloadFromServer(); renderSetLdap(); }
   };
 }
-/* A computer account that has not logged on for this many days (or never) is likely gone: shown grey, and left out of
-   "Add all". */
-const AD_STALE_DAYS = 90;
-const adDaysSince = d => d.logon ? Math.floor((Date.now() - Date.parse(d.logon + 'T00:00:00Z')) / 864e5) : null;
-const adStale = d => { const n = adDaysSince(d); return n === null || n > AD_STALE_DAYS; };
-/* The computer accounts AD has that the inventory does not, from the last sync: each can be added, with what AD knows. */
-function adUnmatchedHtml(edit){
-  const list = st.adUnmatched || [];
-  if (!list.length) return '';
-  const active = list.filter(d => !adStale(d)).length, ro = edit ? '' : 'disabled';
-  const seen = d => { const n = adDaysSince(d); return n === null ? '<span class="chip">Never logged on</span>' : n > AD_STALE_DAYS ? `<span class="chip warn" title="No logon for ${n} days">${esc(dateText(d.logon))}</span>` : esc(dateText(d.logon)); };
-  return `<div class="gu-box"><div class="gs-head" style="padding:10px 12px 0"><b>In Active Directory, not in the inventory</b><span class="cnt">${list.length}</span></div>
-    <p class="note" style="padding:4px 12px 8px">Computer accounts found at the last sync that no device here has, by name. Disabled accounts are left out; accounts with no logon for ${AD_STALE_DAYS} days are grey and not in “Add all”. Added ones get their type from the type rules and their operating system and domain from AD; Lansweeper and Intune fill in more when they find them.</p>
-    <div style="overflow:auto;max-height:340px;border-top:1px solid var(--bd2)"><table class="grid mini" id="auList" style="min-width:0"><thead><tr><th><input type="checkbox" id="auAllBox" aria-label="Select all" ${ro}></th><th>Name</th><th>Operating system</th><th>OU</th><th>Last logon</th><th>Created</th></tr></thead><tbody>
-      ${list.map(d => `<tr${adStale(d) ? ' class="muted"' : ''}><td><input type="checkbox" data-au="${esc(d.id)}" aria-label="Select ${esc(d.name)}" ${ro}></td><td class="mono">${esc(d.name)}</td><td>${esc(d.os || '')}</td><td>${esc(d.ou || '')}</td><td>${seen(d)}</td><td>${esc(dateText(d.created || ''))}</td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="addrel" style="padding:8px 12px"><button id="auAdd" disabled>Add selected</button><button id="auAddAll" ${edit && active ? '' : 'disabled'}>Add all ${active} active</button></div></div>`;
-}
-const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
-function bindAdUnmatched(){
-  const au = $('#auList'); if (!au) return;
-  const add = async ids => {
-    const x = await post('api/ldap/add', {ids});
-    if (!x.ok){ toast(x.j.error || 'Not added.'); return; }
-    toast(`${x.j.added} ${x.j.added === 1 ? 'device' : 'devices'} added from Active Directory`);
-    await reloadFromServer(); renderSetLdap();
-  };
-  const picked = () => [...au.querySelectorAll('[data-au]:checked')].map(c => c.dataset.au);
-  const fit = () => { const n = picked().length; $('#auAdd').disabled = !n; $('#auAdd').textContent = n ? `Add ${n} selected` : 'Add selected'; };
-  au.querySelectorAll('[data-au]').forEach(c => c.onchange = fit);
-  $('#auAllBox').onchange = e => { au.querySelectorAll('[data-au]').forEach(c => { c.checked = e.target.checked; }); fit(); };
-  $('#auAdd').onclick = () => add(picked());
-  $('#auAddAll').onclick = () => {
-    const ids = (st.adUnmatched || []).filter(d => !adStale(d)).map(d => d.id);
-    if (confirm(`Add all ${ids.length} active computer accounts to the inventory?`)) add(ids);
-  };
-}
 /* LDAP: the directory settings, saved in the inventory (the service password encrypted on the server), the CA, a
    test and a sync. */
 export function renderSetLdap(){
@@ -128,15 +92,16 @@ export function renderSetLdap(){
         ${field('loginAttr', 'Login attribute', 'sAMAccountName')}
         ${field('userFilter', 'User filter', '(&(objectClass=person)(!(objectClass=computer)))')}
         ${field('computerBase', 'Computers search base', computerDefault(L.searchBase))}
-        <label for="lk_computerGroups">Computer groups</label><label class="pchk" style="width:auto"><input type="checkbox" id="lk_computerGroups" ${L.computerGroups === 'off' ? '' : 'checked'} ${ro}> Read the computer accounts: their groups, last logon, and those not in the inventory</label>
+        <label for="lk_computerGroups">Computer groups</label><label class="pchk" style="width:auto"><input type="checkbox" id="lk_computerGroups" ${L.computerGroups === 'off' ? '' : 'checked'} ${ro}> Read the computer accounts: their groups, last logon, and new devices</label>
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
+    ${intakeRowHtml('ad')}
+    <p class="note" style="padding:0 12px 4px">Computer accounts no device here has become devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
     <p class="note" style="padding:0 12px 4px">Only fields nobody has filled: a value set by hand, from Lansweeper or from Intune goes first. The device shows where a value came from. Only these fields of a computer account are read, never its LAPS password or BitLocker keys.</p>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div>
-    <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div>
-    ${adUnmatchedHtml(edit)}</div>`;
+    <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
   bindScheduleRows($('#setLdap'));
   if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => {
@@ -159,7 +124,7 @@ export function renderSetLdap(){
     queueServerSave(); renderSetLdap();
   };
   if (edit) bindCa();
-  bindAdUnmatched();
+  bindIntakeRows($('#setLdap'));
   $('#lk_fillAd').onchange = e => { st.fillAd = e.target.checked; queueServerSave(); };
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
@@ -184,7 +149,7 @@ export function renderSetLdap(){
     const c = j.counts;
     msg.textContent = `${c.people} users in scope: ${c.created} new, ${c.updated} updated, ${c.deactivated} deactivated.`
       + (c.computerError ? ` Computer accounts could not be read: ${c.computerError}` : c.computers != null ? ` ${c.computers} ${c.computers === 1 ? 'device' : 'devices'} updated from their computer accounts.` : '')
-      + (c.adUnmatched ? ` ${c.adUnmatched} not in the inventory: see the list below.` : '');
+      + (c.review ? ` ${c.review} new ${c.review === 1 ? 'device waits' : 'devices wait'} in To review.` : '') + (c.added ? ` ${c.added} new ${c.added === 1 ? 'device' : 'devices'} added.` : '');
     await reloadFromServer(); renderSetLdap(); $('#ldapMsg').textContent = msg.textContent;
   };
 }
