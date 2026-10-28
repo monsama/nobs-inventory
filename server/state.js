@@ -245,6 +245,8 @@ function checkStateRules(s, size = true) {
     if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
+    /* Title, phones, office, manager and e-mail, from the directory or Entra (from says which). */
+    if (u.profile !== undefined && (!u.profile || typeof u.profile !== 'object' || Array.isArray(u.profile) || Object.values(u.profile).some(v => typeof v !== 'string' || v.length > 200))) bad('What the directory says of a person is an object of short texts.');
   }
   /* A login names one account: sign-in picks the first match, so a second one would lock its owner out. */
   const logins = new Map();
@@ -300,7 +302,9 @@ function checkStateRules(s, size = true) {
     /* A device found by a sync and waiting in To review: which source found it, when, and when it was ignored. */
     if (o.review !== undefined && (!o.review || typeof o.review !== 'object' || Array.isArray(o.review) || !INTAKE_SOURCES.includes(o.review.src)
       || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored'].includes(k) || typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the review mark names its source and when.`);
-    if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad) || Object.values(o.ad).some(v => typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
+    if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad)
+      || Object.values(o.ad).some(v => Array.isArray(v) ? v.length > 30 || v.some(x => typeof x !== 'string' || x.length > 60) : typeof v !== 'string' || v.length > 400))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
+    if (o.autopilot !== undefined && (!o.autopilot || typeof o.autopilot !== 'object' || Array.isArray(o.autopilot) || Object.values(o.autopilot).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Autopilot says is an object of short texts.`);
     if (o.accessories !== undefined) {
       if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);
       else for (const a of o.accessories) {

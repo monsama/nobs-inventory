@@ -2,6 +2,7 @@ import { dateText } from '../public/js/dates.js';
 import ldap from 'ldapjs';
 import fs from 'node:fs';
 import { HttpError } from './errors.js';
+import { profileFields } from './fill.js';
 import tls, { rootCertificates as tlsRootCertificates } from 'node:tls';
 import { X509Certificate } from 'node:crypto';
 import { isIP } from 'node:net';
@@ -83,7 +84,9 @@ export function profileOf(attrs, config) {
     name: first('displayName') || login,
     dept: first('department'),
     mail: first('mail'),
-    groups: (attrs.memberof ?? []).map(cnOf)
+    groups: (attrs.memberof ?? []).map(cnOf),
+    profile: profileFields({ title: first('title'), phone: first('telephoneNumber'), mobile: first('mobile'), office: first('physicalDeliveryOfficeName'),
+      manager: first('manager') ? cnOf(first('manager')) : '', mail: first('mail') })
   };
 }
 /* Membership of the groups the user is directly in. Used when a group is given by name. */
@@ -197,7 +200,21 @@ export const computerBaseOf = config => {
 /* What is read of a computer account, by name: never everything, so a service account with more rights than it needs
    is not sent the LAPS password (ms-Mcs-AdmPwd, msLAPS-Password) or BitLocker recovery keys, which live on or under it.
    Written in lower case: AD does not mind, and a directory stand-in that compares names as written still answers. */
-export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated', 'useraccountcontrol'];
+export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated', 'useraccountcontrol',
+  'description', 'managedby', 'location', 'serviceprincipalname'];
+/* What a computer runs, as its service principal names tell: MSSQLSvc/db1.corp:1433 is SQL Server. Only the kinds
+   known here are named; the rest (HOST, RestrictedKrbHost and the like every computer has) are left out. */
+const SERVICES = [[/^MSSQLSvc$/i, 'SQL Server'], [/^HTTP$/i, 'Web'], [/^TERMSRV$/i, 'Remote Desktop'], [/^Microsoft Virtual (System Migration Service|Console Service)$/i, 'Hyper-V'],
+  [/^exchange/i, 'Exchange'], [/^SMTP(SVC)?$/i, 'Mail (SMTP)'], [/^ldap$/i, 'Domain controller'], [/^GC$/i, 'Global catalog'], [/^DNS$/i, 'DNS'],
+  [/^WSMAN$/i, 'Remote management'], [/^MSServerCluster(MgmtAPI)?$/i, 'Failover cluster'], [/^MSOMSdkSvc$|^MSOMHSvc$/i, 'SCOM'], [/^SAP/i, 'SAP'], [/^FIMService$/i, 'Identity Manager']];
+export function servicesOf(spns) {
+  const out = new Set();
+  for (const spn of spns || []) {
+    const cls = String(spn).split('/')[0];
+    for (const [re, name] of SERVICES) if (re.test(cls)) out.add(name);
+  }
+  return [...out].sort((a, b) => a.localeCompare(b));
+}
 /* AD writes a time as Windows file time (100 ns since 1601) or as generalized time (20231005123456.0Z); the day of it. */
 export function adDay(v) {
   const t = String(v ?? '').trim();
@@ -223,7 +240,9 @@ export function computerOf(a, dn = '') {
   const dns = a.dnshostname?.[0] || '';
   return { name: a.cn?.[0] || '', dns, groups: [...new Set((a.memberof ?? []).map(cnOf))].sort((x, y) => x.localeCompare(y)),
     os: adOs(a.operatingsystem?.[0], a.operatingsystemversion?.[0]), domain: dns.includes('.') ? dns.slice(dns.indexOf('.') + 1).toLowerCase() : '',
-    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]), ou: ouOf(dn), disabled: (Number(a.useraccountcontrol?.[0]) & 2) === 2 };
+    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]), ou: ouOf(dn), disabled: (Number(a.useraccountcontrol?.[0]) & 2) === 2,
+    description: String(a.description?.[0] || '').trim().slice(0, 400), managedBy: a.managedby?.[0] ? cnOf(a.managedby[0]).slice(0, 200) : '',
+    location: String(a.location?.[0] || '').trim().slice(0, 200), services: servicesOf(a.serviceprincipalname) };
 }
 
 export async function ldapListComputers(config) {

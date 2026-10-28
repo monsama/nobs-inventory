@@ -16,7 +16,9 @@ export function graphSummary(c){
     c.ambiguous ? `${c.ambiguous} fit${c.ambiguous === 1 ? 's' : ''} more than one device here and ${c.ambiguous === 1 ? 'was' : 'were'} put on none: see below.` : '',
     c.gone ? `${n('gone', 'device is', 'devices are').trim()} no longer in Entra or Intune.` : '',
     c.people ? `People: ${c.people.inEntra} in Entra${c.people.added ? `, ${c.people.added} added` : ''}${c.people.bound ? `, ${c.people.bound} devices given their user` : ''}${c.people.gone ? `, ${c.people.gone} no longer in Entra` : ''}.` : '',
-    c.peopleError || ''].filter(Boolean).join(' ');
+    c.peopleError || '', c.defenderError || '',
+    c.autopilot || c.autopilotNew ? `Autopilot: ${c.autopilot || 0} devices with a record${c.autopilotNew ? `, ${c.autopilotNew} registered but not set up yet, new in the inventory` : ''}.` : '',
+    c.autopilotError || ''].filter(Boolean).join(' ');
 }
 /* Graph records that fit more than one device here, by serial number or name: put on none of them, listed to be fixed. */
 function ambiguousHtml(){
@@ -93,6 +95,11 @@ export async function renderSetGraph(){
         <div class="form" style="padding:8px 0 0"><label for="gDefender">Defender</label><select id="gDefender" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.defender || 'off') === 'off' ? 'selected' : ''}>Don't read Defender</option>
           <option value="on" ${g.defender === 'on' ? 'selected' : ''}>Read Defender for Endpoint</option></select></div></li>
+      <li><div class="gs-head"><b>Windows Autopilot</b> <span class="muted">(optional)</span></div>
+        <p class="note">The sync can read the devices registered in Windows Autopilot: each device gets its group tag and order number, and a device registered but not set up yet comes in by its serial number (in To review), before Intune knows it. Needs <span class="mono">DeviceManagementServiceConfig.Read.All</span> (Microsoft Graph, Application permissions), then <b>Grant admin consent</b>. Read only, like the others.</p>
+        <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
+          <option value="off" ${(g.autopilot || 'off') === 'off' ? 'selected' : ''}>Don't read Autopilot</option>
+          <option value="on" ${g.autopilot === 'on' ? 'selected' : ''}>Read Windows Autopilot</option></select></div></li>
       <li><div class="gs-head"><b>Device fields</b></div>
         <p class="note">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>
         <label class="pchk" style="width:auto;padding-top:6px"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Fill in empty fields from Intune</label></li>
@@ -116,6 +123,10 @@ export async function renderSetGraph(){
   $('#gDefender').onchange = async () => {
     const x = await post('api/graph/settings', {defender: $('#gDefender').value});
     toast(x.ok ? ($('#gDefender').value === 'on' ? 'Saved: Defender is read at the next sync. Test connection checks its permission.' : 'Saved: Defender is not read any more') : (x.j.error || 'Not saved.'));
+  };
+  $('#gAutopilot').onchange = async () => {
+    const x = await post('api/graph/settings', {autopilot: $('#gAutopilot').value});
+    toast(x.ok ? ($('#gAutopilot').value === 'on' ? 'Saved: Autopilot is read at the next sync. Test connection checks its permission.' : 'Saved: Autopilot is not read any more') : (x.j.error || 'Not saved.'));
   };
   $('#gPeople').onchange = async () => {
     const x = await post('api/graph/settings', {people: $('#gPeople').value});

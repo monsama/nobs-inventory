@@ -458,7 +458,7 @@ export function sourceMark(o, k){
   const src = sourceOf(o, k);
   if (!src) return '<span class="fsrc-slot" aria-hidden="true"></span>';
   const t = sourceText(o, k, src);
-  return `<span class="fsrc" data-src="${src}" role="img" aria-label="${esc(t)}" title="${esc(t)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
+  return `<span class="fsrc" data-src="${src}" role="button" tabindex="0" aria-label="${esc(t)}" title="${esc(t)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
 }
 export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
@@ -587,3 +587,28 @@ export function pathUp(o){
 
 /* Days since a stamp ("dd.mm.yyyy hh:mm"); 0 when it is not one. */
 export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t) / 864e5 : 0; }
+
+/* A click (or Enter) on a source mark shows what its tooltip says, so it can be read on a touch screen and without
+   waiting for the hover. Another click, a click elsewhere or Escape closes it. */
+function closeSrcPop(){ const p = document.getElementById('fsrcPop'); if (p) p.remove(); }
+function openSrcPop(mark){
+  const was = document.getElementById('fsrcPop');
+  closeSrcPop();
+  if (was && was.dataset.for === mark.dataset.popId) return;
+  mark.dataset.popId ||= 'f' + Math.random().toString(36).slice(2);
+  const p = document.createElement('div');
+  p.id = 'fsrcPop'; p.className = 'fsrc-pop'; p.setAttribute('role', 'status'); p.dataset.for = mark.dataset.popId;
+  p.textContent = mark.getAttribute('aria-label') || mark.title;
+  document.body.append(p);
+  const r = mark.getBoundingClientRect();
+  p.style.top = `${r.bottom + window.scrollY + 6}px`;
+  p.style.left = `${Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, r.left + r.width / 2 - p.offsetWidth / 2)) + window.scrollX}px`;
+}
+if (typeof document !== 'undefined'){
+  document.addEventListener('click', e => { const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSrcPop();
+    else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
+  });
+  document.addEventListener('scroll', closeSrcPop, true);
+}

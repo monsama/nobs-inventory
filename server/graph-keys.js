@@ -33,5 +33,6 @@ export function graphSettingsProblem(g) {
   if (g.thumbprint && !/^[0-9A-F]{40}$/.test(g.thumbprint)) return 'The certificate is named by its thumbprint.';
   if (g.people !== undefined && !['off', 'match', 'add'].includes(g.people)) return 'People from Entra are off, matched, or matched and added.';
   if (g.defender !== undefined && !['off', 'on'].includes(g.defender)) return 'Defender for Endpoint is read or not: on or off.';
+  if (g.autopilot !== undefined && !['off', 'on'].includes(g.autopilot)) return 'Windows Autopilot is read or not: on or off.';
   return null;
 }

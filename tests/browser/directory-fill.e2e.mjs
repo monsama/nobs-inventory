@@ -18,9 +18,10 @@ saveState(db, { ...loadState(db), locs: ['HQ'], sites: ['HQ'],
   graph: { tenant: '1b2c3d4e-5f60-4a1b-9c2d-3e4f5a6b7c8d', clientId: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' },
   objs: [
     { id: 's1', code: 'INV-0001', type: 'server', name: 'SRV-01', status: 'active', loc: 'HQ', ovr: {}, feed: null, inAd: true,
-      os: 'Windows Server 2019 Standard (10.0.17763)', domain: 'corp.ch', src: { os: 'ad', domain: 'ad' }, ad: { logon: old, created: '2020-01-02' } },
+      os: 'Windows Server 2019 Standard (10.0.17763)', domain: 'corp.ch', src: { os: 'ad', domain: 'ad' }, ad: { logon: old, created: '2020-01-02', managedBy: 'Anna Muster', services: ['SQL Server', 'Remote Desktop'] } },
     { id: 'm1', code: 'INV-0002', type: 'mobile', name: 'iPhone Ana', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'iOS 18.1', src: { os: 'graph' },
-      graph: { join: 'Entra registered', managed: 'mdm', compliance: 'compliant', os: 'iOS 18.1', phone: '+41 79 123 45 67', imei: '351234567890123', ownership: 'Company', free: '32 GB', seen: '27.10.2026 06:00' } },
+      graph: { join: 'Entra registered', managed: 'mdm', compliance: 'compliant', os: 'iOS 18.1', phone: '+41 79 123 45 67', imei: '351234567890123', ownership: 'Company', free: '32 GB', category: 'Sales phones', supervised: 'yes', seen: '27.10.2026 06:00' },
+      autopilot: { groupTag: 'Sales', order: 'PO-7', state: 'enrolled', seen: '27.10.2026 06:00' } },
     /* Found by the directory sync, waiting in To review: one seen today, one not for 200 days */
     { id: 'n20', code: 'INV-0003', type: 'notebook', name: 'NB-20', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch',
       src: { os: 'ad', domain: 'ad' }, ad: { logon: new Date().toISOString().slice(0, 10), created: '2024-01-02' }, review: { src: 'ad', at: '27.10.2026 06:00' } },
@@ -49,6 +50,18 @@ try {
   assert.equal((await mark('name')) && (await mark('name'))[0], 'hand', 'a device no sync has: typed by hand');
   assert.match(form, new RegExp(`Last logon ${old}\\s*over 90 days ago`));
   assert.match(form, /created 2020-01-02/);
+  assert.match(form, /Managed by Anna Muster/);
+  assert.match(form, /SQL Server/, 'what it runs, from its service principal names');
+  // a click on a source mark shows its tooltip; a click elsewhere or Escape closes it
+  const osMark = p.locator('#f_s1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]');
+  await osMark.click();
+  assert.match(await p.textContent('#fsrcPop'), /From the computer account in Active Directory/);
+  await p.click('#objTitle');
+  assert.equal(await p.locator('#fsrcPop').count(), 0, 'closed by a click elsewhere');
+  await osMark.focus(); await p.keyboard.press('Enter');
+  await p.waitForSelector('#fsrcPop');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#fsrcPop').count(), 0, 'closed by Escape');
   if (process.env.NI_SHOTS) await p.locator('#view .panelbox:has(.hdr:text("Properties"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'directory-fill.png') });
 
   // typed over: the value is the page's, marked as set by hand, and no sync fills it again
@@ -62,7 +75,7 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
-  for (const t of ['Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);
+  for (const t of ['CategorySales phones', 'SupervisedYes', 'AutopilotGroup tag Sales · order PO-7 · enrolled', 'Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);
   assert.match(await p.getAttribute('#f_m1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]', 'title'), /From Microsoft Entra \/ Intune.*Typing a value here keeps yours/);
 
   // Settings: both switches are on by default and are saved when turned off

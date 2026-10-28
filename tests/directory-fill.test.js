@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toRecords, applyGraph, applyGraphPeople, intakeFromGraph } from '../server/graph.js';
+import { toRecords, applyGraph, applyGraphPeople, intakeFromGraph, applyAutopilot } from '../server/graph.js';
 import { applyComputers, listAdUnmatched, addFromAd, adType, intakeFromAd } from '../server/ldap-sync.js';
-import { adDay, adOs, computerOf, COMPUTER_ATTRS } from '../server/ldap.js';
+import { adDay, adOs, computerOf, COMPUTER_ATTRS, profileOf } from '../server/ldap.js';
+import { checkState } from '../server/state.js';
 import { fillField } from '../server/fill.js';
 import { mergeRecords } from '../server/feed.js';
 
@@ -21,7 +22,8 @@ test('AD times and operating systems read the way the page shows them', () => {
   assert.equal(adOs('', '10.0 (19045)'), '');
   const c = computerOf({ cn: ['SRV-01'], dnshostname: ['srv-01.Corp.Example.ch'], operatingsystem: ['Windows Server 2022 Datacenter'], operatingsystemversion: ['10.0 (20348)'],
     lastlogontimestamp: ['133430688000000000'], whencreated: ['20211005123456.0Z'], memberof: [] });
-  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05', ou: '', disabled: false });
+  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05', ou: '', disabled: false,
+    description: '', managedBy: '', location: '', services: [] });
   const d = computerOf({ cn: ['NB-7'], useraccountcontrol: ['4098'] }, 'CN=NB-7,OU=Notebooks,OU=Clients,DC=corp,DC=ch');
   assert.equal(d.disabled, true, 'userAccountControl 4098 has ACCOUNTDISABLE (2)');
   assert.equal(d.ou, 'Clients / Notebooks', 'the OUs, outermost first');
@@ -167,4 +169,56 @@ test('found devices wait in To review by default; a source set to add directly a
   // a device that waits (or was ignored) is in the inventory's list, so no sync offers it again
   g.graphUnmatched = [{ id: 'm1', name: 'iPhone Ana', platform: 'iOS', lastSync: '2026-10-26T08:00:00Z' }];
   assert.deepEqual(intakeFromGraph(g, NOW), { direct: 0, review: 0 });
+});
+
+test('a computer account tells who manages it, where it is and what it runs, and its description fills the purpose', () => {
+  const c = computerOf({ cn: ['SQL-01'], description: ['ERP database'], managedby: ['CN=Anna Muster,OU=IT,DC=corp,DC=ch'], location: ['Server room'],
+    serviceprincipalname: ['MSSQLSvc/sql-01.corp.ch:1433', 'HOST/SQL-01', 'TERMSRV/SQL-01', 'RestrictedKrbHost/SQL-01', 'HTTP/sql-01.corp.ch'] });
+  assert.equal(c.description, 'ERP database');
+  assert.equal(c.managedBy, 'Anna Muster');
+  assert.equal(c.location, 'Server room');
+  assert.deepEqual(c.services, ['Remote Desktop', 'SQL Server', 'Web']);
+  const s = state([{ id: 'a', name: 'SQL-01', status: 'active' }, { id: 'b', name: 'SQL-02', status: 'active', purpose: 'typed' }]);
+  s.locs = ['Server room'];
+  applyComputers(s, [{ ...c, groups: [], logon: '2026-10-20' }, { ...c, name: 'SQL-02', location: 'Somewhere new', groups: [] }], NOW);
+  const [a, b] = s.objs;
+  assert.equal(a.purpose, 'ERP database'); assert.equal(a.src.purpose, 'ad');
+  assert.equal(a.loc, 'Server room', 'a location the inventory knows by that name');
+  assert.equal(b.purpose, 'typed', 'a purpose typed is kept');
+  assert.equal(b.loc, undefined, 'a location the inventory does not know is not made up');
+  assert.deepEqual(a.ad, { logon: '2026-10-20', managedBy: 'Anna Muster', location: 'Server room', description: 'ERP database', services: ['Remote Desktop', 'SQL Server', 'Web'] });
+  assert.doesNotThrow(() => checkState(JSON.parse(JSON.stringify({ ...s, objs: s.objs.map(o => ({ ...o, type: 'server' })) }))));
+});
+
+test('a person gets title, phones, office, manager and e-mail from the directory, or from Entra when the directory has none', () => {
+  const p = profileOf({ samaccountname: ['amu'], displayname: ['Anna Muster'], title: ['IT lead'], telephonenumber: ['+41 44 000 00 00'], mobile: [''],
+    physicaldeliveryofficename: ['B2.14'], manager: ['CN=Ben Boss,OU=Staff,DC=corp,DC=ch'], mail: ['anna@corp.ch'] }, { loginAttr: 'sAMAccountName' });
+  assert.deepEqual(p.profile, { title: 'IT lead', phone: '+41 44 000 00 00', office: 'B2.14', manager: 'Ben Boss', mail: 'anna@corp.ch' });
+  const s = { users: [{ id: 'u1', login: 'amu', name: 'Anna Muster', source: 'ldap', profile: { ...p.profile, from: 'ldap' } }, { id: 'u2', login: 'cco', name: 'Carl Co', source: 'local' }], objs: [] };
+  const entra = [
+    { id: 'e1', userPrincipalName: 'amu@corp.ch', displayName: 'Anna Muster', onPremisesSamAccountName: 'amu', jobTitle: 'Other title', mobilePhone: '+41 79 1' },
+    { id: 'e2', userPrincipalName: 'cco@corp.ch', displayName: 'Carl Co', onPremisesSamAccountName: 'cco', jobTitle: 'Accountant', businessPhones: ['+41 44 2'], manager: { displayName: 'Ben Boss' } },
+  ];
+  applyGraphPeople(s, entra, 'match', NOW);
+  assert.equal(s.users[0].profile.title, 'IT lead', 'the directory wins: Entra has it from there');
+  assert.deepEqual(s.users[1].profile, { title: 'Accountant', phone: '+41 44 2', manager: 'Ben Boss', from: 'entra' });
+  applyGraphPeople(s, [{ ...entra[0] }, { ...entra[1], jobTitle: '', businessPhones: [], manager: null }], 'match', NOW);
+  assert.equal(s.users[1].profile, undefined, 'what Entra no longer says goes');
+});
+
+test('Autopilot: a known serial gets its group tag; an unknown one waits in To review until Intune names it', () => {
+  const s = state([{ id: 'a', name: 'NB-1', serial: 'SER1', status: 'active', type: 'notebook' }]);
+  s.seq = 100; s.codeN = 0;
+  const r = applyAutopilot(s, [
+    { serialNumber: 'SER1', groupTag: 'Sales', purchaseOrderIdentifier: 'PO-7', enrollmentState: 'enrolled', model: 'HP', lastContactedDateTime: '2026-10-20T08:00:00Z' },
+    { serialNumber: 'SER2', groupTag: 'Lab', model: 'Surface Laptop 5', manufacturer: 'Microsoft', enrollmentState: 'notContacted' },
+  ], NOW);
+  assert.equal(r.autopilot, 1, 'devices the inventory had'); assert.equal(r.autopilotNew, 1);
+  assert.equal(s.objs[0].autopilot.groupTag, 'Sales');
+  assert.equal(s.objs[0].autopilot.order, 'PO-7');
+  const n = s.objs[1];
+  assert.equal(n.name, 'SER2'); assert.equal(n.serial, 'SER2'); assert.equal(n.review.src, 'graph');
+  applyAutopilot(s, [{ serialNumber: 'SER2', groupTag: 'Lab' }], NOW);
+  assert.equal(s.objs.length, 2, 'not added twice');
+  assert.equal(s.objs[0].autopilot, undefined, 'out of Autopilot: what it said goes');
 });

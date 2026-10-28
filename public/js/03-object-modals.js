@@ -522,9 +522,11 @@ export function graphPanel(o){
   const adOnly = o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : '';
   /* A server is in Defender, not in Entra or Intune: Defender alone, in a panel of its own. */
   if (!g && !GRAPH_TYPES.includes(o.type) && !amb && o.defender) return `<div class="panelbox"><div class="hdr">Defender for Endpoint</div><dl class="lsbox"><dt>State</dt><dd style="font-family:inherit">${defenderRow(o)}</dd></dl></div>`;
+  const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
+  /* Registered in Windows Autopilot but not set up yet: no record in Entra or Intune, only Autopilot's. */
+  if (!g && o.autopilot) return `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div><p class="note" style="padding:10px 12px 0">Registered in Windows Autopilot, not set up yet: Intune names it once it is.</p><dl class="lsbox">${row('Autopilot', autopilotText(o.autopilot))}</dl></div>`;
   if (!g) return (GRAPH_TYPES.includes(o.type) || amb) && o.status !== 'retired'
     ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div>${ambNote}${amb ? '<div style="height:10px"></div>' : `<p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.${adOnly}</p>`}</div>` : '';
-  const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
   const last = graphLast(o);
   const enc = g.encrypted === 'yes' ? '<span class="chip ok">Encrypted</span>' : g.encrypted === 'no' ? '<span class="chip warn">Not encrypted</span>' : '';
   const others = g.gone ? [] : g.others || [];
@@ -541,6 +543,10 @@ export function graphPanel(o){
       ${row('Intune', isIntune(g.managed) ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : `Not managed${otherManager(g.managed) ? ` <span class="muted">· ${esc(otherManager(g.managed))}</span>` : ''}`)}
       ${isIntune(g.managed) ? row('Compliance', complianceChip(g.compliance)) : ''}
       ${row('Encryption', enc)}
+      ${g.jailbroken === 'yes' ? row('Jailbroken', '<span class="chip warn">Yes</span> <span class="muted">· Intune reports the phone as jailbroken or rooted</span>') : ''}
+      ${row('Supervised', g.supervised === 'yes' ? 'Yes <span class="muted">· an Apple device under full management</span>' : '')}
+      ${row('Category', esc(g.category || ''))}
+      ${row('Autopilot', o.autopilot ? autopilotText(o.autopilot) : g.autopilot === 'yes' ? 'Set up with Autopilot' : '')}
       ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
       ${row('Operating system', esc(g.os || ''))}
       ${o.defender ? row('Defender', defenderRow(o)) : ''}
@@ -563,12 +569,23 @@ function defenderRow(o){
     d.av ? `antivirus ${d.av.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()}` : '', d.lastSeen ? `last seen ${graphTime(d.lastSeen).slice(0, 10)}` : ''].filter(Boolean);
   return `<span class="chip ${s.cls}">${esc(s.state[0].toUpperCase() + s.state.slice(1))}</span>${bits.length ? ` <span class="muted">· ${esc(bits.join(' · '))}</span>` : ''}`;
 }
+/* What Windows Autopilot says of a device: its group tag, order number and enrolment state. */
+const AP_STATE = { enrolled: 'enrolled', notContacted: 'not set up yet', failed: 'enrolment failed', pendingReset: 'waiting for a reset', blocked: 'blocked' };
+function autopilotText(a){
+  return [a.groupTag ? `Group tag <b>${esc(a.groupTag)}</b>` : 'No group tag', a.order ? `order ${esc(a.order)}` : '', a.state ? esc(AP_STATE[a.state] || a.state) : '',
+    a.lastContact ? `last contact ${esc(graphTime(a.lastContact).slice(0, 10))}` : ''].filter(Boolean).join(' <span class="muted">·</span> ');
+}
 /* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
 export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
   const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
   const logon = ad.logon ? `Last logon ${esc(ad.logon)}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
   return `${logon}${ad.created ? ` <span class="muted">· created ${esc(ad.created)}</span>` : ''}`;
+}
+/* Who manages the account, where AD says it is and what it runs (from its service principal names). */
+function adMoreHtml(ad){
+  return [ad.managedBy ? `<span title="managedBy on the computer account">Managed by ${esc(ad.managedBy)}</span>` : '', ad.location ? `<span class="muted" title="location on the computer account">AD location: ${esc(ad.location)}</span>` : '',
+    (ad.services || []).length ? `<span class="adsvc">${ad.services.map(x => `<span class="chip" title="From its service principal names in AD">${esc(x)}</span>`).join('')}</span>` : ''].filter(Boolean).join(' ');
 }
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
@@ -846,7 +863,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<br>${adMoreHtml(o.ad)}` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
