@@ -28,7 +28,9 @@ import { createThrottle } from './throttle.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
-const COOKIE = 'ni_session';
+/* Over HTTPS the session cookie is a __Host- cookie: only this host can set it, so another site behind the same proxy
+   (a wiki on a sibling name) cannot plant a session of its own in the browser. */
+const cookieName = secure => secure ? '__Host-ni_session' : 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
 export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
@@ -71,7 +73,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   const proxyAddrs = new Set();
   const plainAddr = a => String(a || '').replace(/^::ffff:/, '');
   if (trustedProxy) {
-    const look = () => dns.lookup(trustedProxy, { all: true }).then(list => { proxyAddrs.clear(); for (const x of list) proxyAddrs.add(plainAddr(x.address)); }).catch(() => {});
+    /* One address, the one the name has now: an address left from before (the proxy removed, its address given to
+       another container) is not trusted any more. */
+    const look = () => dns.lookup(trustedProxy).then(x => { proxyAddrs.clear(); proxyAddrs.add(plainAddr(x.address)); }).catch(() => proxyAddrs.clear());
     look(); const t = setInterval(look, 60_000); t.unref();
   }
   app.set('trust proxy', (addr, i) => i === 0 && (['127.0.0.1', '::1'].includes(plainAddr(addr)) || proxyAddrs.has(plainAddr(addr))));
@@ -120,6 +124,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* A user with the role none has no access either: a session they hold ends at the next request. */
   const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false && u.role !== 'none' ? u : null; };
   const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
+  const COOKIE = cookieName(secureCookie);
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
      make every later save fail the check that logins are distinct. */
@@ -182,7 +187,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         let d;
         try { d = await ldapLogin(lc, login, password); }
         /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
-        catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); throw new HttpError(503, 'The directory cannot be reached right now.'); }
+        catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
           /* Read again after waiting on the directory: a second sign-in of the same login may have created the account
              meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
@@ -292,6 +297,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
+      s.objs = s.objs.map(o => o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
       s.users = s.users.map(({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u));
     }
     res.json(s);

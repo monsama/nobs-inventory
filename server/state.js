@@ -118,7 +118,9 @@ const SVG_BAD = /javascript:|<!|<\?|&#|\\/i;
 export const svgWithoutComments = text => text.replace(/<!--[\s\S]*?-->/g, '');
 /* Every element is a shape and every attribute one the page keeps (names checked with the quoted values taken out, so
    "<svg/onload=…>" is caught as well as " onload="). */
-export const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(\/?)\s*([^\s/>]+)([^>]*)>?/g)].some(([, , name, attrs]) =>
+/* A tag's attributes run to the first > outside quotes: a > inside a quoted value does not end the tag early, so no
+   attribute after it goes unchecked. */
+export const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(\/?)\s*([^\s/>]+)((?:"[^"]*"|'[^']*'|[^'">])*)>?/g)].some(([, , name, attrs]) =>
   !SVG_ELEMENTS.includes(name.toLowerCase())
   || [...attrs.replace(/"[^"]*"|'[^']*'/g, '""').matchAll(/([^\s=/"'>]+)\s*(=|(?=[\s/>]|$))/g)].some(m => !SVG_ATTRS.includes(m[1].toLowerCase())));
 
@@ -237,6 +239,8 @@ function checkStateRules(s, size = true) {
     if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) bad(`The icon of the type ${k} has a viewBox that is not four numbers.`);
     if (t.svgInner !== undefined && (typeof t.svgInner !== 'string' || t.svgInner.length > 20000 || svgProblem(t.svgInner))) bad(`The icon of the type ${k} has something besides shapes. Upload it again.`);
   }
+  /* The directory settings never name the LAPS password or BitLocker data (server/ldap.js says the same at connect). */
+  if (s.ldap && typeof s.ldap === 'object' && /ms-?mcs-?admpwd|mslaps-|msfve-/i.test([s.ldap.loginAttr, s.ldap.userFilter, s.ldap.computerBase].join(' '))) bad('The directory settings name a LAPS or BitLocker attribute. The inventory never reads those.');
   for (const u of s.users) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
     /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
@@ -306,7 +310,7 @@ function checkStateRules(s, size = true) {
       || Object.values(o.ad).some(v => Array.isArray(v) ? v.length > 30 || v.some(x => typeof x !== 'string' || x.length > 60) : typeof v !== 'string' || v.length > 400))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
     /* What each source says of a field ([value, as of]) and the source a person picked for it. */
     if (o.vals !== undefined && (!o.vals || typeof o.vals !== 'object' || Array.isArray(o.vals) || Object.values(o.vals).some(f => !f || typeof f !== 'object' || Array.isArray(f)
-      || Object.entries(f).some(([src, v]) => !['ls', 'graph', 'ad'].includes(src) || !Array.isArray(v) || v.length !== 2 || v.some(x => typeof x !== 'string' || x.length > 400))))) bad(`${o.name}: what the sources say of its fields is not readable.`);
+      || Object.entries(f).some(([src, v]) => !['ls', 'graph', 'ad', 'hand'].includes(src) || !Array.isArray(v) || v.length !== 2 || v.some(x => typeof x !== 'string' || x.length > 1000))))) bad(`${o.name}: what the sources say of its fields is not readable.`);
     if (o.pick !== undefined && (!o.pick || typeof o.pick !== 'object' || Array.isArray(o.pick) || Object.values(o.pick).some(v => !['ls', 'graph', 'ad', 'hand'].includes(v)))) bad(`${o.name}: a field follows a source that is not known.`);
     if (o.autopilot !== undefined && (!o.autopilot || typeof o.autopilot !== 'object' || Array.isArray(o.autopilot) || Object.values(o.autopilot).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Autopilot says is an object of short texts.`);
     if (o.accessories !== undefined) {

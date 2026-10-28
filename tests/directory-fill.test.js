@@ -267,3 +267,15 @@ test('each source\'s value is kept beside the field, and a source picked for it 
   assert.equal(o.os, 'Windows 11 Enterprise (10.0.26100)'); assert.equal(o.src.os, 'ad');
   assert.doesNotThrow(() => checkState(JSON.parse(JSON.stringify(s))));
 });
+
+test('a location picked from AD is not taken back by Lansweeper; Intune\'s values go when the device leaves Intune', () => {
+  const s = state([{ id: 'a', name: 'PC-1', serial: 'S1', status: 'active', type: 'pc', loc: 'Zurich', src: { loc: 'ad' }, pick: { loc: 'ad' }, feed: { sys: 'Lansweeper', ref: '7' }, ovr: {} }]);
+  s.locs = ['Zurich', 'Bern']; s.policy = { ...s.policy, loc: true };
+  mergeRecords(s, [{ name: 'PC-1', serial: 'S1', location: 'Bern', ref: '7' }], NOW);
+  assert.equal(s.objs[0].loc, 'Zurich', 'the picked source keeps it');
+  assert.deepEqual(s.objs[0].vals.loc.ls[0], 'Bern', 'Lansweeper\'s location is on offer');
+  applyGraph(s, [rec({ name: 'PC-1', serial: 'S1', os: 'Windows 11' })], NOW);
+  assert.ok(s.objs[0].vals.os.graph);
+  applyGraph(s, [], NOW);
+  assert.equal((s.objs[0].vals.os || {}).graph, undefined, 'gone from Intune: not offered any more');
+});

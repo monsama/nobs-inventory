@@ -1,6 +1,6 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
-import { dateFieldHtml, dateValue } from './datefield.js';
+import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
 import { editButton, $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
 import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
@@ -144,6 +144,8 @@ export function contractModal(c, preset = []){
     const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
     const name = $('#ctName').value.trim();
     if (!name) return err('Give the contract a name.');
+    const badDay = ['#ctStart', '#ctEnd'].find(id => dateBad($(id)));
+    if (badDay){ toast('Write the day as dd.mm.yyyy.', 'err'); $(badDay).focus(); return; }
     const start = dateValue($('#ctStart')), end = dateValue($('#ctEnd'));
     if (start && end && end < start) return err('It ends before it starts.');
     const renew = int($('#ctRenew').value, 60);
@@ -234,6 +236,7 @@ export function licenceModal(l, name = ''){
     if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }
     const cost = num($('#licCost').value);
     if ($('#licCost').value.trim() && cost === undefined){ $('#licErr').textContent = 'The cost is a number up to 1 000 000 000, e.g. 1200 or 99.50.'; $('#licErr').classList.add('err'); return; }
+    if (dateBad($('#licEnd'))){ toast('Write the day as dd.mm.yyyy.', 'err'); $('#licEnd').focus(); return; }
     const next = { id: cur.id, name: nm, seats: int($('#licSeats').value, 1000000), cost, per: $('#licPer').value, end: dateValue($('#licEnd')) || undefined, note: $('#licNote').value.trim() || undefined };
     COSTS.licences = isNew ? [...COSTS.licences, next] : COSTS.licences.map(x => x.id === cur.id ? next : x);
     queueServerSave(); closeModal(); toast(isNew ? 'Licence added' : 'Licence saved'); render();

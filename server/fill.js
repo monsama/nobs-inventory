@@ -43,7 +43,7 @@ export function noteValue(o, k, src, value, asOf = '') {
     if (o.vals && o.vals[k] && src in o.vals[k]) { delete o.vals[k][src]; if (!Object.keys(o.vals[k]).length) delete o.vals[k]; if (!Object.keys(o.vals).length) delete o.vals; }
     return;
   }
-  ((o.vals ??= {})[k] ??= {})[src] = [v.slice(0, 400), String(asOf || '').slice(0, 40)];
+  ((o.vals ??= {})[k] ??= {})[src] = [v.slice(0, 1000), String(asOf || '').slice(0, 40)];
 }
 /* The source a person picked for field k of o ('ls', 'graph', 'ad' or 'hand'), or none: then the order above decides. */
 export const pickOf = (o, k) => (o.pick && o.pick[k]) || '';

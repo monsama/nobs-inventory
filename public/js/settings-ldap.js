@@ -32,7 +32,7 @@ export const ldapUrlFor = (url, security) => {
 function caHtml(edit){
   const ca = st.ldapCa;
   const day = dateText;
-  const pick = `<label class="btnlike ${edit ? '' : 'disabled'}" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
+  const pick = `<label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
   if (!ca) return `<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
   return `<span style="flex:1;min-width:0">${ca.certs.map(c => `<span class="chip ok" style="flex:none">${esc(c.name)}</span> <span class="muted">until ${esc(day(c.expires))}</span>`).join(' ')}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
 }
@@ -98,7 +98,7 @@ export function renderSetLdap(){
     </details>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
     ${intakeRowHtml('ad')}
-    <p class="note" style="padding:0 12px 4px">Computer accounts no device here has become devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
+    <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
     <p class="note" style="padding:0 12px 4px">Only fields nobody has filled: a value set by hand, from Lansweeper or from Intune goes first. The device shows where a value came from. Only these fields of a computer account are read, never its LAPS password or BitLocker keys.</p>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;

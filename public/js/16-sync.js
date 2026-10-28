@@ -44,7 +44,7 @@ export function syncButtonHtml(){
   const list = sources();
   if (!canEdit() || !list.length) return '';
   const failed = list.some(([src]) => runOf(src) && !runOf(src).ok);
-  return `<button type="button" id="syncBtn" class="tab sync-btn${running ? ' spinning' : ''}${failed ? ' failed' : ''}" aria-haspopup="menu" title="${failed ? 'A sync failed: open for details' : 'Sync now, and when each sync last ran'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg>Sync</button>`;
+  return `<button type="button" id="syncBtn" class="tab sync-btn${running ? ' spinning' : ''}${failed ? ' failed' : ''}" aria-haspopup="dialog" title="${failed ? 'A sync failed: open for details' : 'Sync now, and when each sync last ran'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg>Sync</button>`;
 }
 function menuHtml(){
   const list = sources();
@@ -68,7 +68,7 @@ function openMenu(){
   closeMenu();
   const b = $('#syncBtn'); if (!b) return;
   const m = document.createElement('div');
-  m.id = 'syncMenu'; m.className = 'sync-menu'; m.setAttribute('role', 'menu');
+  m.id = 'syncMenu'; m.className = 'sync-menu'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sync');
   m.innerHTML = menuHtml();
   document.body.append(m);
   const r = b.getBoundingClientRect();
@@ -78,6 +78,8 @@ function openMenu(){
   m.querySelectorAll('[data-syncset]').forEach(x => x.onclick = async () => { closeMenu(); st.setTab = x.dataset.syncset; (await import('./04-settings.js')).openSettings(); });
   document.addEventListener('mousedown', outside, true);
   document.addEventListener('keydown', onKey, true);
+  /* From the keyboard the menu is used at once: the focus moves into it. */
+  const first = m.querySelector('button:not([disabled])'); if (first) first.focus();
 }
 async function syncOne(src){
   const r = await fetch(SOURCES[src].url, { method: 'POST', credentials: 'same-origin' });

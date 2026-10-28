@@ -17,9 +17,10 @@ const icon = src => `<svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]
 
 /* The choices for field k of o: each source with a value, and the value set by hand when there is one. */
 function choicesOf(o, k){
-  const list = Object.entries((o.vals || {})[k] || {}).map(([src, [value, at]]) => ({ src, value, at }));
-  const src = (o.src || {})[k];
-  if ((src === 'hand' || (o.pick || {})[k] === 'hand') && o[k] != null && o[k] !== '') list.push({ src: 'hand', value: String(o[k]), at: o.handAt || '' });
+  const src = (o.src || {})[k], handNow = (src === 'hand' || (o.pick || {})[k] === 'hand') && o[k] != null && o[k] !== '';
+  /* The value set by hand: the one in the field while it is the page's, else the one kept when a source was picked over it. */
+  const list = Object.entries((o.vals || {})[k] || {}).filter(([s]) => !(s === 'hand' && handNow)).map(([s, [value, at]]) => ({ src: s, value, at }));
+  if (handNow) list.push({ src: 'hand', value: String(o[k]), at: o.handAt || '' });
   return list.sort((a, b) => ['ls', 'graph', 'ad', 'hand'].indexOf(a.src) - ['ls', 'graph', 'ad', 'hand'].indexOf(b.src));
 }
 
@@ -46,9 +47,15 @@ function pickerOf(mark, close){
     if (!src){
       const rest = { ...(o.pick || {}) }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick;
       if (o.ovr && o.ovr[k] === false && inUse !== 'hand') delete o.ovr[k];
+      /* The usual order decides at once, as the next syncs would: Lansweeper, then Intune, then AD. A value set by hand
+         stays (it comes first in that order). */
+      const auto = inUse === 'hand' ? null : ['ls', 'graph', 'ad'].map(s => list.find(x => x.src === s)).find(Boolean);
+      if (auto){ o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
       hist(o, now(), `${LABELS[k] || k}: back to the automatic order of the sources, by ${who()}`);
     } else {
       const was = o[k];
+      /* A value set by hand stays on offer when a source is picked over it, so it can be picked back. */
+      if (src !== 'hand' && (o.src || {})[k] === 'hand' && was != null && was !== '') o.vals = { ...(o.vals || {}), [k]: { ...((o.vals || {})[k] || {}), hand: [String(was), o.handAt || ''] } };
       o[k] = c.value;
       o.src = { ...(o.src || {}), [k]: src };
       o.pick = { ...(o.pick || {}), [k]: src };

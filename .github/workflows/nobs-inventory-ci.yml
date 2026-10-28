@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 15   # a hung test stops here, not after GitHub's six hours
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -51,6 +53,8 @@ jobs:
         group: [a, b, c]   # the three groups in package.json (test:browser:a, :b, :c) run side by side
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -68,6 +72,8 @@ jobs:
     needs: unit
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Every action version exists
         run: scripts/check-actions.sh
       - name: Archive (the same files the release archives)

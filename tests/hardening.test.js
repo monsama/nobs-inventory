@@ -25,3 +25,14 @@ test('nothing answering reads the same whatever the reason, so the test cannot m
   assert.ok(!isUnreachable('unable to verify the first certificate'));
   assert.match(ldapHint('connect'), /cannot be reached/);
 });
+
+test('an icon cannot hide an attribute behind a > inside quotes; the directory settings never name LAPS or BitLocker', async () => {
+  const { svgProblem } = await import('../server/state.js');
+  const { ldapSettingsProblem } = await import('../server/ldap.js');
+  assert.ok(svgProblem('<path id="r>" onmouseover="alert(1)" d="M0 0h24v24H0z"/>'));
+  assert.ok(!svgProblem('<path d="M0 0h24" fill="none"/><circle cx="1" cy="2" r="3"/>'));
+  assert.match(ldapSettingsProblem({ loginAttr: 'ms-Mcs-AdmPwd' }), /LAPS or BitLocker/);
+  assert.match(ldapSettingsProblem({ loginAttr: 'sAMAccountName', userFilter: '(objectClass=msFVE-RecoveryInformation)' }), /LAPS or BitLocker/);
+  assert.match(ldapSettingsProblem({ loginAttr: 'cn)(x' }), /one attribute/);
+  assert.equal(ldapSettingsProblem({ loginAttr: 'userPrincipalName', userFilter: '(objectClass=person)' }), '');
+});

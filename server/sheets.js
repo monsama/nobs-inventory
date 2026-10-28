@@ -100,7 +100,10 @@ export const listSheets = (db, userId) => db.prepare('SELECT id, user_id, create
 export function getSheet(db, key, id) {
   const r = db.prepare('SELECT * FROM sheets WHERE id = ?').get(id);
   if (!r) throw new HttpError(404, 'No such sheet.');
-  return { ...row(r), sheet: openSheet(key, r.data) };
+  /* The same key seals other secrets: only something shaped like a sheet is shown as one. */
+  const sheet = openSheet(key, r.data);
+  if (!sheet || typeof sheet !== 'object' || !sheet.person || typeof sheet.person.name !== 'string' || !Array.isArray(sheet.devices)) throw new HttpError(400, 'This sheet cannot be read.');
+  return { ...row(r), sheet };
 }
 export function markChanged(db, key, id) {
   if (!db.prepare('SELECT 1 FROM sheets WHERE id = ?').get(id)) throw new HttpError(404, 'No such sheet.');

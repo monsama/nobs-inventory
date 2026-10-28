@@ -29,7 +29,7 @@ export function openSettings(){
     <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf"><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
-  $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); });
+  $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; });
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();

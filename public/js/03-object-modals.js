@@ -8,7 +8,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { keepByHand, defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -863,7 +863,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${propHead(o, !!menuSlot)}${fields.map(row).join('')}
         ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.ad ? `<label>AD account</label><div class="ctlrow entries"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<span class="admore">${adMoreHtml(o.ad)}</span>` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
@@ -999,6 +999,8 @@ export function renderObj(o){
   $('#view').querySelectorAll('[data-ovr]').forEach(c => c.onchange = () => {
     const k = c.dataset.ovr, name = FIELD_LABEL[k] || { software: 'Software', links: 'Links' }[k] || k;
     o.ovr[k] = c.checked;
+    /* The tick says who writes the field now: a source picked for it before gives way. */
+    if (o.pick && o.pick[k]){ o.pick = {...o.pick}; delete o.pick[k]; if (!Object.keys(o.pick).length) delete o.pick; }
     hist(o, now(), `${name}: ${c.checked ? 'taken from feed' : 'kept as set here'} (object override)`);
     toast(`${name} ${c.checked ? 'follows the feed' : 'is kept as set here'}`); render();
   });
@@ -1093,6 +1095,7 @@ export function renderObj(o){
         if (String(v ?? '') === ''){
           if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; o.ovr = {...(o.ovr || {}), [k]: false}; }
         } else o.src = {...(o.src || {}), [k]: 'hand'};
+        keepByHand(o, k);
       }
       o[k] = v;
       /* The mark beside the field follows at once: the page is not drawn again for one field. */

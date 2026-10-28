@@ -448,7 +448,7 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   const keep = ' Typing a value here keeps yours.';
   if (src === 'hand') return 'Set by hand' + (o.handAt ? ` · last edited here ${stamp(new Date(o.handAt))}` : '');
   if (src === 'ls') return 'From Lansweeper' + (o.feed && o.feed.scanned ? ` · last scan ${dayText(o.feed.scanned)}` : '');
-  if (src === 'graph') return 'From Microsoft Entra / Intune' + (o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
+  if (src === 'graph') return 'From Microsoft Entra & Intune' + (o.graph && (o.graph.lastCheckIn || o.graph.lastSync) ? ` · last check-in ${stamp(new Date(o.graph.lastCheckIn || o.graph.lastSync))}` : o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
   if (src === 'ad') return 'From the computer account in Active Directory' + (o.ad && o.ad.logon ? ` · last logon ${dayText(o.ad.logon)}` : '') + '.' + keep;
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
@@ -462,16 +462,18 @@ export function sourceMark(o, k){
   return `<span class="fsrc${others ? ' fsrc-multi' : ''}${picked ? ' fsrc-picked' : ''}" data-src="${src}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
 }
 /* Whether the sources give field k of o different values (or a value other than the one in use): worth a look. */
+/* Once a source is picked for the field, the person has decided: no dot. A value kept from by hand does not count. */
 export function sourcesDisagree(o, k){
-  const f = o.vals && o.vals[k]; if (!f) return false;
-  const vals = new Set(Object.values(f).map(([v]) => String(v)));
+  const f = o.vals && o.vals[k]; if (!f || (o.pick && o.pick[k])) return false;
+  const vals = new Set(Object.entries(f).filter(([src]) => src !== 'hand').map(([, [v]]) => String(v)));
+  if (!vals.size) return false;
   return vals.size > 1 || (o[k] != null && o[k] !== '' && !vals.has(String(o[k])));
 }
 export { SRC_ICON };
 /* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
 let srcPicker = null;
 export const setSrcPicker = f => { srcPicker = f; };
-export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (o.pick && o.pick[k] ? o.pick[k] === 'ls' : k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
@@ -601,8 +603,17 @@ export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t
 
 /* A click (or Enter) on a source mark shows what its tooltip says, so it can be read on a touch screen and without
    waiting for the hover. Another click, a click elsewhere or Escape closes it. */
-let srcPopAt = 0;
-function closeSrcPop(){ const p = document.getElementById('fsrcPop'); if (p) p.remove(); }
+let srcPopAt = 0, srcPopMark = null;
+/* Closing puts the focus back on the mark it came from (found again after a redraw by its device and field). */
+function closeSrcPop(refocus = false){
+  const p = document.getElementById('fsrcPop'); if (p) p.remove();
+  if (refocus && srcPopMark){
+    const { oid, fk } = srcPopMark;
+    const m = document.querySelector(`.fsrc[data-oid="${CSS.escape(oid)}"][data-fk="${CSS.escape(fk)}"]`);
+    if (m) m.focus();
+  }
+}
+export const closeSrcPopAndFocus = () => closeSrcPop(true);
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
   closeSrcPop();
@@ -610,19 +621,40 @@ function openSrcPop(mark){
   mark.dataset.popId ||= 'f' + Math.random().toString(36).slice(2);
   const p = document.createElement('div');
   p.id = 'fsrcPop'; p.className = 'fsrc-pop'; p.setAttribute('role', 'status'); p.dataset.for = mark.dataset.popId;
-  const picker = srcPicker && srcPicker(mark, closeSrcPop);
+  srcPopMark = { oid: mark.dataset.oid || '', fk: mark.dataset.fk || '' };
+  const picker = srcPicker && srcPicker(mark, () => closeSrcPop(true));
   if (picker){ p.classList.add('pick'); p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Where this value comes from'); p.append(picker); }
   else p.textContent = mark.getAttribute('aria-label') || mark.title;
   document.body.append(p); srcPopAt = Date.now();
-  const r = mark.getBoundingClientRect();
-  p.style.top = `${r.bottom + window.scrollY + 6}px`;
+  /* Under the mark, or above it when there is no room below; never past the window (a long list scrolls). */
+  const r = mark.getBoundingClientRect(), room = window.innerHeight - 8;
+  p.style.maxHeight = `${Math.max(160, room - 8)}px`;
+  const h = p.offsetHeight, below = r.bottom + 6, above = r.top - 6 - h;
+  const top = below + h <= room ? below : above >= 8 ? above : Math.max(8, room - h);
+  p.style.top = `${top + window.scrollY}px`;
   p.style.left = `${Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, r.left + r.width / 2 - p.offsetWidth / 2)) + window.scrollX}px`;
+  /* The picker takes the focus on the value in use, so it works from the keyboard: arrows move, Enter picks. */
+  if (picker){ const cur = p.querySelector('[role=radio][aria-checked=true]') || p.querySelector('[role=radio]'); if (cur) cur.focus(); }
 }
 if (typeof document !== 'undefined'){
   document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#fsrcPop')) return; const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSrcPop();
+    const pop = document.getElementById('fsrcPop');
+    if (e.key === 'Escape' && pop){ closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(e.target.closest && e.target.closest('#fsrcPop'))); return; }
+    if (pop && e.target.closest && e.target.closest('#fsrcPop')){
+      const items = [...pop.querySelectorAll('[role=radio], .sp-foot button')];
+      const i = items.indexOf(document.activeElement);
+      if (['ArrowDown', 'ArrowUp'].includes(e.key) && items.length){ e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); return; }
+      /* Tab stays in the picker; leaving it is Escape. */
+      if (e.key === 'Tab' && items.length){ e.preventDefault(); items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus(); return; }
+    }
     else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
+  });
+  /* A file button (a label around a hidden file field) opens the file dialog from the keyboard too. */
+  document.addEventListener('keydown', e => {
+    const l = (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('label.btnlike[role=button]') ? e.target : null;
+    if (!l || l.classList.contains('disabled')) return;
+    e.preventDefault(); const f = l.querySelector('input[type=file]'); if (f && !f.disabled) f.click();
   });
   /* Scrolling closes it, except the scroll that brought the mark into view just before (it arrives after the click). */
   document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(e.target.closest && e.target.closest('#fsrcPop'))) closeSrcPop(); }, true);
@@ -630,7 +662,14 @@ if (typeof document !== 'undefined'){
 
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
    the page's, so a sync that filled it does not put its value back. */
-export function markHand(o, k){ if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'}; }
+export function markHand(o, k){
+  if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'};
+  keepByHand(o, k);
+  /* Lansweeper writes a field it owns whatever its source note says: a linked device keeps the value as set here. */
+  if (feedLinked(o)) o.ovr = {...(o.ovr || {}), [k]: false};
+}
+/* A value set by hand over a source picked for the field: the field is the page's from then on, no sync writes it. */
+export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand') o.pick = {...o.pick, [k]: 'hand'}; }
 
 /* The one way to edit a row or a card: a pencil button at its end, the same in every list (contacts, contracts, licences).
    attr says what it opens (data-…="id"); a viewer gets Show instead of Edit. */

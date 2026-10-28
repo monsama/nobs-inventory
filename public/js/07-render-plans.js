@@ -524,7 +524,7 @@ export function shrinkPlanImage(img){
 export function planModal(existing){
   modal(`<div class="mh">${existing ? 'Replace image' : 'New floor plan'}</div><div class="mb">
     <div class="form" style="padding:0">${existing ? '' : `<label for="plName">Name</label><input id="plName" placeholder="e.g. Ground floor" maxlength="60"><label for="plSite">Site</label><select id="plSite">${SITES.map(s => `<option>${esc(s)}</option>`).join('')}</select>`}
-    <label for="plFile">Image</label><div class="filepick"><label class="btnlike">Choose image…<input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span class="muted" id="plFileName">No image chosen</span></div></div>
+    <label for="plFile">Image</label><div class="filepick"><label class="btnlike" tabindex="0" role="button">Choose image…<input id="plFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span class="muted" id="plFileName">No image chosen</span></div></div>
     <p class="note">PNG, JPG, GIF or WebP.</p></div>
     <div class="mf"><button id="plCancel">Cancel</button><button id="plOk" class="primary">Save</button></div>`, 'sm');
   $('#plCancel').onclick = closeModal;
