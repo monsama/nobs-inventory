@@ -79,6 +79,6 @@ export function ldapConfigOf(db, env) {
   const envPw = readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), envHost = ldapHostOf(env.NI_LDAP_URL || '');
   const pwHere = !envPw || !envHost || envHost === ldapHostOf(cfg.url);
   return { ...cfg, searchBase: cfg.searchBase, caFile: env.NI_LDAP_CA || '', allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1' || cfg.security === 'plain',
-    servicePassword: pwHere ? envPw : '', caPem: savedCa(db),
+    servicePassword: pwHere ? envPw : '', caPem: savedCa(db), ...(envPw && !envHost ? { envPasswordUnpinned: true } : {}),
     ...(pwHere ? {} : { passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is for ${envHost}, not ${ldapHostOf(cfg.url)}. Set NI_LDAP_URL to the new server, or change the address back.` }) };
 }

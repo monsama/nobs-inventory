@@ -51,7 +51,7 @@ export function renderRack(){
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
-  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${r.id}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${esc(r.id)}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
     ${canEdit() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
@@ -65,7 +65,7 @@ export function renderRack(){
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
-      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
+      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${esc(top.id)}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
         <span class="nm">${esc(top.name)}</span><span class="sub">${[esc(top.code), esc(sub)].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
@@ -81,7 +81,7 @@ export function renderRack(){
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${esc(R_.name)}</div>
         <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${esc(o.id)}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
       </div>
     </div></div>`;
 }
@@ -124,7 +124,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
   if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.loc ? '' : 'selected'}>No location</option>${(o.loc && !LOCS.includes(o.loc) ? [o.loc, ...LOCS] : LOCS).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${u.id}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.map(u => `<option value="${esc(u.id)}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
   else if (kind === 'subnet'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */
@@ -628,7 +628,7 @@ function swDetailHtml(r){
   return `<tr class="sw-detail" data-swd="${esc(r.name)}"><td colspan="4"><div class="sw-devs">
     <table class="sw-sub"><thead><tr><th>Device</th><th class="sw-opt">Type</th><th>Location</th><th class="sw-opt">User</th><th>Version</th></tr></thead><tbody>
     ${devs.map(d => { const v = versionOf(d, r.name), odd = mixed && v !== common; return `<tr>
-      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link mono" data-open="${d.id}">${esc(d.name)}</a></span></td>
+      <td><span class="sw-dev">${tico(d.type, 'tico sm')}<a class="link mono" data-open="${esc(d.id)}">${esc(d.name)}</a></span></td>
       <td class="sw-opt">${TYPES[d.type] ? esc(TYPES[d.type].short) : esc(d.type)}</td><td>${esc((d.loc || '').replace(' / ', ' · '))}</td><td class="sw-opt">${esc(d.user || '')}</td>
       <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? `title="Most devices have ${esc(common)}"` : ''}>${esc(v)}</span></td></tr>`; }).join('')}
     </tbody></table></div></td></tr>`;
@@ -920,7 +920,7 @@ export function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${esc(t.id)}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
@@ -1087,7 +1087,7 @@ export function renderObj(o){
       if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
       /* A value changed here is noted as set by hand, over any sync's (and kept from them); cleared, it stays empty: no
          sync fills it again. */
-      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
+      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
         if (String(v ?? '') === ''){
           if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; o.ovr = {...(o.ovr || {}), [k]: false}; }
         } else o.src = {...(o.src || {}), [k]: 'hand'};

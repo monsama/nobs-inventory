@@ -398,8 +398,8 @@ export function defenderState(o){
    the hover; AD and Lansweeper give the day only. */
 export function lastSeenOf(o){
   const g = o.graph && !o.graph.gone ? o.graph : null;
-  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && g.lastCheckIn],
-    ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen]]
+  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && (g.lastCheckIn || g.lastSync)],
+    ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
     .map(([src, v]) => [src, String(v || '').slice(0, 10), String(v || '')]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
   if (!all.length) return null;
   const when = ([, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
@@ -612,3 +612,7 @@ if (typeof document !== 'undefined'){
   });
   document.addEventListener('scroll', closeSrcPop, true);
 }
+
+/* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
+   the page's, so a sync that filled it does not put its value back. */
+export function markHand(o, k){ if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'}; }

@@ -238,6 +238,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const counts = { created: 0, updated: 0, linked: 0, unchanged: 0 };
   const pairs = [];
   const locs = s.locs || [];
+  let taken = null;   /* codes and ids in use, read when the first new device is made */
   /* A field that is not a valid address is left out of the record, so it is never stored. */
   const clean = raw => {
     const r = { ...raw };
@@ -283,8 +284,11 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (!found) {
       if (!r.name) continue;
       const type = typeFor(s, r.assetType, r.model, r.role, r.name, r.chassis);
-      s.codeN = (s.codeN || 0) + 1;
-      s.seq = (s.seq || 100) + 1;
+      /* The next free code and id: one taken by hand (or restored from an older backup) is passed over. */
+      taken ??= { codes: new Set(s.objs.map(o => o.code)), ids: new Set(s.objs.map(o => o.id)) };
+      do { s.codeN = (s.codeN || 0) + 1; } while (taken.codes.has('INV-' + String(s.codeN).padStart(4, '0')));
+      do { s.seq = (s.seq || 100) + 1; } while (taken.ids.has('o' + s.seq));
+      taken.codes.add('INV-' + String(s.codeN).padStart(4, '0')); taken.ids.add('o' + s.seq);
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
         feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),

@@ -5,7 +5,7 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
-import { stamp, typeFor } from './feed.js';
+import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
 import { fillField, lsOwns, profileFields } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
@@ -303,6 +303,8 @@ const groupBy = (list, key) => { const m = new Map(); for (const x of list) { co
 export function applyGraph(s, records, now = new Date()) {
   const at = stamp(now);
   const counts = { records: records.length, devices: 0, matched: 0, unmatched: 0, filled: 0, duplicates: 0, ambiguous: 0, gone: 0 };
+  /* A model renamed in Settings is that name here too, as it is for Lansweeper: Graph does not put the old one back. */
+  for (const r of records) if (r.model) r.model = modelFor(s, r.model);
   const live = s.objs.filter(o => o.status !== 'retired');
   const retired = s.objs.filter(o => o.status === 'retired');
   const bySerial = groupBy(live, o => low(o.serial)), byName = groupBy(live, o => low(o.name));
@@ -337,13 +339,15 @@ export function applyGraph(s, records, now = new Date()) {
     const owns = !!before.added && !o.feed;
     o.graph = graphOf(r, at, owns);
     if (list.length > 1) o.graph.others = othersOf(list, r);
-    /* A device Autopilot brought in before it was set up is named by its serial number: its name in Intune replaces it. */
-    if (o.autopilot && o.serial && o.name === o.serial && r.name && low(r.name) !== low(o.serial)) {
+    /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
+    if (o.excluded || o.detached) continue;
+    /* A device Autopilot brought in before it was set up is named by its serial number: its name in Intune replaces it,
+       unless another device already has that name (the directory sync may have added it meanwhile). */
+    if (o.autopilot && o.serial && o.name === o.serial && r.name && low(r.name) !== low(o.serial)
+      && !s.objs.some(x => x !== o && x.status !== 'retired' && low(x.name) === low(r.name))) {
       (s.history[o.id] ??= []).unshift({ t: at, msg: `Name changed from ${o.name} to ${r.name}: set up with Autopilot (Microsoft Graph)` });
       o.name = r.name;
     }
-    /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
-    if (o.excluded || o.detached) continue;
     const ovr = o.ovr || {};
     /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is Graph's
        and kept up to date in full, whatever the setting. */
@@ -456,7 +460,7 @@ export function applyAutopilot(s, list, now = new Date()) {
     do { s.seq = (s.seq || 100) + 1; } while (ids.has('o' + s.seq));
     const code = 'INV-' + String(s.codeN).padStart(4, '0'), id = 'o' + s.seq;
     codes.add(code); ids.add(id);
-    const model = clean([a.manufacturer, a.model].filter(Boolean).join(' '));
+    const model = modelFor(s, clean([a.manufacturer, a.model].filter(Boolean).join(' ')));
     const t = typeFor(s, '', model, '', serial, '');
     const n = { id, code, type: t === 'other' ? 'pc' : t, name: serial, serial, status: 'active', loc: '', ovr: {}, feed: null,
       ...(model ? { model, src: { model: 'graph', serial: 'graph' } } : { src: { serial: 'graph' } }), autopilot: { ...info, seen: at },

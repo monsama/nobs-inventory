@@ -4,7 +4,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
@@ -312,7 +312,7 @@ export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
-  return `<button class="card" data-open="${o.id}">
+  return `<button class="card" data-open="${esc(o.id)}">
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
@@ -391,7 +391,7 @@ export function addSearchHits(){
 export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
   /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
-  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${esc(o.id)}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
   {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].short)}</span></td>`},
   {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
@@ -474,7 +474,7 @@ export function renderTable(){
       const o = byId(id); if (!o || o.loc === bk.value) return;
       moved++;
       if (feedLinked(o) || (o.graph && o.graph.added)) (o.ovr ??= {}).loc = false;
-      o.loc = bk.value; o.handAt = new Date().toISOString();
+      o.loc = bk.value; markHand(o, 'loc'); o.handAt = new Date().toISOString();
       hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
     });
     toastUndo(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
@@ -520,7 +520,7 @@ export function renderTable(){
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => withSource(o, c, c.cell(o, idx))).join('')}</tr>`).join('')}
+    ${rowsOf.map(o => `<tr data-open="${esc(o.id)}"><td><input type="checkbox" data-sel="${esc(o.id)}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => withSource(o, c, c.cell(o, idx))).join('')}</tr>`).join('')}
     </tbody></table>${list.length ? '' : hiddenHits()}${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   bindHiddenHits();
@@ -724,7 +724,7 @@ export function mapInner(L){
   const edges = L.edges.map((r, i) => {
     const a = byId(r.from), b = byId(r.to), p = routes[i];
     const label = MAP_SHORT[r.kind] + (r.port != null ? ' · ' + portLabel(b, r.port) : '');
-    return `<g class="mline" data-from="${a.id}" data-to="${b.id}">
+    return `<g class="mline" data-from="${esc(a.id)}" data-to="${esc(b.id)}">
       <path class="mhit" d="${p.d}" fill="none" stroke="transparent" stroke-width="10"/>
       <path d="${p.d}" fill="none" stroke="var(--line)" stroke-width="1.4"/>
       <circle cx="${p.A.x}" cy="${p.A.y}" r="3" fill="var(--line)"/><circle cx="${p.B.x}" cy="${p.B.y}" r="3" fill="var(--line)"/>
@@ -733,7 +733,7 @@ export function mapInner(L){
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
     /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
-    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
+    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${esc(o.id)}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
       <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
@@ -821,7 +821,7 @@ export function renderMap(){
   const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
+    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
@@ -930,7 +930,7 @@ export function renderPorts(){
   const first = ['switch', 'patch', 'router', 'firewall'].map(t => devs.find(o => o.type === t)).find(Boolean);
   const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
   try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
-  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${s.id}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
+  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; view(); };

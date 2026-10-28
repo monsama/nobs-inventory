@@ -43,6 +43,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let c = ldapConfig ? ldapConfig() : ldap;
     /* The CA certificate added in Settings, whichever way the settings came. */
     if (c && !c.caPem) { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const pem = r && JSON.parse(r.data)?.pem; if (pem) c = { ...c, caPem: pem }; }
+    /* The server's password with no NI_LDAP_URL naming its directory: tied to the directory it is first used with, like
+       one saved here, so an address changed in Settings later (or by someone with a stolen session) does not get it. */
+    if (c && c.envPasswordUnpinned && c.servicePassword) {
+      const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost');
+      if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost', host);
+      else if (pinned && pinned !== host) return { ...c, servicePassword: '', passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is used with ${pinned}; the directory server is now ${host}. Set NI_LDAP_URL to the new server, or change the address back.` };
+    }
     if (!c || c.servicePassword || c.passwordProblem) return c;
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
     if (!saved) return c;
@@ -178,8 +185,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             isAdmin = true;
             audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
           }
-          /* The directory's department; with none there, one Entra gave stays (deptFrom 'entra'). */
-          Object.assign(user, { name: d.name, dept: d.dept || (user.deptFrom === 'entra' ? user.dept : d.dept), groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
+          /* The directory's department; with none there, one Entra or Lansweeper gave stays (deptFrom says whose). */
+          const keepDept = !d.dept && user.dept && (['entra', 'lansweeper'].includes(user.deptFrom) || user.source === 'lansweeper');
+          if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
+          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
           if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
@@ -194,7 +203,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         audit(db, null, 'failed sign in for ' + (user ? user.login : 'an unknown login'));
         throw new HttpError(401, FAILED);
       }
-      throttle.clearFailures(keys.slice(0, 1));   /* only this login: a success must not clear the address count */
+      throttle.clearFailures(keys.slice(0, 1)); throttle.rememberSuccess(keys);   /* only this login: a success must not clear the address count */
       /* The right password, but no access given yet: said plainly, so the person knows whom to ask. */
       if (user.role === 'none') {
         audit(db, user.id, 'sign in refused: no role');

@@ -62,7 +62,7 @@ export function newObjModal(pre={}){
     show('nUp', !!link); show('nPort', !!(link && link.port));
     if (link){
       document.querySelector('label[for="nUp"]').textContent = link.label;
-      $('#nUp').innerHTML = `<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => `<option value="${o.id}">${esc(o.name)}${TYPES[o.type] ? ' · ' + esc(TYPES[o.type].short) : ''}</option>`).join('')}`;
+      $('#nUp').innerHTML = `<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => `<option value="${esc(o.id)}">${esc(o.name)}${TYPES[o.type] ? ' · ' + esc(TYPES[o.type].short) : ''}</option>`).join('')}`;
       if ([...$('#nUp').options].some(x => x.value === keep)) $('#nUp').value = keep;
     } else $('#nUp').value = '';
   };
@@ -134,7 +134,7 @@ export function linkObjModal(pre = {}){
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
   modal(`<div class="mh">Link object</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${o.id}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
+      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
     </div><p class="note" id="lkNote">Only the link is added; the object's details stay as they are.</p></div>
@@ -146,7 +146,7 @@ export function linkObjModal(pre = {}){
   const fit = () => {
     const o = byId($('#lkObj').value), link = linkOf(o), keep = $('#lkTo').value;
     document.querySelector('label[for="lkTo"]').textContent = link.label;
-    $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${t.id}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
+    $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
     $('#lkPort').hidden = $('#lkPort').closest('.combo').hidden = document.querySelector('label[for="lkPort"]').hidden = !link.port;
     portNote('lkPort', '');

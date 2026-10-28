@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toRecords, applyGraph, applyGraphPeople, intakeFromGraph, applyAutopilot } from '../server/graph.js';
 import { applyComputers, listAdUnmatched, addFromAd, adType, intakeFromAd } from '../server/ldap-sync.js';
-import { adDay, adOs, computerOf, COMPUTER_ATTRS, profileOf } from '../server/ldap.js';
+import { adDay, adOs, computerOf, COMPUTER_ATTRS, profileOf, cnOf } from '../server/ldap.js';
+import { createThrottle } from '../server/throttle.js';
 import { checkState } from '../server/state.js';
 import { fillField } from '../server/fill.js';
 import { mergeRecords } from '../server/feed.js';
@@ -221,4 +222,32 @@ test('Autopilot: a known serial gets its group tag; an unknown one waits in To r
   applyAutopilot(s, [{ serialNumber: 'SER2', groupTag: 'Lab' }], NOW);
   assert.equal(s.objs.length, 2, 'not added twice');
   assert.equal(s.objs[0].autopilot, undefined, 'out of Autopilot: what it said goes');
+});
+
+test('a name with a comma in a DN is read whole', () => {
+  assert.equal(cnOf('CN=Doe\\, John,OU=Staff,DC=corp'), 'Doe, John');
+  assert.equal(cnOf('CN=Sales\\2C Zurich,OU=Groups'), 'Sales, Zurich');
+  assert.equal(computerOf({ cn: ['PC'], managedby: ['CN=Smith\\, Ann,OU=IT'] }).managedBy, 'Smith, Ann');
+});
+
+test('a directory entry without title or phones keeps what Entra gave: the two syncs do not take it from each other', () => {
+  const s = { users: [{ id: 'u1', login: 'amu', name: 'Anna', source: 'ldap', profile: { title: 'Lead', from: 'entra' } }], objs: [] };
+  applyGraphPeople(s, [{ id: 'e1', userPrincipalName: 'amu@corp.ch', displayName: 'Anna', onPremisesSamAccountName: 'amu', jobTitle: 'Lead' }], 'match', NOW);
+  assert.deepEqual(s.users[0].profile, { title: 'Lead', from: 'entra' });
+});
+
+test('Autopilot: Intune\'s name is not given when another device has it; a model renamed in Settings stays renamed', () => {
+  const s = state([{ id: 'a', name: 'SER9', serial: 'SER9', status: 'active', type: 'pc', autopilot: { groupTag: 'X' } }, { id: 'b', name: 'PC-9', status: 'active', type: 'pc', inAd: true }]);
+  s.modelMap = { 'HP EliteBook': 'EliteBook 840' };
+  applyGraph(s, [rec({ name: 'PC-9', serial: 'SER9' })], NOW);
+  assert.equal(s.objs[0].name, 'SER9', 'not a second PC-9');
+  assert.equal(s.objs[0].model, 'EliteBook 840', 'the renamed model, not Intune\'s');
+});
+
+test('sign-in lock: an address that signed in to a login before is not locked out by failures from elsewhere', () => {
+  const t = createThrottle(), now = Date.now();
+  t.rememberSuccess(['login:admin', 'ip:10.0.0.5']);
+  for (let i = 0; i < 20; i++) t.recordFailure(['login:admin', `ip:198.51.100.${i % 4}`], now);
+  assert.equal(t.blocked(['login:admin', 'ip:198.51.100.9'], now), true, 'a new address is held off');
+  assert.equal(t.blocked(['login:admin', 'ip:10.0.0.5'], now), false, 'the owner\'s address is not');
 });

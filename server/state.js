@@ -540,7 +540,7 @@ export function applyChanges(db, body, guard = () => {}) {
     if (c.kind === 'object') {
       if (v.id !== c.id) bad('A saved object must have the id it is saved under.');
       for (const k of ['ip', 'ip6', 'mac']) { const r = checkAddress(k, v[k]); if (!r.ok) bad(r.msg); if (v[k] !== undefined) v[k] = r.value; }
-      if (!v.code) { s.codeN = (s.codeN || 0) + 1; v.code = 'INV-' + String(s.codeN).padStart(4, '0'); codes[c.id] = v.code; }
+      if (!v.code) { do { s.codeN = (s.codeN || 0) + 1; } while (s.objs.some(o => o.code === 'INV-' + String(s.codeN).padStart(4, '0'))); v.code = 'INV-' + String(s.codeN).padStart(4, '0'); codes[c.id] = v.code; }
       const i = s.objs.findIndex(o => o.id === c.id);
       if (i >= 0) s.objs[i] = v; else s.objs.push(v);
     } else if (c.kind === 'rel') {

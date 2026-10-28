@@ -9,6 +9,9 @@ services:
     image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.47}
     build: .
     restart: unless-stopped
+    # No extra rights inside the container: it needs none to serve the inventory.
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     expose:
       - "8080"
     environment:

@@ -5,3 +5,5 @@ tests
 *.db
 *.db-*
 .env
+secrets
+backup

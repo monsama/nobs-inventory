@@ -11,12 +11,19 @@ import { isIP } from 'node:net';
    the users with a service account. Both use the same connection settings. */
 export const ldapEnabled = config => !!config?.url;
 /* All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs. */
-const USER_ATTRS = ['*'];
+/* What is read of a person, by name: never everything, so a user filter that also matches computer accounts never
+   asks for their LAPS password or BitLocker keys. The login attribute (set in Settings) is added to it. */
+const USER_ATTRS = ['displayname', 'department', 'mail', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
+const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])];
 const LOGIN_OK = /^[\w.@-]{1,64}$/;
 export const DEFAULT_USER_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
 const escapeFilter = v => String(v).replace(/[\\*()\0]/g, c => '\\' + c.charCodeAt(0).toString(16).padStart(2, '0'));
-const cnOf = dn => String(dn).replace(/^CN=/i, '').split(',')[0];
+/* The name in a DN's first part: CN=Doe\, John,OU=Staff → Doe, John. A comma written \, (or as \2C) is part of the name. */
+export const cnOf = dn => {
+  const first = (String(dn).match(/^(?:[^,\\]|\\.)*/) || [''])[0];
+  return first.replace(/^CN=/i, '').replace(/\\([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1');
+};
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 /* A group given as a distinguished name (CN=…,OU=…) is matched with its nested groups too. */
 const isDn = g => /=/.test(String(g || ''));
@@ -113,7 +120,7 @@ export async function ldapLogin(config, login, password) {
   const client = await connect(config);
   try {
     await bind(client, config.bindTemplate.replace('{login}', login), password);
-    const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`);
+    const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, userAttrs(config));
     if (!entry) return null;
     const profile = profileOf(entry.attrs, config);
     profile.allowed = await isMember(client, config, login, profile, config.group);
@@ -270,9 +277,9 @@ export async function ldapListUsers(config) {
     await bind(client, config.serviceDn, config.servicePassword);
     /* In Active Directory a computer account is a person too: it is left out, so PC01$ never becomes a user. */
     const userFilter = config.userFilter || DEFAULT_USER_FILTER;
-    const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`))
+    const members = async group => (await ldapSearch(client, config.searchBase, `(&${userFilter}${chain(group)})`, userAttrs(config)))
       .map(e => profileOf(e.attrs, config)).filter(p => p.login);
-    const everyone = (await ldapSearch(client, config.searchBase, userFilter)).map(e => profileOf(e.attrs, config)).filter(p => p.login);
+    const everyone = (await ldapSearch(client, config.searchBase, userFilter, userAttrs(config))).map(e => profileOf(e.attrs, config)).filter(p => p.login);
     const sameLogin = (a, list) => { const set = new Set(list.map(p => p.login.toLowerCase())); return p => set.has(p.login.toLowerCase()); };
     const people = isDn(config.group) ? everyone.filter(sameLogin(null, await members(config.group)))
       : everyone.filter(p => inGroup(p, config.group));

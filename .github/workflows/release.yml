@@ -9,9 +9,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# Read only by default; only the publishing job may write (tags, the release, the image).
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 # Two releases never run at once; one started is never cancelled halfway through publishing.
 concurrency:
@@ -38,6 +38,9 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
