@@ -551,7 +551,7 @@ export function importCsvModal(){
   modal(`<div class="mh">Import objects from CSV</div>
     <div class="mb">
       <p class="note">The first row is the header. Columns: <span class="mono">name, type, model, serial, ip, mac, location, user</span>. Type is an object type name. Location must match a location exactly. Comma or semicolon separated. Rows with a problem are shown and skipped.</p>
-      <div class="form" style="padding:0"><label for="csvFile">File</label><input id="csvFile" type="file" accept=".csv,text/csv"></div>
+      <div class="form" style="padding:0"><label for="csvFile">File</label><div class="filepick"><label class="btnlike">Choose CSV file…<input id="csvFile" type="file" accept=".csv,text/csv" hidden></label><span class="muted" id="csvFileName">No file chosen</span></div></div>
       <label class="note" for="csvText">Or paste the rows</label>
       <textarea id="csvText" rows="5" class="mono" placeholder="name,type,model,serial,ip,mac,location,user"></textarea>
       <div id="csvPrev"></div>
@@ -586,7 +586,7 @@ export function importCsvModal(){
       </tbody></table></div>`;
     $('#csvGo').disabled = ok === 0;
   };
-  $('#csvFile').onchange = async e => { const f = e.target.files[0]; if (f){ $('#csvText').value = await f.text(); parse(); } };
+  $('#csvFile').onchange = async e => { const f = e.target.files[0]; $('#csvFileName').textContent = f ? f.name : 'No file chosen'; if (f){ $('#csvText').value = await f.text(); parse(); } };
   $('#csvText').oninput = parse;
   $('#csvCancel').onclick = closeModal;
   $('#csvGo').onclick = () => {
