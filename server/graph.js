@@ -340,7 +340,7 @@ export function applyGraph(s, records, now = new Date()) {
     o.graph = graphOf(r, at, owns);
     if (list.length > 1) o.graph.others = othersOf(list, r);
     /* What Intune says of each field, as of its last check-in, beside the field (o.vals), to pick from on the page. */
-    for (const k of [...Object.keys(FILL), 'serial']) noteValue(o, k, 'graph', r[k], r.lastCheckIn || r.lastSync || at);
+    for (const k of Object.keys(FILL)) noteValue(o, k, 'graph', r[k], r.lastCheckIn || r.lastSync || at);
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     /* A device Autopilot brought in before it was set up is named by its serial number: its name in Intune replaces it,
@@ -374,6 +374,8 @@ export function applyGraph(s, records, now = new Date()) {
   for (const o of live) {
     if (!o.graph || onDevice.has(o) || held.has(o.id)) continue;
     if (!o.graph.gone) { o.graph = { ...o.graph, gone: at }; counts.gone++; }
+    /* What Intune said of its fields goes with it: it is not offered to pick any more. */
+    for (const k of Object.keys(FILL)) noteValue(o, k, 'graph', '');
   }
   /* The devices not in the inventory, one entry for each: records with the same serial number, or without one and with
      the same name, are one device, shown by its current record. */

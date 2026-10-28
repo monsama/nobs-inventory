@@ -1,6 +1,6 @@
 /* Settings → Feed: Lansweeper on or off, its source (push or API), the push token and script, the type names and
    type rules, the model renames, and the sync schedule rows every sync uses. */
-import { timeFieldHtml } from './datefield.js';
+import { parseTime, timeFieldHtml } from './datefield.js';
 import { dateTimeText } from './dates.js';
 import { scheduleOf, SCHEDULE_JOBS, EVERY_HOURS, nextRun, scheduleText } from './schedule.js';
 import { modal, closeModal } from './03-object-modals.js';
@@ -202,7 +202,10 @@ export function bindScheduleRows(root){
   root.querySelectorAll('[data-sched]').forEach(row => {
     const job = row.dataset.sched, every = row.querySelector('[data-sched-every]'), at = row.querySelector('[data-sched-at]');
     const save = () => {
-      const v = {every: +every.value, at: at.value || '06:00'};
+      /* A time that is not one is kept out: the last good one stays (the field says what is wrong). */
+      const t = parseTime(at.value || '06:00');
+      if (t === null){ at.classList.add('bad'); at.focus(); return; }
+      const v = {every: +every.value, at: t};
       st.syncSchedule = {...(st.syncSchedule || {}), [job]: v};
       queueServerSave();
       row.outerHTML = scheduleRowHtml(job, true);

@@ -351,16 +351,17 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       changed = true;
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
-    const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
+    const userPick = pickOf(found, 'user'), userOwned = s.feedOn !== false && (userPick ? userPick === 'ls' : found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; markSource(found, 'user', 'ls'); changed = true; }
+    noteValue(found, 'loc', 'ls', r.location && locs.includes(r.location) ? r.location : '', r.scanned || seen);
     /* Location: Lansweeper's location, when the policy lets the feed set it and the room is in the inventory's list. */
-    const locOwned = s.feedOn !== false && (found.ovr && 'loc' in found.ovr ? found.ovr.loc : !!policy.loc);
+    const locPick = pickOf(found, 'loc'), locOwned = s.feedOn !== false && (locPick ? locPick === 'ls' : found.ovr && 'loc' in found.ovr ? found.ovr.loc : !!policy.loc);
     if (locOwned && r.location && locs.includes(r.location) && found.loc !== r.location) {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${r.location}` });
       found.loc = r.location; markSource(found, 'loc', 'ls'); changed = true;
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
-    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
+    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false) && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

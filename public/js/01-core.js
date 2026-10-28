@@ -462,16 +462,18 @@ export function sourceMark(o, k){
   return `<span class="fsrc${others ? ' fsrc-multi' : ''}${picked ? ' fsrc-picked' : ''}" data-src="${src}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
 }
 /* Whether the sources give field k of o different values (or a value other than the one in use): worth a look. */
+/* Once a source is picked for the field, the person has decided: no dot. A value kept from by hand does not count. */
 export function sourcesDisagree(o, k){
-  const f = o.vals && o.vals[k]; if (!f) return false;
-  const vals = new Set(Object.values(f).map(([v]) => String(v)));
+  const f = o.vals && o.vals[k]; if (!f || (o.pick && o.pick[k])) return false;
+  const vals = new Set(Object.entries(f).filter(([src]) => src !== 'hand').map(([, [v]]) => String(v)));
+  if (!vals.size) return false;
   return vals.size > 1 || (o[k] != null && o[k] !== '' && !vals.has(String(o[k])));
 }
 export { SRC_ICON };
 /* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
 let srcPicker = null;
 export const setSrcPicker = f => { srcPicker = f; };
-export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
+export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (o.pick && o.pick[k] ? o.pick[k] === 'ls' : k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
@@ -630,7 +632,14 @@ if (typeof document !== 'undefined'){
 
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
    the page's, so a sync that filled it does not put its value back. */
-export function markHand(o, k){ if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'}; }
+export function markHand(o, k){
+  if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'};
+  keepByHand(o, k);
+  /* Lansweeper writes a field it owns whatever its source note says: a linked device keeps the value as set here. */
+  if (feedLinked(o)) o.ovr = {...(o.ovr || {}), [k]: false};
+}
+/* A value set by hand over a source picked for the field: the field is the page's from then on, no sync writes it. */
+export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand') o.pick = {...o.pick, [k]: 'hand'}; }
 
 /* The one way to edit a row or a card: a pencil button at its end, the same in every list (contacts, contracts, licences).
    attr says what it opens (data-…="id"); a viewer gets Show instead of Edit. */

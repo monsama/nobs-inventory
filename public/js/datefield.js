@@ -2,7 +2,7 @@
    has: a date field's own picker writes 12/31/2026 or 06:00 AM in an English browser. A date field is a text field
    with a calendar button; the button opens the browser's own calendar, whose choice is written back in this format.
    The value is kept as ISO (2026-12-31) for saving: read it with dateValue(el). */
-import { esc } from './01-core.js';
+import { esc, toast } from './01-core.js';
 
 const pad = n => String(n).padStart(2, '0');
 /* 31.12.2026, 31.12.26, 31/12/2026, 2026-12-31 or 31122026 → 2026-12-31; '' for empty, null for something else. */
@@ -37,6 +37,8 @@ export function timeFieldHtml(attrs, value, { hidden = false, disabled = false }
   return `<input type="text" inputmode="numeric" autocomplete="off" placeholder="hh:mm" maxlength="5" class="timefield" data-time value="${esc(value || '')}" ${attrs} ${hidden ? 'hidden' : ''} ${disabled ? 'disabled' : ''}>`;
 }
 /* The ISO day of a date field (or of any input: a plain one is read as typed). */
+/* Whether a date field holds text that is not a day: a save must stop and say so, not keep the old day unseen. */
+export const dateBad = el => !!el && 'date' in el.dataset && parseDay(el.value) === null;
 export const dateValue = el => !el ? '' : 'date' in el.dataset ? (parseDay(el.value) ?? el.dataset.date) : el.value;
 
 /* Typed text is checked when the field is left: a day it can read is written as 31.12.2026, anything else is marked
@@ -45,7 +47,7 @@ function settle(el){
   const iso = parseDay(el.value);
   el.classList.toggle('bad', iso === null);
   el.setCustomValidity(iso === null ? 'Write the day as dd.mm.yyyy' : '');
-  if (iso === null) return false;
+  if (iso === null){ toast(`${el.value.trim()} is not a day: write it as dd.mm.yyyy`, 'err'); return false; }
   el.dataset.date = iso; el.value = dayShown(iso);
   const nat = el.parentElement && el.parentElement.querySelector('.df-native'); if (nat) nat.value = iso;
   return true;
@@ -56,7 +58,7 @@ if (typeof document !== 'undefined'){
     if (el.matches && el.matches('input[data-date]')){ if (!settle(el)) e.stopImmediatePropagation(); }
     else if (el.matches && el.matches('input[data-time]')){
       const t = parseTime(el.value); el.classList.toggle('bad', t === null);
-      if (t === null) e.stopImmediatePropagation(); else el.value = t;
+      if (t === null){ e.stopImmediatePropagation(); toast(`${el.value.trim()} is not a time: write it as hh:mm (24 hours)`, 'err'); } else el.value = t;
     } else if (el.matches && el.matches('.df-native')){
       /* A day picked in the calendar: into the text field, which then saves as if typed. */
       e.stopImmediatePropagation();

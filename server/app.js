@@ -182,7 +182,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         let d;
         try { d = await ldapLogin(lc, login, password); }
         /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
-        catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); throw new HttpError(503, 'The directory cannot be reached right now.'); }
+        catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         if (d && d.allowed) {
           /* Read again after waiting on the directory: a second sign-in of the same login may have created the account
              meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
