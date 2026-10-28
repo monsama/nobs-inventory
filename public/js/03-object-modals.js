@@ -1,3 +1,4 @@
+import './srcpick.js';
 import { dateFieldHtml, dateValue } from './datefield.js';
 import { reviewBanner, bindReviewBanner } from './15-review.js';
 import { dateText, dateTimeText } from './dates.js';

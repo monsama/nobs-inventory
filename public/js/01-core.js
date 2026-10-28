@@ -457,9 +457,20 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 export function sourceMark(o, k){
   const src = sourceOf(o, k);
   if (!src) return '<span class="fsrc-slot" aria-hidden="true"></span>';
-  const t = sourceText(o, k, src);
-  return `<span class="fsrc" data-src="${src}" role="button" tabindex="0" aria-label="${esc(t)}" title="${esc(t)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
+  const t = sourceText(o, k, src), others = sourcesDisagree(o, k), picked = o.pick && o.pick[k];
+  const tip = t + (others ? ' · The sources differ: click to compare and pick one' : (o.vals && o.vals[k]) ? ' · Click to see each source' : '');
+  return `<span class="fsrc${others ? ' fsrc-multi' : ''}${picked ? ' fsrc-picked' : ''}" data-src="${src}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
 }
+/* Whether the sources give field k of o different values (or a value other than the one in use): worth a look. */
+export function sourcesDisagree(o, k){
+  const f = o.vals && o.vals[k]; if (!f) return false;
+  const vals = new Set(Object.values(f).map(([v]) => String(v)));
+  return vals.size > 1 || (o[k] != null && o[k] !== '' && !vals.has(String(o[k])));
+}
+export { SRC_ICON };
+/* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
+let srcPicker = null;
+export const setSrcPicker = f => { srcPicker = f; };
 export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */
@@ -590,6 +601,7 @@ export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t
 
 /* A click (or Enter) on a source mark shows what its tooltip says, so it can be read on a touch screen and without
    waiting for the hover. Another click, a click elsewhere or Escape closes it. */
+let srcPopAt = 0;
 function closeSrcPop(){ const p = document.getElementById('fsrcPop'); if (p) p.remove(); }
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
@@ -598,19 +610,22 @@ function openSrcPop(mark){
   mark.dataset.popId ||= 'f' + Math.random().toString(36).slice(2);
   const p = document.createElement('div');
   p.id = 'fsrcPop'; p.className = 'fsrc-pop'; p.setAttribute('role', 'status'); p.dataset.for = mark.dataset.popId;
-  p.textContent = mark.getAttribute('aria-label') || mark.title;
-  document.body.append(p);
+  const picker = srcPicker && srcPicker(mark, closeSrcPop);
+  if (picker){ p.classList.add('pick'); p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Where this value comes from'); p.append(picker); }
+  else p.textContent = mark.getAttribute('aria-label') || mark.title;
+  document.body.append(p); srcPopAt = Date.now();
   const r = mark.getBoundingClientRect();
   p.style.top = `${r.bottom + window.scrollY + 6}px`;
   p.style.left = `${Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, r.left + r.width / 2 - p.offsetWidth / 2)) + window.scrollX}px`;
 }
 if (typeof document !== 'undefined'){
-  document.addEventListener('click', e => { const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#fsrcPop')) return; const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeSrcPop();
     else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
   });
-  document.addEventListener('scroll', closeSrcPop, true);
+  /* Scrolling closes it, except the scroll that brought the mark into view just before (it arrives after the click). */
+  document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(e.target.closest && e.target.closest('#fsrcPop'))) closeSrcPop(); }, true);
 }
 
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as

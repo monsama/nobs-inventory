@@ -251,3 +251,19 @@ test('sign-in lock: an address that signed in to a login before is not locked ou
   assert.equal(t.blocked(['login:admin', 'ip:198.51.100.9'], now), true, 'a new address is held off');
   assert.equal(t.blocked(['login:admin', 'ip:10.0.0.5'], now), false, 'the owner\'s address is not');
 });
+
+test('each source\'s value is kept beside the field, and a source picked for it is the only one that writes it', () => {
+  const s = state([{ id: 'a', name: 'PC-1', serial: 'S1', status: 'active', type: 'pc', os: 'Win 10 (typed)', src: { os: 'hand' }, ovr: { os: false } }]);
+  applyGraph(s, [rec({ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise', lastCheckIn: '2026-10-28T07:00:00Z' })], NOW);
+  applyComputers(s, [{ name: 'PC-1', dns: 'pc-1.corp.ch', groups: [], os: 'Windows 11 Enterprise (10.0.26100)', domain: 'corp.ch', logon: '2026-10-24' }], NOW);
+  const o = s.objs[0];
+  assert.equal(o.os, 'Win 10 (typed)', 'a value set by hand stays');
+  assert.deepEqual(o.vals.os, { graph: ['Windows 11 Enterprise', '2026-10-28T07:00:00Z'], ad: ['Windows 11 Enterprise (10.0.26100)', '2026-10-24'] });
+  // picked: AD writes it from now on, Intune does not
+  o.pick = { os: 'ad' }; delete o.ovr.os;
+  applyGraph(s, [rec({ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise', lastCheckIn: '2026-10-28T08:00:00Z' })], NOW);
+  assert.equal(o.os, 'Win 10 (typed)', 'Intune is not the picked source');
+  applyComputers(s, [{ name: 'PC-1', dns: 'pc-1.corp.ch', groups: [], os: 'Windows 11 Enterprise (10.0.26100)', domain: 'corp.ch', logon: '2026-10-24' }], NOW);
+  assert.equal(o.os, 'Windows 11 Enterprise (10.0.26100)'); assert.equal(o.src.os, 'ad');
+  assert.doesNotThrow(() => checkState(JSON.parse(JSON.stringify(s))));
+});

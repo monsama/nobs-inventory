@@ -304,6 +304,10 @@ function checkStateRules(s, size = true) {
       || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored'].includes(k) || typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the review mark names its source and when.`);
     if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad)
       || Object.values(o.ad).some(v => Array.isArray(v) ? v.length > 30 || v.some(x => typeof x !== 'string' || x.length > 60) : typeof v !== 'string' || v.length > 400))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
+    /* What each source says of a field ([value, as of]) and the source a person picked for it. */
+    if (o.vals !== undefined && (!o.vals || typeof o.vals !== 'object' || Array.isArray(o.vals) || Object.values(o.vals).some(f => !f || typeof f !== 'object' || Array.isArray(f)
+      || Object.entries(f).some(([src, v]) => !['ls', 'graph', 'ad'].includes(src) || !Array.isArray(v) || v.length !== 2 || v.some(x => typeof x !== 'string' || x.length > 400))))) bad(`${o.name}: what the sources say of its fields is not readable.`);
+    if (o.pick !== undefined && (!o.pick || typeof o.pick !== 'object' || Array.isArray(o.pick) || Object.values(o.pick).some(v => !['ls', 'graph', 'ad', 'hand'].includes(v)))) bad(`${o.name}: a field follows a source that is not known.`);
     if (o.autopilot !== undefined && (!o.autopilot || typeof o.autopilot !== 'object' || Array.isArray(o.autopilot) || Object.values(o.autopilot).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Autopilot says is an object of short texts.`);
     if (o.accessories !== undefined) {
       if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);
