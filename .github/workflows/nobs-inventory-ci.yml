@@ -7,10 +7,16 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to the same pull request stops the run still going for the older one; runs on main always finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   unit:
     name: API, directory, Lansweeper and user tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # a hung test stops here, not after GitHub's six hours
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -18,7 +24,8 @@ jobs:
           node-version: 26
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
+      # A dropped connection to the npm registry (ECONNRESET) is tried once more before the job fails.
+      - run: npm ci || (sleep 15 && npm ci)
       # A high-severity advisory in what the server ships fails the build.
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
@@ -32,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     # The Playwright image has Chromium and its system libraries already, so nothing is installed per run.
     container: mcr.microsoft.com/playwright:v1.64.1-noble
+    timeout-minutes: 20
     needs: unit
     strategy:
       fail-fast: false
@@ -44,13 +52,15 @@ jobs:
           node-version: 26
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
+      # A dropped connection to the npm registry (ECONNRESET) is tried once more before the job fails.
+      - run: npm ci || (sleep 15 && npm ci)
       - run: npm run test:browser:${{ matrix.group }}
 
   # The release steps run on every change, so a broken step or a bad action version fails here, not after a tag.
   release-check:
     name: "Release steps: archive, image build and scan"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: unit
     steps:
       - uses: actions/checkout@v7

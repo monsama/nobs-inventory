@@ -70,9 +70,9 @@ test('who wins: hand, then Lansweeper, then Graph, then AD', () => {
   // AD does not take it back
   applyComputers(s, [{ name: 'PC-1', dns: '', groups: [], os: 'Windows 10 Enterprise (10.0.22631)', domain: '', logon: '', created: '' }], NOW);
   assert.equal(o.src.os, 'graph');
-  // Lansweeper's value is Lansweeper's: the note goes
+  // Lansweeper's value is Lansweeper's, and noted so
   mergeRecords(s, [{ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise (10.0.22631)', ref: '7' }], NOW);
-  assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)'); assert.equal(o.src && o.src.os, undefined);
+  assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)'); assert.equal(o.src.os, 'ls');
   // and Graph only fills gaps on a field Lansweeper fills in
   applyGraph(s, [rec({ os: 'Windows 11 Enterprise 10.0.26100' })], NOW);
   assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)');
@@ -86,6 +86,12 @@ test('who wins: hand, then Lansweeper, then Graph, then AD', () => {
   // a value typed by hand: fillField leaves it
   const t = { id: 't', os: 'typed' };
   assert.equal(fillField(null, t, 'os', 'Windows 11', 'graph', 'now'), false);
+  assert.equal(fillField(null, { id: 'h', os: 'typed', src: { os: 'hand' } }, 'os', 'Windows 11', 'graph', 'now'), false, 'noted as typed by hand');
+  assert.equal(fillField(null, { id: 'l', os: 'from LS', src: { os: 'ls' } }, 'os', 'Windows 11', 'ad', 'now'), false, 'Lansweeper\'s value');
+  // a device Lansweeper brings in: every value it came with is noted as Lansweeper's
+  const n = { objs: [], rels: [], policy: {}, feedOn: true, locs: ['HQ'], seq: 100, codeN: 0, rseq: 0, intake: { lansweeper: 'direct' }, history: {} };
+  mergeRecords(n, [{ name: 'PC-9', serial: 'S9', os: 'Windows 11', ip: '10.0.0.9', location: 'HQ', ref: '9' }], NOW);
+  assert.deepEqual(n.objs[0].src, { ip: 'ls', os: 'ls', loc: 'ls' });
 });
 
 test('Graph: a value typed that matches it stays the page\'s, phone details are kept, and Settings can turn filling off', () => {

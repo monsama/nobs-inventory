@@ -419,6 +419,47 @@ export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chi
 /* The feed owns a field when the object is linked, it has not overridden the field, and the default allows it. */
 /* An object excluded from the sync, or detached, is not linked to Lansweeper: its fields are its own. */
 export const feedLinked = o => !!o.feed && !o.excluded && !o.detached;
+/* Where a field's value came from: 'hand', 'ls' (Lansweeper), 'graph' (Intune), 'ad' or 'unknown'; null for an empty
+   field. Noted on the device (o.src) since the sources are kept; for older values it is worked out as far as it can be:
+   kept by hand (unticked), still filled in by Lansweeper, added from Graph, or a device no sync has, else unknown. */
+export function sourceOf(o, k){
+  /* Type, status and kind are always set and say nothing of a source: no mark. */
+  if (['type', 'status', 'kind'].includes(k)) return null;
+  const custom = k.startsWith('custom.'), v = custom ? (o.custom || {})[k.slice(7)] : o[k];
+  if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return null;
+  if (custom) return 'hand';
+  const s = o.src && o.src[k];
+  if (s) return s;
+  if (o.ovr && o.ovr[k] === false) return 'hand';
+  if (FIELD_LABEL[k] && feedLinked(o) && (feedOwns(o, k) || (o.feed && o.feed.created))) return 'ls';
+  if (o.graph && o.graph.added && ['model', 'os', 'serial', 'user'].includes(k)) return 'graph';
+  if (!o.feed && !(o.graph && o.graph.added)) return 'hand';
+  return 'unknown';
+}
+const SRC_ICON = {
+  hand: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+  ls: '<circle cx="12" cy="12" r="9"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M12 12l6.4-6.4"/>',
+  graph: '<path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 10.2 4 4 0 0 0 7 18z"/>',
+  ad: '<path d="M10 3h4v4h-4zM4 17h4v4H4zM16 17h4v4h-4zM12 7v5M6 17v-5h12v5"/>',
+  unknown: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.5M12 16.8h.01"/>',
+};
+/* What the source mark says when pointed at. */
+export function sourceText(o, k, src = sourceOf(o, k)){
+  const keep = ' Typing a value here keeps yours.';
+  if (src === 'hand') return 'Set by hand' + (o.handAt ? ` · last edited here ${stamp(new Date(o.handAt))}` : '');
+  if (src === 'ls') return 'From Lansweeper' + (o.feed && o.feed.scanned ? ` · last scan ${dayText(o.feed.scanned)}` : '');
+  if (src === 'graph') return 'From Microsoft Entra / Intune' + (o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
+  if (src === 'ad') return 'From the computer account in Active Directory' + (o.ad && o.ad.logon ? ` · last logon ${dayText(o.ad.logon)}` : '') + '.' + keep;
+  if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
+  return '';
+}
+/* The source as a small monochrome mark beside the field; an empty slot of the same width when the field is empty. */
+export function sourceMark(o, k){
+  const src = sourceOf(o, k);
+  if (!src) return '<span class="fsrc-slot" aria-hidden="true"></span>';
+  const t = sourceText(o, k, src);
+  return `<span class="fsrc" data-src="${src}" role="img" aria-label="${esc(t)}" title="${esc(t)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
+}
 export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (k in o.ovr ? o.ovr[k] : st.policy[k]));
 
 /* ---------- helpers ---------- */

@@ -7,7 +7,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
-import { dropFill } from './fill.js';
+import { markSource } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
@@ -293,6 +293,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
         ...(ipOnly || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
       };
+      /* Every value it came with is Lansweeper's. */
+      for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
       s.objs.push(obj); index(obj);
       pairs.push({ r, obj });
       counts.created++;
@@ -325,8 +327,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       const incoming = r[k];
       if (!incoming) continue;
       const owns = s.feedOn !== false && (found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
-      /* What Lansweeper sets is Lansweeper's: a directory's fill of it (fill.js) is forgotten. */
-      if (owns) dropFill(found, k);
+      /* What Lansweeper sets is Lansweeper's: noted as its source, over a directory's fill (fill.js). */
+      if (owns) markSource(found, k, 'ls');
       if (found[k] === incoming) continue;
       if (owns){
         if (LOG_FIELDS[k] && found[k]) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LOG_FIELDS[k]} changed from ${found[k]} to ${incoming}` });
@@ -341,15 +343,15 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = s.feedOn !== false && (found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
-    if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; changed = true; }
+    if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; markSource(found, 'user', 'ls'); changed = true; }
     /* Location: Lansweeper's location, when the policy lets the feed set it and the room is in the inventory's list. */
     const locOwned = s.feedOn !== false && (found.ovr && 'loc' in found.ovr ? found.ovr.loc : !!policy.loc);
     if (locOwned && r.location && locs.includes(r.location) && found.loc !== r.location) {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${r.location}` });
-      found.loc = r.location; changed = true;
+      found.loc = r.location; markSource(found, 'loc', 'ls'); changed = true;
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
-    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; changed = true; } }
+    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false)) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }
