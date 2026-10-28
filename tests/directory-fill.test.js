@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toRecords, applyGraph, applyGraphPeople } from '../server/graph.js';
-import { applyComputers } from '../server/ldap-sync.js';
+import { applyComputers, listAdUnmatched, addFromAd, adType } from '../server/ldap-sync.js';
 import { adDay, adOs, computerOf, COMPUTER_ATTRS } from '../server/ldap.js';
 import { fillField } from '../server/fill.js';
 import { mergeRecords } from '../server/feed.js';
@@ -21,7 +21,11 @@ test('AD times and operating systems read the way the page shows them', () => {
   assert.equal(adOs('', '10.0 (19045)'), '');
   const c = computerOf({ cn: ['SRV-01'], dnshostname: ['srv-01.Corp.Example.ch'], operatingsystem: ['Windows Server 2022 Datacenter'], operatingsystemversion: ['10.0 (20348)'],
     lastlogontimestamp: ['133430688000000000'], whencreated: ['20211005123456.0Z'], memberof: [] });
-  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05' });
+  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05', ou: '', disabled: false });
+  const d = computerOf({ cn: ['NB-7'], useraccountcontrol: ['4098'] }, 'CN=NB-7,OU=Notebooks,OU=Clients,DC=corp,DC=ch');
+  assert.equal(d.disabled, true, 'userAccountControl 4098 has ACCOUNTDISABLE (2)');
+  assert.equal(d.ou, 'Clients / Notebooks', 'the OUs, outermost first');
+  assert.equal(computerOf({ cn: ['PC-1'], useraccountcontrol: ['4096'] }).disabled, false);
 });
 
 test('the computer lookup names what it reads: no LAPS password or BitLocker key is asked for', () => {
@@ -108,4 +112,30 @@ test('department from Entra for anyone without one, and it gives way to the dire
     { id: 'e2', userPrincipalName: 'ben@x.ch', onPremisesSamAccountName: 'ben', displayName: 'Ben', department: 'Sales' }], 'match', NOW);
   assert.equal(s.users[0].dept, 'Finance'); assert.equal(s.users[0].deptFrom, 'entra');
   assert.equal(s.users[1].dept, 'Typed', 'a department typed here stays');
+});
+
+test('computer accounts the inventory does not have are listed, and added on request with what AD knows', () => {
+  const s = { ...state([{ id: 'a', name: 'PC-1', status: 'active' }, { id: 'r', name: 'OLD-PC', status: 'retired' }, { id: 'f', name: 'srv-9.corp.ch', status: 'active' }]), typeRules: undefined, seq: 100, codeN: 3 };
+  const comp = (name, over) => ({ name, dns: name.toLowerCase() + '.corp.ch', groups: [], os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch', logon: '2026-10-20', created: '2024-01-02', ou: 'Clients', disabled: false, ...over });
+  const counts = listAdUnmatched(s, [comp('PC-1'), comp('OLD-PC'), comp('SRV-9', { os: 'Windows Server 2022 Standard' }), comp('NB-20', { groups: ['GPO-Laptops'] }),
+    comp('PC-OFF', { disabled: true }), comp('SRV-NEW', { os: 'Windows Server 2022 Standard (10.0.20348)', ou: 'Servers' })]);
+  assert.deepEqual(s.adUnmatched.map(d => d.name), ['NB-20', 'SRV-NEW'], 'in the inventory (also retired, also by DNS name) or disabled: not listed');
+  assert.deepEqual(counts, { adUnmatched: 2, adDisabled: 1 });
+  assert.equal(adType(s, { name: 'NB-20', os: 'Windows 11 Enterprise' }), 'notebook', 'the type rules on the name');
+  assert.equal(adType(s, { name: 'SRV-NEW', os: 'Windows Server 2022 Standard' }), 'server', 'a server by its system');
+  assert.equal(adType(s, { name: 'WS-17', os: 'Windows 10 Pro' }), 'pc', 'another Windows computer is a PC');
+
+  const added = addFromAd(s, ['nb-20'], 'Ana', NOW);
+  assert.equal(added.length, 1);
+  const o = s.objs.find(x => x.id === added[0]);
+  assert.equal(o.name, 'NB-20'); assert.equal(o.type, 'notebook'); assert.equal(o.code, 'INV-0004');
+  assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)'); assert.equal(o.domain, 'corp.ch');
+  assert.deepEqual(o.src, { os: 'ad', domain: 'ad' }, 'marked as from AD, so Lansweeper and Intune can replace the values');
+  assert.equal(o.inAd, true); assert.deepEqual(o.ad, { logon: '2026-10-20', created: '2024-01-02' }); assert.deepEqual(o.adGroups, ['GPO-Laptops']);
+  assert.match(s.history[o.id][0].msg, /Added from Active Directory by Ana/);
+  assert.deepEqual(s.adUnmatched.map(d => d.name), ['SRV-NEW'], 'an added one leaves the list');
+  // the device Lansweeper brought in since the sync is not added a second time
+  s.objs.push({ id: 'x', name: 'srv-new', status: 'active' });
+  assert.equal(addFromAd(s, 'all', 'Ana', NOW).length, 0);
+  assert.equal(s.adUnmatched.length, 0);
 });

@@ -197,7 +197,7 @@ export const computerBaseOf = config => {
 /* What is read of a computer account, by name: never everything, so a service account with more rights than it needs
    is not sent the LAPS password (ms-Mcs-AdmPwd, msLAPS-Password) or BitLocker recovery keys, which live on or under it.
    Written in lower case: AD does not mind, and a directory stand-in that compares names as written still answers. */
-export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated'];
+export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated', 'useraccountcontrol'];
 /* AD writes a time as Windows file time (100 ns since 1601) or as generalized time (20231005123456.0Z); the day of it. */
 export function adDay(v) {
   const t = String(v ?? '').trim();
@@ -213,11 +213,17 @@ export function adOs(name, version) {
   const ver = build ? `${build[1]}.${build[2]}` : v;
   return ver && !n.includes(ver) ? `${n} (${ver})` : n;
 }
-export function computerOf(a) {
+/* The OUs a computer account sits in, outermost first: CN=PC-1,OU=Notebooks,OU=Clients,DC=corp → Clients / Notebooks. */
+export function ouOf(dn) {
+  return String(dn || '').split(/,(?=\s*[A-Za-z]+=)/).map(x => x.trim()).filter(x => /^OU=/i.test(x)).map(x => x.slice(3).trim()).reverse().join(' / ');
+}
+/* A computer account: its name, DNS name, groups, operating system, domain, last logon and creation day, its OU, and
+   whether it is disabled (userAccountControl flag 2, ACCOUNTDISABLE). */
+export function computerOf(a, dn = '') {
   const dns = a.dnshostname?.[0] || '';
   return { name: a.cn?.[0] || '', dns, groups: [...new Set((a.memberof ?? []).map(cnOf))].sort((x, y) => x.localeCompare(y)),
     os: adOs(a.operatingsystem?.[0], a.operatingsystemversion?.[0]), domain: dns.includes('.') ? dns.slice(dns.indexOf('.') + 1).toLowerCase() : '',
-    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]) };
+    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]), ou: ouOf(dn), disabled: (Number(a.useraccountcontrol?.[0]) & 2) === 2 };
 }
 
 export async function ldapListComputers(config) {
@@ -229,7 +235,7 @@ export async function ldapListComputers(config) {
   try {
     await bind(client, config.serviceDn, config.servicePassword);
     const list = await ldapSearch(client, computerBaseOf(config), '(objectClass=computer)', COMPUTER_ATTRS);
-    return list.map(e => computerOf(e.attrs)).filter(c => c.name);
+    return list.map(e => computerOf(e.attrs, e.dn)).filter(c => c.name);
   } finally { close(client); }
 }
 
