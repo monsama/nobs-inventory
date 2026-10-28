@@ -878,6 +878,7 @@ export function applyState(d){
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   objs.forEach(bindUser);
+  SYNC.defender = objs.some(o => o.defender);   /* the cards show a Defender mark once Defender has been read */
 }
 /* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */

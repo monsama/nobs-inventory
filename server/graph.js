@@ -136,7 +136,7 @@ export function toRecords(devices, managed) {
     seen.add(m.azureADDeviceId);
     return {
       /* Intune only when its agent says so: the list also holds devices Defender or Configuration Manager alone knows. */
-      graphId: m.id, aadId: m.azureADDeviceId, intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
+      graphId: m.id, aadId: m.azureADDeviceId, entraId: clean(d.id), intuneId: clean(m.id), intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
       join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent), ...(d.accountEnabled === false ? { disabled: true } : {}),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
@@ -150,7 +150,7 @@ export function toRecords(devices, managed) {
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
   for (const d of devices) if (!seen.has(d.deviceId)) out.push({
-    graphId: d.id, aadId: d.deviceId, name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType), ...(d.accountEnabled === false ? { disabled: true } : {}),
+    graphId: d.id, aadId: d.deviceId, entraId: clean(d.id), name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType), ...(d.accountEnabled === false ? { disabled: true } : {}),
     /* Entra's isManaged is true for any MDM or Configuration Manager: not Intune's word, as Intune does not list it. */
     managed: d.isManaged ? 'Another MDM or Configuration Manager' : '', enrolled: '', lastSync: clean(d.approximateLastSignInDateTime), compliance: '', encrypted: '',
     owner: '', ownerName: '', os: '', platform: '', lastCheckIn: '', lastSignIn: clean(d.approximateLastSignInDateTime), model: '', mac: '', ram: '', disk: '',
@@ -237,7 +237,9 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
 
 /* What Graph keeps on a device: how it is joined and managed, its compliance, encryption, primary user and when it was
    last seen, as Graph reports them. Shown on the device; never edited there. */
-const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
+/* aadId is Entra's device ID (the one on the device: dsregcmd /status), entraId the object ID of its record in Entra,
+   intuneId the device's ID in Intune. */
+const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, ...(r.entraId ? { entraId: r.entraId } : {}), ...(r.intuneId ? { intuneId: r.intuneId } : {}), join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
   ...Object.fromEntries(['free', 'imei', 'phone', 'ownership'].map(k => [k, r[k]]).filter(([, v]) => v)) });
