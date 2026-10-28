@@ -438,7 +438,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     return pair ? { tenant: g.tenant, clientId: g.clientId, ...pair } : null;
   };
   /* How far the people from Entra go (Settings): the same whichever way the connection is set. */
-  const cfgGraph = () => { const c = (graphConfig && graphConfig()) || graphFromApp(); return c ? { ...c, people: graphSettings().people || 'match' } : null; };
+  const cfgGraph = () => { const c = (graphConfig && graphConfig()) || graphFromApp(); return c ? { ...c, people: graphSettings().people || 'match', defender: graphSettings().defender || 'off' } : null; };
   const graphSource = () => (graphConfig && graphConfig() ? 'server' : graphFromApp() ? 'app' : null);
   const editGraph = fn => { const s = loadState(db); s.graph = fn({ ...(s.graph || {}) }); const p = graphSettingsProblem(s.graph); if (p) throw new HttpError(400, p); saveState(db, s); };
 
@@ -449,14 +449,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let used = null;
     if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
     const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint, chosen: c.thumbprint === set.thumbprint, onServer: hasGraphKey(db, c.thumbprint) }));
-    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', ...(used || {}), certs });
+    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', defender: set.defender || 'off', ...(used || {}), certs });
   });
   /* The tenant and the app (client) id, from the app registration's Overview page in Entra. */
   app.post('/api/graph/settings', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {};
       /* Each part is saved on its own: the IDs from step 1, how far people go from step 5. */
-      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}) }));
+      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}), ...('defender' in b ? { defender: String(b.defender) } : {}) }));
       audit(db, req.user.id, 'Microsoft Graph settings saved');
       res.json({ ok: true });
     } catch (e) { next(e); }

@@ -46,9 +46,9 @@ export function clientAssertion(cfg, now = new Date()) {
   return `${head}.${body}.${sig}`;
 }
 
-export async function graphToken(cfg, now = new Date(), fetchImpl = fetch) {
+export async function graphToken(cfg, now = new Date(), fetchImpl = fetch, scope = `${GRAPH_ORIGIN}/.default`) {
   const body = new URLSearchParams({
-    client_id: cfg.clientId, scope: `${GRAPH_ORIGIN}/.default`, grant_type: 'client_credentials',
+    client_id: cfg.clientId, scope, grant_type: 'client_credentials',
     client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion(cfg, now),
   });
   const r = await fetchImpl(`https://login.microsoftonline.com/${cfg.tenant}/oauth2/v2.0/token`, { method: 'POST', signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS), headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
@@ -80,6 +80,15 @@ export async function testGraph(cfg, fetchImpl = fetch) {
     out[name] = r.ok;
     if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? permission : `${permission} (Microsoft Graph answered ${r.status})`);
   }
+  /* Defender for Endpoint is read only when Settings asks for it: its own API, with its own permission. */
+  if (cfg.defender === 'on') {
+    try {
+      const dt = await graphToken(cfg, new Date(), fetchImpl, `${DEFENDER_ORIGIN}/.default`);
+      const r = await fetchImpl(`${DEFENDER_ORIGIN}/api/machines?$top=1`, { headers: { authorization: `Bearer ${dt}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
+      out.defender = r.ok;
+      if (!r.ok) out.missing.push(r.status === 403 || r.status === 401 ? DEFENDER_PERMISSION : `${DEFENDER_PERMISSION} (Defender answered ${r.status})`);
+    } catch (e) { out.defender = false; out.missing.push(`${DEFENDER_PERMISSION} (${e.message})`); }
+  }
   /* People are read only when Settings asks for them; then their permission is checked too. */
   if (cfg.people && cfg.people !== 'off') {
     const r = await fetchImpl(`${GRAPH}/users?$top=1&$select=id`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
@@ -90,15 +99,15 @@ export async function testGraph(cfg, fetchImpl = fetch) {
 }
 
 /* Every page of a list. A next link is only followed while it stays on Microsoft Graph. */
-export async function graphAll(token, url, fetchImpl = fetch) {
+export async function graphAll(token, url, fetchImpl = fetch, origin = GRAPH_ORIGIN, what = 'Microsoft Graph') {
   const out = [];
   let next = url;
   for (let pages = 0; next; pages++) {
     /* A list cut short would make every device not read look gone: the sync stops instead. */
-    if (pages >= 1000) throw new HttpError(502, 'Microsoft Graph returned more than 1000 pages; the sync was stopped so no device is marked as gone by mistake.');
-    if (new URL(next).origin !== GRAPH_ORIGIN) throw new HttpError(502, 'Microsoft Graph gave a link to somewhere else.');
+    if (pages >= 1000) throw new HttpError(502, `${what} returned more than 1000 pages; the sync was stopped so no device is marked as gone by mistake.`);
+    if (new URL(next).origin !== origin) throw new HttpError(502, `${what} gave a link to somewhere else.`);
     const r = await fetchImpl(next, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
-    if (!r.ok) throw new HttpError(502, `Microsoft Graph answered ${r.status} for ${new URL(url).pathname}.`);
+    if (!r.ok) { const e = new HttpError(502, `${what} answered ${r.status} for ${new URL(url).pathname}.`); e.upstream = r.status; throw e; }
     const j = await r.json();
     out.push(...(j.value || []));
     next = j['@odata.nextLink'] || null;
@@ -106,7 +115,10 @@ export async function graphAll(token, url, fetchImpl = fetch) {
   return out;
 }
 
-const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime';
+/* Microsoft Defender for Endpoint: its machines, read with the same app and certificate, from its own API. */
+const DEFENDER_ORIGIN = 'https://api.securitycenter.microsoft.com';
+const DEFENDER_PERMISSION = 'Machine.Read.All (WindowsDefenderATP)';
+const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime,accountEnabled';
 const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType';
 /* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
@@ -125,7 +137,7 @@ export function toRecords(devices, managed) {
     return {
       /* Intune only when its agent says so: the list also holds devices Defender or Configuration Manager alone knows. */
       graphId: m.id, aadId: m.azureADDeviceId, intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
-      join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent),
+      join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent), ...(d.accountEnabled === false ? { disabled: true } : {}),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
       owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
@@ -138,7 +150,7 @@ export function toRecords(devices, managed) {
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
   for (const d of devices) if (!seen.has(d.deviceId)) out.push({
-    graphId: d.id, aadId: d.deviceId, name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType),
+    graphId: d.id, aadId: d.deviceId, name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType), ...(d.accountEnabled === false ? { disabled: true } : {}),
     /* Entra's isManaged is true for any MDM or Configuration Manager: not Intune's word, as Intune does not list it. */
     managed: d.isManaged ? 'Another MDM or Configuration Manager' : '', enrolled: '', lastSync: clean(d.approximateLastSignInDateTime), compliance: '', encrypted: '',
     owner: '', ownerName: '', os: '', platform: '', lastCheckIn: '', lastSignIn: clean(d.approximateLastSignInDateTime), model: '', mac: '', ram: '', disk: '',
@@ -157,7 +169,18 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
     try { users = (await graphAll(token, `${GRAPH}/users?$select=${USER_SELECT}`, fetchImpl)).filter(u => u.userType !== 'Guest'); }
     catch (e) { peopleError = /answered 40[13]/.test(e.message) ? 'People were not read: the app needs the permission User.Read.All (Application), with admin consent.' : 'People were not read: ' + e.message; }
   }
-  return { records: toRecords(devices, managed), users, peopleError };
+  let machines = null, defenderError = '';
+  if (cfg.defender === 'on') {
+    try {
+      const dt = await graphToken(cfg, now, fetchImpl, `${DEFENDER_ORIGIN}/.default`);
+      machines = await graphAll(dt, `${DEFENDER_ORIGIN}/api/machines`, fetchImpl, DEFENDER_ORIGIN, 'Defender for Endpoint');
+    } catch (e) {
+      defenderError = [401, 403].includes(e.upstream)
+        ? `Defender was not read: the app needs the permission ${DEFENDER_PERMISSION}, type Application, with admin consent.`
+        : 'Defender was not read: ' + e.message;
+    }
+  }
+  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError };
 }
 
 /* ---------- people from Entra ----------
@@ -216,7 +239,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
    last seen, as Graph reports them. Shown on the device; never edited there. */
 const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
-  ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}),
+  ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
   ...Object.fromEntries(['free', 'imei', 'phone', 'ownership'].map(k => [k, r[k]]).filter(([, v]) => v)) });
 /* The fields Graph can give a device, with their names for the history. */
 const FILL = { os: 'Operating system', model: 'Model', mac: 'MAC address', ram: 'Memory', disk: 'Disks' };
@@ -230,13 +253,14 @@ const RECENT_MS = 30 * 864e5;
 export function pickPrimary(list) {
   const newest = Math.max(...list.map(activity));
   const recent = r => newest - activity(r) <= RECENT_MS;
-  return [...list].sort((a, b) => recent(b) - recent(a) || (!!b.intune) - (!!a.intune)
+  /* A record disabled in Entra is never the device now while an enabled one is there. */
+  return [...list].sort((a, b) => (!!a.disabled) - (!!b.disabled) || recent(b) - recent(a) || (!!b.intune) - (!!a.intune)
     || (JOIN_RANK[b.join] || 0) - (JOIN_RANK[a.join] || 0) || activity(b) - activity(a))[0];
 }
 const lastOf = r => { const t = activity(r); return t ? new Date(t).toISOString() : ''; };
 /* The other records of a device, newest first, to be cleaned up in Entra. */
 const othersOf = (list, primary) => list.filter(r => r !== primary).sort((a, b) => activity(b) - activity(a)).slice(0, 10)
-  .map(r => ({ id: r.graphId, join: r.join, managed: r.managed, serial: r.serial, last: lastOf(r) }));
+  .map(r => ({ id: r.graphId, join: r.join, managed: r.managed, serial: r.serial, last: lastOf(r), ...(r.disabled ? { disabled: true } : {}) }));
 const low = v => clean(v).toLowerCase();
 const groupBy = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (k) m.set(k, [...(m.get(k) || []), x]); } return m; };
 
@@ -273,7 +297,8 @@ export function applyGraph(s, records, now = new Date()) {
     unmatched.push(r);
   }
   for (const [o, list] of onDevice) {
-    counts.matched++; counts.devices++; counts.duplicates += list.length - 1;
+    /* Records disabled in Entra (kept there before they are deleted) are counted apart, not as duplicates. */
+    counts.matched++; counts.devices++; counts.duplicates += Math.max(0, list.filter(x => !x.disabled).length - 1); counts.disabled = (counts.disabled || 0) + list.filter(x => x.disabled).length;
     const r = pickPrimary(list);
     const before = o.graph || {};
     if (before.compliance && r.compliance && before.compliance !== r.compliance && !before.gone) {
@@ -314,7 +339,9 @@ export function applyGraph(s, records, now = new Date()) {
   const list = [];
   for (const g of groups.values()) {
     const r = pickPrimary(g);
-    counts.unmatched++; counts.devices++; counts.duplicates += g.length - 1;
+    /* A device only disabled records stand for is switched off in Entra: not offered to be added. */
+    if (r.disabled) { counts.disabled = (counts.disabled || 0) + g.length; continue; }
+    counts.unmatched++; counts.devices++; counts.duplicates += g.filter(x => !x.disabled).length - 1; counts.disabled = (counts.disabled || 0) + g.filter(x => x.disabled).length;
     list.push({ id: r.graphId, name: r.name, serial: r.serial, model: r.model, os: r.os, platform: r.platform || '', owner: r.ownerName || r.owner,
       join: r.join, managed: r.managed, compliance: r.compliance, lastSync: r.lastSync, ...(g.length > 1 ? { others: g.length - 1 } : {}) });
   }
@@ -359,12 +386,36 @@ export function addFromGraph(s, ids, who, now = new Date()) {
   return added;
 }
 
+/* What Defender says of a machine, kept on the device as o.defender. */
+const defenderOf = (m, at) => ({ health: clean(m.healthStatus), onboarding: clean(m.onboardingStatus), risk: clean(m.riskScore),
+  exposure: clean(m.exposureLevel), av: clean(m.defenderAvStatus), lastSeen: clean(m.lastSeen), seen: at });
+/* Each device gets the Defender machine that is it: by its Entra device id (from Graph), else by its name or the first
+   part of the machine's DNS name. Of two machines with one name, the one seen last. A device Defender does not have
+   any more loses what Defender said. Returns how many devices Defender has. */
+export function applyDefender(s, machines, now = new Date()) {
+  const at = stamp(now), byAad = new Map(), byName = new Map();
+  const newer = (a, b) => !a || (Date.parse(b.lastSeen) || 0) > (Date.parse(a.lastSeen) || 0);
+  for (const m of machines) {
+    if (m.aadDeviceId && newer(byAad.get(low(m.aadDeviceId)), m)) byAad.set(low(m.aadDeviceId), m);
+    for (const k of [low(m.computerDnsName), low(m.computerDnsName).split('.')[0]]) if (k && newer(byName.get(k), m)) byName.set(k, m);
+  }
+  let n = 0;
+  for (const o of s.objs) {
+    if (o.status === 'retired') continue;
+    const name = low(o.name);
+    const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && (byName.get(name) || byName.get(name.split('.')[0])));
+    if (m) { o.defender = defenderOf(m, at); n++; } else delete o.defender;
+  }
+  return n;
+}
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const { records, users, peopleError } = await fetchGraphAll(cfg, now, fetchImpl);
+  const { records, users, peopleError, machines, defenderError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   const counts = applyGraph(s, records, now);
   if (users) counts.people = applyGraphPeople(s, users, cfg.people, now);
   if (peopleError) counts.peopleError = peopleError;
+  if (machines) counts.defender = applyDefender(s, machines, now);
+  if (defenderError) counts.defenderError = defenderError;
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

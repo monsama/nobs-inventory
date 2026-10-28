@@ -225,3 +225,43 @@ test('Graph does not refill a field cleared by hand, and does not take a device 
   const endless = async () => ({ ok: true, json: async () => ({ value: [{}], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/devices?page' }) });
   await assert.rejects(graphAll('t', 'https://graph.microsoft.com/v1.0/devices', endless), /more than 1000 pages/);
 });
+
+test('Defender for Endpoint: read with its own token when Settings asks for it, matched by Entra id or name', async () => {
+  const { fetchGraphAll, applyDefender } = await import('../server/graph.js');
+  const asked = [];
+  const reply = (status, json) => ({ ok: status === 200, status, json: async () => json });
+  const fakeFetch = (allowDefender) => async (url, opts) => {
+    asked.push(String(url));
+    if (String(url).includes('/oauth2/')) return reply(200, { access_token: new URLSearchParams(opts.body).get('scope').includes('securitycenter') ? 'MDE' : 'GRAPH' });
+    if (String(url).startsWith('https://api.securitycenter.microsoft.com/')) return allowDefender
+      ? reply(200, { value: [{ id: 'x1', computerDnsName: 'zh-pc-0142.corp.local', aadDeviceId: 'AAD-1', healthStatus: 'Active', onboardingStatus: 'Onboarded', riskScore: 'Low', exposureLevel: 'Medium', lastSeen: '2026-10-27T08:00:00Z' },
+        { id: 'x2', computerDnsName: 'srv-files', healthStatus: 'Inactive', riskScore: 'High', lastSeen: '2026-09-01T08:00:00Z' }] })
+      : reply(403, {});
+    return reply(200, { value: [] });
+  };
+  const off = await fetchGraphAll({ ...cfg, defender: 'off' }, NOW, fakeFetch(true));
+  assert.equal(off.machines, null); assert.ok(!asked.some(u => u.includes('securitycenter')), 'not asked when off');
+  const no = await fetchGraphAll({ ...cfg, defender: 'on' }, NOW, fakeFetch(false));
+  assert.match(no.defenderError, /Machine\.Read\.All \(WindowsDefenderATP\)/);
+  const on = await fetchGraphAll({ ...cfg, defender: 'on' }, NOW, fakeFetch(true));
+  assert.equal(on.machines.length, 2);
+  const s = { objs: [
+    { id: 'a', name: 'LAPTOP-RENAMED', status: 'active', graph: { aadId: 'aad-1' } },
+    { id: 'b', name: 'SRV-FILES', status: 'active' }, { id: 'c', name: 'PC-NONE', status: 'active', defender: { health: 'Active' } }] };
+  assert.equal(applyDefender(s, on.machines, NOW), 2);
+  assert.deepEqual([s.objs[0].defender.health, s.objs[0].defender.risk], ['Active', 'Low'], 'by the Entra device id, whatever the name');
+  assert.deepEqual([s.objs[1].defender.health, s.objs[1].defender.risk], ['Inactive', 'High'], 'by the name');
+  assert.equal(s.objs[2].defender, undefined, 'a device Defender does not have any more loses it');
+});
+
+test('a record disabled in Entra is no duplicate: an enabled one is the device, and a device with only disabled records is not offered', () => {
+  const dev = (id, name, enabled, last) => ({ id: 'e' + id, deviceId: 'aad-' + id, displayName: name, trustType: 'AzureAd', accountEnabled: enabled, approximateLastSignInDateTime: last });
+  const recs = toRecords([dev(1, 'PC-A', false, '2026-10-26T08:00:00Z'), dev(2, 'PC-A', true, '2026-10-01T08:00:00Z'), dev(3, 'OLD-PC', false, '2026-01-01T08:00:00Z')], []);
+  const s = { objs: [{ id: 'o1', name: 'PC-A', status: 'active' }], history: {} };
+  const c = applyGraph(s, recs, NOW);
+  assert.equal(s.objs[0].graph.aadId, 'aad-2', 'the enabled record is the device, though the disabled one signed in later');
+  assert.equal(s.objs[0].graph.disabled, undefined);
+  assert.deepEqual(s.objs[0].graph.others.map(x => [x.id, x.disabled]), [['e1', true]]);
+  assert.equal(c.duplicates, 0); assert.equal(c.disabled, 2);
+  assert.deepEqual(s.graphUnmatched, [], 'OLD-PC is only disabled records: not offered to be added');
+});

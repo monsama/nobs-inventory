@@ -289,6 +289,7 @@ function checkStateRules(s, size = true) {
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => v !== 'graph' && v !== 'ad'))) bad(`${o.name}: the sources of its fields are Intune or AD.`);
+    if (o.defender !== undefined && (!o.defender || typeof o.defender !== 'object' || Array.isArray(o.defender) || Object.values(o.defender).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Defender says is an object of short texts.`);
     if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad) || Object.values(o.ad).some(v => typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
     if (o.accessories !== undefined) {
       if (!Array.isArray(o.accessories) || o.accessories.length > 100) bad(`${o.name}: attachments must be a list of up to 100 items.`);
