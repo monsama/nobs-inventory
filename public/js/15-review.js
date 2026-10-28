@@ -68,7 +68,7 @@ export function renderReview(){
   const item = o => {
     const stale = reviewStale(o);
     return `<div class="rv-item${stale ? ' stale' : ''}" data-rv="${esc(o.id)}">${cardHtml(o, idx)}
-      <div class="rv-acts"><span class="rv-src">${esc(REVIEW_SRC[o.review.src] || '')}${stale ? ` · <span class="chip warn" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more">Not seen for long</span>` : ''}</span><span class="grow"></span>
+      <div class="rv-acts"><span class="chip rv-src" title="Found by ${esc(REVIEW_SRC[o.review.src] || '')}">${esc(REVIEW_SRC[o.review.src] || '')}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}<span class="grow"></span>
         ${!edit ? '' : showIgnored ? `<button type="button" data-rvrestore="${esc(o.id)}">Back to review</button>`
           : `<button type="button" class="rv-no" data-rvignore="${esc(o.id)}" title="Leave it out: no sync brings it back">✕ Ignore</button><button type="button" class="rv-yes" data-rvaccept="${esc(o.id)}" title="Take it into the inventory">✓ Accept</button>`}</div></div>`;
   };

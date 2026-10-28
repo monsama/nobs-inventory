@@ -220,7 +220,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
       const login = clean(u.onPremisesSamAccountName) || clean(u.userPrincipalName);
       if (!login || s.users.some(x => low(x.login) === low(login))) continue;
       s.users.push({ id: freeUserId(s.users, 'entra-' + low(login).replace(/[^a-z0-9._-]+/g, '-').slice(0, 40)), login, name: clean(u.displayName).slice(0, 120) || login,
-        ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'viewer', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u) });
+        ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'none', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u) });
       taken.add(u.id); counts.added++;
     }
   }

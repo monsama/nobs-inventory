@@ -21,7 +21,7 @@ test('two first sign-ins of one directory login at once make one account, and sa
   const srv = await startServer({ ldap: cfg });
   try {
     const [a, b] = await Promise.all([signIn(srv, 'cla', 'clas-secret'), signIn(srv, 'cla', 'clas-secret')]);
-    assert.deepEqual([a.status, b.status], [200, 200]);
+    assert.deepEqual([a.status, b.status], [403, 403], 'new from the directory: no access yet, but known');
     assert.equal(loadState(srv.db).users.filter(u => u.login === 'cla').length, 1, 'one account for the login');
     const adm = await signIn(srv, 'admin', 'adminpass123'), st = loadState(srv.db);
     const r = await srv.call('POST', '/api/changes', { cookie: adm.cookie, body: { puts: [{ kind: 'setting', id: 'locs', value: ['HQ'], base: st.revs['setting|locs'] ?? 0 }], dels: [] } });

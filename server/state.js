@@ -241,7 +241,8 @@ function checkStateRules(s, size = true) {
     if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id) bad('Every user needs an id.');
     /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
     if (u.role === undefined) u.role = 'viewer';
-    if (!['admin', 'viewer'].includes(u.role)) bad('A user\'s role must be admin or viewer.');
+    /* none: known to the inventory (it names their devices) but no access to it, until an admin gives a role. */
+    if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
   }

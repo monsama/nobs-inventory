@@ -54,8 +54,14 @@ test('directory sign-in: password checked by the directory, role from the admin 
     assert.equal(anna.user.role, 'admin');
     assert.equal(anna.user.name, 'Anna Test');
     setPassword(srv.db, 'ls1', 'old-local-pass'); setPassword(srv.db, 'ls2', 'old-local-pass');
+    const first = await signIn(srv, 'cla', 'clas-secret');
+    assert.equal(first.status, 403, 'someone new from the directory has no access until an admin gives a role');
+    assert.match(first.error || '', /no access to the inventory yet/);
+    const st0 = loadState(srv.db); const c0 = st0.users.find(u => u.login === 'cla');
+    assert.equal(c0.role, 'none', 'known to the inventory, with no role');
+    c0.role = 'viewer'; saveState(srv.db, st0);
     const cla = await signIn(srv, 'cla', 'clas-secret');
-    assert.equal(cla.user.role, 'viewer');
+    assert.equal(cla.user.role, 'viewer', 'a viewer given by hand signs in, and the directory keeps the role');
     assert.equal(srv.db.prepare("SELECT COUNT(*) AS n FROM credentials WHERE user_id = 'ldap-anna'").get().n, 0, 'no password is stored');
   } finally {
     await srv.close(); await new Promise(r => dir.close(r));
@@ -78,7 +84,10 @@ test('directory sync: adds people, follows role changes, deactivates people who 
     assert.equal(first.created, 3);
     let st = loadState(srv.db);
     assert.equal(st.users.find(u => u.login === 'anna').role, 'admin');
-    assert.equal(st.users.find(u => u.login === 'cla').role, 'viewer');
+    assert.equal(st.users.find(u => u.login === 'cla').role, 'none', 'no access until an admin gives a role');
+    st.users.find(u => u.login === 'ben').role = 'viewer'; saveState(srv.db, st);
+    await syncLdapUsers(srv.db, cfg(`ldap://127.0.0.1:${dir.address().port}`));
+    assert.equal(loadState(srv.db).users.find(u => u.login === 'ben').role, 'viewer', 'a viewer given by hand stays one');
 
     // Ben leaves the directory; Anna moves out of the admin group.
     delete people['cn=ben,ou=people,dc=test'];
@@ -89,7 +98,7 @@ test('directory sync: adds people, follows role changes, deactivates people who 
     st = loadState(srv.db);
     assert.equal(st.users.find(u => u.login === 'ben').active, false, 'a user who left is deactivated, not deleted');
     assert.equal(st.objs[0].uid, 'ldap-ben', 'their device still points at them');
-    assert.equal(st.users.find(u => u.login === 'anna').role, 'viewer');
+    assert.equal(st.users.find(u => u.login === 'anna').role, 'none', 'out of the admin group: no access, until given a role');
     assert.equal(st.users.find(u => u.login === 'cla').role, 'admin');
   } finally {
     await srv.close(); await new Promise(r => dir.close(r));
@@ -159,7 +168,8 @@ test('directory sign-in keeps the last active admin an admin, when the admin gro
     /* With another active admin, the directory decides. */
     const t = loadState(srv.db);
     saveState(srv.db, { ...t, users: t.users.map(u => u.login === 'admin' ? { ...u, active: true } : u) });
-    assert.equal((await signIn(srv, 'anna', 'annas-secret')).user.role, 'viewer');
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 403, 'out of the admin group: no access until given a role');
+    assert.equal(loadState(srv.db).users.find(u => u.login === 'anna').role, 'none');
   } finally {
     await srv.close(); await new Promise(r => dir.close(r));
   }
