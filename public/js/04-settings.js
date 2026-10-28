@@ -115,7 +115,7 @@ export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */
 export const who = () => (me() && me().name) || 'someone';
 export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
-export const roleLabel = u => u.role === 'admin' ? 'Admin' : 'Viewer';
+export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ? 'No access' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = '.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';

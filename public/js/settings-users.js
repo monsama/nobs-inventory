@@ -4,7 +4,7 @@ import { modal, closeModal } from './03-object-modals.js';
 import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave } from './07-render-plans.js';
 import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
-import { esc, objs, st, $, PW_MIN, toast, hist, now, COMPANY } from './01-core.js';
+import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip each, with the details in the tooltip. */
@@ -17,6 +17,9 @@ export function sourceChips(u){
     : `<span class="chip ${e.enabled === false ? 'warn' : 'kept'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : '<span class="sdot entra" aria-hidden="true"></span>Entra'}</span>`;
   return `<span class="chip kept usrc" title="${esc(from[1])}"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}`;
 }
+const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'None: no access; the inventory only names their devices' };
+/* People a directory or Lansweeper brought in who are viewers: the ones Set found viewers to None takes access from. */
+const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
@@ -32,17 +35,17 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
-      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role !== 'admin' ? 'selected' : ''}>Viewer</option></select></td>
+      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>None</option></select></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
-    <p class="note">Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
-    ${dirOn ? `<div class="addrel"><label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select></div>` : ''}
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:3%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Role: Admin can change everything, Viewer can look, None has no access (people found by LDAP, Entra or Lansweeper start with None; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
+    ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="People from LDAP, Entra or Lansweeper who are viewers lose access; admins, people added here and you keep theirs">Set ${foundViewers().length} found ${foundViewers().length === 1 ? 'viewer' : 'viewers'} to None…</button>` : ''}</div>` : ''}
+    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button id="nuAdd">Add user</button></div></div>`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">None (no access)</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
@@ -74,6 +77,15 @@ export function renderSetUsers(){
   root.querySelectorAll('[data-pw]').forEach(b => b.onclick = () => passwordModal(USERS[+b.dataset.pw]));
   root.querySelectorAll('[data-login]').forEach(b => b.onclick = () => userLoginModal(USERS[+b.dataset.login]));
   root.querySelectorAll('[data-sheet]').forEach(b => b.onclick = () => sheetModal(USERS[+b.dataset.sheet]));
+  const na = $('#noneAll');
+  if (na) na.onclick = () => {
+    const list = foundViewers();
+    if (!confirm(`Set ${list.length} found viewers to None? They can no longer sign in until you give them Viewer again.`)) return;
+    const was = list.map(u => [u, u.role]);
+    list.forEach(u => { u.role = 'none'; });
+    queueServerSave(); renderSetUsers();
+    toastUndo(`${list.length} people set to None`, () => { was.forEach(([u, r]) => { u.role = r; }); queueServerSave(); renderSetUsers(); });
+  };
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
     const u = USERS[+sel.dataset.role];
     if (u.role === 'admin' && sel.value !== 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); renderSetUsers(); return; }

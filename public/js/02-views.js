@@ -143,7 +143,8 @@ export function renderTabs(){
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
-  $('#tabsbar').innerHTML = views.map(viewTab).join('');
+  /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
+  $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (views.includes('review') ? `<span class="grow"></span>${viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '')}` : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;
   $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {
@@ -406,7 +407,7 @@ export const TABLE_COLS = [
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   /* The date first, so the column sorts by it. */
-  {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return `<td>${s ? `<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen by ${esc(s.src)}">${esc(dayText(s.day))}</span> <span class="muted">· ${esc(s.src)}</span>` : ''}</td>`; }},
+  {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return `<td>${s ? `<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${esc(s.at)} by ${esc(s.src)}">${esc(dayText(s.day))}</span> <span class="muted">· ${esc(s.src)}</span>` : ''}</td>`; }},
   {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off. */

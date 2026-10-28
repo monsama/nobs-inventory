@@ -99,7 +99,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   const userDoc = id => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(id); return r ? JSON.parse(r.data) : null; };
   /* A deactivated user loses access at once, even with a session that is still open. */
-  const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false ? u : null; };
+  /* A user with the role none has no access either: a session they hold ends at the next request. */
+  const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false && u.role !== 'none' ? u : null; };
   const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
@@ -168,7 +169,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           if (user && !['ldap', 'lansweeper', 'entra'].includes(user.source)) { throttle.recordFailure(keys); throw new HttpError(401, FAILED); }
           let isAdmin = !!d.admin;
           const wasLansweeper = !!user && (user.source === 'lansweeper' || user.source === 'entra');
-          if (!user) user = { id: freeUserId(loadState(db).users, 'ldap-' + login.toLowerCase()), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'viewer' };
+          /* Someone new from the directory has no access (role none) until an admin gives them one; the admin group is admin. */
+          if (!user) user = { id: freeUserId(loadState(db).users, 'ldap-' + login.toLowerCase()), login, name: d.name, dept: d.dept, groups: d.groups, source: 'ldap', active: true, role: 'none' };
           /* The last active admin stays one, as in the sync: a renamed or emptied admin group must not lock everyone out. */
           if (!isAdmin && user.role === 'admin' && user.active !== false
             && !loadState(db).users.some(u => String(u.id) !== String(user.id) && u.role === 'admin' && u.active !== false)) {
@@ -176,7 +178,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             audit(db, user.id, 'sign in: kept as admin, the last active one (not in the admin group any more)');
           }
           /* The directory's department; with none there, one Entra gave stays (deptFrom 'entra'). */
-          Object.assign(user, { name: d.name, dept: d.dept || (user.deptFrom === 'entra' ? user.dept : d.dept), groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : 'viewer' });
+          Object.assign(user, { name: d.name, dept: d.dept || (user.deptFrom === 'entra' ? user.dept : d.dept), groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
           if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
@@ -192,6 +194,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         throw new HttpError(401, FAILED);
       }
       throttle.clearFailures(keys.slice(0, 1));   /* only this login: a success must not clear the address count */
+      /* The right password, but no access given yet: said plainly, so the person knows whom to ask. */
+      if (user.role === 'none') {
+        audit(db, user.id, 'sign in refused: no role');
+        throw new HttpError(403, 'Your account has no access to the inventory yet. An admin can give you the viewer role in Settings → Users.');
+      }
       /* Each sign-in gets its own session (up to a few per user); the oldest end when the limit is passed. */
       const token = createSession(db, user.id, req.get('user-agent') || '');
       audit(db, user.id, 'sign in');

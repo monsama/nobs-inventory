@@ -126,7 +126,7 @@ function applyDepartments(s, records) {
     const isLogin = !!r.userName || LOGIN_RE.test(r.user);
     let p = byLogin.get(login) || byName.get(login);
     if (!p && named) {
-      p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: isLogin ? r.user : '', name: r.userName || r.user, dept: '', role: 'viewer', groups: [], source: 'lansweeper', active: true };
+      p = { id: 'u' + crypto.randomBytes(4).toString('hex'), login: isLogin ? r.user : '', name: r.userName || r.user, dept: '', role: 'none', groups: [], source: 'lansweeper', active: true };
       s.users.push(p); indexPerson(p); n++;
     }
     if (!p) continue;

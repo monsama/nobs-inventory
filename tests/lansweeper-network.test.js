@@ -79,7 +79,7 @@ test('a user\'s department is filled in from the directory Lansweeper reads; a d
   const anna = s.users.find(u => u.name === 'Anna Muster');
   assert.ok(anna, 'the person named by the feed is made');
   assert.equal(anna.dept, 'Logistik');
-  assert.equal(anna.role, 'viewer');
+  assert.equal(anna.role, 'none', 'named by Lansweeper: known, with no access');
   assert.equal(anna.source, 'lansweeper', 'the person is marked as named by Lansweeper');
   assert.equal(s.users.find(u => u.name === 'Bea Directory').dept, '', 'the directory decides a directory user\'s department');
   checkState(s);

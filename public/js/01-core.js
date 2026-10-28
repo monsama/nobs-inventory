@@ -394,22 +394,25 @@ export function defenderState(o){
     tip: `Microsoft Defender for Endpoint: ${health}${risk && risk !== 'none' ? ', risk ' + risk : ''}${d.exposure ? ', exposure ' + d.exposure.toLowerCase() : ''}${last}` };
 }
 /* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
-   its Entra sign-in or Defender. Dates only (AD and Lansweeper give no time). */
+   its Entra sign-in or Defender. at: the day with its time where the source gives one (Intune, Entra, Defender), for
+   the hover; AD and Lansweeper give the day only. */
 export function lastSeenOf(o){
   const g = o.graph && !o.graph.gone ? o.graph : null;
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && g.lastCheckIn],
     ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen]]
-    .map(([src, v]) => [src, String(v || '').slice(0, 10)]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
+    .map(([src, v]) => [src, String(v || '').slice(0, 10), String(v || '')]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
   if (!all.length) return null;
-  const [src, day] = all.sort((a, b) => b[1].localeCompare(a[1]))[0];
+  const when = ([, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
+  const best = all.sort((a, b) => when(b) - when(a))[0], [src, day, raw] = best;
   const t = new Date(), today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
-  return { src, day, days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
+  const timed = /T\d{2}:\d{2}/.test(raw) && Date.parse(raw);
+  return { src, day, at: timed ? stamp(new Date(timed)) : dayText(day), days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
 }
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */
 export const seenChip = o => {
   const s = lastSeenOf(o); if (!s) return '';
   const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
-  return `<span class="chip ${s.days > GRAPH_STALE_DAYS ? 'warn' : 'ok'} lsst seen" title="Last seen ${esc(dayText(s.day))} by ${esc(s.src)}">Seen ${esc(when)} · ${esc(s.src)}</span>`;
+  return `<span class="chip ${s.days > GRAPH_STALE_DAYS ? 'warn' : 'ok'} lsst seen" title="Last seen ${esc(s.at)} by ${esc(s.src)}">Seen ${esc(when)} · ${esc(s.src)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
 

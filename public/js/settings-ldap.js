@@ -83,7 +83,7 @@ export function renderSetLdap(){
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
-      ${L.url && !String(L.group || '').trim() ? '<span></span><p class="fieldnote warn">Without a sign-in group, every account in the directory can sign in (as a viewer), and the sync adds them all as users.</p>' : ''}
+      ${L.url && !String(L.group || '').trim() ? '<span></span><p class="fieldnote warn">Without a sign-in group, the sync adds every account in the directory as a user (with no access until you give them a role).</p>' : ''}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
     <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter || L.computerBase || L.computerGroups === 'off' ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>

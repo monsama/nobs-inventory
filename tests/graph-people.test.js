@@ -39,7 +39,7 @@ test('add: the primary user of a device becomes a person from Entra, and the dev
   const c = applyGraphPeople(s, USERS, 'add', NOW);
   assert.equal(c.added, 1);
   const p = s.users.find(u => u.source === 'entra');
-  assert.deepEqual([p.login, p.name, p.dept, p.active, p.role], ['cloud@example.ch', 'Cloud Only', 'Sales', false, 'viewer']);
+  assert.deepEqual([p.login, p.name, p.dept, p.active, p.role], ['cloud@example.ch', 'Cloud Only', 'Sales', false, 'none']);
   assert.equal(s.objs[0].uid, p.id, 'the device names them');
   assert.equal(s.objs[1].uid, 'ldap-anna', 'the LDAP person gets the device Intune names them on');
   checkState(s);

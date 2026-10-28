@@ -38,7 +38,7 @@ export async function startServer({ dir = tempDataDir(), ldap = null, ldapConfig
 
 export async function signIn(srv, login, password) {
   const r = await srv.call('POST', '/api/login', { body: { login, password } });
-  return { status: r.status, cookie: r.cookie, user: r.json?.user };
+  return { status: r.status, cookie: r.cookie, user: r.json?.user, error: r.json?.error };
 }
 
 /* A small inventory for the browser tests: the devices, ports and racks the checks use. Nothing here is shipped. */
