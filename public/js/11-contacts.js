@@ -87,7 +87,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
   modal(`<div class="mh">${isNew ? 'New contact' : esc(cur.name)}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label>Kind</label><div class="ctlrow cn-kinds" role="radiogroup" aria-label="Kind">${Object.entries(CONTACT_KINDS).map(([k, l]) => `<label class="pchk"><input type="radio" name="cnKindPick" value="${k}" ${cur.kind === k ? 'checked' : ''} ${ro}> ${l}${k === 'internal' ? ' <span class="muted">(your own staff)</span>' : ' <span class="muted">(an IT partner)</span>'}</label>`).join('')}</div>
-      <label for="cn_user" class="cn-in">Is the user</label><div class="cn-in"><select id="cn_user" ${ro}><option value="">— nobody in Users —</option>${users.map(u => `<option value="${esc(u.id)}" ${cur.userId === u.id ? 'selected' : ''}>${esc(u.name)}${u.dept ? ' · ' + esc(u.dept) : ''}</option>`).join('')}</select></div>
+      <label for="cn_user" class="cn-in">Is the user</label><div class="cn-in"><select id="cn_user" ${ro}><option value="">Not linked to a user</option>${users.map(u => `<option value="${esc(u.id)}" ${cur.userId === u.id ? 'selected' : ''}>${esc(u.name)}${u.dept ? ' · ' + esc(u.dept) : ''}</option>`).join('')}</select></div>
       ${field('name', 'Name', 'placeholder="First and last name, or a team (Service desk)"')}
       <label for="cn_company">Company</label>${comboHtml(`<input id="cn_company" data-combo="company" maxlength="${CONTACT_MAX.company}" value="${esc(cur.company || '')}" placeholder="Type or pick a company" ${ro}>`, 'cn_company')}
       ${field('area', 'Area', 'placeholder="What to ask them about, e.g. Sage200 interface, Firewall"')}
@@ -145,7 +145,7 @@ export function deviceRespPanel(o){
   const row = kind => {
     const c = contactOf(o[RESP_KEYS[kind]]), list = CONTACTS.list.filter(x => x.kind === kind).sort((a, b) => contactLabel(a).localeCompare(contactLabel(b)));
     return `<div class="resp-row"><span class="k">${CONTACT_KINDS[kind]}</span>
-      <div class="resp-pick">${edit ? `<select data-resp="${kind}" aria-label="${CONTACT_KINDS[kind]} responsible for ${esc(o.name)}"><option value="">— nobody —</option>${list.map(x => `<option value="${esc(x.id)}" ${c && c.id === x.id ? 'selected' : ''}>${esc(contactLabel(x))}</option>`).join('')}<option value="+">New ${kind} contact…</option></select>`
+      <div class="resp-pick">${edit ? `<select data-resp="${kind}" aria-label="${CONTACT_KINDS[kind]} responsible for ${esc(o.name)}"><option value="">No one</option>${list.map(x => `<option value="${esc(x.id)}" ${c && c.id === x.id ? 'selected' : ''}>${esc(contactLabel(x))}</option>`).join('')}<option value="+">New ${kind} contact…</option></select>`
         : `<b>${c ? esc(contactLabel(c)) : '<span class="muted">nobody</span>'}</b>`}
       ${c ? `<div class="cn-ways">${c.role ? `<span class="muted">${esc(c.role)}</span>` : ''}${reach(c)}</div>` : ''}</div></div>`;
   };

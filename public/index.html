@@ -46,6 +46,10 @@ input,select,textarea{background:var(--in);color:var(--fg);border:1px solid var(
    Where the browser lets the list be styled (Chrome and Edge 135+), the open list is the combo's list too;
    elsewhere it stays the system's. */
 select{appearance:none;-webkit-appearance:none;padding:3px 26px 3px 6px;background:var(--in) var(--chev) no-repeat right 7px center/12px 12px;text-overflow:ellipsis}
+/* A field with nothing chosen (its empty first entry: No location, Unassigned, Choose a device…) is grey like a
+   placeholder, so it stands apart from a real value; the entries in the open list keep the normal colour. */
+select:has(option[value=""]:checked){color:var(--muted)}
+select option{color:var(--fg)}
 @supports (appearance:base-select){
   select,::picker(select){appearance:base-select}
   select{align-items:center;white-space:nowrap;overflow:hidden}
