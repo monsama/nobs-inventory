@@ -448,7 +448,7 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   const keep = ' Typing a value here keeps yours.';
   if (src === 'hand') return 'Set by hand' + (o.handAt ? ` · last edited here ${stamp(new Date(o.handAt))}` : '');
   if (src === 'ls') return 'From Lansweeper' + (o.feed && o.feed.scanned ? ` · last scan ${dayText(o.feed.scanned)}` : '');
-  if (src === 'graph') return 'From Microsoft Entra / Intune' + (o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
+  if (src === 'graph') return 'From Microsoft Entra & Intune' + (o.graph && (o.graph.lastCheckIn || o.graph.lastSync) ? ` · last check-in ${stamp(new Date(o.graph.lastCheckIn || o.graph.lastSync))}` : o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
   if (src === 'ad') return 'From the computer account in Active Directory' + (o.ad && o.ad.logon ? ` · last logon ${dayText(o.ad.logon)}` : '') + '.' + keep;
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
@@ -603,8 +603,17 @@ export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t
 
 /* A click (or Enter) on a source mark shows what its tooltip says, so it can be read on a touch screen and without
    waiting for the hover. Another click, a click elsewhere or Escape closes it. */
-let srcPopAt = 0;
-function closeSrcPop(){ const p = document.getElementById('fsrcPop'); if (p) p.remove(); }
+let srcPopAt = 0, srcPopMark = null;
+/* Closing puts the focus back on the mark it came from (found again after a redraw by its device and field). */
+function closeSrcPop(refocus = false){
+  const p = document.getElementById('fsrcPop'); if (p) p.remove();
+  if (refocus && srcPopMark){
+    const { oid, fk } = srcPopMark;
+    const m = document.querySelector(`.fsrc[data-oid="${CSS.escape(oid)}"][data-fk="${CSS.escape(fk)}"]`);
+    if (m) m.focus();
+  }
+}
+export const closeSrcPopAndFocus = () => closeSrcPop(true);
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
   closeSrcPop();
@@ -612,19 +621,40 @@ function openSrcPop(mark){
   mark.dataset.popId ||= 'f' + Math.random().toString(36).slice(2);
   const p = document.createElement('div');
   p.id = 'fsrcPop'; p.className = 'fsrc-pop'; p.setAttribute('role', 'status'); p.dataset.for = mark.dataset.popId;
-  const picker = srcPicker && srcPicker(mark, closeSrcPop);
+  srcPopMark = { oid: mark.dataset.oid || '', fk: mark.dataset.fk || '' };
+  const picker = srcPicker && srcPicker(mark, () => closeSrcPop(true));
   if (picker){ p.classList.add('pick'); p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Where this value comes from'); p.append(picker); }
   else p.textContent = mark.getAttribute('aria-label') || mark.title;
   document.body.append(p); srcPopAt = Date.now();
-  const r = mark.getBoundingClientRect();
-  p.style.top = `${r.bottom + window.scrollY + 6}px`;
+  /* Under the mark, or above it when there is no room below; never past the window (a long list scrolls). */
+  const r = mark.getBoundingClientRect(), room = window.innerHeight - 8;
+  p.style.maxHeight = `${Math.max(160, room - 8)}px`;
+  const h = p.offsetHeight, below = r.bottom + 6, above = r.top - 6 - h;
+  const top = below + h <= room ? below : above >= 8 ? above : Math.max(8, room - h);
+  p.style.top = `${top + window.scrollY}px`;
   p.style.left = `${Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, r.left + r.width / 2 - p.offsetWidth / 2)) + window.scrollX}px`;
+  /* The picker takes the focus on the value in use, so it works from the keyboard: arrows move, Enter picks. */
+  if (picker){ const cur = p.querySelector('[role=radio][aria-checked=true]') || p.querySelector('[role=radio]'); if (cur) cur.focus(); }
 }
 if (typeof document !== 'undefined'){
   document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#fsrcPop')) return; const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSrcPop();
+    const pop = document.getElementById('fsrcPop');
+    if (e.key === 'Escape' && pop){ closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(e.target.closest && e.target.closest('#fsrcPop'))); return; }
+    if (pop && e.target.closest && e.target.closest('#fsrcPop')){
+      const items = [...pop.querySelectorAll('[role=radio], .sp-foot button')];
+      const i = items.indexOf(document.activeElement);
+      if (['ArrowDown', 'ArrowUp'].includes(e.key) && items.length){ e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); return; }
+      /* Tab stays in the picker; leaving it is Escape. */
+      if (e.key === 'Tab' && items.length){ e.preventDefault(); items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus(); return; }
+    }
     else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
+  });
+  /* A file button (a label around a hidden file field) opens the file dialog from the keyboard too. */
+  document.addEventListener('keydown', e => {
+    const l = (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('label.btnlike[role=button]') ? e.target : null;
+    if (!l || l.classList.contains('disabled')) return;
+    e.preventDefault(); const f = l.querySelector('input[type=file]'); if (f && !f.disabled) f.click();
   });
   /* Scrolling closes it, except the scroll that brought the mark into view just before (it arrives after the click). */
   document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(e.target.closest && e.target.closest('#fsrcPop'))) closeSrcPop(); }, true);

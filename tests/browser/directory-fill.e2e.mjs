@@ -92,7 +92,7 @@ try {
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
   for (const t of ['CategorySales phones', 'SupervisedYes', 'AutopilotGroup tag Sales · order PO-7 · enrolled', 'Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);
-  assert.match(await p.getAttribute('#f_m1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]', 'title'), /From Microsoft Entra \/ Intune.*Typing a value here keeps yours/);
+  assert.match(await p.getAttribute('#f_m1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]', 'title'), /From Microsoft Entra & Intune.*Typing a value here keeps yours/);
 
   // Settings: both switches are on by default and are saved when turned off
   await p.evaluate(async () => (await import('/js/04-settings.js')).openSettings());

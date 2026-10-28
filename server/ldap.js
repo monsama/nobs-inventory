@@ -14,7 +14,16 @@ export const ldapEnabled = config => !!config?.url;
 /* What is read of a person, by name: never everything, so a user filter that also matches computer accounts never
    asks for their LAPS password or BitLocker keys. The login attribute (set in Settings) is added to it. */
 const USER_ATTRS = ['displayname', 'department', 'mail', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
-const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])];
+const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])].filter(a => !SECRET_ATTR.test(a));
+/* The LAPS password and the BitLocker recovery data are never asked for: not as the login attribute, not in a filter. The
+   settings are an admin's, but a stolen session must not turn them into a way to read those secrets. */
+export const SECRET_ATTR = /ms-?mcs-?admpwd|mslaps-|msfve-/i;
+export function ldapSettingsProblem(config) {
+  const attr = String(config.loginAttr || '');
+  if (attr && !/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(attr)) return 'The login attribute is the name of one attribute, such as sAMAccountName.';
+  if (SECRET_ATTR.test(attr) || SECRET_ATTR.test(String(config.userFilter || '')) || SECRET_ATTR.test(String(config.computerBase || ''))) return 'The directory settings name a LAPS or BitLocker attribute. The inventory never reads those.';
+  return '';
+}
 const LOGIN_OK = /^[\w.@-]{1,64}$/;
 export const DEFAULT_USER_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
@@ -37,6 +46,8 @@ export const LEGACY_CIPHERS = 'DEFAULT@SECLEVEL=1';
 export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
 async function connect(config) {
   if (config.portProblem) throw new Error(config.portProblem);
+  const settingsProblem = ldapSettingsProblem(config);
+  if (settingsProblem) throw new Error(settingsProblem);
   const plain = /^ldap:\/\//i.test(config.url);
   const startTls = plain && config.security === 'starttls';
   if (plain && !startTls && !config.allowPlain) throw new Error(PLAIN_LDAP_ERROR);
@@ -120,6 +131,24 @@ export async function ldapLogin(config, login, password) {
   if (!password || !LOGIN_OK.test(login)) return null;
   const client = await connect(config);
   try {
+    /* With a service account, the login is looked up first: one that is not in the directory, or not in the sign-in
+       group (given as a DN), is refused without trying its password, so wrong guesses at any domain account cannot lock
+       it out in AD. */
+    if (config.serviceDn && config.servicePassword) {
+      let found = null, inGroupDn = true;
+      try {
+        await bind(client, config.serviceDn, config.servicePassword);
+        found = (await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, ['cn'])).length > 0;
+        if (found && config.group && isDn(config.group)) inGroupDn = (await ldapSearch(client, config.searchBase, `(&(${config.loginAttr}=${escapeFilter(login)})${chain(config.group)})`, ['cn'])).length > 0;
+      } catch (e) {
+        /* Not reachable: said as it is. The service account cannot look (wrong password, no rights): the user's password
+           decides, as without one. */
+        if (isUnreachable(e.message) || /connect|ECONN|socket/i.test(String(e.message))) throw e;
+        found = null;
+      }
+      if (found === false) return null;
+      if (found && !inGroupDn) return { login, name: login, dept: '', mail: '', groups: [], allowed: false, admin: false };
+    }
     await bind(client, config.bindTemplate.replace('{login}', login), password);
     const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, userAttrs(config));
     if (!entry) return null;

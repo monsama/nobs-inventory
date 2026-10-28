@@ -29,7 +29,7 @@ const TIPS = [
   ['#colMenu > summary', 'Choose the columns the table shows'],
   ['[data-col]', 'Show or hide this column'],
   ['#csvBtn', 'Download the table as it is shown (filters and columns) as a CSV file'],
-  ['#csvImp', 'Add or update objects from a CSV file; you see what would change before anything is saved'],
+  ['#csvImp', 'Add objects from a CSV file; you see them before anything is saved'],
   ['#mapOnly', 'Leave out objects that have no relation to anything'],
   ['#mapLabels', 'Show the ports and the kind of link on the lines'],
   ['#mapAttached', 'Show devices that are only attached to another, such as monitors on a PC'],

@@ -10,6 +10,8 @@ services:
     container_name: nobs-proxy
     image: caddy:2-alpine
     restart: unless-stopped
+    # No process in the container can gain rights it did not start with.
+    security_opt: [no-new-privileges:true]
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"

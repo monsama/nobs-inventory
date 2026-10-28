@@ -31,7 +31,7 @@ const CAL = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y
 export function dateFieldHtml(attrs, iso, { disabled = false } = {}){
   return `<span class="datefield"><input type="text" inputmode="numeric" autocomplete="off" placeholder="dd.mm.yyyy" data-date="${esc(iso || '')}" value="${esc(dayShown(iso))}" ${attrs} ${disabled ? 'disabled' : ''}>`
     + `<button type="button" class="icon ghost df-cal" aria-label="Choose a date" title="Choose a date" ${disabled ? 'disabled' : ''}>${CAL}</button>`
-    + `<input type="date" class="df-native" tabindex="-1" aria-hidden="true" value="${esc(iso || '')}"></span>`;
+    + `<input type="date" class="df-native" tabindex="-1" aria-hidden="true" lang="de-CH" value="${esc(iso || '')}"></span>`;
 }
 export function timeFieldHtml(attrs, value, { hidden = false, disabled = false } = {}){
   return `<input type="text" inputmode="numeric" autocomplete="off" placeholder="hh:mm" maxlength="5" class="timefield" data-time value="${esc(value || '')}" ${attrs} ${hidden ? 'hidden' : ''} ${disabled ? 'disabled' : ''}>`;

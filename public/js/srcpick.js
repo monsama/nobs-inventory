@@ -47,6 +47,10 @@ function pickerOf(mark, close){
     if (!src){
       const rest = { ...(o.pick || {}) }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick;
       if (o.ovr && o.ovr[k] === false && inUse !== 'hand') delete o.ovr[k];
+      /* The usual order decides at once, as the next syncs would: Lansweeper, then Intune, then AD. A value set by hand
+         stays (it comes first in that order). */
+      const auto = inUse === 'hand' ? null : ['ls', 'graph', 'ad'].map(s => list.find(x => x.src === s)).find(Boolean);
+      if (auto){ o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
       hist(o, now(), `${LABELS[k] || k}: back to the automatic order of the sources, by ${who()}`);
     } else {
       const was = o[k];

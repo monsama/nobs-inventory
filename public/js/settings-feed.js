@@ -16,7 +16,7 @@ export function renderLsToggle(){
   host.innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       <label for="useLs">Connect Lansweeper</label>
-      <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${on ? 'checked' : ''} ${ro}> ${on ? 'On. Lansweeper data is pulled in and shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div>
+      <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${on ? 'checked' : ''} ${ro}> ${on ? 'On. Lansweeper data comes in and is shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div>
       <label for="lsSource">Data comes from</label>
       <div><select id="lsSource" ${ro} ${on ? '' : 'disabled'} aria-label="Where the Lansweeper data comes from">
         <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
@@ -208,8 +208,11 @@ export function bindScheduleRows(root){
       const v = {every: +every.value, at: t};
       st.syncSchedule = {...(st.syncSchedule || {}), [job]: v};
       queueServerSave();
+      const was = document.activeElement === every ? '[data-sched-every]' : document.activeElement === at ? '[data-sched-at]' : '';
       row.outerHTML = scheduleRowHtml(job, true);
       bindScheduleRows(root);
+      /* The row is drawn again: the focus goes back to the control just changed. */
+      const again = was && root.querySelector(`[data-sched="${job}"] ${was}`); if (again && !again.hidden) again.focus();
       toast(`${SCHEDULE_JOBS[job]}: ${scheduleText(v)}`);
     };
     every.onchange = save; at.onchange = save;
@@ -275,7 +278,7 @@ export function renderSetFeed(){
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
   <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Report</label><div style="display:flex;gap:8px;align-items:center;min-width:0"><label class="btnlike ${edit ? '' : 'disabled'}">Choose CSV file…<input id="feedUp" type="file" accept=".csv,text/csv" hidden ${ro}></label><span class="muted" id="feedUpName">A Lansweeper report saved as CSV</span></div></div>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Report</label><div style="display:flex;gap:8px;align-items:center;min-width:0"><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Choose CSV file…<input id="feedUp" type="file" accept=".csv,text/csv" hidden ${ro}></label><span class="muted" id="feedUpName">A Lansweeper report saved as CSV</span></div></div>
     <div class="note" style="padding:10px 12px">The server can also import this report by itself, on the Lansweeper schedule, from a file your administrator sets up.</div></div>`;
   /* One source at a time: show the script push or the API panel, never both. */
   if ($('#lsPushPanel')) $('#lsPushPanel').hidden = st.lsSource === 'api';

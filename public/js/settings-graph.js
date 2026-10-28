@@ -110,7 +110,7 @@ export async function renderSetGraph(){
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
-    <div style="padding:0 0 8px">${intakeRowHtml('graph')}<p class="note" style="padding:0 12px">Devices Graph has and the inventory does not become devices; disabled records never do, and ones not heard from for 90 days always wait in To review.</p></div>${ambiguousHtml()}</div>`;
+    <div style="padding:0 0 8px">${intakeRowHtml('graph')}<p class="note" style="padding:0 12px">Devices in Entra or Intune that the inventory does not have yet are added as new devices; disabled records never do, and ones not heard from for 90 days always wait in To review.</p></div>${ambiguousHtml()}</div>`;
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
