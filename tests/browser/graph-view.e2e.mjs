@@ -123,7 +123,7 @@ try {
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('.rv-item[data-rv="m9o"]');
   assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To review\s*1/);
-  assert.match(await p.textContent('.rv-item[data-rv="m9o"]'), /iPhone Ana.*Entra \/ Intune/s);
+  assert.match(await p.textContent('.rv-item[data-rv="m9o"]'), /iPhone Ana.*Entra & Intune/s);
   if (process.env.NI_SHOTS) await p.locator('#view').screenshot({ path: path.join(process.env.NI_SHOTS, 'to-review.png') });
   await p.click('[data-rvaccept="m9o"]');
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana'));
