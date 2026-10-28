@@ -1,3 +1,4 @@
+import { runRecorded } from './sync-runs.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -79,7 +80,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
       if (due('lansweeper')) {
         const ls = lansweeperConfig && lsOn && cur.lsSource === 'api' ? lansweeperConfig() : null;
         if (ls) {
-          try { log('lansweeper sync', await syncLansweeper(db, ls, now)); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
+          try { log('lansweeper sync', await runRecorded(db, 'lansweeper', () => syncLansweeper(db, ls, now), 'api')); } catch (e) { log('lansweeper sync failed:', e.message); audit(db, null, 'Lansweeper sync failed: ' + e.message); }
         } else if (env.NI_FEED_CSV && lsOn && cur.lsSource !== 'api') {
           try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
         }
@@ -87,13 +88,13 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
       if (due('ldap')) {
         const lc = ldapConfig ? ldapConfig() : null;
         if (lc) {
-          try { log('ldap sync', await syncLdapUsers(db, lc)); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
+          try { log('ldap sync', await runRecorded(db, 'ldap', () => syncLdapUsers(db, lc))); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
         }
       }
       if (due('graph')) {
         const gc = graphConfig ? graphConfig() : null;
         if (gc) {
-          try { const c = await syncGraph(db, gc, now); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }
+          try { const c = await runRecorded(db, 'graph', () => syncGraph(db, gc, now)); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }
         }
       }
     } catch (e) { log('scheduled sync failed:', e.message); try { audit(db, null, 'Scheduled sync failed: ' + e.message); } catch { /* the log is best effort */ } }

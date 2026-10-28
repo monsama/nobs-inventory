@@ -1,3 +1,4 @@
+import { syncButtonHtml } from './16-sync.js';
 import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
@@ -144,7 +145,10 @@ export function renderTabs(){
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
-  $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (views.includes('review') ? `<span class="grow"></span>${viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '')}` : '');
+  /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
+  const sync = syncButtonHtml(), right = sync || views.includes('review');
+  $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + sync
+    + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;
   $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {

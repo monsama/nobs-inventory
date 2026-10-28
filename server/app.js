@@ -20,6 +20,7 @@ import { generateGraphCert } from './cert.js';
 import { certReport, probeCert } from './proxy-cert.js';
 import crypto from 'node:crypto';
 import { syncLdapUsers } from './ldap-sync.js';
+import { recordSync, runRecorded } from './sync-runs.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -429,8 +430,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       lsRequire('api');
       const ls = cfgLs();
-      if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
-      const counts = await syncLansweeper(db, ls);
+      const counts = await runRecorded(db, 'lansweeper', () => {
+        if (!ls) throw new HttpError(400, 'No Lansweeper API token is set on the server. Set NI_LS_TOKEN or NI_LS_TOKEN_FILE.');
+        return syncLansweeper(db, ls);
+      }, 'api');
       res.json({ counts });
     } catch (e) { audit(db, null, 'Lansweeper sync failed: ' + e.message); next(e); }
   });
@@ -531,8 +534,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const g = cfgGraph();
-      if (!g) throw graphMissing();
-      const counts = await syncGraph(db, g, new Date(), graphFetch);
+      const counts = await runRecorded(db, 'graph', () => { if (!g) throw graphMissing(); return syncGraph(db, g, new Date(), graphFetch); });
       audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(counts));
       res.json({ counts });
     } catch (e) { audit(db, null, 'Microsoft Graph sync failed: ' + e.message); next(e); }
@@ -575,16 +577,18 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const lc = cfgLdap();
-      if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
-      let counts;
-      try { counts = await syncLdapUsers(db, lc); }
-      catch (e) {
-        if (e instanceof HttpError) throw e;
-        console.error('directory sync:', e.message);
-        /* A certificate that is not trusted: what the server presented, as Test connection says it. */
-        const report = isCertError(e.message) ? await ldapCertReport(lc).catch(() => null) : null;
-        throw new HttpError(503, report ? 'The directory could not be read. ' + report.text : 'The directory could not be read. Check the service account.');
-      }
+      /* Recorded as a failed run too, so the Sync button says why the directory was not read. */
+      const counts = await runRecorded(db, 'ldap', async () => {
+        if (!ldapEnabled(lc)) throw new HttpError(400, 'Enter the directory server in Settings → Active Directory first.');
+        try { return await syncLdapUsers(db, lc); }
+        catch (e) {
+          if (e instanceof HttpError) throw e;
+          console.error('directory sync:', e.message);
+          /* A certificate that is not trusted: what the server presented, as Test connection says it. */
+          const report = isCertError(e.message) ? await ldapCertReport(lc).catch(() => null) : null;
+          throw new HttpError(503, report ? 'The directory could not be read. ' + report.text : 'The directory could not be read. Check the service account.');
+        }
+      });
       res.json({ counts });
     } catch (e) { next(e); }
   });
@@ -593,6 +597,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
      in Settings → Feed (feed-token.js) or set by the administrator (NI_FEED_TOKEN). Without a token, this route
      refuses every request. */
   app.post('/api/feed/push', (req, res, next) => {
+    let pushing = false;
     try {
       /* Wrong tokens count against the address, the same way wrong passwords do, so a token cannot be guessed by trying. */
       const keys = ['push:' + (req.ip || '')];
@@ -600,6 +605,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const m = /^Bearer (.+)$/.exec(req.get('authorization') || '');
       if (!feedTokenValid(db, m && m[1], feedToken)){ throttle.recordFailure(keys); throw new HttpError(401, 'The feed token is wrong, or none is set on the server.'); }
       lsRequire('push');
+      pushing = true;
       const records = req.body && req.body.records;
       if (!Array.isArray(records)) throw new HttpError(400, 'Send the assets as {"records": [...]}.');
       if (records.length > 20000) throw new HttpError(413, 'Too many assets in one push. Send them in parts.');
@@ -607,8 +613,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const counts = mergeRecords(s, recordsFromJson(records), new Date(), cleanIpLocations(req.body.ipLocations));
       if (feedChanged(counts)) { autoBackup(db, 'before a Lansweeper push', { hourly: true }); saveState(db, s); }
       audit(db, null, 'feed push: ' + JSON.stringify(counts));
+      recordSync(db, 'lansweeper', { ok: true, counts, how: 'push' });
       res.json({ counts });
-    } catch (e) { audit(db, null, 'feed push failed: ' + e.message); next(e); }
+    } catch (e) {
+      audit(db, null, 'feed push failed: ' + e.message);
+      /* Only a push with the right token counts as a run: a wrong token is somebody else's request. */
+      if (pushing) recordSync(db, 'lansweeper', { ok: false, error: e.message, how: 'push' });
+      next(e);
+    }
   });
 
   /* The push token, made in Settings → Feed. Only its hash is kept. */

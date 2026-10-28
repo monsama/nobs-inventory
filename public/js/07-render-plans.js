@@ -878,7 +878,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));

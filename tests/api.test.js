@@ -252,6 +252,7 @@ test('the log shows what happened, and a refused push is an error', async () => 
     await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser] }), cookie: admin.cookie });
     const refused = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong' }, body: '{"records":[]}' });
     assert.equal(refused.status, 401);
+    assert.equal((await import('../server/state.js')).loadState(srv.db).syncRuns, undefined, 'a wrong token is no run of the push');
     await srv.call('POST', '/api/feed/import', { body: 'AssetName,Serial\nLOG-1,L1\n', type: 'csv', cookie: admin.cookie });
     const log = (await srv.call('GET', '/api/log', { cookie: admin.cookie })).json.entries;
     const failed = log.find(e => /feed push failed/.test(e.action));
@@ -323,6 +324,8 @@ test('one Lansweeper source at a time: script push or API sync, the other is ref
     assert.equal((await srv.call('POST', '/api/feed/sync', { cookie: admin.cookie })).status, 403, 'API sync is refused while the script push is the source');
     const pushOk = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer one-source-123' }, body: '{"records":[]}' });
     assert.equal(pushOk.status, 200, 'the script push works');
+    const { loadState } = await import('../server/state.js');
+    assert.deepEqual([loadState(srv.db).syncRuns.lansweeper.ok, loadState(srv.db).syncRuns.lansweeper.how], [true, 'push'], 'the Sync button sees the last push');
     await srv.call('PUT', '/api/state', { body: baseState({ users: [adminUser], lsSource: 'api' }), cookie: admin.cookie });
     const pushNo = await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer one-source-123' }, body: '{"records":[]}' });
     assert.equal(pushNo.status, 403, 'the script push is refused while the API is the source');
