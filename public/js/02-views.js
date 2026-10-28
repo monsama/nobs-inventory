@@ -3,7 +3,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
@@ -293,6 +293,15 @@ export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
 let cardJoin = true;
 try { cardJoin = localStorage.getItem('ni-card-join') !== '0'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 const showJoin = () => cardJoin && joinCardsAvailable();
+/* The card's status: excluded or detached from Lansweeper says so; else when the device was last seen and by whom
+   (Lansweeper, AD, Intune, Entra or Defender, whichever saw it last); else Lansweeper's own state. */
+const cardSeen = o => {
+  if (o.excluded || o.detached) return syncChip(o);
+  /* Lansweeper's "Check by hand" stays, unless AD, Intune, Entra or Defender saw the device later than Lansweeper did. */
+  const s = lastSeenOf(o);
+  if (scanOld(o) && (!s || s.src === 'Lansweeper')) return scanChip(o);
+  return seenChip(o) || ((syncOf(o) || {}).k === 'manual' ? '' : syncChip(o));
+};
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
@@ -302,7 +311,7 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
-    <div class="cf"><span class="code">${esc(o.code)}</span>${scanOld(o) ? scanChip(o) : (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
+    <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 /* How many cards or table rows are drawn before "Show all". */
@@ -394,6 +403,8 @@ export const TABLE_COLS = [
   {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
   {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
+  /* The date first, so the column sorts by it. */
+  {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return `<td>${s ? `<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen by ${esc(s.src)}">${esc(dayText(s.day))}</span> <span class="muted">· ${esc(s.src)}</span>` : ''}</td>`; }},
   {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off. */
@@ -706,11 +717,12 @@ export function mapInner(L){
   }).join('');
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
-    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})">
+    /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
+    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
       <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
-      <text x="9" y="14" font-size="10" font-family="var(--mono)" fill="var(--muted)">${esc(o.code)}</text>
+      <text x="9" y="14" font-size="10" fill="var(--muted)"><tspan font-family="var(--mono)">${esc(o.code)}</tspan> · ${esc(TYPES[o.type] ? (o.status !== 'active' ? TYPES[o.type].short : TYPES[o.type].label) : o.type)}</text>
       <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
       ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
       ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}

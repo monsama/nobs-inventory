@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { isIntune, otherManager } from './intune.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -193,7 +194,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0, graph: false};
+export const SYNC = {run: '', time: 0, graph: false, defender: false};
 export { stampTime };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -280,7 +281,8 @@ export const GRAPH_FILTERS = {
   unencrypted: ['Not encrypted', 'warn', o => inGraph(o) && o.graph.encrypted === 'no'],
   stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => inGraph(o) && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => (!o.graph || !!o.graph.gone) && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
-  duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).length > 0, true],
+  /* Records disabled in Entra are not duplicates to clean up: Entra keeps them switched off before they are deleted. */
+  duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).some(x => !x.disabled), true],
   ambiguous: ['Name or serial used twice', 'warn', o => o.status !== 'retired' && !!graphAmbiguousOf(o), true],
   /* By how the device is joined. */
   entra: ['Entra joined', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra joined'],
@@ -289,8 +291,8 @@ export const GRAPH_FILTERS = {
   registered: ['Entra registered', 'join', o => o.status !== 'retired' && joinOf(o) === 'Entra registered'],
   notjoined: ['Not joined', 'join', o => o.status !== 'retired' && GRAPH_TYPES.includes(o.type) && !joinOf(o)],
   /* Opened from the Overview; in the sidebar only while they filter. */
-  managed: ['Managed by Intune', 'ok', o => inGraph(o) && !!o.graph.managed, true, true],
-  unmanaged: ['In Entra, not managed by Intune', 'off', o => inGraph(o) && !o.graph.managed, true, true],
+  managed: ['Managed by Intune', 'ok', o => inGraph(o) && isIntune(o.graph.managed), true, true],
+  unmanaged: ['In Entra, not managed by Intune', 'off', o => inGraph(o) && !isIntune(o.graph.managed), true, true],
   compliant: ['Compliant', 'ok', o => inGraph(o) && o.graph.compliance === 'compliant', true, true],
   grace: ['In grace period', 'warn', o => inGraph(o) && o.graph.compliance === 'inGracePeriod', true, true],
 };
@@ -355,20 +357,53 @@ export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
   /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
   const g = SYNC.graph && o.graph && !o.graph.gone ? o.graph : null, j = g ? joinOf(o) : o.inAd ? 'AD joined' : '';
-  const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && g.managed);
+  const ad = !!o.inAd || j === 'Hybrid joined', en = JOIN_STATE[j], it = !!(g && isIntune(g.managed));
   const c = it ? COMPLIANCE[g.compliance] : null, cls = !c ? 'ok' : c[0] === 'bad' ? 'bad' : c[0] === 'warn' ? 'warn' : c[0] === 'ok' ? 'ok' : 'nc';
   const seg = (on, kind, label, state, tip) => `<span class="jb ${on ? 'on ' + kind : 'no'}" title="${esc(tip)}"><i aria-hidden="true"></i><b>${label}</b><small>${esc(state)}</small></span>`;
   const tips = [
     ad ? (o.inAd ? 'Active Directory: has a computer account' + (j === 'Hybrid joined' ? ', hybrid joined' : '') : 'Active Directory: hybrid joined') : 'Active Directory: no computer account found',
     en ? `Microsoft Entra ID (Azure AD): ${j}. ${JOIN_INFO[j]}` : 'Microsoft Entra ID (Azure AD): not joined or registered',
-    it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? 'Microsoft Intune: in Entra, not managed' : 'Microsoft Intune: not managed',
+    it ? `Microsoft Intune: managed${c ? ', ' + c[1].toLowerCase() : ''}` : g ? `Microsoft Intune: not managed${otherManager(g.managed) ? ' (' + otherManager(g.managed) + ')' : ''}` : 'Microsoft Intune: not managed',
   ];
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
   const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
-  return `<div class="jbar" role="img" aria-label="${esc(tips.join('. '))}">
-    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}
+  /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
+     high risk red. */
+  const df = SYNC.defender ? defenderState(o) : null;
+  if (df) tips.push(df.tip);
+  return `<div class="jbar${df ? ' jbar4' : ''}" role="img" aria-label="${esc(tips.join('. '))}">
+    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}${df ? seg(df.on, df.cls, 'Defender', df.state, df.tip) : ''}
   </div>`;
+};
+/* What Defender for Endpoint says of a device, for its mark and its page. */
+export function defenderState(o){
+  const d = o.defender;
+  if (!d) return { on: false, cls: '', state: 'not onboarded', tip: 'Microsoft Defender for Endpoint: not onboarded' };
+  const health = { Active: 'active', Inactive: 'inactive', ImpairedCommunication: 'impaired', NoSensorData: 'no sensor data', NoSensorDataImpairedCommunication: 'no sensor data' }[d.health] || String(d.health || 'unknown').toLowerCase();
+  const risk = String(d.risk || '').toLowerCase(), high = risk === 'high', medium = risk === 'medium';
+  const cls = high ? 'bad' : d.health !== 'Active' || medium ? 'warn' : 'ok';
+  const last = d.lastSeen ? ', last seen ' + d.lastSeen.slice(0, 10) : '';
+  return { on: true, cls, state: high || medium ? `${risk} risk` : health,
+    tip: `Microsoft Defender for Endpoint: ${health}${risk && risk !== 'none' ? ', risk ' + risk : ''}${d.exposure ? ', exposure ' + d.exposure.toLowerCase() : ''}${last}` };
+}
+/* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
+   its Entra sign-in or Defender. Dates only (AD and Lansweeper give no time). */
+export function lastSeenOf(o){
+  const g = o.graph && !o.graph.gone ? o.graph : null;
+  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && g.lastCheckIn],
+    ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen]]
+    .map(([src, v]) => [src, String(v || '').slice(0, 10)]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
+  if (!all.length) return null;
+  const [src, day] = all.sort((a, b) => b[1].localeCompare(a[1]))[0];
+  const t = new Date(), today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return { src, day, days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
+}
+/* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */
+export const seenChip = o => {
+  const s = lastSeenOf(o); if (!s) return '';
+  const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
+  return `<span class="chip ${s.days > GRAPH_STALE_DAYS ? 'warn' : 'ok'} lsst seen" title="Last seen ${esc(dayText(s.day))} by ${esc(s.src)}">Seen ${esc(when)} · ${esc(s.src)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
 
@@ -385,7 +420,8 @@ export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
-export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;
+/* A type's icon; hovering it names the type (Notebook, PC, Server …). */
+export const tico = (t, cls='tico') => `<span class="${cls}" role="img" aria-label="${esc(TYPES[t]?.label || t)}" title="${esc(TYPES[t]?.label || t)}" style="--tc:${tcol(t)}">${svg(t)}</span>`;
 export { pad2 };
 /* A switch without a port prefix (some come from Lansweeper) shows its ports as plain numbers, not NaN. */
 export const pfxOf = o => o.pfx ?? '';
@@ -475,7 +511,7 @@ export const isAttached = k => k === 'attached';
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
-const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q));
+const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.intune || st.osFam || st.live || st.resp || st.adGroup);
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a

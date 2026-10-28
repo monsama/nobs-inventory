@@ -388,6 +388,7 @@ svg.cu{fill:currentColor;stroke:none}
 @media (max-width:760px){.jb small{font-size:10px}}
 /* The same marks on the device page, in its Properties: no card edge around them. */
 .jbar.jbar-page{flex:1;padding:0;border-top:0}
+.jbar.jbar4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .jb.ad{--c:#7c3aed}.jb.en{--c:#2563eb}.jb.hy{--c:#0d9488}.jb.reg{--c:#d97706}
 .jb.ok{--c:var(--ok)}.jb.warn{--c:var(--warnbtn)}.jb.bad{--c:var(--danger-bg)}.jb.nc{--c:#64748b}
 
@@ -1267,6 +1268,10 @@ button.primary:disabled{background:var(--accentbtn);color:var(--accentfg);border
 .chip.lsst.ok::before{background:var(--okdot)}
 .chip.lsst.warn::before{background:var(--warn)}
 .chip.lsst.bad::before{background:var(--danger)}
+.jbar.jbar4 .jb{padding-left:5px;padding-right:5px;gap:4px}
+/* "Seen … · source": as wide as what it says, the date and who saw it. */
+.chip.lsst.seen{width:auto}
+.card .cf .chip.lsst.seen{max-width:78%}
 </style>
 </head>
 <body>
