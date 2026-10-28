@@ -100,7 +100,12 @@ table.locs td.site{color:var(--muted)}
 .locpanel>.note{margin:0;padding:0 12px 12px}
 @media (max-width:760px){.locgrid{grid-template-columns:minmax(0,1fr)}}
 .ctlrow{display:flex;align-items:center;gap:10px;min-width:0}
-.ctlrow>:not(.pchk):not(.pchk-slot):not(.fmenu):not(.fm-slot){flex:1;min-width:0}
+.ctlrow>:not(.pchk):not(.pchk-slot):not(.fmenu):not(.fm-slot):not(.fsrc):not(.fsrc-slot){flex:1;min-width:0}
+/* Where a field's value came from: a small monochrome mark beside it (by hand, Lansweeper, Entra/Intune, AD). */
+.fsrc,.fsrc-slot{display:inline-flex;align-items:center;justify-content:center;width:16px;flex:none}
+.fsrc{color:var(--muted);cursor:help}
+.fsrc svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fsrc:hover{color:var(--fg)}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
 details.fmenu{flex:none;width:26px}

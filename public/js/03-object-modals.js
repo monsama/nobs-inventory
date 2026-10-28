@@ -4,7 +4,7 @@ import { isIntune, otherManager } from './intune.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
+import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
@@ -396,7 +396,7 @@ export function fieldMenu(o, f, hiddenBy = ''){
    without one reads as "not from Lansweeper", not as a gap. The text ends over the boxes. */
 function propHead(o, menu){
   if (!(LS_ON() && feedLinked(o))) return '';
-  return `<span></span><div class="ctlrow prop-head" aria-hidden="true"><span></span><span class="pchk-slot ph-ls">From Lansweeper</span>${menu ? '<span class="fm-slot"></span>' : ''}</div>`;
+  return `<span></span><div class="ctlrow prop-head" aria-hidden="true"><span></span><span class="fsrc-slot"></span><span class="pchk-slot ph-ls">From Lansweeper</span>${menu ? '<span class="fm-slot"></span>' : ''}</div>`;
 }
 /* When a device was last saved here, for the toolbar: the time today, else the day. */
 const savedAt = iso => { const d = new Date(iso), t = new Date(); return d.toDateString() === t.toDateString() ? d.toTimeString().slice(0, 5) : dateText(d); };
@@ -415,9 +415,9 @@ export function propRow(o, f, menu = ''){
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' || k === 'ip' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
   /* The bars sit under the field and end where it ends: the From feed box and the menu keep their columns free. */
-  const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
+  const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
   const nics = k === 'mac' ? nicsHtml(o) : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${sourceMark(o, k)}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
 export function nicsHtml(o){
@@ -450,8 +450,8 @@ export function diskBars(text, live = true){
     return `<div class="disk${cls}" title="${p.l}: ${used}% used, ${p.free} GB free of ${p.size} GB"><b>${p.l}:</b><span class="disk-bar" aria-hidden="true"><span style="width:${used}%"></span></span><span class="disk-t">${p.free.toLocaleString()} GB free of ${p.size.toLocaleString()} GB</span></div>`;
   }).join('')}</div>`;
 }
-/* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. */
-const FILL_FROM = { graph: 'Intune', ad: 'Active Directory' };
+/* A remark under a field: a gateway other than its subnet's, a warranty that has ended or ends soon. Where the value
+   came from is the mark beside the field (sourceMark). */
 export function fieldNote(o, k){
   let t = '', cls = 'warn';
   if (k === 'gateway' && o.gateway){
@@ -459,8 +459,6 @@ export function fieldNote(o, k){
     if (sn && sn.gateway && sn.gateway !== o.gateway) t = `Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`;
   }
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') { t = 'The warranty has ended.'; cls = 'bad'; } else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
-  /* Filled in by a directory (the server's fill.js): it says which, until Lansweeper or a person sets the value. */
-  if (!t && o.src && o.src[k] && o[k]) return `<span></span><p class="fieldnote info" id="f_${o.id}_${k}_src">From ${esc(FILL_FROM[o.src[k]] || o.src[k])}: typing a value here keeps yours.</p>`;
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
 }
 /* The subnet a device is in: the one picked on it, or else the one its address falls in. */
@@ -846,11 +844,11 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form">${propHead(o, !!menuSlot)}${fields.map(row).join('')}
         ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}</span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace('class="jbar"', 'class="jbar jbar-page"')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${o.ad ? `<label>AD account</label><div class="ctlrow"><span class="ad-acct">${adAccountHtml(o.ad)}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${feedPanel(o)}
       ${graphPanel(o)}
@@ -1070,13 +1068,17 @@ export function renderObj(o){
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added from Graph. */
       if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
-      /* A value Intune or AD filled in, changed here: it is this page's now. Cleared, it stays empty: no sync fills it again. */
-      if (o.src && o.src[k] && String(o[k] ?? '') !== String(v ?? '')){
-        delete o.src[k]; if (!Object.keys(o.src).length) delete o.src;
-        const note = document.getElementById(`f_${o.id}_${k}_src`); if (note){ note.previousElementSibling?.remove(); note.remove(); }
-        if (String(v ?? '') === '') o.ovr = {...(o.ovr || {}), [k]: false};
+      /* A value changed here is noted as set by hand, over any sync's (and kept from them); cleared, it stays empty: no
+         sync fills it again. */
+      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
+        if (String(v ?? '') === ''){
+          if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; o.ovr = {...(o.ovr || {}), [k]: false}; }
+        } else o.src = {...(o.src || {}), [k]: 'hand'};
       }
       o[k] = v;
+      /* The mark beside the field follows at once: the page is not drawn again for one field. */
+      const fld = document.getElementById(`f_${o.id}_${k}`), mk = fld && fld.closest('.ctlrow') && fld.closest('.ctlrow').querySelector(':scope > .fsrc, :scope > .fsrc-slot');
+      if (mk) mk.outerHTML = sourceMark(o, k);
     });
     if (place){
       const prevRack = o.rack;

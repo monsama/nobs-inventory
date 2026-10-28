@@ -4,7 +4,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
@@ -440,6 +440,13 @@ export function columnsMenu(){
   return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
 }
 
+/* A field's cell says where its value came from in its hover text (the device page shows it as a mark). */
+const SOURCE_COLS = new Set([...Object.keys(FIELD_LABEL), 'serial']);
+const withSource = (o, c, html) => {
+  if (!SOURCE_COLS.has(c.k) || /^<td[^>]*title=/.test(html)) return html;
+  const t = sourceText(o, c.k);
+  return t ? html.replace(/^<td/, `<td title="${esc(t)}"`) : html;
+};
 export function renderTable(){
   let list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
@@ -513,7 +520,7 @@ export function renderTable(){
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
     ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => c.cell(o, idx)).join('')}</tr>`).join('')}
+    ${rowsOf.map(o => `<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => withSource(o, c, c.cell(o, idx))).join('')}</tr>`).join('')}
     </tbody></table>${list.length ? '' : hiddenHits()}${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   bindHiddenHits();

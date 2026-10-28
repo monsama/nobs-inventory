@@ -43,25 +43,27 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('s1'));
   await p.waitForSelector('text=AD account');
   const form = await p.textContent('#view .form');
-  assert.match(form, /From Active Directory: typing a value here keeps yours/);
+  const mark = k => p.evaluate(k => { const m = document.querySelector(`#f_s1_${k}`).closest('.ctlrow').querySelector('.fsrc'); return m ? [m.dataset.src, m.title] : null; }, k);
+  const [osSrc, osTip] = await mark('os');
+  assert.equal(osSrc, 'ad'); assert.match(osTip, /From the computer account in Active Directory.*Typing a value here keeps yours/);
+  assert.equal((await mark('name')) && (await mark('name'))[0], 'hand', 'a device no sync has: typed by hand');
   assert.match(form, new RegExp(`Last logon ${old}\\s*over 90 days ago`));
   assert.match(form, /created 2020-01-02/);
   if (process.env.NI_SHOTS) await p.locator('#view .panelbox:has(.hdr:text("Properties"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'directory-fill.png') });
 
-  // typed over: the value is the page's, the note goes, and no sync fills it again
+  // typed over: the value is the page's, marked as set by hand, and no sync fills it again
   await p.fill('#f_s1_os', 'Windows Server 2019 Datacenter'); await p.press('#f_s1_os', 'Tab');
   await stored(st => st.objs.find(o => o.id === 's1').os === 'Windows Server 2019 Datacenter');
   const s1 = loadState(db).objs.find(o => o.id === 's1');
-  assert.deepEqual(s1.src, { domain: 'ad' }, 'only the domain is still AD\'s');
-  await until(p, () => document.querySelector('#view .form').textContent.match(/From Active Directory/g)?.length === 1);
-  assert.equal((await p.textContent('#view .form')).match(/From Active Directory/g).length, 1, 'one note left: the domain');
+  assert.deepEqual(s1.src, { os: 'hand', domain: 'ad' }, 'the system set by hand, the domain still AD\'s');
+  await until(p, () => document.querySelector('#f_s1_os').closest('.ctlrow').querySelector('.fsrc[data-src="hand"]'));
 
   // the phone: what Intune says of it
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
   for (const t of ['Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);
-  assert.match(await p.textContent('#view .form'), /From Intune: typing a value here keeps yours/);
+  assert.match(await p.getAttribute('#f_m1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]', 'title'), /From Microsoft Entra \/ Intune.*Typing a value here keeps yours/);
 
   // Settings: both switches are on by default and are saved when turned off
   await p.evaluate(async () => (await import('/js/04-settings.js')).openSettings());
