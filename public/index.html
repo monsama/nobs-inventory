@@ -350,7 +350,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
 .card{content-visibility:auto;contain-intrinsic-size:auto 150px}
 table.grid tbody tr{content-visibility:auto;contain-intrinsic-size:auto 27px}
-#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;padding:12px}
+/* Wide enough that model names, operating systems and people's names fit on one line; a longer value (a purpose, a
+   long model) wraps to a second line and ends in … after that, whole on the device page. */
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:10px;padding:12px}
 .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal}
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
 .card{align-self:stretch}
@@ -370,6 +372,8 @@ svg.cu{fill:currentColor;stroke:none}
 .kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:8px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kv dd.none{color:var(--muted);opacity:.6}
+/* On a card a long value wraps to a second line and ends in … after that (the device page shows it whole). */
+.card .kv dd,.card .model{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
 .cert-kv{grid-template-columns:100px 1fr;gap:6px 12px;padding:12px;font-size:13px}.cert-kv dd{white-space:normal;overflow-wrap:anywhere}
 .cardlines{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px 12px;align-items:end;padding:10px 12px 12px}
 .cardlines label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
