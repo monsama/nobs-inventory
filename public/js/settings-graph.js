@@ -99,6 +99,11 @@ export async function renderSetGraph(){
           <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
           <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
           <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
+      <li><div class="gs-head"><b>Defender for Endpoint</b> <span class="muted">(optional)</span></div>
+        <p class="note">Beside Entra and Intune, the sync can read each device's state in Microsoft Defender for Endpoint: active or not, its risk and exposure, the antivirus and when Defender last saw it. It is a fourth mark on the cards. In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>APIs my organization uses</b> → <span class="mono">WindowsDefenderATP</span> → <b>Application permissions</b> → <span class="mono">Machine.Read.All</span>, then <b>Grant admin consent</b>. Read only, like the others.</p>
+        <div class="form" style="padding:8px 0 0"><label for="gDefender">Defender</label><select id="gDefender" ${edit ? '' : 'disabled'}>
+          <option value="off" ${(g.defender || 'off') === 'off' ? 'selected' : ''}>Don't read Defender</option>
+          <option value="on" ${g.defender === 'on' ? 'selected' : ''}>Read Defender for Endpoint</option></select></div></li>
       <li><div class="gs-head"><b>Device fields</b></div>
         <p class="note">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>
         <label class="pchk" style="width:auto;padding-top:6px"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Fill in empty fields from Intune</label></li>
@@ -119,6 +124,10 @@ export async function renderSetGraph(){
     toast('Microsoft Graph IDs saved'); await refreshGraph();
   };
   const gf = $('#gFill'); if (gf) gf.onchange = () => { st.fillGraph = gf.checked; queueServerSave(); };
+  $('#gDefender').onchange = async () => {
+    const x = await post('api/graph/settings', {defender: $('#gDefender').value});
+    toast(x.ok ? ($('#gDefender').value === 'on' ? 'Saved: Defender is read at the next sync. Test connection checks its permission.' : 'Saved: Defender is not read any more') : (x.j.error || 'Not saved.'));
+  };
   $('#gPeople').onchange = async () => {
     const x = await post('api/graph/settings', {people: $('#gPeople').value});
     toast(x.ok ? 'Saved: people are read at the next sync' : (x.j.error || 'Not saved.'));

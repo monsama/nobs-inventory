@@ -194,7 +194,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0, graph: false};
+export const SYNC = {run: '', time: 0, graph: false, defender: false};
 export { stampTime };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -368,9 +368,42 @@ export const joinBadges = o => {
   /* Without Microsoft Graph set up this app cannot know Entra or Intune: those two say so instead of "not joined". */
   const unk = (label, what) => `<span class="jb unk" title="${esc(what)}: not known, Microsoft Graph is not set up"><i aria-hidden="true"></i><b>${label}</b><small>not checked</small></span>`;
   if (!SYNC.graph) { tips[1] = 'Microsoft Entra ID (Azure AD): not known, Microsoft Graph is not set up'; tips[2] = 'Microsoft Intune: not known, Microsoft Graph is not set up'; }
-  return `<div class="jbar" role="img" aria-label="${esc(tips.join('. '))}">
-    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}
+  /* Defender for Endpoint, once it has been read (Settings): active and low risk is green, inactive or medium risk amber,
+     high risk red. */
+  const df = SYNC.defender ? defenderState(o) : null;
+  if (df) tips.push(df.tip);
+  return `<div class="jbar${df ? ' jbar4' : ''}" role="img" aria-label="${esc(tips.join('. '))}">
+    ${seg(ad, 'ad', 'AD', ad ? (j === 'Hybrid joined' ? 'hybrid' : 'joined') : 'not joined', tips[0])}${SYNC.graph ? `${seg(!!en, en ? en[0] : '', 'Entra', en ? en[1] : 'not joined', tips[1])}${seg(it, cls, 'Intune', it ? (COMPLIANCE_SHORT[g.compliance] || 'managed') : 'not managed', tips[2])}` : unk('Entra', 'Microsoft Entra ID (Azure AD)') + unk('Intune', 'Microsoft Intune')}${df ? seg(df.on, df.cls, 'Defender', df.state, df.tip) : ''}
   </div>`;
+};
+/* What Defender for Endpoint says of a device, for its mark and its page. */
+export function defenderState(o){
+  const d = o.defender;
+  if (!d) return { on: false, cls: '', state: 'not onboarded', tip: 'Microsoft Defender for Endpoint: not onboarded' };
+  const health = { Active: 'active', Inactive: 'inactive', ImpairedCommunication: 'impaired', NoSensorData: 'no sensor data', NoSensorDataImpairedCommunication: 'no sensor data' }[d.health] || String(d.health || 'unknown').toLowerCase();
+  const risk = String(d.risk || '').toLowerCase(), high = risk === 'high', medium = risk === 'medium';
+  const cls = high ? 'bad' : d.health !== 'Active' || medium ? 'warn' : 'ok';
+  const last = d.lastSeen ? ', last seen ' + d.lastSeen.slice(0, 10) : '';
+  return { on: true, cls, state: high || medium ? `${risk} risk` : health,
+    tip: `Microsoft Defender for Endpoint: ${health}${risk && risk !== 'none' ? ', risk ' + risk : ''}${d.exposure ? ', exposure ' + d.exposure.toLowerCase() : ''}${last}` };
+}
+/* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
+   its Entra sign-in or Defender. Dates only (AD and Lansweeper give no time). */
+export function lastSeenOf(o){
+  const g = o.graph && !o.graph.gone ? o.graph : null;
+  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && g.lastCheckIn],
+    ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen]]
+    .map(([src, v]) => [src, String(v || '').slice(0, 10)]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
+  if (!all.length) return null;
+  const [src, day] = all.sort((a, b) => b[1].localeCompare(a[1]))[0];
+  const t = new Date(), today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return { src, day, days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
+}
+/* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */
+export const seenChip = o => {
+  const s = lastSeenOf(o); if (!s) return '';
+  const when = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days < 31 ? s.days + ' days ago' : dayText(s.day);
+  return `<span class="chip ${s.days > GRAPH_STALE_DAYS ? 'warn' : 'ok'} lsst seen" title="Last seen ${esc(dayText(s.day))} by ${esc(s.src)}">Seen ${esc(when)} · ${esc(s.src)}</span>`;
 };
 export const syncChip = o => { const s = syncOf(o); return s ? `<span class="chip ${s.cls} lsst" data-sync="${s.k}" title="${esc(s.label)}">${esc(s.label)}</span>` : ''; };
 
@@ -477,7 +510,7 @@ export const isAttached = k => k === 'attached';
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
-const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url])].some(v => v && String(v).toLowerCase().includes(q));
+const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.intune || st.osFam || st.live || st.resp || st.adGroup);
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a

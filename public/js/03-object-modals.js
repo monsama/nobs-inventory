@@ -5,7 +5,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -521,6 +521,8 @@ export function graphPanel(o){
   const amb = graphAmbiguousOf(o);
   const ambNote = amb ? `<p class="note" style="padding:10px 12px 0"><span class="chip warn">Not matched</span> Graph has a device ${amb.by === 'serial' ? `with the serial number ${esc(amb.serial)}` : `named ${esc(amb.name)}`}, and so do ${amb.devices.length - 1 === 1 ? 'another device' : (amb.devices.length - 1) + ' other devices'} here: ${amb.devices.filter(id => id !== o.id).map(id => { const x = byId(id); return x ? esc(x.code + ' ' + x.name) : ''; }).filter(Boolean).join(', ')}. It was put on none of them. Give them distinct ${amb.by === 'serial' ? 'serial numbers' : 'names'}.</p>` : '';
   const adOnly = o.inAd ? ' It has a computer account in the on-premises Active Directory: joined to AD only.' : '';
+  /* A server is in Defender, not in Entra or Intune: Defender alone, in a panel of its own. */
+  if (!g && !GRAPH_TYPES.includes(o.type) && !amb && o.defender) return `<div class="panelbox"><div class="hdr">Defender for Endpoint</div><dl class="lsbox"><dt>State</dt><dd style="font-family:inherit">${defenderRow(o)}</dd></dl></div>`;
   if (!g) return (GRAPH_TYPES.includes(o.type) || amb) && o.status !== 'retired'
     ? `<div class="panelbox"><div class="hdr">Entra &amp; Intune</div>${ambNote}${amb ? '<div style="height:10px"></div>' : `<p class="note" style="padding:10px 12px">Not found in Microsoft Entra or Intune at the last sync, by serial number or name.${adOnly}</p>`}</div>` : '';
   const row = (k, v) => v ? `<dt>${k}</dt><dd style="font-family:inherit">${v}</dd>` : '';
@@ -542,6 +544,10 @@ export function graphPanel(o){
       ${row('Encryption', enc)}
       ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
       ${row('Operating system', esc(g.os || ''))}
+      ${o.defender ? row('Defender', defenderRow(o)) : ''}
+      ${row('Device ID', g.aadId ? `<span class="mono" title="Entra's device ID, as dsregcmd /status shows it on the device">${esc(g.aadId)}</span>` : '')}
+      ${row('Object ID', g.entraId ? `<span class="mono" title="The ID of the device's record in Entra (Devices → All devices)">${esc(g.entraId)}</span>` : '')}
+      ${row('Intune ID', g.intuneId ? `<span class="mono" title="The device's ID in Intune">${esc(g.intuneId)}</span>` : '')}
       ${row('Phone number', esc(g.phone || ''))}
       ${row('IMEI', g.imei ? `<span class="mono">${esc(g.imei)}</span>` : '')}
       ${row('Owned by', esc(g.ownership || ''))}
@@ -550,6 +556,13 @@ export function graphPanel(o){
       ${row('Read', esc(g.seen || ''))}
     </dl>
     <p class="note" style="padding:6px 12px 10px">From Microsoft Graph at the last sync. ${g.added ? 'Graph keeps this device up to date.' : `It fills in fields this device does not have yet${st.fillGraph === false ? ' (turned off in Settings)' : ''}; it changes nothing in Entra or Intune.`}</p></div>`;
+}
+/* Defender for Endpoint on the device page: health, risk, exposure, antivirus and when it last saw the device. */
+function defenderRow(o){
+  const d = o.defender, s = defenderState(o);
+  const bits = [d.risk && d.risk !== 'None' ? `risk ${d.risk.toLowerCase()}` : '', d.exposure && d.exposure !== 'None' ? `exposure ${d.exposure.toLowerCase()}` : '',
+    d.av ? `antivirus ${d.av.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()}` : '', d.lastSeen ? `last seen ${graphTime(d.lastSeen).slice(0, 10)}` : ''].filter(Boolean);
+  return `<span class="chip ${s.cls}">${esc(s.state[0].toUpperCase() + s.state.slice(1))}</span>${bits.length ? ` <span class="muted">· ${esc(bits.join(' · '))}</span>` : ''}`;
 }
 /* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
 export const AD_STALE_DAYS = 90;

@@ -56,6 +56,8 @@ test('an Intune device and its Entra device are one record, and an Entra-only de
   assert.equal(pc.join, JOIN.AzureAd); assert.equal(pc.model, 'Dell Latitude 5420'); assert.equal(pc.ram, '16 GB'); assert.equal(pc.encrypted, 'yes');
   assert.equal(recs.find(r => r.name === 'LAPTOP-9').serial, '');
   assert.equal(pc.managed, 'Intune');
+  assert.deepEqual([pc.aadId, pc.entraId, pc.intuneId], ['aad-1', 'd1', 'm1'], 'device ID, Entra object ID and Intune ID');
+  assert.deepEqual([recs[1].aadId, recs[1].entraId, recs[1].intuneId], ['aad-2', 'd2', undefined]);
 });
 
 test('only an Intune agent counts as managed by Intune: Defender, Configuration Manager or mail alone do not', async () => {
