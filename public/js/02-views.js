@@ -547,10 +547,13 @@ export function exportCsv(list){
   document.body.appendChild(a); a.click(); a.remove();
   toast('Exported ' + list.length + ' rows');
 }
+/* The columns a CSV row can update on a device already here, with their names for the preview and the history. */
+const CSV_FIELDS = ['loc', 'model', 'serial', 'ip', 'mac', 'user'];
+const CSV_LABEL = { loc: 'Location', model: 'Model', serial: 'Serial number', ip: 'IP address', mac: 'MAC address', user: 'User' };
 export function importCsvModal(){
   modal(`<div class="mh">Import objects from CSV</div>
     <div class="mb">
-      <p class="note">The first row is the header. Columns: <span class="mono">name, type, model, serial, ip, mac, location, user</span>. Type is an object type name. Location must match a location exactly. Comma or semicolon separated. Rows with a problem are shown and skipped.</p>
+      <p class="note">The first row is the header. Columns: <span class="mono">name, type, model, serial, ip, mac, location, user</span>. Type is an object type name. Location must match a location exactly. Comma or semicolon separated. Rows with a problem are shown and skipped. A row whose serial number (or else name) is a device here updates that device instead of adding it.</p>
       <div class="form" style="padding:0"><label for="csvFile">File</label><div class="filepick"><label class="btnlike" tabindex="0" role="button">Choose CSV file…<input id="csvFile" type="file" accept=".csv,text/csv" hidden></label><span class="muted" id="csvFileName">No file chosen</span></div></div>
       <label class="note" for="csvText">Or paste the rows</label>
       <textarea id="csvText" rows="5" class="mono" placeholder="name,type,model,serial,ip,mac,location,user"></textarea>
@@ -577,26 +580,45 @@ export function importCsvModal(){
       const ip = checkAddress('ip', g('ip')), mac = checkAddress('mac', g('mac'));
       if (!ip.ok) errs.push('IP address is not valid');
       if (!mac.ok) errs.push('MAC address is not valid');
-      return {line: i + 2, name, type: tKey, loc: loc || LOCS[0], model: g('model'), serial: g('serial'), ip: ip.value, mac: g('mac'), user: g('user'), errs};
+      const row = {line: i + 2, name, type: tKey, loc, model: g('model'), serial: g('serial'), ip: ip.value, mac: g('mac'), user: g('user'), errs};
+      /* The same device already here (by serial number, else by name): its fields are updated with what the row has. */
+      const low = v => String(v || '').trim().toLowerCase();
+      row.match = (row.serial && objs.find(o => low(o.serial) === low(row.serial))) || (name && objs.find(o => o.status !== 'retired' && low(o.name) === low(name))) || null;
+      if (row.match) row.changes = CSV_FIELDS.filter(k => row[k] && String(row.match[k] ?? '') !== String(row[k]));
+      return row;
     });
-    const ok = parsed.filter(p => !p.errs.length).length;
-    $('#csvPrev').innerHTML = `<div class="summary"><span class="chip ok">${ok} ready</span><span class="chip warn">${parsed.length - ok} with problems</span></div>
+    const okRows = parsed.filter(p => !p.errs.length), ok = okRows.length;
+    const adds = okRows.filter(p => !p.match).length, updates = okRows.filter(p => p.match && p.changes.length).length, same = okRows.filter(p => p.match && !p.changes.length).length;
+    const result = p => p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>'
+      : !p.match ? '<span class="chip ok">new</span>'
+      : p.changes.length ? `<span class="chip">updates ${esc(p.match.name)}: ${esc(p.changes.map(k => CSV_LABEL[k]).join(', '))}</span>` : `<span class="chip">${esc(p.match.name)}: nothing new</span>`;
+    $('#csvPrev').innerHTML = `<div class="summary"><span class="chip ok">${adds} new</span>${updates ? `<span class="chip">${updates} to update</span>` : ''}${same ? `<span class="chip">${same} unchanged</span>` : ''}${parsed.length - ok ? `<span class="chip warn">${parsed.length - ok} with problems</span>` : ''}</div>
       <div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Line</th><th>Name</th><th>Type</th><th>Location</th><th>Result</th></tr></thead><tbody>
-      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? esc(TYPES[p.type].label) : '—'}</td><td>${esc(p.loc)}</td><td>${p.errs.length ? '<span class="chip warn">' + esc(p.errs.join(', ')) + '</span>' : '<span class="chip ok">ok</span>'}</td></tr>`).join('')}
+      ${parsed.map(p => `<tr><td class="n">${p.line}</td><td>${esc(p.name)}</td><td>${p.type ? esc(TYPES[p.type].label) : '—'}</td><td>${esc(p.loc || (p.match ? '' : 'none'))}</td><td>${result(p)}</td></tr>`).join('')}
       </tbody></table></div>`;
-    $('#csvGo').disabled = ok === 0;
+    $('#csvGo').disabled = adds + updates === 0;
+    $('#csvGo').textContent = updates && adds ? `Add ${adds} and update ${updates}` : updates ? `Update ${updates}` : 'Import';
   };
   $('#csvFile').onchange = async e => { const f = e.target.files[0]; $('#csvFileName').textContent = f ? f.name : 'No file chosen'; if (f){ $('#csvText').value = await f.text(); parse(); } };
   $('#csvText').oninput = parse;
   $('#csvCancel').onclick = closeModal;
   $('#csvGo').onclick = () => {
     const ready = parsed.filter(p => !p.errs.length);
+    let added = 0, updated = 0;
     ready.forEach(p => {
+      if (p.match){
+        if (!p.changes.length) return;
+        /* Values from the file are set by hand: noted so, and no sync puts its own back. */
+        for (const k of p.changes){ p.match[k] = p[k]; markHand(p.match, k); if (!p.match.src || !p.match.src[k]) p.match.src = {...(p.match.src || {}), [k]: 'hand'}; }
+        if (p.changes.includes('user')) bindUser(p.match);
+        hist(p.match, now(), `Updated from CSV: ${p.changes.map(k => CSV_LABEL[k]).join(', ')}`); updated++;
+        return;
+      }
       const o = O(p.type, p.name, {loc: p.loc, model: p.model, serial: p.serial, ip: p.ip, mac: p.mac, user: p.user});
       if (p.type === 'switch') Object.assign(o, {ports: 24, sfp: 4, pfx: '1/'});
-      objs.push(o); bindUser(o); hist(o, now(), 'Imported from CSV');
+      objs.push(o); bindUser(o); hist(o, now(), 'Imported from CSV'); added++;
     });
-    closeModal(); toast('Imported ' + ready.length + ' objects'); render();
+    closeModal(); toast([added ? `${added} added` : '', updated ? `${updated} updated` : ''].filter(Boolean).join(' · ') || 'Nothing to import'); render();
   };
 }
 

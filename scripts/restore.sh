@@ -1,5 +1,5 @@
 #!/bin/bash
-# Restore: sudo ./scripts/restore.sh backup/nobs-inventory-<stamp>.tar.gz
+# Restore: sudo ./scripts/restore.sh backup/nobs-inventory-<stamp>.tar.gz   (or .tar.gz.enc: encrypted, see backup.sh)
 # Replaces the database with the one in the backup. Settings and secrets are restored only on request.
 set -Eeuo pipefail
 # The archive's path is made absolute before the script changes into the install folder, so a relative one works.
@@ -10,9 +10,20 @@ cd "$(dirname "$0")/.."
 if [ -f "$ARCHIVE.sha256" ]; then
   ( cd "$(dirname "$ARCHIVE")" && sha256sum -c --quiet "$(basename "$ARCHIVE").sha256" ) || { echo "[ERROR] Checksum mismatch." >&2; exit 1; }
 fi
+# The passphrase file for encrypted backups, from the environment or .env (BACKUP_PASSPHRASE_FILE=/path).
+[ -z "${BACKUP_PASSPHRASE_FILE:-}" ] && [ -f .env ] && BACKUP_PASSPHRASE_FILE="$(sed -n 's/^BACKUP_PASSPHRASE_FILE=//p' .env | tail -1)"
 VOLUME=nobs-inventory-data
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-tar -xzf "$ARCHIVE" -C "$WORK"
+# An encrypted backup is opened with BACKUP_PASSPHRASE_FILE, or the passphrase typed here.
+if [[ "$ARCHIVE" == *.enc ]]; then
+  if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ]; then PASS="file:$BACKUP_PASSPHRASE_FILE"
+  else read -r -s -p "Backup passphrase: " BACKUP_PASS; echo; export BACKUP_PASS; PASS="env:BACKUP_PASS"; fi
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "$PASS" -in "$ARCHIVE" -out "$WORK/backup.tar.gz" || { echo "[ERROR] The passphrase does not open this backup." >&2; exit 1; }
+  unset BACKUP_PASS
+  tar -xzf "$WORK/backup.tar.gz" -C "$WORK" && rm -f "$WORK/backup.tar.gz"
+else
+  tar -xzf "$ARCHIVE" -C "$WORK"
+fi
 [ -s "$WORK/inventory.db" ] || { echo "[ERROR] The backup has no database." >&2; exit 1; }
 
 echo "This replaces all inventory data on this server with the backup."
