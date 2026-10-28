@@ -7,7 +7,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
-import { fillField, lsOwns, profileFields } from './fill.js';
+import { fillField, lsOwns, profileFields, noteValue, pickOf } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
@@ -339,6 +339,8 @@ export function applyGraph(s, records, now = new Date()) {
     const owns = !!before.added && !o.feed;
     o.graph = graphOf(r, at, owns);
     if (list.length > 1) o.graph.others = othersOf(list, r);
+    /* What Intune says of each field, as of its last check-in, beside the field (o.vals), to pick from on the page. */
+    for (const k of [...Object.keys(FILL), 'serial']) noteValue(o, k, 'graph', r[k], r.lastCheckIn || r.lastSync || at);
     /* A device excluded from sync, or detached, keeps its fields: only what Graph reports about it is updated. */
     if (o.excluded || o.detached) continue;
     /* A device Autopilot brought in before it was set up is named by its serial number: its name in Intune replaces it,
@@ -351,8 +353,11 @@ export function applyGraph(s, records, now = new Date()) {
     const ovr = o.ovr || {};
     /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is Graph's
        and kept up to date in full, whatever the setting. */
-    if (s.fillGraph !== false || owns) for (const [k, label] of Object.entries(FILL)) {
-      if (!r[k] || ovr[k] === false || o[k] === r[k]) continue;
+    for (const [k, label] of Object.entries(FILL)) {
+      const picked = pickOf(o, k);
+      if (picked && picked !== 'graph') continue;
+      if (!picked && s.fillGraph === false && !owns) continue;
+      if (!r[k] || (!picked && ovr[k] === false) || o[k] === r[k]) continue;
       /* A field Lansweeper fills in is left to it once it has a value: its next push decides. */
       if (lsOwns(s, o, k) && o[k]) continue;
       if (owns && o[k] && !(o.src && o.src[k])) (o.src ??= {})[k] = 'graph';

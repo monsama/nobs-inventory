@@ -11,9 +11,14 @@ const RANK = { ad: 1, graph: 2 };
 export function fillField(s, o, k, value, src, at, label = k) {
   const v = String(value ?? '').trim();
   if (!v || o[k] === v) return false;
-  if (o.ovr && o.ovr[k] === false) return false;     /* set or cleared by hand: never filled */
-  const had = o.src && o.src[k];
-  if (o[k] && !(RANK[had] && RANK[had] <= RANK[src])) return false;
+  /* A source a person picked for this field is the only one that writes it, whatever the order of the others. */
+  const pick = pickOf(o, k);
+  if (pick && pick !== src) return false;
+  if (!pick) {
+    if (o.ovr && o.ovr[k] === false) return false;     /* set or cleared by hand: never filled */
+    const had = o.src && o.src[k];
+    if (o[k] && !(RANK[had] && RANK[had] <= RANK[src])) return false;
+  }
   if (s && s.history && o.id) {
     const msg = o[k] ? `${FILL_SOURCES[src]}: ${label} changed from ${o[k]} to ${v}` : `${FILL_SOURCES[src]}: ${label} filled in: ${v}`;
     (s.history[o.id] ??= []).unshift({ t: at, msg });
@@ -23,8 +28,25 @@ export function fillField(s, o, k, value, src, at, label = k) {
   return true;
 }
 
-/* Whether Lansweeper fills field k of device o in: the device is linked to it and the policy (or the device's own tick) lets it. */
-export const lsOwns = (s, o, k) => !!o.feed && s.feedOn !== false && (o.ovr && k in o.ovr ? o.ovr[k] !== false : !!(s.policy || {})[k]);
+/* Whether Lansweeper fills field k of device o in: the device is linked to it and the policy (or the device's own tick) lets
+   it, or a person picked Lansweeper for the field. */
+export const lsOwns = (s, o, k) => pickOf(o, k) ? pickOf(o, k) === 'ls' && !!o.feed && s.feedOn !== false
+  : !!o.feed && s.feedOn !== false && (o.ovr && k in o.ovr ? o.ovr[k] !== false : !!(s.policy || {})[k]);
+
+/* What each source says of a field, kept beside the value so a person can see them side by side and pick one:
+   o.vals[k][src] = [value, as of], where "as of" is the source's own time for it (Lansweeper's last scan, Intune's last
+   check-in, the last AD logon). A source that says nothing of the field any more is dropped from it. */
+export const PICK_SOURCES = ['ls', 'graph', 'ad', 'hand'];
+export function noteValue(o, k, src, value, asOf = '') {
+  const v = String(value ?? '').trim();
+  if (!v) {
+    if (o.vals && o.vals[k] && src in o.vals[k]) { delete o.vals[k][src]; if (!Object.keys(o.vals[k]).length) delete o.vals[k]; if (!Object.keys(o.vals).length) delete o.vals; }
+    return;
+  }
+  ((o.vals ??= {})[k] ??= {})[src] = [v.slice(0, 400), String(asOf || '').slice(0, 40)];
+}
+/* The source a person picked for field k of o ('ls', 'graph', 'ad' or 'hand'), or none: then the order above decides. */
+export const pickOf = (o, k) => (o.pick && o.pick[k]) || '';
 
 /* Notes where field k's value came from: 'hand', 'ls' (Lansweeper), 'graph' or 'ad'. */
 export function markSource(o, k, src) { (o.src ??= {})[k] = src; }

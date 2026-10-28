@@ -22,6 +22,8 @@ saveState(db, { ...loadState(db), locs: ['HQ'], sites: ['HQ'],
     { id: 'm1', code: 'INV-0002', type: 'mobile', name: 'iPhone Ana', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'iOS 18.1', src: { os: 'graph' },
       graph: { join: 'Entra registered', managed: 'mdm', compliance: 'compliant', os: 'iOS 18.1', phone: '+41 79 123 45 67', imei: '351234567890123', ownership: 'Company', free: '32 GB', category: 'Sales phones', supervised: 'yes', seen: '27.10.2026 06:00' },
       autopilot: { groupTag: 'Sales', order: 'PO-7', state: 'enrolled', seen: '27.10.2026 06:00' } },
+    { id: 'v1', code: 'INV-0005', type: 'notebook', name: 'NB-7', status: 'active', loc: 'HQ', ovr: {}, feed: null, os: 'Windows 11 Pro', src: { os: 'ad' },
+      vals: { os: { graph: ['Windows 11 Enterprise', '2026-10-28T07:42:00Z'], ad: ['Windows 11 Pro', '2026-10-24'] } } },
     /* Found by the directory sync, waiting in To review: one seen today, one not for 200 days */
     { id: 'n20', code: 'INV-0003', type: 'notebook', name: 'NB-20', status: 'active', loc: '', ovr: {}, feed: null, inAd: true, os: 'Windows 11 Enterprise (10.0.22631)', domain: 'corp.ch',
       src: { os: 'ad', domain: 'ad' }, ad: { logon: new Date().toISOString().slice(0, 10), created: '2024-01-02' }, review: { src: 'ad', at: '27.10.2026 06:00' } },
@@ -72,6 +74,19 @@ try {
   assert.deepEqual(s1.src, { os: 'hand', domain: 'ad' }, 'the system set by hand, the domain still AD\'s');
   await until(p, () => document.querySelector('#f_s1_os').closest('.ctlrow').querySelector('.fsrc[data-src="hand"]'));
 
+  // a field the sources disagree on: the mark has a dot, a click lists each source with its time, picking one uses it
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('v1'));
+  const vMark = p.locator('#f_v1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]');
+  assert.match(await vMark.getAttribute('class'), /fsrc-multi/);
+  await vMark.click();
+  await p.waitForSelector('#fsrcPop.pick');
+  const pop = await p.textContent('#fsrcPop');
+  assert.match(pop, /Entra & Intune\s*newest\s*Windows 11 Enterprise\s*last check-in 28\.10\.2026/);
+  assert.match(pop, /Active Directory\s*Windows 11 Pro\s*last logon 24\.10\.2026/);
+  await p.click('#fsrcPop [data-pick=graph]');
+  await stored(st => { const o = st.objs.find(x => x.id === 'v1'); return o.os === 'Windows 11 Enterprise' && o.pick && o.pick.os === 'graph' && o.src.os === 'graph'; });
+  await until(p, () => document.querySelector('#f_v1_os').value === 'Windows 11 Enterprise');
+
   // the phone: what Intune says of it
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
   await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
@@ -98,7 +113,7 @@ try {
   await p.click('.wc-close');
 
   // To review: the two AD devices, in no count; the stale one grey and left out of Accept all
-  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 2, 'waiting devices are not in the inventory');
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 3, 'waiting devices are not in the inventory');
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('.rv-item');
   assert.equal(await p.locator('.rv-item').count(), 2);

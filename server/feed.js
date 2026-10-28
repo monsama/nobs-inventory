@@ -7,7 +7,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
-import { markSource } from './fill.js';
+import { markSource, noteValue, pickOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
@@ -299,6 +299,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       };
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
+      for (const k of FEED_FIELDS) noteValue(obj, k, 'ls', obj[k], r.scanned || seen);
       s.objs.push(obj); index(obj);
       pairs.push({ r, obj });
       counts.created++;
@@ -329,8 +330,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     }
     for (const k of FEED_FIELDS) {
       const incoming = r[k];
+      /* What Lansweeper says of each field, as of its last scan, beside the field (o.vals), to pick from on the page. */
+      noteValue(found, k, 'ls', incoming, r.scanned || seen);
       if (!incoming) continue;
-      const owns = s.feedOn !== false && (found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
+      /* A source a person picked for the field decides it: Lansweeper writes it only when it is the one picked. */
+      const picked = pickOf(found, k);
+      const owns = s.feedOn !== false && (picked ? picked === 'ls' : found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
       /* What Lansweeper sets is Lansweeper's: noted as its source, over a directory's fill (fill.js). */
       if (owns) markSource(found, k, 'ls');
       if (found[k] === incoming) continue;

@@ -3,7 +3,7 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
-import { fillField, lsOwns } from './fill.js';
+import { fillField, lsOwns, noteValue, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
@@ -100,12 +100,19 @@ export function applyComputers(s, computers, now = new Date()) {
     /* Whether the device has a computer account in Active Directory: with Graph, this tells an AD-only device apart. */
     const ad = c ? adOf(c) : null;
     let changed = false;
-    /* Detached or excluded from sync, a device keeps its fields; what AD says of the account is still shown. */
-    if (c && s.fillAd !== false && !o.excluded && !o.detached) {
-      /* A field Lansweeper fills in gets only filled while it is empty. The account's description fills the purpose; its
-         location only a location the inventory knows by that name, so a free text never makes a new one. */
-      const loc = c.location && (s.locs || []).find(l => low(l) === low(c.location));
-      for (const [k, v, label] of [['os', c.os, 'Operating system'], ['domain', c.domain, 'Domain'], ['purpose', c.description, 'Purpose'], ['loc', loc || '', 'Location']]) {
+    /* The account's description fills the purpose; its location only a location the inventory knows by that name, so a
+       free text never makes a new one. What AD says of each is kept beside the field (o.vals), to pick from on the page. */
+    const loc = c && c.location && (s.locs || []).find(l => low(l) === low(c.location));
+    const fields = [['os', c && c.os, 'Operating system'], ['domain', c && c.domain, 'Domain'], ['purpose', c && c.description, 'Purpose'], ['loc', loc || '', 'Location']];
+    const valsBefore = JSON.stringify(o.vals || null);
+    for (const [k, v] of fields) noteValue(o, k, 'ad', v, c && c.logon);
+    if (JSON.stringify(o.vals || null) !== valsBefore) changed = true;
+    /* Detached or excluded from sync, a device keeps its fields; what AD says of the account is still shown. A field a
+       person picked AD for is AD's whatever the setting. */
+    if (c && !o.excluded && !o.detached) {
+      for (const [k, v, label] of fields) {
+        if (s.fillAd === false && pickOf(o, k) !== 'ad') continue;
+        /* A field Lansweeper fills in gets only filled while it is empty. */
         if (lsOwns(s, o, k) && o[k]) continue;
         if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
       }

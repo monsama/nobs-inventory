@@ -109,6 +109,26 @@ table.locs td.site{color:var(--muted)}
 /* On a phone the label sits above its field: the source mark moves up beside the label, and the empty columns kept
    for alignment on a wide screen go, so the field gets the width. */
 @media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot,.obj .form .ctlrow>.pchk-slot,.obj .form .ctlrow>.fm-slot{display:none}}
+/* Sources that disagree: a dot on the mark; a source picked by hand: the mark in the accent colour. */
+.fsrc{position:relative}
+.fsrc-multi::after{content:"";position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
+.fsrc.fsrc-picked{color:var(--accent)}
+.fsrc-pop.pick{pointer-events:auto;padding:0;max-width:340px;width:max-content;min-width:260px;background:var(--bg);color:var(--fg);border:1px solid var(--bd);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:13px}
+.sp-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 12px;border-bottom:1px solid var(--bd2)}
+.sp-head span{font-size:12px;color:var(--muted)}
+.sp-list{display:flex;flex-direction:column;padding:4px}
+.sp-row{display:grid;grid-template-columns:22px minmax(0,1fr) 16px;gap:8px;align-items:start;height:auto;min-height:0;padding:7px 8px;border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--fg);text-align:left;justify-content:stretch;font-weight:400}
+.sp-row:hover:not(:disabled){background:var(--hover)}
+.sp-row.cur{border-color:color-mix(in srgb,var(--accent) 45%,var(--bd));background:color-mix(in srgb,var(--accent) 7%,var(--bg))}
+.sp-row:disabled{opacity:1;cursor:default}
+.sp-ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);margin-top:2px}
+.sp-main{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sp-src{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sp-new{font-size:10px;padding:0 5px;line-height:15px}
+.sp-val{font-weight:600;overflow-wrap:anywhere}
+.sp-at{font-size:11px;color:var(--muted)}
+.sp-tick{color:var(--accent);font-weight:700}
+.sp-foot{padding:6px 12px 8px;border-top:1px solid var(--bd2);font-size:12px}
 .fsrc:focus-visible{color:var(--fg);outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
 .fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
