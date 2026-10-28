@@ -218,7 +218,7 @@ export const byId = id => {
 /* Devices a sync found that wait in To review (o.review): kept apart from objs, so no list, count, plan or cost sees them
    until they are accepted. Ignored ones stay here too (review.ignored), so no sync brings them back. */
 export const REVIEW = [];
-export const REVIEW_SRC = { lansweeper: 'Lansweeper', ad: 'Active Directory', graph: 'Entra / Intune' };
+export const REVIEW_SRC = { lansweeper: 'Lansweeper', ad: 'Active Directory', graph: 'Entra & Intune' };
 /* A device waiting for review that no source has seen for this many days (or never) is likely gone: shown grey. */
 export const REVIEW_STALE_DAYS = 90;
 /* The browser tests look objects up by name; the page itself finds them by id. */

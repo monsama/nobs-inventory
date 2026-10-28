@@ -392,7 +392,7 @@ export const TABLE_COLS = [
   {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
   /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
   {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${esc(o.id)}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
-  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].short)}</span></td>`},
+  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].label)}</span></td>`},
   {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
   {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
   {k:'mac', w:150, label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},

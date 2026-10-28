@@ -20,7 +20,7 @@ export * from './settings-network.js';
 export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Feed'],['directory','Active Directory'],['entra','Entra & Intune'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+export const SET_TABS = [['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);

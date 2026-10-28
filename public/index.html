@@ -107,7 +107,7 @@ table.locs td.site{color:var(--muted)}
 .fsrc svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .fsrc:hover{color:var(--fg)}
 .fsrc:focus-visible{color:var(--fg);outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
-.fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
+.fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
 details.fmenu{flex:none;width:26px}
@@ -323,6 +323,9 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
 #tabsbar>.grow{flex:1 1 auto}
+/* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
+@media (max-width:760px){#tabsbar>#syncBtn,#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
+.sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
 #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
 .tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;background:var(--btn);border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;color:var(--fg)}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
@@ -468,7 +471,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .rv-item{display:flex;flex-direction:column;min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--bg)}
 .rv-item>.card{flex:1;border:0;border-radius:var(--r-m) var(--r-m) 0 0}
 .rv-item>.card .cf{border-radius:0}
-.rv-item.stale>.card{opacity:.6}
+.rv-item.stale>.card{background:var(--panel)}.rv-item.stale>.card .nm,.rv-item.stale>.card .model{color:var(--muted)}
 .rv-acts{display:flex;align-items:center;gap:6px;padding:6px 10px;border-top:1px solid var(--bd2);font-size:12px;color:var(--muted);white-space:nowrap;min-height:40px;box-sizing:border-box}
 .rv-acts .chip{flex:none}
 .rv-acts .rv-src{max-width:140px;overflow:hidden;text-overflow:ellipsis}
@@ -505,7 +508,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .relrow.lnk-edit #lnkEdUrl,.lnk-url,a.lnk.lnk-addr{font-family:var(--mono)}
 @media (max-width:760px){.relrow.lnk-edit input{flex:1 1 100%!important;width:auto!important}}
 .ad-acct .muted{white-space:nowrap}
-.adsvc .chip{margin:2px 4px 0 0}
+.ad-acct{display:flex;flex-direction:column;gap:2px}.admore{display:flex;flex-wrap:wrap;gap:2px 10px}.adsvc{display:flex;flex-wrap:wrap;gap:4px;flex-basis:100%;margin-top:2px}
 .relist .relrow.lnk-edit button{flex:none;width:auto;height:28px;padding:0 12px}
 .lnk-break{flex-basis:100%;height:0}
 .more-rows{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:14px 12px 18px}
@@ -1208,10 +1211,12 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .pl-ghead .muted{font-weight:400;font-size:11px}
 :root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pl-canvas>img{filter:brightness(.82) contrast(1.05)}}
+:root[data-theme="dark"] .j-hybrid{background:color-mix(in srgb,var(--accent) 70%,#fff)}:root[data-theme="dark"] .j-adonly{background:color-mix(in srgb,var(--accent) 45%,#fff)}:root[data-theme="dark"] .j-notjoined{background:#6b7280}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .j-hybrid{background:color-mix(in srgb,var(--accent) 70%,#fff)}:root:not([data-theme="light"]) .j-adonly{background:color-mix(in srgb,var(--accent) 45%,#fff)}:root:not([data-theme="light"]) .j-notjoined{background:#6b7280}}
 /* Remove buttons on a page are neutral until pointed at; red stays for the dialog that confirms them. */
 button.danger-text{color:var(--fg);border-color:var(--bd);font-weight:400}
 button.danger-text:hover:not(:disabled){color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
-.lsbox{grid-template-columns:max-content minmax(0,1fr)}
+.lsbox{grid-template-columns:120px minmax(0,1fr)}
 .jb.no{border-style:solid;border-color:var(--bd2)}
 .jb.unk{border-style:solid;border-color:var(--bd2)}
 @media (max-width:760px){#verFoot{display:none!important}}

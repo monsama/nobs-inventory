@@ -48,8 +48,9 @@ try {
   const [osSrc, osTip] = await mark('os');
   assert.equal(osSrc, 'ad'); assert.match(osTip, /From the computer account in Active Directory.*Typing a value here keeps yours/);
   assert.equal((await mark('name')) && (await mark('name'))[0], 'hand', 'a device no sync has: typed by hand');
-  assert.match(form, new RegExp(`Last logon ${old}\\s*over 90 days ago`));
-  assert.match(form, /created 2020-01-02/);
+  const oldDay = old.split("-").reverse().join(".");
+  assert.match(form, new RegExp(`Last logon ${oldDay}\\s*over 90 days ago`));
+  assert.match(form, /created 02.01.2020/);
   assert.match(form, /Managed by Anna Muster/);
   assert.match(form, /SQL Server/, 'what it runs, from its service principal names');
   // a click on a source mark shows its tooltip; a click elsewhere or Escape closes it
