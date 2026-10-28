@@ -860,6 +860,7 @@ export function applyState(d){
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
   st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
   st.graphAmbiguous = Array.isArray(d.graphAmbiguous) ? d.graphAmbiguous : [];
+  st.adUnmatched = Array.isArray(d.adUnmatched) ? d.adUnmatched : [];
   st.ldapCa = d.ldapCa && Array.isArray(d.ldapCa.certs) ? d.ldapCa : null;
   st.syncSchedule = d.syncSchedule && typeof d.syncSchedule === 'object' ? d.syncSchedule : null;
   COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';

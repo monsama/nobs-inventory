@@ -19,7 +19,7 @@ import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listShee
 import { generateGraphCert } from './cert.js';
 import { certReport, probeCert } from './proxy-cert.js';
 import crypto from 'node:crypto';
-import { syncLdapUsers } from './ldap-sync.js';
+import { syncLdapUsers, addAdDevices } from './ldap-sync.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
@@ -589,6 +589,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         throw new HttpError(503, report ? 'The directory could not be read. ' + report.text : 'The directory could not be read. Check the service account.');
       }
       res.json({ counts });
+    } catch (e) { next(e); }
+  });
+
+  /* Adds devices AD has a computer account for and the inventory does not: the ones picked, or all of them. */
+  app.post('/api/ldap/add', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const ids = req.body && req.body.ids === 'all' ? 'all' : Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String).slice(0, 2000) : null;
+      if (!ids) throw new HttpError(400, 'Say which devices to add.');
+      const added = addAdDevices(db, ids, req.user.name || req.user.login || 'an admin');
+      audit(db, req.user.id, `added ${added.length} devices from Active Directory`);
+      res.json({ added: added.length });
     } catch (e) { next(e); }
   });
 

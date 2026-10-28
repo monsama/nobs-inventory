@@ -4,7 +4,7 @@ import { freeUserId, loadState, saveState } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, lsOwns } from './fill.js';
-import { stamp } from './feed.js';
+import { stamp, typeFor } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
@@ -47,14 +47,20 @@ export async function syncLdapUsers(db, config) {
   }
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;
-  else if (computers && computers.length) counts.computers = applyComputers(s, computers);
+  else if (computers && computers.length) {
+    counts.computers = applyComputers(s, computers);
+    const before = JSON.stringify(s.adUnmatched || []);
+    Object.assign(counts, listAdUnmatched(s, computers));
+    if (JSON.stringify(s.adUnmatched) !== before) counts.listChanged = true;
+  }
   else if (computers) counts.computerError = 'No computer accounts were found in the computers search base.';
   if (!s.users.some(u => u.role === 'admin' && u.active !== false)) {
     throw new HttpError(400, 'The sync would leave no active admin, so nothing was changed. Check the admin group.');
   }
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
   if (linked.length) counts.linked = linked.length;
-  if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  const listChanged = counts.listChanged; delete counts.listChanged;
+  if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
   for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;
@@ -96,6 +102,69 @@ export function applyComputers(s, computers, now = new Date()) {
     n++;
   }
   return n;
+}
+const low = v => String(v || '').trim().toLowerCase();
+/* The computer accounts no device here stands for (by name, or the first part of the DNS name; retired devices count,
+   so they are not offered again), kept as s.adUnmatched to be added from Settings. A disabled account is not offered.
+   Returns { adUnmatched, adDisabled }. */
+export function listAdUnmatched(s, computers) {
+  const known = new Set();
+  for (const o of s.objs) if (o.name) { known.add(low(o.name)); known.add(low(o.name).split('.')[0]); }
+  const list = [], seen = new Set();
+  let disabled = 0;
+  for (const c of computers) {
+    const keys = [c.name, c.dns, String(c.dns || '').split('.')[0]].map(low).filter(Boolean);
+    if (keys.some(k => known.has(k)) || seen.has(low(c.name))) continue;
+    if (c.disabled) { disabled++; continue; }
+    seen.add(low(c.name));
+    list.push({ id: low(c.name), name: c.name, ...(c.dns ? { dns: c.dns } : {}), ...(c.os ? { os: c.os } : {}), ...(c.domain ? { domain: c.domain } : {}),
+      ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.ou ? { ou: c.ou } : {}), ...(c.groups && c.groups.length ? { groups: c.groups } : {}) });
+  }
+  s.adUnmatched = list.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);
+  return { adUnmatched: list.length, adDisabled: disabled };
+}
+/* The type of a computer account: the type rules on its name (NB-… a notebook), a server by its operating system,
+   any other Windows computer a PC. */
+export function adType(s, d) {
+  const server = /server/i.test(d.os || '');
+  const t = typeFor(s, '', '', server ? 'server' : d.os ? 'workstation' : '', d.name, '');
+  return t === 'other' && /windows/i.test(d.os || '') ? (server ? 'server' : 'pc') : t;
+}
+/* Adds devices from the list of computer accounts the inventory does not have. Each gets the next code, its type from
+   the rules, its operating system and domain (marked as from AD, so Lansweeper and Intune can replace them), and what
+   AD says of the account; the sync keeps that up to date from then on. */
+export function addFromAd(s, ids, who, now = new Date()) {
+  const at = stamp(now), want = ids === 'all' ? null : new Set(ids.map(low));
+  const list = (s.adUnmatched || []).filter(d => !want || want.has(d.id));
+  const names = new Set(s.objs.map(o => low(o.name)).filter(Boolean)), codes = new Set(s.objs.map(o => o.code)), ids2 = new Set(s.objs.map(o => o.id));
+  const added = [];
+  for (const d of list) {
+    /* The list is from the last sync: a device the inventory got since (from Lansweeper or Graph) is not added twice. */
+    if (!d.name || names.has(low(d.name))) continue;
+    names.add(low(d.name));
+    /* The next free code and id: one taken by hand (or an older counter) is passed over. */
+    do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
+    do { s.seq = (s.seq || 100) + 1; } while (ids2.has('o' + s.seq));
+    codes.add('INV-' + String(s.codeN).padStart(4, '0')); ids2.add('o' + s.seq);
+    const src = { ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}) };
+    const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
+      loc: '', ovr: {}, feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(Object.keys(src).length ? { src } : {}),
+      inAd: true, ...(d.logon || d.created ? { ad: { ...(d.logon ? { logon: d.logon } : {}), ...(d.created ? { created: d.created } : {}) } } : {}),
+      ...(d.groups ? { adGroups: d.groups } : {}) };
+    s.objs.push(o);
+    (s.history[o.id] ??= []).unshift({ t: at, msg: `Added from Active Directory by ${who}` });
+    added.push(o.id);
+  }
+  const done = new Set(list.map(d => d.id));
+  s.adUnmatched = (s.adUnmatched || []).filter(d => !done.has(d.id));
+  return added;
+}
+export function addAdDevices(db, ids, who) {
+  const s = loadState(db);
+  autoBackup(db, 'before adding devices from Active Directory');
+  const added = addFromAd(s, ids, who);
+  saveState(db, s);
+  return added;
 }
 /* The name the tests and older callers know. */
 export const applyComputerGroups = applyComputers;

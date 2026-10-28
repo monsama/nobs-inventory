@@ -40,7 +40,7 @@ export function newObjModal(pre={}){
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
-      <label for="nLoc">Location</label><select id="nLoc"><option value="">— No location —</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
+      <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
       ${LOCS.length ? '' : '<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>'}
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
       <label for="nUp">Plug into</label><select id="nUp"></select>

@@ -904,7 +904,7 @@ export function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">— choose —</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
+    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${t.id}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
