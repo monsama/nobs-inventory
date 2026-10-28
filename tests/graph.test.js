@@ -55,6 +55,19 @@ test('an Intune device and its Entra device are one record, and an Entra-only de
   const pc = recs.find(r => r.serial === 'SN-ZH-PC-0142');
   assert.equal(pc.join, JOIN.AzureAd); assert.equal(pc.model, 'Dell Latitude 5420'); assert.equal(pc.ram, '16 GB'); assert.equal(pc.encrypted, 'yes');
   assert.equal(recs.find(r => r.name === 'LAPTOP-9').serial, '');
+  assert.equal(pc.managed, 'Intune');
+});
+
+test('only an Intune agent counts as managed by Intune: Defender, Configuration Manager or mail alone do not', async () => {
+  const { isIntune, otherManager } = await import('../public/js/intune.js');
+  const dev = (id, agent) => ({ id: 'm' + id, azureADDeviceId: 'aad-' + id, deviceName: 'PC-' + id, serialNumber: 'S' + id, managementAgent: agent, complianceState: 'unknown' });
+  const recs = toRecords([{ id: 'e9', deviceId: 'aad-9', displayName: 'PC-9', trustType: 'ServerAd', isManaged: true }],
+    [dev(1, 'mdm'), dev(2, 'msSense'), dev(3, 'configurationManagerClient'), dev(4, 'configurationManagerClientMdm'), dev(5, 'eas')]);
+  assert.deepEqual(recs.map(r => [r.name, isIntune(r.managed), otherManager(r.managed)]), [
+    ['PC-1', true, ''], ['PC-2', false, 'Defender for Endpoint only'], ['PC-3', false, 'Configuration Manager only'],
+    ['PC-4', true, ''], ['PC-5', false, 'Exchange ActiveSync only'], ['PC-9', false, 'Another MDM or Configuration Manager']]);
+  // what older syncs kept (the raw agent) is read the same way
+  assert.equal(isIntune('msSense'), false); assert.equal(isIntune('mdm'), true); assert.equal(isIntune('Intune'), true);
 });
 
 test('records fill the empty fields of matching devices, keep the ones they have, and log a compliance change', () => {

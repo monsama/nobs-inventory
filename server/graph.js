@@ -8,6 +8,7 @@ import { readSecret } from './secrets.js';
 import { stamp, typeFor } from './feed.js';
 import { checkAddress } from './validate.js';
 import { fillField, lsOwns } from './fill.js';
+import { managedBy } from '../public/js/intune.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
 
@@ -122,8 +123,9 @@ export function toRecords(devices, managed) {
     const d = byAad.get(m.azureADDeviceId) || {};
     seen.add(m.azureADDeviceId);
     return {
-      graphId: m.id, aadId: m.azureADDeviceId, intune: true, name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
-      join: JOIN[d.trustType] || clean(d.trustType), managed: m.managementAgent ? clean(m.managementAgent) : (d.isManaged ? 'Intune' : ''),
+      /* Intune only when its agent says so: the list also holds devices Defender or Configuration Manager alone knows. */
+      graphId: m.id, aadId: m.azureADDeviceId, intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
+      join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
       owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
@@ -137,7 +139,8 @@ export function toRecords(devices, managed) {
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
   for (const d of devices) if (!seen.has(d.deviceId)) out.push({
     graphId: d.id, aadId: d.deviceId, name: clean(d.displayName), serial: '', join: JOIN[d.trustType] || clean(d.trustType),
-    managed: d.isManaged ? 'Intune' : '', enrolled: '', lastSync: clean(d.approximateLastSignInDateTime), compliance: '', encrypted: '',
+    /* Entra's isManaged is true for any MDM or Configuration Manager: not Intune's word, as Intune does not list it. */
+    managed: d.isManaged ? 'Another MDM or Configuration Manager' : '', enrolled: '', lastSync: clean(d.approximateLastSignInDateTime), compliance: '', encrypted: '',
     owner: '', ownerName: '', os: '', platform: '', lastCheckIn: '', lastSignIn: clean(d.approximateLastSignInDateTime), model: '', mac: '', ram: '', disk: '',
   });
   return out;
