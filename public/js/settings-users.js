@@ -7,18 +7,23 @@ import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-s
 import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
-/* Where a person comes from, and whether Entra knows them too: one chip each, with the details in the tooltip. */
+/* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
+   A disabled or deleted Entra account is said in words. */
 export function sourceChips(u){
   const src = ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
   const from = {ldap: ['LDAP', 'From the directory (LDAP sync)'], lansweeper: ['Lansweeper', "Named as a device's user by Lansweeper"], entra: ['Entra', 'Added from Microsoft Entra: the primary user of a device'], manual: ['Manual', 'Added here']}[src];
-  const e = u.entra;
-  const entra = !e || u.source === 'entra' && !e.gone && e.enabled !== false ? ''
-    : e.gone ? `<span class="chip kept usrc" title="Was in Microsoft Entra until ${esc(e.gone)}">Entra: gone</span>`
-    : `<span class="chip ${e.enabled === false ? 'warn' : 'kept'} usrc" title="${esc(['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', '))}">${e.enabled === false ? (u.source === 'entra' ? 'disabled' : 'Entra: disabled') : '<span class="sdot entra" aria-hidden="true"></span>Entra'}</span>`;
-  return `<span class="chip kept usrc" title="${esc(from[1])}"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}`;
+  const e = u.entra, own = src === 'entra';
+  const entraTip = !e ? '' : e.gone ? `Was in Microsoft Entra until ${e.gone}`
+    : ['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', ');
+  const entra = !e || (own && !e.gone && e.enabled !== false) ? ''
+    : e.gone ? `<span class="usrc-part muted">${own ? 'gone' : 'Entra gone'}</span>`
+    : e.enabled === false ? `<span class="usrc-part warn">${own ? 'disabled' : 'Entra disabled'}</span>`
+    : '<span class="usrc-part"><span class="sdot entra" aria-hidden="true"></span>Entra</span>';
+  const tip = [from[1], !own || e && (e.gone || e.enabled === false) ? entraTip : ''].filter(Boolean).join(' · ');
+  return `<span class="chip kept usrc" title="${esc(tip)}"><span class="usrc-part"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}</span>`;
 }
-const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'None: no access; the inventory only names their devices' };
-/* People a directory or Lansweeper brought in who are viewers: the ones Set found viewers to None takes access from. */
+const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
+/* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
 const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
@@ -46,7 +51,7 @@ export function renderSetUsers(){
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <p class="note">Role: Admin can change everything, Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
-    ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="People from LDAP, Entra or Lansweeper who are viewers lose access; admins, people added here and you keep theirs">Set ${foundViewers().length} found ${foundViewers().length === 1 ? 'viewer' : 'viewers'} to None…</button>` : ''}</div>` : ''}
+    ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
     <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
@@ -83,12 +88,19 @@ export function renderSetUsers(){
   root.querySelectorAll('[data-sheet]').forEach(b => b.onclick = () => sheetModal(USERS[+b.dataset.sheet]));
   const na = $('#noneAll');
   if (na) na.onclick = () => {
-    const list = foundViewers();
-    if (!confirm(`Set ${list.length} found viewers to None? They can no longer sign in until you give them Viewer again.`)) return;
-    const was = list.map(u => [u, u.role]);
-    list.forEach(u => { u.role = 'none'; });
-    queueServerSave(); renderSetUsers();
-    toastUndo(`${list.length} people set to None`, () => { was.forEach(([u, r]) => { u.role = r; }); queueServerSave(); renderSetUsers(); });
+    const list = foundViewers(), n = list.length, people = n === 1 ? '1 imported viewer' : `${n} imported viewers`;
+    /* Asked in the app's own dialog, which says who is affected and who is not, and can be undone right after. */
+    modal(`<div class="mh">Remove access for ${people}?</div>
+      <div class="mb"><p class="note">People imported from LDAP, Microsoft Entra or Lansweeper who have the role <b>Viewer</b> get <b>No access</b>: they can no longer sign in. Their devices and details stay.</p>
+      <p class="note">Admins, people added here and your own account keep their access. You can give anyone Viewer again at any time.</p></div>
+      <div class="mf"><button id="naCancel">Cancel</button><button id="naOk" class="danger-text">Remove access</button></div>`, 'sm');
+    $('#naCancel').onclick = closeModal;
+    $('#naOk').onclick = () => {
+      const was = list.map(u => [u, u.role]);
+      list.forEach(u => { u.role = 'none'; });
+      closeModal(); queueServerSave(); renderSetUsers();
+      toastUndo(`${people} set to No access`, () => { was.forEach(([u, r]) => { u.role = r; }); queueServerSave(); renderSetUsers(); });
+    };
   };
   root.querySelectorAll('[data-role]').forEach(sel => sel.onchange = () => {
     const u = USERS[+sel.dataset.role];
