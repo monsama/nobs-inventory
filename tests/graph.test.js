@@ -267,3 +267,26 @@ test('a record disabled in Entra is no duplicate: an enabled one is the device, 
   assert.equal(c.duplicates, 0); assert.equal(c.disabled, 2);
   assert.deepEqual(s.graphUnmatched, [], 'OLD-PC is only disabled records: not offered to be added');
 });
+
+test('Intune devices: a property Graph does not know (400) does not stop the sync; the list comes without the extras', async () => {
+  const { fetchGraphAll } = await import('../server/graph.js');
+  const asked = [];
+  const reply = (status, json) => ({ ok: status === 200, status, json: async () => json });
+  const fakeFetch = async (url, opts) => {
+    const u = decodeURIComponent(String(url)); asked.push(u);
+    if (u.includes('/oauth2/')) return reply(200, { access_token: 'GRAPH' });
+    if (u.includes('/deviceManagement/managedDevices')) {
+      if (/autopilotEnrolled/.test(u)) return reply(400, {});
+      if (/jailBroken/.test(u) && fakeFetch.refuseExtras) return reply(400, {});
+      return reply(200, { value: [{ id: 'm1', deviceName: 'PC-1', serialNumber: 'S1', managementAgent: 'mdm', jailBroken: 'False' }] });
+    }
+    return reply(200, { value: [] });
+  };
+  const ok = await fetchGraphAll({ ...cfg, defender: 'off' }, NOW, fakeFetch);
+  assert.ok(!asked.some(u => /autopilotEnrolled/.test(u)), 'v1.0 has no autopilotEnrolled: not asked for');
+  assert.equal(ok.records.length, 1);
+  fakeFetch.refuseExtras = true; asked.length = 0;
+  const fallback = await fetchGraphAll({ ...cfg, defender: 'off' }, NOW, fakeFetch);
+  assert.equal(fallback.records.length, 1, 'read again without the extras');
+  assert.ok(asked.some(u => u.includes('/managedDevices') && !/jailBroken/.test(u)));
+});
