@@ -9,7 +9,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -277,6 +277,9 @@ export function retireModal(o){
    adapter, and it is kept as ignored so no sync brings it back. A device still waiting in To review is said so. */
 function twinBanner(o){
   const tw = twinOf(o);
+  /* The device itself says so too: its probable second records, to open or resolve from here. */
+  const tws = twinsOf(o);
+  if (!tw && tws.length) return `<div class="rv-banner warn"><span>${tws.length === 1 ? `<b>${esc(tws[0].name)}</b> is most likely a second record of this device` : `${tws.length} records are most likely second records of this device: ${tws.map(x => `<b>${esc(x.name)}</b>`).join(', ')}`}, named by its DNS name, as a docking station or a USB network adapter often leaves in Lansweeper${tws.some(x => x.review) ? ' (waiting in To review)' : ''}.</span>${tws.length === 1 ? `<button type="button" id="twOpen">Open ${esc(tws[0].name)}</button>` : ''}${canEdit() ? `<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
   if (!tw){
     const was = o.notTwin && twinOf(o, { marked: true });
     return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${canEdit() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
@@ -749,6 +752,11 @@ export function renderObj(o){
   const tw = twinOf(o);
   const ag = $('#twAgain');
   if (ag) ag.onclick = () => { delete o.notTwin; hist(o, now(), `Checked again as a possible duplicate by ${who()}`); render(); };
+  const tws = !tw ? twinsOf(o) : [];
+  if (tws.length){
+    const to = $('#twOpen'); if (to) to.onclick = () => openObj(tws[0].id);
+    const tr = $('#twResolve'); if (tr) tr.onclick = () => resolveModal(tws);
+  }
   if (tw){
     $('#twOpen').onclick = () => openObj(tw.id);
     const tr = $('#twResolve'); if (tr) tr.onclick = () => resolveModal([o]);

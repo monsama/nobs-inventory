@@ -480,6 +480,18 @@ export function twinOf(o, { marked = false } = {}){
   const t = twinIdx.get(String(o.name).toLowerCase().split('.')[0]);
   return t && t.id !== o.id ? t : null;
 }
+/* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
+   still waiting in To review. Indexed once per task, like twinOf. */
+let twinsIdx = null;
+export function twinsOf(o){
+  if (!o) return [];
+  if (!twinsIdx){
+    twinsIdx = new Map();
+    for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]){ const t = twinOf(x); if (t) twinsIdx.set(t.id, [...(twinsIdx.get(t.id) || []), x]); }
+    queueMicrotask(() => { twinsIdx = null; });
+  }
+  return twinsIdx.get(o.id) || [];
+}
 /* Whether field k of o is fixed to one source: the source picked for it, or 'hand' for a value kept as typed here. */
 export const fieldFixed = (o, k) => (o.pick && o.pick[k]) || '';
 const LOCK = '<svg class="fsrc-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';

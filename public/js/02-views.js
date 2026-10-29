@@ -4,7 +4,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
@@ -374,7 +374,7 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
-    ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : ''}
+    ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? `<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
@@ -383,6 +383,8 @@ export function cardHtml(o, idx, join = showJoin()){
 const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
 const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : ''}</div>`;
 /* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
+/* On the card of the device itself: its probable second records, so it is seen from both sides. */
+const twinsChip = o => { const l = twinsOf(o); return `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(l.map(x => x.id).join(','))}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${esc(l.map(x => x.name).join(', '))}.${canEdit() ? ' Click to resolve.' : ''}">${l.length === 1 ? `Also as ${esc(l[0].name)}` : `${l.length} possible duplicates`}</span>`; };
 const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station.${canEdit() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
@@ -524,7 +526,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const c = e.target.closest && e.target.closest('#view [data-resolve]'); if (!c) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  resolveModal([byId(c.dataset.resolve)].filter(Boolean));
+  resolveModal(c.dataset.resolve.split(',').map(byId).filter(Boolean));
 }, true);
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */
