@@ -339,7 +339,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #tabsbar>*{flex:none}
 #tabsbar>.grow{flex:1 1 auto}
 /* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
-@media (max-width:760px){#tabsbar>#syncBtn,#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
+@media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
 .sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
 #tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
@@ -352,7 +352,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #objbar .tab.objtab{height:24px}
 #objbar .tab.objtab .mono{max-width:220px;overflow:hidden;text-overflow:ellipsis}
 #objbar .grow{flex:1 1 auto}
-.objbar-close{height:24px;padding:0 10px;font-size:12px}
+.objbar-close{height:24px;padding:0 10px;font-size:12px;flex:none;white-space:nowrap}
 .tabs-cap{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;align-self:center;padding:0 4px;flex:none}
 .tab.objtab .tsw{width:8px;height:8px;border-radius:50%;flex:none}
 
@@ -1386,3 +1386,11 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .card.picked .cardtick::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .card .ch{padding-right:22px}
 .pick-n{white-space:nowrap}
+
+/* Directory segments that cannot be known (Graph not set up) keep a visible outline, also on a picked card in light mode. */
+.jb.unk{border:1px dashed var(--bd)}
+/* Phone: a dialog fills the screen, so minimise and maximise have nothing to do; a wide port panel shows it scrolls. */
+@media (max-width:760px){
+  .wctl .wc-min,.wctl .wc-max{display:none}
+  .face{box-shadow:inset -14px 0 12px -12px color-mix(in srgb,var(--fg) 35%,transparent)}
+}

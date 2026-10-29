@@ -363,10 +363,12 @@ const showJoin = () => cardJoin && joinCardsAvailable();
    (Lansweeper, AD, Intune, Entra or Defender, whichever saw it last); else Lansweeper's own state. */
 const cardSeen = o => {
   if (o.excluded || o.detached) return syncChip(o);
-  /* Lansweeper's "Check by hand" stays, unless AD, Intune, Entra or Defender saw the device later than Lansweeper did. */
+  /* Every card says the same thing the same way: when it was last seen (amber when long ago), or that it never was.
+     Lansweeper's "check by hand" is the hint on a date it gave. */
   const s = lastSeenOf(o);
-  if (scanOld(o) && (!s || s.src === 'Lansweeper')) return scanChip(o);
-  return seenChip(o) || ((syncOf(o) || {}).k === 'manual' ? '' : syncChip(o));
+  if (s) return scanOld(o) && s.src === 'Lansweeper' ? seenChip(o).replace(/title="[^"]*"/, `title="Lansweeper last scanned it on ${esc(dayText(s.day))}. Check by hand that it is still there and in use."`) : seenChip(o);
+  if (o.review || o.feed || o.inAd || o.graph) return `<span class="chip warn lsst seen" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never seen</span>`;
+  return (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o);
 };
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
@@ -587,10 +589,12 @@ export const TABLE_COLS = [
   {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
   /* The date first, so the column sorts by it. */
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return `<td>${s ? `<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${esc(s.at)} by ${esc(s.src)}">${esc(dayText(s.day))}</span> <span class="muted">· ${esc(s.src)}</span>` : ''}</td>`; }},
-  {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`}
+  {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`},
+  /* In To review only, and last, so the other columns keep their places: which sync found it, and which others know it. */
+  {k:'found', w:220, label:'Found by', cell: o => `<td>${o.review ? esc([REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ')) : ''}</td>`}
 ];
-/* The Lansweeper column is left out while Lansweeper is off. */
-export const tableCols = () => TABLE_COLS.filter(c => c.k !== 'ls' || LS_ON());
+/* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
+export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_ON()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
@@ -628,7 +632,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);

@@ -79,12 +79,22 @@ try {
   // the Table shows them too, searchable, with Accept and Ignore for the ticked rows
   await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
   assert.equal(await p.locator('table.grid tbody tr').count(), 6);
+  assert.ok((await p.locator('table.grid thead th').allTextContents()).some(t => /Found by/.test(t)), 'To review has a Found by column');
+  assert.match(await p.textContent('table.grid tbody tr:first-child'), /Lansweeper/);
+  assert.equal(await p.locator('#rvAcceptAll').count(), 1, 'Accept all in the Table too');
   await p.fill('#listQ', 'NEW-PC-4'); await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 1);
   await p.locator('table.grid tbody tr input[data-sel]').check();
   await p.waitForSelector('#rvIgnore');
   await p.click('#rvIgnore');
   await until(p, async () => (await import('/js/01-core.js')).REVIEW.filter(o => o.review.ignored).length === 1);
   await p.fill('#listQ', '');
+  // the overview counts the waiting ones and leads to them
+  await p.click('#tabsbar [data-tab=overview]');
+  await p.waitForSelector('[data-ovrv]');
+  assert.match(await p.textContent('[data-ovrv]'), /5[\s\S]*Waiting in To review/);
+  await p.click('[data-ovrv]');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.scope === 'review' && c.st.tab === 'cards'; });
+  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
   // back to the inventory, where the waiting and the ignored ones are not
   await p.click('#fbar [data-fx=scope]');
   await until(p, async () => (await import('/js/01-core.js')).st.scope === null);

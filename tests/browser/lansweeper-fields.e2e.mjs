@@ -89,8 +89,11 @@ try {
     core.st.tab = 'cards'; (await import('/js/07-render.js')).render();
   });
   await page.waitForSelector('.card[data-open=o1]');
-  assert.match(await page.textContent('.card[data-open=o1]'), /Check by hand/);
-  assert.doesNotMatch(await page.textContent('.card[data-open=o2]'), /Check by hand/);
+  // the card says when, in amber, like every card; the hint to check it by hand is on the date
+  assert.match(await page.textContent('.card[data-open=o1] .seen'), /Seen \d\d\.\d\d\.\d{4} · Lansweeper/);
+  assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'class'), /warn/);
+  assert.match(await page.getAttribute('.card[data-open=o1] .seen', 'title'), /Check by hand/);
+  assert.doesNotMatch(await page.getAttribute('.card[data-open=o2] .seen', 'title'), /Check by hand/);
   assert.match(await page.textContent('#chkList'), /Check by hand\s*1/);
   await page.click('#chkList [data-scanold]');
   await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
