@@ -280,6 +280,15 @@ test('a location picked from AD is not taken back by Lansweeper; Intune\'s value
   assert.equal((s.objs[0].vals.os || {}).graph, undefined, 'gone from Intune: not offered any more');
 });
 
+test('an AD location text fills the location of a device when it names a room here or is mapped to one, never as free text', () => {
+  const s = { ...state([{ id: 'a', name: 'PC-A', status: 'active' }, { id: 'b', name: 'PC-B', status: 'active' }, { id: 'c', name: 'PC-C', status: 'active' }]), locs: ['Bern / EG', 'Bern / 3. OG'], adLocMap: { 'Raum 3.12': 'Bern / 3. OG' } };
+  const comp = (name, location) => ({ name, dns: name.toLowerCase() + '.corp.example', groups: [], os: '', domain: '', logon: '2026-10-22', created: '', location });
+  applyComputers(s, [comp('PC-A', 'bern / eg'), comp('PC-B', 'Raum 3.12'), comp('PC-C', 'Lager hinten')], NOW);
+  assert.deepEqual(s.objs.map(o => o.loc || ''), ['Bern / EG', 'Bern / 3. OG', '']);
+  assert.equal(s.objs[2].ad.location, 'Lager hinten', 'kept on the account, to be used in Settings');
+  assert.throws(() => checkState({ objs: [], rels: [], users: [], locs: [], types: {}, history: {}, adLocMap: { x: 5 } }), /AD locations map texts to rooms/);
+});
+
 test('a second record named by the DNS name: the AD account stays with the device of its own name, and Lansweeper puts the record in To review', () => {
   const s = state([
     { id: 'n', name: 'NB-35', serial: 'MP2V76BR', status: 'active', type: 'notebook' },

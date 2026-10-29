@@ -2,7 +2,7 @@
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
 import { canEdit, who } from './04-settings.js';
-import { esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
+import { REVIEW, esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
 /* The uses a range can have. DHCP and reserved ranges are skipped when an address is picked for a device. */
@@ -227,7 +227,7 @@ export function renderSetLocs(){
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
       <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
-  </div>`;
+  </div>${adLocsHtml()}`;
   const root = $('#setLocs');
   root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
   root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
@@ -236,6 +236,63 @@ export function renderSetLocs(){
   const enter = (id, fn) => $(id).onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); fn(); } };
   $('#nsAdd').onclick = addSite; enter('#nsName', addSite);
   $('#nlAdd').onclick = addRoom; enter('#nlRoom', addRoom);
+  bindAdLocs(root);
+}
+/* From Active Directory: the location texts of the computer accounts, so they can be used. A text is never made a
+   location on its own (free text would fill the list with near-duplicates): each is mapped to a room here, or added as a
+   new room of a site. The AD sync then fills that room in on devices without a location, and does so at once here. */
+const lc = v => String(v || '').trim().toLowerCase();
+const adLocTexts = () => {
+  const n = new Map();
+  for (const o of [...objs, ...REVIEW]) { const t = o.ad && o.ad.location && String(o.ad.location).trim(); if (t) n.set(t, (n.get(t) || 0) + 1); }
+  return [...n].sort((a, b) => a[0].localeCompare(b[0]));
+};
+const adLocTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(st.adLocMap || {}).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
+function adLocsHtml(){
+  const list = adLocTexts();
+  if (!list.length) return '';
+  const row = ([t, n], i) => {
+    const direct = LOCS.find(l => lc(l) === lc(t)), to = adLocTarget(t);
+    const ctl = direct ? '<span class="muted">Is a room here</span>'
+      : to ? `<span>→ <b>${esc(to)}</b></span>${canEdit() ? `<button type="button" class="link" data-adunmap="${i}">Remove</button>` : ''}`
+      : canEdit() ? `<select data-admap="${i}" aria-label="Use ${esc(t)} as"><option value="">Use as…</option>${LOCS.length ? `<optgroup label="An existing room">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>` : ''}${SITES.length ? `<optgroup label="A new room, in the site">${SITES.map(x => `<option value="site:${esc(x)}">${esc(x)} / ${esc(t)}</option>`).join('')}</optgroup>` : ''}</select>` : '<span class="muted">Not used</span>';
+    return `<div class="lrow adloc"><span title="${esc(t)}">${esc(t)}</span><span class="n" title="Devices with this location in AD">${n}</span><span class="adloc-ctl">${ctl}</span></div>`;
+  };
+  return `<section class="panelbox" id="adLocs"><div class="hdr">From Active Directory <span class="cnt">${list.length}</span></div>
+    <p class="note lnote">The location of the computer accounts in AD. Use one as a room here, existing or new, and the AD sync fills it in on its devices without a location.</p>
+    <div class="lrows"><div class="lrow adloc head"><span>Location in AD</span><span class="n">Devices</span><span></span></div>${list.map(row).join('')}</div></section>`;
+}
+/* Devices without a location whose AD account names text get its room now (as the next AD sync would), with one Undo. */
+function useAdLoc(text, room, msg){
+  const mapBefore = { ...(st.adLocMap || {}) }, locsBefore = [...LOCS];
+  const devs = objs.filter(o => !o.loc && o.ad && lc(o.ad.location) === lc(text) && (!o.pick || !o.pick.loc || o.pick.loc === 'ad') && (st.fillAd !== false || (o.pick && o.pick.loc === 'ad')));
+  if (!LOCS.includes(room)) LOCS.push(room);
+  if (!LOCS.some(l => lc(l) === lc(text))) st.adLocMap = { ...(st.adLocMap || {}), [text]: room };
+  for (const o of devs){ o.loc = room; (o.src ??= {}).loc = 'ad'; hist(o, now(), `Location set to ${room} from Active Directory (${text}) by ${who()}`); }
+  queueServerSave(); renderSetLocs(); render();
+  toastUndo(`${msg}${devs.length ? `; ${devs.length} ${devs.length === 1 ? 'device' : 'devices'} placed there` : ''}`, () => {
+    st.adLocMap = mapBefore; LOCS.splice(0, LOCS.length, ...locsBefore);
+    for (const o of devs){ o.loc = ''; if (o.src){ delete o.src.loc; if (!Object.keys(o.src).length) delete o.src; } hist(o, now(), 'Location from Active Directory undone'); }
+    queueServerSave(); renderSetLocs(); render();
+  });
+}
+function bindAdLocs(root){
+  const list = adLocTexts();
+  root.querySelectorAll('[data-admap]').forEach(sel => sel.onchange = () => {
+    const [t] = list[+sel.dataset.admap], v = sel.value; if (!v) return;
+    if (v.startsWith('loc:')) useAdLoc(t, v.slice(4), `${t} is used as ${v.slice(4)}`);
+    else {
+      const room = cleanLoc(v.slice(5) + ' / ' + t.replace(/\//g, '-'));
+      if (!room){ toast('That makes no room name.'); return; }
+      useAdLoc(t, room, `Room ${room} added for ${t}`);
+    }
+  });
+  root.querySelectorAll('[data-adunmap]').forEach(b => b.onclick = () => {
+    const [t] = list[+b.dataset.adunmap], before = { ...(st.adLocMap || {}) };
+    st.adLocMap = Object.fromEntries(Object.entries(before).filter(([k]) => lc(k) !== lc(t)));
+    queueServerSave(); renderSetLocs();
+    toastUndo(`${t} is no longer used; devices keep their location`, () => { st.adLocMap = before; queueServerSave(); renderSetLocs(); });
+  });
 }
 export function addSite(){
   const name = $('#nsName').value.trim(), msg = $('#nsMsg');

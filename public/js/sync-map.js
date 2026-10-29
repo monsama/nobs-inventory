@@ -13,7 +13,7 @@ export const LS_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ra
 export const GRAPH_FILL = { os: 'Operating system', model: 'Model', mac: 'MAC address', ram: 'Memory', disk: 'Disks' };
 
 /* Device fields the AD computer account fills in while they are empty (Settings → Active Directory → "Fill in empty
-   fields"). The location only when the inventory has a location of that name. */
+   fields"). The location when it names a room here, or a room its text is mapped to in Settings → Locations. */
 export const AD_FILL = { os: 'Operating system', domain: 'Domain', purpose: 'Description', loc: 'Location' };
 
 /* The names of the fields above, for the server and the page alike. */
@@ -40,6 +40,7 @@ export const SOURCE_EXTRAS = {
     ['Computer account', 'Last logon, created on, managed by, location and description, services from its SPNs'],
     ['Groups', 'The AD groups of the computer account, to filter by'],
     ['In AD', 'Whether the device has a computer account, shown on the card'],
+    ['Locations', 'Its location texts are listed in Settings → Locations, to use as a room (existing or new); free text never becomes a location on its own'],
   ],
   graph: [
     ['New devices', 'Devices in Entra or Intune the inventory does not have: waiting in To review, or added straight away'],

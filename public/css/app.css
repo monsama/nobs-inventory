@@ -1417,3 +1417,9 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-o{color:var(--muted);opacity:.6}.ds-n{color:var(--muted);opacity:.4}
 .ds-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 12px 12px;font-size:12px}.ds-legend span{color:var(--muted)}.ds-legend b{margin-right:4px}
 .ds-legend .ds-w b{color:var(--ok)}.ds-legend .ds-f b{color:var(--accent)}
+
+/* Settings → Locations → From Active Directory: an AD location text, its devices, and the room it is used as. */
+#adLocs{margin-top:12px}
+.lrow.adloc{grid-template-columns:minmax(0,1fr) 70px minmax(0,1.2fr)}
+.lrow.adloc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adloc-ctl{display:flex;align-items:center;gap:8px;min-width:0}.adloc-ctl select{width:100%}

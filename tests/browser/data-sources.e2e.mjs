@@ -13,7 +13,11 @@ import assert from 'node:assert/strict';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-ds-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-saveState(db, { ...loadState(db), policy: { ...(loadState(db).policy || {}), ip: true, disk: false }, intake: { lansweeper: 'direct' } });
+saveState(db, { ...loadState(db), policy: { ...(loadState(db).policy || {}), ip: true, disk: false }, intake: { lansweeper: 'direct' },
+  sites: ['Bern'], locs: ['Bern / EG'], history: {},
+  objs: [{ id: 'a', code: 'INV-0001', type: 'pc', name: 'PC-A', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
+    { id: 'b', code: 'INV-0002', type: 'pc', name: 'PC-B', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
+    { id: 'c', code: 'INV-0003', type: 'pc', name: 'PC-C', status: 'active', feed: null, inAd: true, ad: { location: 'bern / eg' } }] });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
@@ -40,6 +44,16 @@ try {
   await p.check('[data-pol=disk]');
   await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
   assert.equal((await row('Disks').locator('td').nth(0).textContent()).trim(), 'Writes');
+  // Settings → Locations lists the AD location texts; one used as a new room places its devices there, Undo takes it back
+  await p.click('#setTabs [data-st=locations]'); await p.waitForSelector('#adLocs');
+  assert.match(await p.textContent('#adLocs'), /Raum 3\.12\s*2/);
+  assert.match(await p.textContent('#adLocs'), /bern \/ eg\s*1\s*Is a room here/);
+  await p.selectOption('#adLocs [data-admap]', 'site:Bern');
+  const stored = async check => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > 8000) throw new Error('not saved'); await new Promise(r => setTimeout(r, 100)); } };
+  await stored(st => st.locs.includes('Bern / Raum 3.12') && st.adLocMap['Raum 3.12'] === 'Bern / Raum 3.12' && st.objs.filter(o => o.loc === 'Bern / Raum 3.12').length === 2);
+  assert.match(await p.textContent('#adLocs'), /→ Bern \/ Raum 3\.12/);
+  await p.click('#toast .t-undo');
+  await stored(st => !st.locs.includes('Bern / Raum 3.12') && !(st.adLocMap || {})['Raum 3.12'] && st.objs.every(o => !o.loc));
   assert.deepEqual(errors, []);
   console.log('data sources: all checks passed');
 } finally { await browser.close(); server.close(); }
