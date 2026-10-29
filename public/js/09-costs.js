@@ -1,11 +1,11 @@
 /* Costs: contracts (maintenance, support, leases, subscriptions) with their notice dates and the devices they cover,
    and software licences with their seats against the installs the inventory knows. */
 import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
-import { editButton, $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
+import { deleteButton, toastUndo, editButton, $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
 import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render.js';
@@ -92,10 +92,11 @@ export function renderContracts(){
     ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
-      <td class="num">${editButton(`data-contract="${esc(c.id)}"`, c.name, canEdit())}</td></tr>`).join('')
+      <td class="num"><span class="rowacts">${editButton(`data-contract="${esc(c.id)}"`, c.name, canEdit())}${canEdit() ? deleteButton(`data-ctdel="${esc(c.id)}"`, c.name) : ''}</span></td></tr>`).join('')
       || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.ctQ)}”.`}</td></tr>`}
     </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
+  $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
   const db = $('#ctDueBtn'); if (db) db.onclick = () => { st.ctDue = !st.ctDue; renderContracts(); };
 }
 
@@ -137,10 +138,7 @@ export function contractModal(c, preset = []){
   /* Enter in the device search takes what it found (not Save): the one match, or all of them. */
   $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all) all.click(); });
   $('#ctCancel').onclick = closeModal;
-  if (!isNew) $('#ctDel').onclick = () => {
-    if (!confirm(`Delete the contract ${cur.name}? The devices stay.`)) return;
-    COSTS.contracts = COSTS.contracts.filter(x => x.id !== cur.id); queueServerSave(); closeModal(); toast('Contract deleted'); render();
-  };
+  if (!isNew) $('#ctDel').onclick = () => deleteContract(cur);
   $('#ctOk').onclick = () => {
     const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
     const name = $('#ctName').value.trim();
@@ -172,6 +170,7 @@ export function deviceContractsPanel(o){
 }
 export function bindDeviceContracts(o){
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
+  $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
   const add = $('#ctAddDev'); if (!add) return;
   add.onclick = () => {
     const id = $('#ctPick').value;
@@ -198,12 +197,27 @@ export const licencesOver = () => COSTS.licences.filter(l => licenceUse(l, objs)
 /* The licences that count a package, for its row in the Software view. */
 export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().includes(String(l.name).trim().toLowerCase()));
 
+/* Deleting a contract or a licence: asked first, then gone at once with Undo, from its row or its dialog. The devices stay. */
+function deleteContract(c){
+  confirmModal(`Delete the contract ${c.name}?`, `<b>${esc(c.name)}</b> is removed from the contracts. The devices it lists stay; only their tie to it goes.`, 'Delete contract', () => {
+    const i = COSTS.contracts.indexOf(c);
+    COSTS.contracts = COSTS.contracts.filter(x => x !== c); queueServerSave(); render();
+    toastUndo(`Contract ${c.name} deleted`, () => { COSTS.contracts.splice(Math.min(i, COSTS.contracts.length), 0, c); queueServerSave(); render(); });
+  });
+}
+function deleteLicence(l){
+  confirmModal(`Delete the licence ${l.name}?`, `<b>${esc(l.name)}</b> is removed from the licences. The software on the devices stays.`, 'Delete licence', () => {
+    const i = COSTS.licences.indexOf(l);
+    COSTS.licences = COSTS.licences.filter(x => x !== l); queueServerSave(); render();
+    toastUndo(`Licence ${l.name} deleted`, () => { COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); });
+  });
+}
 export function licencesPanel(){
   const rows = COSTS.licences.map(l => {
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return `<tr><td><button class="link" data-lic="${esc(l.id)}"><b>${esc(l.name)}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
-      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num">${editButton(`data-lic="${esc(l.id)}"`, l.name, canEdit())}</td></tr>`;
+      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num"><span class="rowacts">${editButton(`data-lic="${esc(l.id)}"`, l.name, canEdit())}${canEdit() ? deleteButton(`data-licdel="${esc(l.id)}"`, l.name) : ''}</span></td></tr>`;
   }).join('');
   const over = licencesOver().length;
   return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
@@ -214,6 +228,7 @@ export function licencesPanel(){
 export function bindLicences(){
   const nb = $('#licNew'); if (nb) nb.onclick = () => licenceModal(null);
   $('#view').querySelectorAll('[data-lic]').forEach(b => b.onclick = () => licenceModal(COSTS.licences.find(l => l.id === b.dataset.lic)));
+  $('#view').querySelectorAll('[data-licdel]').forEach(b => b.onclick = () => { const l = COSTS.licences.find(x => x.id === b.dataset.licdel); if (l) deleteLicence(l); });
   $('#view').querySelectorAll('[data-licnew]').forEach(b => b.onclick = e => { e.stopPropagation(); licenceModal(null, b.dataset.licnew); });
 }
 export function licenceModal(l, name = ''){
@@ -232,7 +247,7 @@ export function licenceModal(l, name = ''){
   const hint = () => { const n = $('#licName').value.trim(); $('#licErr').classList.remove('err'); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
   hint(); $('#licName').oninput = hint;
   $('#licCancel').onclick = closeModal;
-  if (!isNew) $('#licDel').onclick = () => { COSTS.licences = COSTS.licences.filter(x => x.id !== cur.id); queueServerSave(); closeModal(); toast('Licence deleted'); render(); };
+  if (!isNew) $('#licDel').onclick = () => deleteLicence(cur);
   $('#licOk').onclick = () => {
     const nm = $('#licName').value.trim();
     if (!nm){ $('#licErr').textContent = 'Give the name of the software.'; $('#licErr').classList.add('err'); return; }

@@ -72,10 +72,13 @@ try {
   assert.deepEqual(loadState(db).objs.map(o => o.respIn || ''), ['k1', 'k1', 'k1']);
 
   // deleting a contact takes it off its devices
-  page.once('dialog', d => d.accept());
   await page.click('[data-tab=contacts]'); await page.waitForSelector('.cn-card');
   await page.click('.cn-card:has-text("Service desk") [data-cnedit]');
   await page.click('#cnDel');
+  // asked in the app's own dialog first, which names the devices that lose it
+  await page.waitForSelector('#cfOk');
+  assert.match(await page.textContent('#mdl'), /Delete the contact Service desk\?[\s\S]*loses? this responsible/);
+  await page.click('#cfOk');
   await stored(st => st.contacts.length === 2);
   const st = loadState(db);
   assert.equal(st.contacts.length, 2);
