@@ -478,7 +478,7 @@ export function sourceMark(o, k){
   if (!src && !fixed) return '<span class="fsrc-slot" aria-hidden="true"></span>';
   const shown = src || 'hand', others = sourcesDisagree(o, k);
   const t = src ? sourceText(o, k, src) : 'Emptied here: no source fills it in';
-  const tip = t + (fixed ? ' · Fixed: the syncs leave it as it is' : '') + (others ? ' · The sources differ: click to compare and pick one' : ' · Click to see each source');
+  const tip = t + (fixed === 'hand' ? ' · Kept as typed: the syncs leave it as it is' : fixed ? ` · Fixed: only ${{ ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory' }[fixed] || fixed} writes it` : '') + (others ? ' · The sources differ: click to compare and pick one' : ' · Click to see each source');
   return `<span class="fsrc${others ? ' fsrc-multi' : ''}${fixed ? ' fsrc-picked' : ''}${src ? '' : ' fsrc-empty'}" data-src="${shown}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[shown]}</svg>${fixed ? LOCK : ''}</span>`;
 }
 /* Whether the sources give field k of o different values (or a value other than the one in use): worth a look. */
