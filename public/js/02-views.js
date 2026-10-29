@@ -408,7 +408,7 @@ function mergeBtn(){
 function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
   on('rvResolve', () => resolveModal(mergeable()));
-  const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
+  const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); if (kind !== 'accept') st.bulk.clear(); reviewDo(kind, l); };
   on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
   const fresh = list.filter(o => !reviewStale(o)), old = list.length - fresh.length;
   /* Accept all takes the recently seen ones; the old ones (likely gone) only when ticked here. With only old ones shown,
@@ -447,7 +447,7 @@ export function renderCardsBody(){
       ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
       : st.scope ? `<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing waits for review. New devices from Lansweeper, Active Directory, Entra and Intune show up here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
       : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
-    const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; view(); };
+    const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     bindHiddenHits();
@@ -534,8 +534,10 @@ document.addEventListener('keydown', e => {
   if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a'){
     e.preventDefault();
-    st.bulk = new Set(st.tab === 'table' ? [...$('#view').querySelectorAll('[data-sel]')].map(c => c.dataset.sel) : filtered().map(o => o.id));
-    keepScroll(st.tab === 'table' ? renderTable : renderCards);
+    /* In the Table the same as its select-all box: every row its filters leave, also those past the first drawn. */
+    if (st.tab === 'table'){ const all = $('#selAll'); if (all && !all.checked) all.click(); return; }
+    st.bulk = new Set(filtered().map(o => o.id));
+    keepScroll(renderCards);
   } else if (e.key === 'Escape' && st.bulk && st.bulk.size){
     st.bulk.clear(); keepScroll(st.tab === 'table' ? renderTable : renderCards);
   }

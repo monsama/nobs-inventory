@@ -266,9 +266,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   s.objs.forEach(index);
   /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
      it stands for (after Clear inventory, both are new). */
-  const pushed = new Set(records.map(r => lc(r.name)).filter(Boolean));
+  const pushed = new Set(records.map(r => lc(r.name)).filter(n => n && !(byName.get(n) || []).some(o => o.status === 'retired' || o.excluded)));
   /* DNS-named records come last, so with mergeTwins on the device they stand for is already here, also when both are new. */
-  const dnsNamed = r => !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
+  const dnsNamed = r => (!r.serial || isPlaceholderSerial(r.serial)) && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
   const cleaned = [];
   for (const raw of [...records.filter(r => !dnsNamed(r)), ...records.filter(dnsNamed)]) {
     const r = clean(raw);

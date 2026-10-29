@@ -66,16 +66,18 @@ function merge(pairs, how = ''){
 }
 /* Undo puts every device touched back as it was: its fields, and in which list it sits; and the relations a merge moved. */
 function withUndo(list, msg, change){
-  const was = list.map(o => [o, JSON.parse(JSON.stringify(o)), objs.includes(o)]);
+  /* The user is read from uid (bindUser): writing its name back would look the person up again, or make one. */
+  const was = list.map(o => { const b = JSON.parse(JSON.stringify(o)); delete b.user; return [o, b, objs.includes(o)]; });
   const relsWas = rels.map(r => [r, { ...r }]);
   change(list);
   render();
   toastUndo(msg, () => {
     for (const [o, before, inObjs] of was){
-      for (const k of Object.keys(o)) if (!(k in before)) delete o[k];
+      for (const k of Object.keys(o)) if (k !== 'user' && !(k in before)) delete o[k];
       Object.assign(o, before);
       for (const a of [objs, REVIEW]){ const i = a.indexOf(o); if (i >= 0) a.splice(i, 1); }
       (inObjs ? objs : REVIEW).push(o);
+      hist(o, now(), `Undone: ${msg}`);
     }
     rels.splice(0, rels.length, ...relsWas.map(([r, w]) => Object.assign(r, w)));
     render();
@@ -103,7 +105,12 @@ export function reviewDo(kind, list, { asked = false } = {}){
       'Accept anyway', () => reviewDo(kind, list, { asked: true }));
     const ok = document.getElementById('cfOk');
     if (ok){ const mg = document.createElement('button'); mg.id = 'cfMerge'; mg.className = 'primary'; mg.textContent = 'Merge'; ok.before(mg);
-      mg.onclick = () => { document.getElementById('cfCancel').click(); reviewDo('merge', known); const rest = list.filter(o => !known.includes(o)); if (rest.length) reviewDo('accept', rest, { asked: true }); }; }
+      mg.onclick = () => {
+        document.getElementById('cfCancel').click();
+        /* Merged and accepted in one step, so one Undo takes back both. */
+        const pairs = known.map(o => [o, mergeTarget(o)]).filter(([, t]) => t), rest = list.filter(o => !known.includes(o));
+        withUndo([...new Set([...pairs.flat(), ...rest])], `${pairs.length} merged${rest.length ? `, ${rest.length} accepted` : ''}`, () => { merge(pairs); accept(rest); });
+      }; }
     return;
   }
   if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
@@ -133,7 +140,9 @@ function resolve(kind, list){
     withUndo(pairs.map(([o]) => o), `${what} marked as no duplicate`, () => { for (const [o, t] of pairs){ o.notTwin = true; hist(o, now(), `Marked as not a duplicate of ${t.name} by ${who()}`); } });
     return;
   }
-  withUndo(pairs.map(([o]) => o), `${what} ${n === 1 ? 'is' : 'are'} obsolete: ${objs.includes(pairs[0][0]) ? 'retired and excluded' : 'ignored'}`, () => {
+  /* Devices stacked on one that leaves its rack come out with it (unplace): they are put back by Undo too. */
+  const onTop = objs.filter(x => pairs.some(([o]) => x.ontop === o.id));
+  withUndo([...pairs.map(([o]) => o), ...onTop], `${what} ${n === 1 ? 'is' : 'are'} obsolete: ${objs.includes(pairs[0][0]) ? 'retired and excluded' : 'ignored'}`, () => {
     for (const [o, t] of pairs){
       if (o.review){ o.review = { ...o.review, ignored: now() }; o.excluded = true; }
       else { if (o.rack) unplace(o); o.status = 'retired'; o.excluded = true; }

@@ -501,7 +501,8 @@ export function applyDefender(s, machines, now = new Date()) {
     for (const k of [low(m.computerDnsName), low(m.computerDnsName).split('.')[0]]) if (k && newer(byName.get(k), m)) byName.set(k, m);
   }
   let n = 0;
-  const names = new Set(s.objs.filter(o => o.status !== 'retired').map(o => low(o.name)));
+  /* The devices a DNS-named one may be a second record of: in use, not excluded and not ignored in To review. */
+  const names = new Set(s.objs.filter(o => o.status !== 'retired' && !o.excluded && !(o.review && o.review.ignored)).map(o => low(o.name)));
   for (const o of s.objs) {
     if (o.status === 'retired') continue;
     const name = low(o.name), short = name.split('.')[0];

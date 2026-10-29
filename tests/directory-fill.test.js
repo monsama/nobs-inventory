@@ -324,6 +324,10 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(v.objs.find(o => o.id === 'n').nics, undefined, 'detached: left alone');
   assert.deepEqual(v.objs.find(o => o.id === 'm').nics.map(n => n.ip), ['10.1.2.151'], 'a placeholder serial is no serial');
   assert.match(v.history.m[0].msg, /nb-51\.corp\.example merged in as a dock's adapter/);
+  // a retired device of that name in the push makes no record a second one of it
+  const rx = { ...state([{ id: 'r9', name: 'PC9', serial: 'S9', status: 'retired' }]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
+  mergeRecords(rx, [{ name: 'PC9', serial: 'S9', ref: '9' }, { name: 'pc9.corp.example', serial: '', ip: '10.1.2.9', ref: '10' }], NOW);
+  assert.equal(rx.objs.find(o => o.name === 'pc9.corp.example').review, undefined);
   const ok = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
   checkState({ ...ok, mergeTwins: true, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', excluded: true, notTwin: true, review: { src: 'lansweeper', at: '2026-10-27 10:00', ignored: '2026-10-27 10:05', merged: 'o1' } }] });
   assert.throws(() => checkState({ ...ok, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', notTwin: 'no' }] }), /not a duplicate/);
