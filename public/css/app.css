@@ -462,6 +462,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .rv-chips .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .card.stale{background:var(--panel)}.card.stale .nm,.card.stale .model{color:var(--muted)}
 .fb-scope{font-weight:600}
+.rv-chips .rv-also{color:var(--muted)}
 .rv-yes{border-color:color-mix(in srgb,var(--ok) 50%,var(--bd))}
 .rv-no{color:var(--muted)}
 .rv-banner{display:flex;align-items:center;gap:8px;margin:12px 12px 0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--bd));border-left:3px solid var(--accent);border-radius:var(--r-m);background:color-mix(in srgb,var(--accent) 8%,var(--bg));font-size:13px}

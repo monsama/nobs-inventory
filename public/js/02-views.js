@@ -10,7 +10,7 @@ import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-top
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
-import { reviewDo, reviewStale } from './15-review.js';
+import { mergeTarget, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -26,6 +26,7 @@ export function renderSide(){
   const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitingR.filter(o => o.review.src === k).length]).filter(([, , n]) => n);
   $('#scopeHdr').hidden = $('#scopeList').hidden = !(waitingR.length || ignoredR.length || st.scope);
   $('#scopeList').innerHTML = `<button class="item ${st.scope === 'review' && !st.rvSrc ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>`
+    + (st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? `<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : '')
     + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
     + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
     + (st.scope ? '<button class="item" data-scope="" title="Back to the devices in the inventory"><span class="lbl">Back to inventory</span><span class="cnt">' + objs.length + '</span></button>' : '');
@@ -97,6 +98,7 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('twins' in b.dataset) st.twins = !st.twins;
+  if ('rvknown' in b.dataset) st.rvKnown = !st.rvKnown;
   if ('scope' in b.dataset){ st.scope = b.dataset.scope || null; st.rvSrc = b.dataset.rvsrc || ''; st.bulk = new Set(); }
   if ('adgroup' in b.dataset) st.adGroup = null;
   if ('resp' in b.dataset) st.resp = null;
@@ -126,6 +128,7 @@ export function renderFilterBar(){
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
     st.twins && ['twins', 'Duplicates', 'by DNS name'],
+    st.scope === 'review' && st.rvKnown && ['rvKnown', '', 'In AD or Entra'],
     st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
@@ -143,8 +146,8 @@ $('#fbar').addEventListener('click', e => {
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
-  else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.bulk = new Set(); }
-  else if (k === 'scanOld' || k === 'twins' || k === 'live') st[k] = false;
+  else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.bulk = new Set(); }
+  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown') st[k] = false;
   else st[k] = null;
   view();
 });
@@ -365,21 +368,31 @@ export function cardHtml(o, idx, join = showJoin()){
   </button>`;
 }
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
-   all), and the device it is most likely a second record of. */
-const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}</div>`;
+   all), the other sources that know it, and the device it is most likely a second record of. */
+const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
+const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}</div>`;
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 function scopeActs(list, allAlso){
   if (!st.scope || !canEdit()) return '';
   const n = st.bulk.size, ign = st.scope === 'ignored';
-  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvIgnore" class="danger-text">Ignore ${n}</button><button id="rvAccept" class="primary">Accept ${n}</button>`;
+  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvIgnore" class="danger-text">Ignore ${n}</button>${mergeBtn()}<button id="rvAccept" class="primary">Accept ${n}</button>`;
   if (!allAlso || !list.length) return '';
   const fresh = list.filter(o => !reviewStale(o)).length;
   return ign ? `<button id="rvRestoreAll">All back to review (${list.length})</button>`
     : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" ${fresh ? '' : 'disabled'} title="Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out; accept them one by one">Accept ${fresh === list.length ? 'all ' : ''}${fresh}${fresh === list.length ? '' : ' recently seen'}</button>`;
 }
+/* Merge: the picked records the inventory already has (a dock's DNS-named record, or one of the same name or serial
+   number) are folded into those devices; see 15-review.js. */
+const mergeable = () => [...(st.bulk || [])].map(byId).filter(o => o && mergeTarget(o));
+function mergeBtn(){
+  if (!canEdit()) return '';
+  const m = mergeable().length;
+  return m ? `<button id="rvMerge" title="Fold ${m === 1 ? 'it' : 'them'} into the device${m === 1 ? '' : 's'} the inventory has: ${m === 1 ? 'its address is' : 'their addresses are'} kept as adapters, and no sync brings ${m === 1 ? 'it' : 'them'} back">Merge ${m}</button>` : '';
+}
 function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
+  on('rvMerge', () => { const l = mergeable(); st.bulk.clear(); reviewDo('merge', l); });
   const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
   on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
   const fresh = list.filter(o => !reviewStale(o));
@@ -446,7 +459,7 @@ export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addS
    rows can be moved, given a status or a responsible together. */
 function pickBar(list){
   const n = (st.bulk || new Set()).size;
-  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button>${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear</button>${scopeActs(list)}`
+  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button>${st.scope ? '' : `<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>${mergeBtn()}`}<button id="cdClear">Clear</button>${scopeActs(list)}`
     : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several</span>' + scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
@@ -564,7 +577,7 @@ export function renderTable(){
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
     ${n && st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button>${scopeActs(list)}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
-    ${n && !st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
+    ${n && !st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button>${mergeBtn()}<select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
