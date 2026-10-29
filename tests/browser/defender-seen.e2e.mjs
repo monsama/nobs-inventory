@@ -37,7 +37,7 @@ try {
   // the Sources panel opens on Entra & Intune, the part this test reads
   await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('.card[data-open=a] .jbar4');
   if (process.env.NI_SHOTS) await p.locator('#cards').screenshot({ path: path.join(process.env.NI_SHOTS, 'defender-cards.png') });
 
@@ -54,7 +54,7 @@ try {
   assert.ok(!/Seen/.test(await card('c')), 'a device no source has seen says nothing');
 
   // the table: Last seen sorts by its date
-  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('th:has-text("Last seen")');
   assert.match(await p.textContent('tr:has(a[data-open=a])'), /\d{2}\.\d{2}\.\d{4} · Defender/);
 

@@ -32,7 +32,7 @@ try {
   }).map(el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}`));
   const problems = [];
   for (const tab of ['cards', 'table', 'map', 'plans', 'net', 'rack', 'sw']) {
-    await p.evaluate(async t => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = t; __mods[1].render(); }, tab);
+    await p.evaluate(async t => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = t; __mods[1].render(); }, tab);
     await p.waitForTimeout(150);
     const extra = await sideways();
     if (extra > 1) problems.push(`${tab}: ${extra}px wider than the screen`);
@@ -41,7 +41,7 @@ try {
   }
   // Software with a package open, and a device page: no sideways scroll, controls big enough to tap.
   for (const [name, go] of [
-    ['software, a package open', () => p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render-plans.js'); c.objs[1].software = [{ name: 'Tool A', version: '1' }]; c.st.tab = 'sw'; c.st.swOpen = ['Tool A']; r.render(); })],
+    ['software, a package open', () => p.evaluate(async () => { const c = await import('/js/01-core.js'), r = await import('/js/07-render.js'); c.objs[1].software = [{ name: 'Tool A', version: '1' }]; c.st.tab = 'sw'; c.st.swOpen = ['Tool A']; r.render(); })],
     ['device page', () => p.evaluate(async () => { const c = await import('/js/01-core.js'), v = await import('/js/02-views.js'); v.openObj(c.objs[1].id); })],
   ]) {
     await go(); await p.waitForTimeout(200);

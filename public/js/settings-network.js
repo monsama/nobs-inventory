@@ -1,6 +1,6 @@
 /* Settings → Locations and Network: sites and rooms, subnets with their ranges, VLANs and domains. */
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
-import { queueServerSave, render } from './07-render-plans.js';
+import { queueServerSave, render } from './07-render.js';
 import { canEdit, who } from './04-settings.js';
 import { esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */

@@ -37,7 +37,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).renderPlans(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/20-plans.js')).renderPlans(); });
   await p.waitForSelector('.pl-group');
 
   // the big area: six pins spread out, none covering another, none grouped
@@ -77,13 +77,13 @@ try {
   // a pin opens its device from the keyboard too
   await p.focus('[data-pin=h1]'); await p.keyboard.press('Enter');
   await p.waitForSelector('#f_h1_name');
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).renderPlans(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/20-plans.js')).renderPlans(); });
   await p.waitForSelector('.pl-group');
   // a fanned pin is opened by clicking it
   await desk.click();
   await p.click('[data-pin=d2]');
   await p.waitForSelector('#f_d2_name');
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).renderPlans(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/20-plans.js')).renderPlans(); });
   await p.waitForSelector('.pl-group');
 
   // the store: twelve devices are a list; a row opens its device

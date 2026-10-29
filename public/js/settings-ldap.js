@@ -2,7 +2,7 @@
    test and sync. */
 import { scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { canEdit } from './04-settings.js';
-import { flushSave, reloadFromServer, queueServerSave } from './07-render-plans.js';
+import { flushSave, reloadFromServer, queueServerSave } from './07-render.js';
 import { dateText } from './dates.js';
 import { st, esc, $, toast } from './01-core.js';
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';

@@ -3,7 +3,7 @@
 import { $, esc, hist, now, toast } from './01-core.js';
 import { LINK_MAX, isShare, linkHref, linkKind, linkProblem } from './links.js';
 import { canEdit, who } from './04-settings.js';
-import { queueServerSave, render } from './07-render-plans.js';
+import { queueServerSave, render } from './07-render.js';
 
 /* Quick links from the device's address: its web interface, when it has none of them yet. */
 /* The link being edited in place: device id and index, or null. */

@@ -3,9 +3,10 @@
    responsible, on its page or for many devices at once in the table. */
 import { editButton, CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
-import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
+import { COMBO_SOURCES, comboHtml } from './17-fields.js';
+import { closeModal, modal } from './19-modal.js';
 import { USERS, canEdit, who } from './04-settings.js';
-import { queueServerSave, render } from './07-render-plans.js';
+import { queueServerSave, render } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 

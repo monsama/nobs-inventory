@@ -58,23 +58,23 @@ try {
       return problems;
     });
     const screens = [
-      ['cards', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); })],
-      ['table', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); })],
-      ['object', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/02-views.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o1'); })],
-      ['new object dialog', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js'), import('/js/05-new-object.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].newObjModal({}); })],
-      ['relationships', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'map'; __mods[1].render(); })],
-      ['floor plans', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'plans'; __mods[1].render(); })],
-      ['settings: feed', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'feed'; __mods[2].openSettings(); }); await p.waitForSelector('#setFeed'); }],
-      ['settings: users', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'users'; __mods[2].openSettings(); }); await p.waitForSelector('#setUsers'); }],
-      ['settings: maintenance', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'maintenance'; __mods[2].openSettings(); }); await p.waitForSelector('#setMaint'); }],
-      ['settings: log', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'log'; __mods[2].openSettings(); }); await p.waitForSelector('#setLog'); }],
+      ['cards', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); })],
+      ['table', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); })],
+      ['object', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js'), import('/js/02-views.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].openObj('o1'); })],
+      ['new object dialog', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js'), import('/js/05-new-object.js')]); __mods[0].st.tab = 'cards'; __mods[1].render(); __mods[2].newObjModal({}); })],
+      ['relationships', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'map'; __mods[1].render(); })],
+      ['floor plans', () => p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'plans'; __mods[1].render(); })],
+      ['settings: feed', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'feed'; __mods[2].openSettings(); }); await p.waitForSelector('#setFeed'); }],
+      ['settings: users', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'users'; __mods[2].openSettings(); }); await p.waitForSelector('#setUsers'); }],
+      ['settings: maintenance', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'maintenance'; __mods[2].openSettings(); }); await p.waitForSelector('#setMaint'); }],
+      ['settings: log', async () => { await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js'), import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].closeModal(); __mods[1].st.setTab = 'log'; __mods[2].openSettings(); }); await p.waitForSelector('#setLog'); }],
     ];
     for (const [name, go] of screens) {
-      await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js')]); if (document.querySelector('#mdl') && !document.querySelector('#setBtn')) __mods[0].closeModal(); });
+      await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); if (document.querySelector('#mdl') && !document.querySelector('#setBtn')) __mods[0].closeModal(); });
       await go(); await p.waitForTimeout(200);
       const problems = await check();
       for (const pr of problems) errors.push(`${size.name} ${name}: ${pr}`);
-      await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js')]); __mods[0].closeModal(); });
+      await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); __mods[0].closeModal(); });
     }
     await p.context().close();
   }

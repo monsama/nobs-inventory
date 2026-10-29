@@ -47,7 +47,7 @@ try {
   await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   /* Graph counts as set up for the page, as it would after a sync with a certificate. */
-  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render.js')).render(); });
 
   // the panel on a device
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
@@ -87,12 +87,12 @@ try {
   await p.click('#grList [data-intune="adonly"]');
 
   // the Overview tiles open the list
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
   await p.click('[data-ovintune="noncompliant"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['b']);
   // the Overview: how devices are joined, Intune, operating systems, and Windows 10 under Needs attention
   const ids = () => p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id));
-  const overview = async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); }); await p.waitForSelector('.ov-split'); };
+  const overview = async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('.ov-split'); };
   await overview();
   if (process.env.NI_SHOTS) await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'overview-join.png'), fullPage: true });
   assert.match(await p.textContent('.panelbox:has(.hdr:text("How devices are joined"))'), /Entra joined.*2.*Hybrid joined.*1.*AD joined only.*1/s);

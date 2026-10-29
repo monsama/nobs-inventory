@@ -86,7 +86,7 @@ try {
     const core = await import('/js/01-core.js');
     const day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
     core.byId('o1').feed = { sys: 'Lansweeper', ref: '1', scanned: day(400) }; core.byId('o2').feed = { sys: 'Lansweeper', ref: '2', scanned: day(5) };
-    core.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render();
+    core.st.tab = 'cards'; (await import('/js/07-render.js')).render();
   });
   await page.waitForSelector('.card[data-open=o1]');
   assert.match(await page.textContent('.card[data-open=o1]'), /Check by hand/);
@@ -95,7 +95,7 @@ try {
   await page.click('#chkList [data-scanold]');
   await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
   await page.click('#chkList [data-scanold]');
-  await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
   await page.waitForSelector('[data-ovscan]');
   assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));

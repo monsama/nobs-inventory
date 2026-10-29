@@ -30,7 +30,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).renderPlans(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/20-plans.js')).renderPlans(); });
   await p.waitForSelector('[data-pin=p1]');
   // the monitor goes with its PC: no pin, not in the list, named in the PC's card
   assert.equal(await p.locator('[data-pin=m1]').count(), 0, 'no pin for the attached monitor');

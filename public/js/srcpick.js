@@ -5,7 +5,7 @@
 import { FIELD_LABEL, SRC_ICON, byId, dayText, esc, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
 import { stamp } from './dates.js';
 import { canEdit, who } from './04-settings.js';
-import { render } from './07-render-plans.js';
+import { render } from './07-render.js';
 
 const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
 const WHEN = { ls: 'last scan', graph: 'last check-in', ad: 'last logon', hand: 'edited', unknown: '' };

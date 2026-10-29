@@ -5,7 +5,7 @@
 import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS } from './04-settings.js';
 import { openObj } from './02-views.js';
-import { render } from './07-render-plans.js';
+import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
 
 const MAX = { dev: 8, other: 4 };

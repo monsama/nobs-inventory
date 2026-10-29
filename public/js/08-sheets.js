@@ -4,8 +4,8 @@
    kept sheet once it is marked as changed, and at the latest after a set number of days. */
 import { dateText } from './dates.js';
 import { $, COMPANY, esc, objs, toast } from './01-core.js';
-import { closeModal, modal } from './03-object-modals.js';
-import { flushSave } from './07-render-plans.js';
+import { closeModal, modal } from './19-modal.js';
+import { flushSave } from './07-render.js';
 
 const call = async (method, url, body) => {
   const r = await fetch(url, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });

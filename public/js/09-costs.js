@@ -4,10 +4,11 @@ import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
 import { editButton, $, COSTS, byId, dayText, esc, objs, st, tico, toast } from './01-core.js';
 import { contactCompanies } from './11-contacts.js';
 import { CONTRACT_KINDS, PERIODS, NOTICE_SOON_DAYS, contractStatus, costInYear, licenceUse, runningNow, yearlyCost } from './costs.js';
-import { COMBO_SOURCES, closeModal, comboHtml, modal } from './03-object-modals.js';
+import { COMBO_SOURCES, comboHtml } from './17-fields.js';
+import { closeModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
-import { queueServerSave, render } from './07-render-plans.js';
+import { queueServerSave, render } from './07-render.js';
 import { canEdit } from './04-settings.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

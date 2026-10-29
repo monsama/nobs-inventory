@@ -8,6 +8,6 @@ import './05-new-object.js';
 import './06-topbar.js';
 import './14-global-search.js';
 import './tips.js';
-import { boot } from './07-render-plans.js';
+import { boot } from './07-render.js';
 
 boot();

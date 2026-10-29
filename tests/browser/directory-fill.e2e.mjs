@@ -42,7 +42,7 @@ try {
   // the Sources panel opens on Entra & Intune, the part this test reads
   await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render.js')).render(); });
 
   // the server: where its fields came from, and its AD account
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('s1'));

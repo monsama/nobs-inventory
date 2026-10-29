@@ -1,7 +1,8 @@
 import { lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
-import { closeModal, comboHtml, modal } from './03-object-modals.js';
+import { comboHtml } from './17-fields.js';
+import { closeModal, modal } from './19-modal.js';
 import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
-import { flushSave, render } from './07-render-plans.js';
+import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */

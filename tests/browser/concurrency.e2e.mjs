@@ -74,12 +74,12 @@ try {
   await waitServer(() => serverObj('ZH-PC-0142')?.model === 'B SECOND', 'the refused edit, applied again');
 
   // 3. A deletion reaches the other window when it looks for changes. A first looks for changes too, as it does every 15 seconds.
-  await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].checkForChanges()); });
+  await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
   await a.click('#tabsbar [data-tab=table]');
   await a.locator('table.grid td b', { hasText: /^MON-0433$/ }).first().click();
   await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
-  await b.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].checkForChanges()); });
+  await b.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
   await until(b, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433') === undefined); }, null, { timeout: 5000 });
 
   // 4. A stale window saves an edit to another record: the deleted object does not come back.

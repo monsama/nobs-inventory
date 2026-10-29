@@ -32,7 +32,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  const go = tab => p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render-plans.js')).render(); }, tab);
+  const go = tab => p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).render(); }, tab);
 
   // the floor plan
   await go('plans');

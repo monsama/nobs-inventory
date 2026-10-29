@@ -26,7 +26,7 @@ try {
   const signIn = async () => { await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => !document.querySelector('#lgUser')); };
   await p.goto(base + '/'); await signIn();
   await until(p, async () => (await import('/js/01-core.js')).objs.length === 1);
-  const edit = v => p.evaluate(async v => { const c = await import('/js/01-core.js'); c.byId('a').purpose = v; (await import('/js/07-render-plans.js')).queueServerSave(); }, v);
+  const edit = v => p.evaluate(async v => { const c = await import('/js/01-core.js'); c.byId('a').purpose = v; (await import('/js/07-render.js')).queueServerSave(); }, v);
 
   // the sign-in ends before the edit is saved: after signing in again, it is saved
   await ctx.clearCookies();
@@ -38,17 +38,17 @@ try {
 
   // the page reads the inventory again right after an edit (as after a sync or an import): the edit is saved first
   await edit('kept across reload');
-  await p.evaluate(async () => (await import('/js/07-render-plans.js')).reloadFromServer());
+  await p.evaluate(async () => (await import('/js/07-render.js')).reloadFromServer());
   assert.equal(onServer(), 'kept across reload');
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).byId('a').purpose), 'kept across reload');
 
   // the server cannot be reached: the edit stays on the page after a reload, and is saved later
   await p.route('**/api/changes', r => r.abort());
   await edit('kept while offline');
-  await p.evaluate(async () => (await import('/js/07-render-plans.js')).reloadFromServer());
+  await p.evaluate(async () => (await import('/js/07-render.js')).reloadFromServer());
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).byId('a').purpose), 'kept while offline', 'still on the page');
   await p.unroute('**/api/changes');
-  await p.evaluate(async () => (await import('/js/07-render-plans.js')).flushSave());
+  await p.evaluate(async () => (await import('/js/07-render.js')).flushSave());
   assert.equal(onServer(), 'kept while offline', 'saved once the server answers');
 
   assert.deepEqual(errors, []);
