@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
+import { REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { view } from './07-render.js';
@@ -51,7 +51,9 @@ export function renderOverview(){
     ['Compliance', ['compliant', 'grace', 'noncompliant', 'unencrypted']],
     ['To clean up', ['stale', 'duplicates', 'missing', 'ambiguous']],
   ].map(([title, keys]) => [title, keys.map(k => ({ key: k, label: GRAPH_FILTERS[k][0], n: live.filter(GRAPH_FILTERS[k][2]).length })).filter(r => r.n)]).filter(g => g[1].length) : [];
+  const waiting = REVIEW.filter(o => !o.review.ignored).length;
   const attention = [
+    [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
     [wSoon, 'warn', 'Warranty ends soon', `within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
     [due.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${due.slice(0, 3).map(c => c.name).join(', ')}${due.length > 3 ? '…' : ''}`, 'data-ovtab="contracts"'],
@@ -96,12 +98,13 @@ export function renderOverview(){
       <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
     </div></div>`;
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
-  const go = (tab, set = {}) => { resetFilters(); Object.assign(st, set); st.tab = tab; view(); };
+  const go = (tab, set = {}) => { resetFilters(); Object.assign(st, { scope: null, rvSrc: '', rvKnown: false, rvOld: false, bulk: new Set() }, set); st.tab = tab; view(); };
   const v = $('#view');
   v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt, live: true }));
   v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl, live: true }));
   v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));
   v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos, live: true }));
+  v.querySelectorAll('[data-ovrv]').forEach(b => b.onclick = () => go('cards', { scope: 'review' }));
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
