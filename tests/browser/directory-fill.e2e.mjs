@@ -134,6 +134,16 @@ try {
   assert.match(await p.getAttribute(pold, 'class'), /stale/);
   assert.match(await p.textContent(pold), /Old/);
   assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
+  // the old ones on their own in the sidebar, and Accept all takes them only when ticked
+  await p.click('#scopeList [data-rvold]');
+  await p.waitForSelector('#view .card[data-open="n20"]', { state: 'detached' });
+  assert.equal(await p.locator('#view .card[data-open]').count(), 1);
+  await p.click('#fbar [data-fx=rvOld]');
+  await p.waitForSelector('#view .card[data-open="n20"]');
+  await p.click('#rvAcceptAll'); await p.waitForSelector('#cfOld');
+  assert.equal((await p.textContent('#cfOk')).trim(), 'Accept 1');
+  await p.check('#cfOld'); assert.equal((await p.textContent('#cfOk')).trim(), 'Accept 2');
+  await p.click('#cfCancel');
   // ignore, undo, ignore again: kept out of every sync, listed under Ignored, and back from there
   await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
   await p.waitForSelector(pold, { state: 'detached' });

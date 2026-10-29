@@ -55,10 +55,32 @@ try {
   // the Duplicates list picks it, and Merge works from the pick too
   await p.click('#tabsbar [data-tab=cards]');
   await p.click('#dupList [data-twins]');
+  // the card says what it probably is; its chip opens Resolve, with both side by side and what differs marked
+  assert.match(await p.textContent('#cards .card[data-open="d35"] .rv-twin'), /Probably NB-35/);
+  await p.click('#cards .card[data-open="d35"] .rv-twin');
+  await p.waitForSelector('.dup-cmp');
+  assert.equal(await p.locator('.dup-cmp tr.dup-diff').count() >= 2, true, 'name and address differ');
+  assert.equal(await p.isChecked('[name=dupWay][value=dock]'), true, 'a DNS-named record is a dock by default');
+  // Not a duplicate: off the list for good, and Check again on its page brings it back
+  await p.check('[name=dupWay][value=notdup]'); await p.click('#dupOk');
+  await p.waitForSelector('#cards .card[data-open="d35"]', { state: 'detached' });
+  await stored(st => st.objs.find(o => o.id === 'd35').notTwin === true);
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('d35'));
+  await p.waitForSelector('#twAgain'); await p.click('#twAgain');
+  await stored(st => st.objs.find(o => o.id === 'd35').notTwin === undefined);
+  await p.click('#tabsbar [data-tab=cards]');
+  await p.waitForSelector('#cards .card[data-open="d35"]');
+  // picked from the Duplicates list: Resolve, as a dock
   await p.click('#cards .card[data-open="d35"] .cardtick');
-  await p.click('#rvMerge');
+  await p.click('#rvResolve'); await p.click('#dupOk');
   await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').nics || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
   await p.click('#fbar [data-fx=twins]');
+
+  // Obsolete: a second record retired and excluded
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'd99', code: 'INV-0099', type: 'other', name: 'pc-7.corp.example', status: 'active', feed: null }); (await import('/js/07-render.js')).render(); });
+  await p.evaluate(async () => (await import('/js/15-review.js')).resolveModal([(await import('/js/01-core.js')).byId('d99')]));
+  await p.check('[name=dupWay][value=obsolete]'); await p.click('#dupOk');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd99'); return d && d.status === 'retired' && d.excluded === true; });
 
   // To review: the other sources that know a device, and the filter by AD or Entra
   await p.click('#tabsbar [data-tab=review]');

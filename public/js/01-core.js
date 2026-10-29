@@ -235,7 +235,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvSrc:'', rvKnown:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -396,6 +396,9 @@ export function defenderState(o){
 /* When a device was last seen, by whichever source saw it last: Lansweeper's scan, its AD logon, Intune's check-in,
    its Entra sign-in or Defender. at: the day with its time where the source gives one (Intune, Entra, Defender), for
    the hover; AD and Lansweeper give the day only. */
+/* A device waiting in To review that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
+   and left out of Accept all unless asked. */
+export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
 export function lastSeenOf(o){
   const g = o.graph && !o.graph.gone ? o.graph : null;
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && (g.lastCheckIn || g.lastSync)],
@@ -455,11 +458,12 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 }
 /* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
    device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
-   adapter. Retired devices count on neither side; the device may also still wait in To review. The names are indexed
+   adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
+   Retired devices count on neither side; the device may also still wait in To review. The names are indexed
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
-export function twinOf(o){
-  if (!o || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
+export function twinOf(o, { marked = false } = {}){
+  if (!o || (o.notTwin && !marked) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
     for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);
@@ -606,7 +610,7 @@ export const leftFilters = () => !!(st.type || st.loc || st.status || st.warrant
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
-  : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph)) : objs;
+  : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph) && (!st.rvOld || reviewStale(o))) : objs;
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };

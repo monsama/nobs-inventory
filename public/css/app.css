@@ -142,7 +142,9 @@ details.fmenu .menubox{min-width:210px;top:30px}
 .nics .nic-addr{margin-left:auto}
 .nics .nic-meta{flex-basis:100%}
 .adgroups{display:flex;flex-wrap:wrap;gap:4px;padding:3px 0;min-width:0}
-.adgroups .chip.adg{cursor:pointer;border:1px solid var(--bd);background:var(--panel2);color:var(--fg);font:inherit;font-size:12px}
+/* AD groups and the services from its SPNs: one chip size, so the two rows line up. */
+.adgroups .chip.adg,.adsvc .chip{height:22px;min-height:0;padding:0 8px;border:1px solid var(--bd);background:var(--panel2);color:var(--fg);font:inherit;font-size:12px;font-weight:500;line-height:20px}
+.adgroups .chip.adg{cursor:pointer}
 .adgroups .chip.adg:hover{border-color:var(--accent)}
 label.fm-hid{color:var(--muted);font-style:italic}
 label.fm-hid::after{content:" · hidden";font-size:11px}
@@ -463,6 +465,19 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .card.stale{background:var(--panel)}.card.stale .nm,.card.stale .model{color:var(--muted)}
 .fb-scope{font-weight:600}
 .rv-chips .rv-also{color:var(--muted)}
+.cf-old{display:flex;margin-top:10px;width:auto}
+/* Resolve a duplicate: the two records side by side, what differs marked, and what it is. */
+.rv-twin[data-resolve]{cursor:pointer}.rv-twin[data-resolve]:hover{text-decoration:underline}
+.dup-cmp{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:13px}
+.dup-cmp th,.dup-cmp td{padding:4px 8px;border-bottom:1px solid var(--bd2);text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.dup-cmp thead th{color:var(--muted);font-weight:600;font-size:12px}
+.dup-cmp tbody th{color:var(--muted);font-weight:500;width:130px}
+.dup-cmp tr.dup-diff td{background:color-mix(in srgb,var(--warn) 10%,transparent)}
+.dup-list{margin:6px 0 12px;padding-left:18px}
+.dup-ways{display:flex;flex-direction:column;gap:6px}
+.dup-way{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r-m);cursor:pointer}
+.dup-way:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.dup-way input{margin-top:3px}.dup-way>span{display:flex;flex-direction:column;gap:2px}.dup-way .muted{font-size:12px}
 .rv-yes{border-color:color-mix(in srgb,var(--ok) 50%,var(--bd))}
 .rv-no{color:var(--muted)}
 .rv-banner{display:flex;align-items:center;gap:8px;margin:12px 12px 0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--bd));border-left:3px solid var(--accent);border-radius:var(--r-m);background:color-mix(in srgb,var(--accent) 8%,var(--bg));font-size:13px}

@@ -304,6 +304,7 @@ function checkStateRules(s, size = true) {
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);
     if (o.defender !== undefined && (!o.defender || typeof o.defender !== 'object' || Array.isArray(o.defender) || Object.values(o.defender).some(v => typeof v !== 'string' || v.length > 60))) bad(`${o.name}: what Defender says is an object of short texts.`);
+    if (o.notTwin !== undefined && o.notTwin !== true) bad(`${o.name}: "not a duplicate" is set or left out.`);
     /* A device found by a sync and waiting in To review: which source found it, when, and when it was ignored. */
     if (o.review !== undefined && (!o.review || typeof o.review !== 'object' || Array.isArray(o.review) || !INTAKE_SOURCES.includes(o.review.src)
       || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored', 'merged'].includes(k) || typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the review mark names its source and when.`);

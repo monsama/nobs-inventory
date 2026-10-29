@@ -505,7 +505,7 @@ export function applyDefender(s, machines, now = new Date()) {
   for (const o of s.objs) {
     if (o.status === 'retired') continue;
     const name = low(o.name), short = name.split('.')[0];
-    const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && !(short !== name && names.has(short)) && (byName.get(name) || byName.get(short)));
+    const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && !(short !== name && names.has(short) && !o.notTwin) && (byName.get(name) || byName.get(short)));
     if (m) { o.defender = defenderOf(m, at); n++; } else delete o.defender;
   }
   return n;

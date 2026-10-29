@@ -48,8 +48,18 @@ try {
   // the same pick in the Table, which can open them too
   await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('#bkOpen');
   assert.match(await p.textContent('#toolbar'), /4 selected/);
+  // Ctrl+A picks every card shown, Escape takes the pick back
+  await p.click('#tabsbar [data-tab=cards]');
+  await p.keyboard.press('Control+a');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.bulk.size === c.filtered().length && c.st.bulk.size > 4; });
+  await p.keyboard.press('Escape');
+  await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === 0);
+  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
+  await p.keyboard.press('Control+a');
+  await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === document.querySelectorAll('table.grid [data-sel]').length);
+  await p.keyboard.press('Escape');
   // a plain click still opens a card
-  await p.click('#tabsbar [data-tab=cards]'); await p.click('#cdClear');
+  await p.click('#tabsbar [data-tab=cards]');
   await cards.nth(1).click();
   await until(p, async () => (await import('/js/01-core.js')).st.tab !== 'cards');
 

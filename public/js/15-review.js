@@ -1,13 +1,13 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, esc, hist, lastSeenOf, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
-import { confirmModal } from './19-modal.js';
+import { REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
+import { unplace } from './03-object-modals.js';
 import { canEdit, me } from './04-settings.js';
 import { render, queueServerSave } from './07-render.js';
 
-/* A device no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, and left out of Accept all. */
-export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
+export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
 
 /* Accept: out of To review into the inventory, as an ordinary device. */
@@ -43,9 +43,9 @@ export function mergeTarget(o){
 /* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. Its address becomes an
    adapter of the device (a dock's, for a DNS-named record); a record of the same name or serial number also fills the
    fields the device has empty. Its relations (monitors attached to it) go to the device. */
-function merge(pairs){
+function merge(pairs, how = ''){
   for (const [o, t] of pairs){
-    const dock = !!twinOf(o) && lc(o.name) !== lc(t.name);
+    const dock = how ? how === 'dock' : !!twinOf(o) && lc(o.name) !== lc(t.name);
     if (o.ip && o.ip !== t.ip){
       const nic = { name: dock ? 'Dock / USB adapter' : 'Second record', ip: o.ip, ...(o.mac ? { mac: o.mac } : {}), merged: o.name };
       t.nics = [...(t.nics || []).filter(n => n.ip !== o.ip && n.merged !== o.name), nic];
@@ -93,6 +93,7 @@ export function reviewDo(kind, list, { asked = false } = {}){
     withUndo([...new Set(pairs.flat())], m, () => merge(pairs));
     return;
   }
+  if (kind === 'dock' || kind === 'same' || kind === 'obsolete' || kind === 'notdup'){ resolve(kind, list); return; }
   /* Accepting a device the inventory already has (by name, serial number or as a dock's record) makes a second one: asked
      first, with Merge as the other way. */
   const known = kind === 'accept' && !asked ? list.filter(o => mergeTarget(o)) : [];
@@ -108,6 +109,63 @@ export function reviewDo(kind, list, { asked = false } = {}){
   if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
   else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
   else withUndo(list, `${what} back in To review`, restore);
+}
+/* Resolving a probable duplicate: the record and the device it most likely is, side by side, and what it is.
+   - dock: a docking station's or USB adapter's record: its address goes to the device as an adapter (Merge)
+   - same: the same device, renamed or set up again: it fills the device's empty fields (Merge)
+   - obsolete: gone: retired and excluded from the syncs (ignored, when it still waits in To review)
+   - notdup: a device of its own: never flagged as a duplicate again (notTwin; Check again on its page undoes it) */
+const RESOLVE = [
+  ['dock', 'Docking station or USB adapter', 'Its address is kept on the device as an adapter; the record is kept as ignored, so no sync brings it back.'],
+  ['same', 'The same device, renamed or set up again', 'It fills the fields the device has empty and is kept as ignored.'],
+  ['obsolete', 'Obsolete, gone', 'Retired and excluded from the syncs, with this in its history.'],
+  ['notdup', 'Not a duplicate', 'A device of its own: it is not flagged again.'],
+];
+/* The device a record stands for: by serial number or name in the inventory, else the device of its DNS name's first
+   part, also while that one still waits in To review. */
+export const dupOf = o => mergeTarget(o) || twinOf(o);
+function resolve(kind, list){
+  const pairs = list.map(o => [o, dupOf(o)]).filter(([, t]) => t);
+  if (!pairs.length) return;
+  const n = pairs.length, what = n === 1 ? pairs[0][0].name : `${n} records`;
+  if (kind === 'dock' || kind === 'same'){ withUndo([...new Set(pairs.flat())], `${what} merged into ${n === 1 ? pairs[0][1].name : 'their devices'}`, () => merge(pairs, kind)); return; }
+  if (kind === 'notdup'){
+    withUndo(pairs.map(([o]) => o), `${what} marked as no duplicate`, () => { for (const [o, t] of pairs){ o.notTwin = true; hist(o, now(), `Marked as not a duplicate of ${t.name} by ${who()}`); } });
+    return;
+  }
+  withUndo(pairs.map(([o]) => o), `${what} ${n === 1 ? 'is' : 'are'} obsolete: ${objs.includes(pairs[0][0]) ? 'retired and excluded' : 'ignored'}`, () => {
+    for (const [o, t] of pairs){
+      if (o.review){ o.review = { ...o.review, ignored: now() }; o.excluded = true; }
+      else { if (o.rack) unplace(o); o.status = 'retired'; o.excluded = true; }
+      hist(o, now(), `Obsolete, a second record of ${t.name}: ${o.review ? 'ignored' : 'retired and excluded from the syncs'} by ${who()}`);
+    }
+  });
+}
+/* Where each source last saw a device, for the comparison. */
+const seenBy = o => {
+  const g = o.graph && !o.graph.gone ? o.graph : null;
+  return [['Lansweeper', o.feed && (o.feed.scanned || o.feed.seen)], ['AD', o.ad && o.ad.logon], ['Entra', g && (g.lastSignIn || g.lastSync)], ['Defender', o.defender && o.defender.lastSeen]]
+    .filter(([, v]) => v).map(([k, v]) => `${k} ${dayText(String(v).slice(0, 10))}`).join(' · ');
+};
+export function resolveModal(list){
+  list = list.filter(o => dupOf(o));
+  if (!list.length || !canEdit()) return;
+  const one = list.length === 1, o = list[0], t = dupOf(o);
+  const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
+  const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
+    ['Operating system', x => x.os], ['Code', x => x.code], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
+  const table = one ? `<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
+    const a = String(f(o) || ''), b = String(f(t) || '');
+    return `<tr${a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
+  }).join('')}</tbody></table>`
+    : `<ul class="dup-list">${list.slice(0, 12).map(x => `<li><b>${esc(x.name)}</b> → ${esc(dupOf(x).name)}</li>`).join('')}${list.length > 12 ? `<li>and ${list.length - 12} more</li>` : ''}</ul>`;
+  const def = dns ? 'dock' : 'same';
+  modal(`<div class="mh">${one ? `Resolve ${esc(o.name)}` : `Resolve ${list.length} duplicates`}</div><div class="mb">
+    <p class="note">${one ? `Most likely a second record of <b>${esc(t.name)}</b>. What is it?` : 'Each is most likely a second record of the device after the arrow. What are they?'}</p>${table}
+    <div class="dup-ways" role="radiogroup" aria-label="What it is">${RESOLVE.map(([k, l, d]) => `<label class="dup-way"><input type="radio" name="dupWay" value="${k}" ${k === def ? 'checked' : ''}><span><b>${l}</b><span class="muted">${d}</span></span></label>`).join('')}</div></div>
+    <div class="mf"><button id="dupCancel">Cancel</button><button id="dupOk" class="primary">Resolve</button></div>`);
+  document.getElementById('dupCancel').onclick = closeModal;
+  document.getElementById('dupOk').onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
