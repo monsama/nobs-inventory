@@ -1,6 +1,6 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
-import { $, COSTS, DOMAINS, FIELD_LABEL, LOCS, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { REVIEW, $, COSTS, DOMAINS, FIELD_LABEL, LOCS, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, canEdit } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
@@ -326,8 +326,19 @@ export function propRow(o, f, menu = ''){
   const comboNoteSlot = k === 'model' || k === 'ip' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
   /* The bars sit under the field and end where it ends: the source mark and the menu keep their columns free. */
   const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}<span class="fsrc-slot" aria-hidden="true"></span>${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
-  const nics = k === 'mac' ? nicsHtml(o) : '';
+  const nics = k === 'mac' ? nicsHtml(o) + mergedHtml(o) : '';
   return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${sourceMark(o, k)}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
+}
+/* The records merged into this device (a dock's DNS-named one, a second record of it): kept as ignored, listed here so
+   the merge is seen, with Open and Unmerge (15-review.js). */
+export function mergedHtml(o){
+  const list = REVIEW.filter(x => x.review && x.review.merged === o.id);
+  if (!list.length) return '';
+  return `<label>Merged records</label><ul class="nics merged" aria-label="Records merged into this device">${list.map(x => `<li>
+    <span class="nic-name">${esc(x.name)}</span>
+    <span class="nic-addr mono">${esc(x.ip || '')}</span>
+    <span class="nic-meta muted">${[x.mac ? `<span class="mono">${esc(x.mac)}</span>` : '', `merged ${esc(dateText(x.review.ignored) || x.review.ignored || '')}`].filter(Boolean).join(' · ')}
+      <button type="button" class="link" data-open="${esc(x.id)}">Open</button>${canEdit() ? `<button type="button" class="link" data-unmerge="${esc(x.id)}" title="Take it out of this device again: it waits in To review">Unmerge</button>` : ''}</span></li>`).join('')}</ul>`;
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
 export function nicsHtml(o){

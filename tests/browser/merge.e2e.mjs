@@ -84,6 +84,15 @@ try {
   await p.click('#rvResolve'); await p.click('#dupOk');
   await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').nics || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
   await p.click('#fbar [data-fx=twins]');
+  // the device lists what was merged into it, and Unmerge takes it out again: back in To review, the adapter gone
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
+  await p.waitForSelector('.nics.merged');
+  assert.match(await p.textContent('.nics.merged'), /nb-35\.corp\.example[\s\S]*10\.1\.2\.104/);
+  await p.click('[data-unmerge="d35"]');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && !d.review.merged && !d.review.ignored && !d.excluded && !st.objs.find(o => o.id === 'n35').nics; });
+  await p.click('#toast .t-undo');
+  await stored(st => st.objs.find(o => o.id === 'd35').review.merged === 'n35' && (st.objs.find(o => o.id === 'n35').nics || []).length === 1);
+  await p.click('#tabsbar [data-tab=cards]');
 
   // Obsolete: a second record retired and excluded
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'd99', code: 'INV-0099', type: 'other', name: 'pc-7.corp.example', status: 'active', feed: null }); (await import('/js/07-render.js')).render(); });

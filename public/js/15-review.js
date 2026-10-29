@@ -117,6 +117,22 @@ export function reviewDo(kind, list, { asked = false } = {}){
   else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
   else withUndo(list, `${what} back in To review`, restore);
 }
+/* Unmerge: a merged record leaves its device again: it waits in To review, and the adapter it brought goes. */
+function unmerge(list){
+  for (const o of list){
+    const t = objs.find(x => x.id === o.review.merged);
+    if (t && t.nics){ t.nics = t.nics.filter(n => n.merged !== o.name); if (!t.nics.length) delete t.nics; }
+    o.review = { src: o.review.src, at: o.review.at }; delete o.excluded;
+    hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To review`);
+    if (t) hist(t, now(), `${o.name} unmerged from this device by ${who()}`);
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-unmerge]'); if (!b) return;
+  const o = REVIEW.find(x => x.id === b.dataset.unmerge); if (!o || !o.review || !o.review.merged) return;
+  const t = objs.find(x => x.id === o.review.merged);
+  withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To review`, () => unmerge([o]));
+});
 /* Resolving a probable duplicate: the record and the device it most likely is, side by side, and what it is.
    - dock: a docking station's or USB adapter's record: its address goes to the device as an adapter (Merge)
    - same: the same device, renamed or set up again: it fills the device's empty fields (Merge)
