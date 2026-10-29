@@ -1,3 +1,4 @@
+import { AD_FILL } from '../public/js/sync-map.js';
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
@@ -108,8 +109,10 @@ export function applyComputers(s, computers, now = new Date()) {
     let changed = false;
     /* The account's description fills the purpose; its location only a location the inventory knows by that name, so a
        free text never makes a new one. What AD says of each is kept beside the field (o.vals), to pick from on the page. */
-    const loc = c && c.location && (s.locs || []).find(l => low(l) === low(c.location));
-    const fields = [['os', c && c.os, 'Operating system'], ['domain', c && c.domain, 'Domain'], ['purpose', c && c.description, 'Description'], ['loc', loc || '', 'Location']];
+    const loc = c && c.location && adLocation(s, c.location);
+    /* The fields AD fills in: one list with Settings → Data sources (public/js/sync-map.js). */
+    const from = { os: c && c.os, domain: c && c.domain, purpose: c && c.description, loc: loc || '' };
+    const fields = Object.entries(AD_FILL).map(([k, label]) => [k, from[k], label]);
     const valsBefore = JSON.stringify(o.vals || null);
     for (const [k, v] of fields) noteValue(o, k, 'ad', v, c && c.logon);
     if (JSON.stringify(o.vals || null) !== valsBefore) changed = true;
@@ -134,6 +137,13 @@ export function applyComputers(s, computers, now = new Date()) {
 const low = v => String(v || '').trim().toLowerCase();
 /* What AD says of a computer account, kept on its device: last logon, creation day, who manages it, its location as
    written there and what it runs (from its service principal names). */
+/* The room an AD location text stands for: a room of that name, or the room it is mapped to (Settings → Locations).
+   A text that names no room here gives none: free text never makes a location. */
+export function adLocation(s, text) {
+  const t = low(text), locs = s.locs || [];
+  const mapped = Object.entries(s.adLocMap || {}).find(([k]) => low(k) === t);
+  return locs.find(l => low(l) === t) || (mapped && locs.includes(mapped[1]) ? mapped[1] : '');
+}
 function adOf(c) {
   const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
     ...(c.location ? { location: c.location } : {}), ...(c.description ? { description: c.description } : {}), ...(c.services && c.services.length ? { services: c.services } : {}) };
