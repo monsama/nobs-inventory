@@ -1437,3 +1437,11 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .dir-how{font-size:12px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
 .dir-all{width:auto}
 @media (max-width:760px){.dir-row{grid-template-columns:auto minmax(0,1fr)}.dir-how{grid-column:2;text-align:left}}
+/* Settings → Data sources: the field sources, editable */
+.ds-matrix th:last-child{width:22%}
+table.grid.ds-edit{min-width:680px}.ds-edit th:first-child{width:24%}.ds-edit td{padding:3px 4px}
+.ds-sel{width:100%;min-width:0;font-size:12px;padding:3px 22px 3px 6px;height:auto;font-weight:inherit;color:inherit;background-color:var(--bg)}
+.ds-dim{opacity:.6}
+.ds-ord{font-size:12px;color:var(--muted)}
+.ds-matrix tr.ds-set th[scope=row]::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
+.ds-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px 12px;font-size:12px}

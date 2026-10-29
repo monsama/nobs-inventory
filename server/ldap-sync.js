@@ -4,7 +4,7 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
-import { fillField, lsOwns, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
+import { fillField, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
@@ -124,8 +124,6 @@ export function applyComputers(s, computers, now = new Date()) {
     if (c && !o.excluded && !o.detached) {
       for (const [k, v, label] of fields) {
         if (s.fillAd === false && pickOf(o, k) !== 'ad') continue;
-        /* A field Lansweeper fills in gets only filled while it is empty. */
-        if (lsOwns(s, o, k) && o[k]) continue;
         if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
       }
       /* "Managed by" names the internal responsible, when a contact here has that name and the device has none yet. */

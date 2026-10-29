@@ -1,25 +1,41 @@
 /* Settings → Data sources: what each source brings into the inventory, who wins when several know a field, and how each
    is set up here right now. Drawn from sync-map.js (the lists the syncs themselves use) and from the current settings,
    so it changes with them and is never out of date. */
-import { $, LS_ON, SYNC, esc, st } from './01-core.js';
-import { AD_FILL, GRAPH_FILL, LS_FIELDS, LS_FILL, NEVER, PEOPLE_SOURCES, PRECEDENCE, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL } from './sync-map.js';
-import { SERVER } from './07-render.js';
+import { $, LS_ON, SYNC, esc, st, toastUndo } from './01-core.js';
+import { LS_FILL, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, PRECEDENCE, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldOrder } from './sync-map.js';
+import { SERVER, queueServerSave } from './07-render.js';
+import { canEdit } from './04-settings.js';
 import { runOf, summary, when } from './16-sync.js';
 
-/* What a source does with one field, as a cell: writes it, fills it while empty, only shows its value beside the field
-   (to pick from on the device), or nothing. */
+/* What a source does with one field, as a cell: its place in the field's order and what that means (the first
+   Lansweeper writes at every scan; the first directory fills the field and replaces the ones after it; the next ones
+   fill it while it is empty), or only shows its value beside the field, or nothing. */
 const CELL = {
-  writes: ['ds-w', 'Writes', 'Sets the field at every sync'],
-  fills: ['ds-f', 'Fills empty', 'Fills the field while it is empty, or where a weaker source filled it'],
+  writes: ['ds-w', 'Writes', 'Sets the field at every scan'],
+  first: ['ds-w', 'First', 'Fills the field, and replaces what a source after it filled'],
+  fills: ['ds-f', 'Fills empty', 'Fills the field while it is empty, or where a source after it filled it'],
   shown: ['ds-s', 'Shown only', 'Its value is shown beside the field, to pick on the device; the field is not written'],
-  off: ['ds-o', 'Off', 'This source is not set up or turned off'],
+  off: ['ds-o', 'Off', 'This source is not set up, or filling is turned off in its Settings tab'],
   none: ['ds-n', '—', 'This source does not know this field'],
 };
+const SHORT = { ls: 'Lansweeper', graph: 'Intune', ad: 'AD' };
 const cell = k => { const [cls, text, tip] = CELL[k]; return `<td class="${cls}" title="${esc(tip)}">${esc(text)}</td>`; };
+/* What source src does with field k at place i of its order (-1: not in it). */
+const roleOf = (src, k, i) => i < 0 ? 'shown' : i > 0 ? 'fills' : src === 'ls' && !LS_FILL[k] ? 'writes' : 'first';
+/* Every order of a list: the few sources of one field (at most three, six orders). */
+const orders = list => list.length <= 1 ? [list] : list.flatMap((x, i) => orders([...list.slice(0, i), ...list.slice(i + 1)]).map(r => [x, ...r]));
+
+/* Sets the sources of field k to list (in order), kept with Lansweeper's "Feed may overwrite" box, with Undo. */
+function setOrder(k, list, what){
+  const before = { fieldOrder: st.fieldOrder, policy: st.policy };
+  st.fieldOrder = { ...(st.fieldOrder || {}), [k]: list };
+  if (SOURCES_OF(k).includes('ls') && !LS_FILL[k]) st.policy = { ...(st.policy || {}), [k]: list.includes('ls') };
+  queueServerSave(); renderSetSources();
+  toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+}
 
 export function renderSetSources(){
   const root = $('#setSources'); if (!root) return;
-  const policy = st.policy || {};
   const on = { ls: LS_ON(), ad: !!(SERVER.ldap || (st.ldap && st.ldap.url)), graph: !!(SERVER.graph || SYNC.graph), defender: false };
   /* Defender is read by the Entra & Intune sync, when turned on there. */
   on.defender = on.graph && !!SYNC.defender;
@@ -40,24 +56,66 @@ export function renderSetSources(){
     card('defender', '', ['Read with the Entra & Intune sync, when turned on there']),
   ].join('');
 
-  /* Every field a sync knows, with what each source does with it under the current settings. */
-  const keys = Object.keys(SYNC_FIELD_LABEL).filter(k => LS_FIELDS.includes(k) || LS_FILL[k] || GRAPH_FILL[k] || AD_FILL[k] || k === 'loc');
-  /* Lansweeper's location is a room by its text (Settings → Locations), written while the policy lets it; purchase data fills empty fields. */
-  const lsCell = k => LS_FILL[k] ? (on.ls ? 'fills' : 'off') : k === 'loc' ? (!on.ls ? 'off' : policy.loc ? 'writes' : 'shown') : !LS_FIELDS.includes(k) ? 'none' : !on.ls ? 'off' : policy[k] ? 'writes' : 'shown';
-  const dirCell = (map, src, fill) => k => !map[k] ? 'none' : !on[src] ? 'off' : fill === false ? 'shown' : 'fills';
-  const graphCell = dirCell(GRAPH_FILL, 'graph', st.fillGraph), adCell = dirCell(AD_FILL, 'ad', st.fillAd);
-  const matrix = `<table class="grid mini ds-matrix"><thead><tr><th>Field</th><th>${esc(SOURCE_LABEL.ls)}</th><th>Intune</th><th>${esc(SOURCE_LABEL.ad)}</th></tr></thead><tbody>
-    ${keys.map(k => `<tr><th scope="row">${esc(SYNC_FIELD_LABEL[k])}</th>${cell(lsCell(k))}${cell(graphCell(k))}${cell(adCell(k))}</tr>`).join('')}</tbody></table>`;
-  const legend = `<div class="ds-legend">${['writes', 'fills', 'shown', 'off'].map(k => `<span class="${CELL[k][0]}"><b>${CELL[k][1]}</b> ${esc(CELL[k][2].toLowerCase())}</span>`).join('')}</div>`;
-
+  /* Every field a sync knows: what each source does with it, and the order of the ones that set it. An admin changes both
+     here; the order is kept per field (st.fieldOrder) and the syncs read it (sync-map.js fieldOrder, maySet). */
+  const edit = canEdit();
+  /* AD and Intune fill nothing when filling is turned off in their tab: then their cells say Off. */
+  const globalOff = src => (src === 'graph' && st.fillGraph === false) || (src === 'ad' && st.fillAd === false);
+  const srcCell = (k, src) => {
+    const known = SOURCES_OF(k);
+    if (!known.includes(src)) return cell('none');
+    if (globalOff(src)) return cell('off');
+    const order = fieldOrder(st, k), i = order.indexOf(src), role = roleOf(src, k, i);
+    const [cls, , tip] = CELL[role];
+    const dim = on[src] ? '' : ' ds-dim';
+    const label = (n, r) => `${n >= 0 ? `${n + 1}. ` : ''}${CELL[r][1]}`;
+    if (!edit) return `<td class="${cls}${dim}" title="${esc(tip)}">${esc(label(i, role))}</td>`;
+    /* In the order (at its place, or added last) or out of it. */
+    const inAt = i >= 0 ? i : order.length;
+    return `<td class="${cls}${dim}"><select class="ds-sel" data-dsk="${k}" data-dss="${src}" aria-label="${esc(`${SYNC_FIELD_LABEL[k]}: ${SOURCE_LABEL[src]}`)}" title="${esc(tip + (on[src] ? '' : ' (this source is not set up)'))}">
+      <option value="on" ${i >= 0 ? 'selected' : ''}>${esc(label(inAt, roleOf(src, k, inAt)))}</option><option value="off" ${i < 0 ? 'selected' : ''}>${esc(CELL.shown[1])}</option></select></td>`;
+  };
+  /* The order of the sources that set the field: a choice of every order when two or three set it. */
+  const orderCell = k => {
+    const order = fieldOrder(st, k).filter(x => !globalOff(x));
+    if (!order.length) return '<td class="ds-n" title="No source sets this field">—</td>';
+    const text = list => list.map(x => SHORT[x]).join(' → ');
+    if (!edit || order.length < 2) return `<td class="ds-ord">${esc(text(order))}</td>`;
+    return `<td class="ds-ord"><select class="ds-sel" data-dso="${k}" aria-label="${esc(`${SYNC_FIELD_LABEL[k]}: order`)}">${orders(order).map(o => `<option value="${o.join(',')}" ${o.join() === order.join() ? 'selected' : ''}>${esc(text(o))}</option>`).join('')}</select></td>`;
+  };
+  const custom = !!(st.fieldOrder && Object.keys(st.fieldOrder).length);
+  const matrix = `<table class="grid mini ds-matrix${edit ? ' ds-edit' : ''}"><thead><tr><th>Field</th><th>${esc(SOURCE_LABEL.ls)}</th><th>Intune</th><th>${esc(SOURCE_LABEL.ad)}</th><th>Order</th></tr></thead><tbody>
+    ${ORDER_FIELDS.map(k => `<tr${st.fieldOrder && st.fieldOrder[k] ? ' class="ds-set"' : ''}><th scope="row">${esc(SYNC_FIELD_LABEL[k])}</th>${srcCell(k, 'ls')}${srcCell(k, 'graph')}${srcCell(k, 'ad')}${orderCell(k)}</tr>`).join('')}</tbody></table>`;
+  const legend = `<div class="ds-legend">${['writes', 'first', 'fills', 'shown', 'off'].map(k => `<span class="${CELL[k][0]}"><b>${CELL[k][1]}</b> ${esc(CELL[k][2].toLowerCase())}</span>`).join('')}</div>`;
+  const fieldNote = edit
+    ? `<p class="note ds-intro">Pick for every field which sources set it and in which order. A source set to Shown only still shows its value beside the field, where it can be picked for one device. Changes apply from each source's next sync.</p>`
+    : `<p class="note ds-intro">Which sources set each field, and in which order. An admin changes this here.</p>`;
+  const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${Object.keys(st.fieldOrder).length} field${Object.keys(st.fieldOrder).length === 1 ? '' : 's'} set here</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
   const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => `<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${esc(SOURCE_LABEL[src])}</b></div>
     <dl class="ds-dl">${list.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>`).join('');
 
   root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">What each source brings into the inventory and how it is set up here now. This page is drawn from the same lists the syncs use, so it always shows what they do.</p><div class="ds-cards">${cards}</div></div>
     <div class="panelbox"><div class="hdr">Who wins</div><ol class="ds-order">${PRECEDENCE.map(p => `<li>${esc(p)}</li>`).join('')}</ol>
       <p class="note ds-intro">Every source's value stays visible beside the field on the device page, where another can be picked for that device.</p></div>
-    <div class="panelbox"><div class="hdr">Device fields</div><div class="ds-scroll">${matrix}</div>${legend}</div>
+    <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote}<div class="ds-scroll">${matrix}</div>${legend}${reset}</div>
     <div class="panelbox"><div class="hdr">Beyond the fields</div><div class="ds-cards ds-wide">${extras}</div></div>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
+
+  if (!edit) return;
+  root.querySelectorAll('[data-dss]').forEach(sel => sel.onchange = () => {
+    const k = sel.dataset.dsk, src = sel.dataset.dss, cur = fieldOrder(st, k).filter(x => x !== src);
+    setOrder(k, sel.value === 'on' ? [...cur, src] : cur, `${SOURCE_LABEL[src]} ${sel.value === 'on' ? 'sets it' : 'only shown'}`);
+  });
+  root.querySelectorAll('[data-dso]').forEach(sel => sel.onchange = () => {
+    const k = sel.dataset.dso, list = sel.value.split(',');
+    /* A source turned off in its tab keeps its place after the others. */
+    const rest = fieldOrder(st, k).filter(x => !list.includes(x));
+    setOrder(k, [...list, ...rest], `order ${list.map(x => SHORT[x]).join(' → ')}`);
+  });
+  const rs = $('#dsReset'); if (rs) rs.onclick = () => {
+    const before = { fieldOrder: st.fieldOrder };
+    st.fieldOrder = null; queueServerSave(); renderSetSources();
+    toastUndo('Field sources back to the defaults', () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+  };
 }

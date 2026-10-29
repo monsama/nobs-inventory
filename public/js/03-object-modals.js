@@ -770,6 +770,13 @@ export function renderObj(o){
 export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>
   <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => `<label class="pchk" title="${esc(FEED_EXTRA_HINT[k])}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`).join('')}</div>`;
 export function bindPolicy(root){
-  root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => { st.policy[c.dataset.pol] = c.checked; render(); });
+  root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => {
+    const k = c.dataset.pol;
+    st.policy[k] = c.checked;
+    /* A field with its sources set in Settings → Data sources: Lansweeper goes first there, or out. */
+    const set = st.fieldOrder && st.fieldOrder[k];
+    if (Array.isArray(set)) st.fieldOrder = { ...st.fieldOrder, [k]: c.checked ? ['ls', ...set.filter(x => x !== 'ls')] : set.filter(x => x !== 'ls') };
+    render();
+  });
 }
 

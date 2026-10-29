@@ -1,23 +1,17 @@
 /* Filling a device's empty fields from the directories: Microsoft Graph (Intune) and Active Directory.
-   Who wins: a value set by hand, then Lansweeper, then Graph, then AD. Where each value came from is noted in o.src
-   (field → 'hand', 'ls', 'graph' or 'ad'), so a stronger source can replace a weaker one and the page can show the
-   source beside the field. A directory replaces only another directory's value; one without a note (from before the
-   notes) it never replaces. */
+   Who wins: a value set by hand (or the source picked on the device), then the sources in the field's order (Settings →
+   Data sources; sync-map.js fieldOrder and maySet, which the page reads too). Where each value came from is noted in o.src
+   (field → 'hand', 'ls', 'graph' or 'ad'), so a source before another can replace its value and the page can show the
+   source beside the field. */
+import { ORDER_FIELDS, maySet } from '../public/js/sync-map.js';
 export const FILL_SOURCES = { graph: 'Intune', ad: 'Active Directory' };
-const RANK = { ad: 1, graph: 2 };
 
-/* Sets o[k] to value from src when the rules allow it. Returns true when the device changed. A first fill and a change
+/* Sets o[k] to value from src when the order allows it. Returns true when the device changed. A first fill and a change
    are written to the history (s.history), as Lansweeper's changes are. */
 export function fillField(s, o, k, value, src, at, label = k) {
   const v = String(value ?? '').trim();
   if (!v || o[k] === v) return false;
-  /* A source a person picked for this field is the only one that writes it, whatever the order of the others. */
-  const pick = pickOf(o, k);
-  if (pick && pick !== src) return false;   /* By hand ('hand') included: set or cleared by hand, never filled */
-  if (!pick) {
-    const had = o.src && o.src[k];
-    if (o[k] && !(RANK[had] && RANK[had] <= RANK[src])) return false;
-  }
+  if (!maySet(s, o, k, src)) return false;
   if (s && s.history && o.id) {
     const msg = o[k] ? `${FILL_SOURCES[src]}: ${label} changed from ${o[k]} to ${v}` : `${FILL_SOURCES[src]}: ${label} filled in: ${v}`;
     (s.history[o.id] ??= []).unshift({ t: at, msg });
@@ -27,12 +21,11 @@ export function fillField(s, o, k, value, src, at, label = k) {
   return true;
 }
 
-/* Whether Lansweeper writes field k of device o: a person picked it for the field, or none was picked and the policy
-   (Settings → Lansweeper) lets it. The lists (software, links) are Lansweeper's unless the policy turns them off. */
-export const lsWrites = (s, o, k) => s.feedOn !== false && (pickOf(o, k) ? pickOf(o, k) === 'ls'
+/* Whether Lansweeper writes field k of device o: for a field the sources set, as its order says (maySet); else a person
+   picked it for the field, or none was picked and the policy (Settings → Lansweeper) lets it. The lists (software,
+   links) are Lansweeper's unless the policy turns them off. */
+export const lsWrites = (s, o, k) => s.feedOn !== false && (ORDER_FIELDS.includes(k) ? maySet(s, o, k, 'ls') : pickOf(o, k) ? pickOf(o, k) === 'ls'
   : ['software', 'links'].includes(k) ? (s.policy || {})[k] !== false : !!(s.policy || {})[k]);
-/* The same, for a device linked to Lansweeper. */
-export const lsOwns = (s, o, k) => !!o.feed && lsWrites(s, o, k);
 
 /* What each source says of a field, kept beside the value so a person can see them side by side and pick one:
    o.vals[k][src] = [value, as of], where "as of" is the source's own time for it (Lansweeper's last scan, Intune's last

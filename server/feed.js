@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
-import { LS_FIELDS, LS_FILL } from '../public/js/sync-map.js';
+import { LS_FIELDS, LS_FILL, fieldOrder } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
 import { KNOWN_TYPES, intakeOf } from './state.js';
 
@@ -323,7 +323,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
-        ...Object.fromEntries(Object.keys(LS_FILL).map(k => [k, k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim()]).filter(([, v]) => v !== null && v !== '')),
+        ...Object.fromEntries(Object.keys(LS_FILL).filter(k => fieldOrder(s, k).includes('ls')).map(k => [k, k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim()]).filter(([, v]) => v !== null && v !== '')),
         ...(ipOnly || twin || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
       };
       /* Every value it came with is Lansweeper's. */
@@ -393,10 +393,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${lsRoom}` });
       found.loc = lsRoom; markSource(found, 'loc', 'ls'); changed = true;
     }
-    /* Purchase data (price, supplier, order number) fills empty fields only: what a person typed always stays. */
+    /* Purchase data (price, supplier, order number) fills empty fields only, while its order has Lansweeper: what a person typed always stays. */
     for (const k of Object.keys(LS_FILL)) {
       const v = k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim();
-      if (v === null || v === '' || (found[k] !== undefined && found[k] !== '') || s.feedOn === false || pickOf(found, k) === 'hand') continue;
+      if (v === null || v === '' || (found[k] !== undefined && found[k] !== '') || !lsWrites(s, found, k)) continue;
       found[k] = v; changed = true;
       (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LS_FILL[k]} filled in: ${v}` });
     }

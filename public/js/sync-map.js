@@ -27,6 +27,51 @@ export const SYNC_FIELD_LABEL = { ip: 'IP address', ip6: 'IPv6 address', patch: 
   mask: 'Subnet mask', gateway: 'Gateway', dns: 'DNS servers', dhcp: 'Address from', purchased: 'Purchased', warranty: 'Warranty ends',
   purpose: 'Description', loc: 'Location', price: 'Price', supplier: 'Supplier', invoice: 'Order / invoice no.' };
 
+/* The sources that know field k: Lansweeper, Intune ('graph') and AD, in their order by default. */
+export const SOURCES_OF = k => [LS_FIELDS.includes(k) || k in LS_FILL || k === 'loc' ? 'ls' : '', k in GRAPH_FILL ? 'graph' : '', k in AD_FILL ? 'ad' : ''].filter(Boolean);
+/* The fields whose sources and their order are set in Settings → Data sources (s.fieldOrder). */
+export const ORDER_FIELDS = Object.keys(SYNC_FIELD_LABEL).filter(k => SOURCES_OF(k).length);
+
+/* The sources that set field k, first one first (s.fieldOrder[k], set in Settings → Data sources). A source left out
+   only shows its value beside the field, to pick on the device. Without a set order: Lansweeper while "Feed may
+   overwrite" lets it (its purchase data always), then Intune, then AD, as before the order could be set. Server and page
+   both read it, from the settings they have (s or st). */
+export function fieldOrder(s, k) {
+  const known = SOURCES_OF(k), set = s && s.fieldOrder && s.fieldOrder[k];
+  if (Array.isArray(set)) return set.filter(x => known.includes(x));
+  return known.filter(x => x !== 'ls' || k in LS_FILL || !!(s && s.policy || {})[k]);
+}
+/* Whether source src may set field k of device o now. The source a person picked for the field on the device is the only
+   one that does ('hand': none). Else a source in the field's order sets it while it is empty, keeps its own value up to
+   date, and replaces the value of a source after it in the order, or of one taken out of the order set for it. A value with no source
+   noted (typed before the notes) only Lansweeper replaces, as the first source; a value set by hand none. */
+export function maySet(s, o, k, src) {
+  const pick = o.pick && o.pick[k];
+  if (pick) return pick === src;
+  const order = fieldOrder(s, k), i = order.indexOf(src);
+  if (i < 0) return false;
+  if (o[k] === undefined || o[k] === null || o[k] === '') return true;
+  /* On a device linked to Lansweeper, a field it comes before src for is left to it once it has a value: its next push decides. */
+  if (src !== 'ls' && o.feed && order.indexOf('ls') >= 0 && order.indexOf('ls') < i) return false;
+  const had = o.src && o.src[k];
+  if (!had) return src === 'ls' && i === 0;
+  if (had === src) return true;
+  if (had === 'hand') return false;
+  /* A source left out of an order set here gives way; without a set order, values stay as they were before orders. */
+  const j = order.indexOf(had);
+  return j < 0 ? !!(s && s.fieldOrder && Array.isArray(s.fieldOrder[k])) : j > i;
+}
+/* What Settings → Data sources may save as s.fieldOrder: per field, the sources that set it, each once. */
+export function fieldOrderProblem(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v !== 'object' || Array.isArray(v)) return 'The field sources are a list per field.';
+  for (const [k, list] of Object.entries(v)) {
+    if (!ORDER_FIELDS.includes(k)) return `${k} is not a field the sources set.`;
+    if (!Array.isArray(list) || list.length > 3 || new Set(list).size !== list.length || list.some(x => !SOURCES_OF(k).includes(x))) return `The sources of ${SYNC_FIELD_LABEL[k]} are ${SOURCES_OF(k).join(', ')}, each once.`;
+  }
+  return '';
+}
+
 /* What else each source keeps on a device or brings in, beyond the fields: [what, how]. */
 export const SOURCE_EXTRAS = {
   ls: [
@@ -72,7 +117,7 @@ export const PEOPLE_SOURCES = [
 ];
 
 /* Who wins when several sources know a field. */
-export const PRECEDENCE = ['A value set by hand, or the source picked for the field on the device', 'Lansweeper (where "Feed may overwrite" allows it)', 'Intune', 'Active Directory'];
+export const PRECEDENCE = ['A value set by hand, or the source picked for the field on the device', 'Then the sources in the order set for the field below: the first one sets it, the next ones fill it while it is empty', 'Without an order set: Lansweeper (where "Feed may overwrite" allows it), then Intune, then Active Directory'];
 
 /* What is never read, and never written. */
 export const NEVER = ['LAPS passwords and BitLocker recovery keys are never read from Active Directory.', 'Nothing is written back: every source is read only.', 'Passwords, tokens and keys stay on the server: never on the page, in backups or in the log.'];
