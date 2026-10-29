@@ -28,7 +28,7 @@ export const NO_USER_TYPES = ['rack', 'patch'];
 export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type] || []).some(f => f[0] === 'ports');
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
 export function accessoriesHtml(o){
-  const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
+  const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}${a.mac ? ` <span class="mono muted" title="MAC address">${esc(a.mac)}</span>` : ''}${a.seenAs ? ` <span class="muted" title="Lansweeper sees it as this record">as ${esc(a.seenAs)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
   return `<div class="entries-box">${list || '<p class="note">No attachments yet.</p>'}
     <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`;
 }

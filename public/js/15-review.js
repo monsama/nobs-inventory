@@ -46,8 +46,13 @@ export function mergeTarget(o){
 function merge(pairs, how = ''){
   for (const [o, t] of pairs){
     const dock = how ? how === 'dock' : !!twinOf(o) && lc(o.name) !== lc(t.name);
-    if (o.ip && o.ip !== t.ip){
-      const nic = { name: dock ? 'Dock / USB adapter' : 'Second record', ip: o.ip, ...(o.mac ? { mac: o.mac } : {}), merged: o.name };
+    /* A dock is an attachment of the device, by what stays the same: its MAC address, and the record Lansweeper sees it as. */
+    if (dock){
+      const accs = t.accessories || [], had = accs.find(a => a.seenAs === o.name);
+      const acc = { name: had ? had.name : 'Docking station', kind: 'Dock', ...(o.serial ? { serial: o.serial } : {}), ...(o.mac ? { mac: o.mac } : {}), seenAs: o.name };
+      t.accessories = had ? accs.map(a => a === had ? acc : a) : [...accs, acc];
+    } else if (o.ip && o.ip !== t.ip){
+      const nic = { name: 'Second record', ip: o.ip, ...(o.mac ? { mac: o.mac } : {}), merged: o.name };
       t.nics = [...(t.nics || []).filter(n => n.ip !== o.ip && n.merged !== o.name), nic];
     }
     if (!dock) for (const k of ['serial', 'model', 'os', 'domain', 'mac', 'user']) if (o[k] && !t[k]){ t[k] = o[k]; if (o.src && o.src[k]) (t.src ??= {})[k] = o.src[k]; }
@@ -61,7 +66,7 @@ function merge(pairs, how = ''){
     const src = (o.review && o.review.src) || (o.feed ? 'lansweeper' : o.inAd ? 'ad' : o.graph ? 'graph' : 'lansweeper');
     o.review = { src, at: (o.review && o.review.at) || now(), ignored: now(), merged: t.id }; o.excluded = true;
     hist(o, now(), `Merged into ${t.name} by ${who()}: kept as ignored, so no sync brings it back`);
-    hist(t, now(), `${o.name} merged into this device by ${who()}${o.ip && o.ip !== t.ip ? ` (its address ${o.ip} kept as an adapter)` : ''}`);
+    hist(t, now(), dock ? `${o.name} merged into this device as a docking station by ${who()}` : `${o.name} merged into this device by ${who()}${o.ip && o.ip !== t.ip ? ` (its address ${o.ip} kept as an adapter)` : ''}`);
   }
 }
 /* Undo puts every device touched back as it was: its fields, and in which list it sits; and the relations a merge moved. */
@@ -95,7 +100,7 @@ export function reviewDo(kind, list, { asked = false } = {}){
     withUndo([...new Set(pairs.flat())], m, () => merge(pairs));
     return;
   }
-  if (kind === 'dock' || kind === 'same' || kind === 'obsolete' || kind === 'notdup'){ resolve(kind, list); return; }
+  if (['dock', 'desk', 'same', 'obsolete', 'notdup'].includes(kind)){ resolve(kind, list); return; }
   /* Accepting a device the inventory already has (by name, serial number or as a dock's record) makes a second one: asked
      first, with Merge as the other way. */
   const known = kind === 'accept' && !asked ? list.filter(o => mergeTarget(o)) : [];
@@ -122,6 +127,7 @@ function unmerge(list){
   for (const o of list){
     const t = objs.find(x => x.id === o.review.merged);
     if (t && t.nics){ t.nics = t.nics.filter(n => n.merged !== o.name); if (!t.nics.length) delete t.nics; }
+    if (t && t.accessories){ t.accessories = t.accessories.filter(a => a.seenAs !== o.name); if (!t.accessories.length) delete t.accessories; }
     o.review = { src: o.review.src, at: o.review.at }; delete o.excluded;
     hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To review`);
     if (t) hist(t, now(), `${o.name} unmerged from this device by ${who()}`);
@@ -139,7 +145,8 @@ document.addEventListener('click', e => {
    - obsolete: gone: retired and excluded from the syncs (ignored, when it still waits in To review)
    - notdup: a device of its own: never flagged as a duplicate again (notTwin; Check again on its page undoes it) */
 const RESOLVE = [
-  ['dock', 'Docking station or USB adapter', 'Its address is kept on the device as an adapter; the record is kept as ignored, so no sync brings it back.'],
+  ['dock', 'Docking station or USB adapter of this device', 'Added to the attachments of the device with its MAC address; the record is kept as ignored, so no sync brings it back.'],
+  ['desk', 'Docking station at a desk, shared', 'Kept as a device of its own (Other, described as a docking station), so it can have a location; not flagged again.'],
   ['same', 'The same device, renamed or set up again', 'It fills the fields the device has empty and is kept as ignored.'],
   ['obsolete', 'Obsolete, gone', 'Retired and excluded from the syncs, with this in its history.'],
   ['notdup', 'Not a duplicate', 'A device of its own: it is not flagged again.'],
@@ -152,6 +159,18 @@ function resolve(kind, list){
   if (!pairs.length) return;
   const n = pairs.length, what = n === 1 ? pairs[0][0].name : `${n} records`;
   if (kind === 'dock' || kind === 'same'){ withUndo([...new Set(pairs.flat())], `${what} merged into ${n === 1 ? pairs[0][1].name : 'their devices'}`, () => merge(pairs, kind)); return; }
+  /* A shared dock at a desk: a device of its own, in the inventory, described as a docking station. */
+  if (kind === 'desk'){
+    const os = pairs.map(([o]) => o);
+    withUndo(os, `${what} kept as ${n === 1 ? 'a docking station' : 'docking stations'}`, () => {
+      for (const [o, t] of pairs){
+        o.notTwin = true; o.type = 'other'; if (!o.purpose) o.purpose = 'Docking station';
+        if (o.review && !o.review.ignored) accept([o]);
+        hist(o, now(), `Kept as a shared docking station, not a second record of ${t.name}, by ${who()}`);
+      }
+    });
+    return;
+  }
   if (kind === 'notdup'){
     withUndo(pairs.map(([o]) => o), `${what} marked as no duplicate`, () => { for (const [o, t] of pairs){ o.notTwin = true; hist(o, now(), `Marked as not a duplicate of ${t.name} by ${who()}`); } });
     return;
@@ -191,7 +210,7 @@ export function resolveModal(list){
     <div class="mf"><button id="dupCancel">Cancel</button><button id="dupOk" class="primary">Resolve</button></div>`);
   document.getElementById('dupCancel').onclick = closeModal;
   /* The button says what the choice does. */
-  const okText = k => ({ dock: 'Merge as adapter', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
+  const okText = k => ({ dock: 'Add as attachment', desk: 'Keep as dock', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
   const ok = document.getElementById('dupOk');
   const label = () => { ok.textContent = okText(document.querySelector('[name=dupWay]:checked').value); };
   document.querySelectorAll('[name=dupWay]').forEach(r => r.onchange = label); label();
