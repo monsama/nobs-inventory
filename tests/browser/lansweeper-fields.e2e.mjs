@@ -164,6 +164,9 @@ try {
 
   // AD groups from the directory: chips on the device; one opens the table filtered to that group, cleared from the sidebar
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').adGroups = ['GPO-Kiosk', 'SW-Office365']; c.byId('o2').adGroups = ['SW-Office365']; (await import('/js/02-views.js')).openObj('o1'); });
+  // they are on the Active Directory tab of the Sources panel
+  await page.waitForSelector('#view .obj');
+  if (await page.locator('[data-srctab=ad]').count()) await page.click('[data-srctab=ad]');
   await page.waitForSelector('[data-adg]');
   assert.deepEqual(await page.$$eval('[data-adg]', b => b.map(x => x.textContent)), ['GPO-Kiosk', 'SW-Office365']);
   await page.click('[data-adg="GPO-Kiosk"]');

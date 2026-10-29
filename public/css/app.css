@@ -1345,3 +1345,9 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 /* "Seen … · source": as wide as what it says, the date and who saw it. */
 .chip.lsst.seen{width:auto}
 .card .cf .chip.lsst.seen{max-width:78%}
+/* The Sources panel on the device page: one tab per source in its header, the source's own note on the right. */
+.srctabs{gap:4px}
+.srctab-list{display:inline-flex;gap:2px}
+.srctab{height:26px;padding:0 10px;border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--muted);font-weight:600}
+.srctab:hover{color:var(--fg);background:var(--hover)}
+.srctab.sel{color:var(--fg);background:var(--bg);border-color:var(--bd)}

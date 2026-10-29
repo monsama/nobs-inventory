@@ -567,6 +567,34 @@ function autopilotText(a){
   return [a.groupTag ? `Group tag ${esc(a.groupTag)}` : 'No group tag', a.order ? `order ${esc(a.order)}` : '', a.state ? esc(AP_STATE[a.state] || a.state) : '',
     a.lastContact ? `last contact ${esc(graphTime(a.lastContact).slice(0, 10))}` : ''].filter(Boolean).join(' <span class="muted">·</span> ');
 }
+/* What Active Directory says of the device's computer account: its last logon and creation, who manages it, where it is,
+   what it runs, and its groups (each opens the devices in that group). */
+function adPanel(o){
+  const groups = o.adGroups || [];
+  if (!o.ad && !groups.length) return '';
+  const more = o.ad ? adMoreHtml(o.ad) : '';
+  return `<div class="panelbox"><div class="hdr">Active Directory</div><dl class="lsbox">
+    ${o.ad ? `<dt>Account</dt><dd style="font-family:inherit"><span class="ad-acct">${adAccountHtml(o.ad)}${more ? `<span class="admore">${more}</span>` : ''}</span></dd>` : ''}
+    ${groups.length ? `<dt>Groups</dt><dd style="font-family:inherit"><div class="adgroups">${groups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div></dd>` : ''}
+  </dl></div>`;
+}
+/* Lansweeper, Entra & Intune and Active Directory in one panel, a tab each, instead of a box each down the page. The tab
+   picked stays while the page is open (st.srcTab); a device with one source shows it as before. Each source's panel is
+   drawn as it always was and taken apart here: its title becomes the tab, its note in the header goes to the right. */
+function sourcesPanel(o){
+  const parts = [['ls', feedPanel(o)], ['graph', graphPanel(o)], ['ad', adPanel(o)]].filter(([, h]) => h);
+  if (parts.length < 2) return parts.map(([, h]) => h).join('');
+  const t = document.createElement('template');
+  const tabs = parts.map(([k, h]) => {
+    t.innerHTML = h;
+    const box = t.content.firstElementChild, hdr = box.querySelector(':scope > .hdr'), cnt = hdr.querySelector('.cnt');
+    const title = [...hdr.childNodes].filter(n => n !== cnt).map(n => n.textContent).join('').trim();
+    return { k, title, meta: cnt ? cnt.outerHTML : '', body: [...box.children].filter(x => x !== hdr).map(x => x.outerHTML).join('') };
+  });
+  const cur = tabs.find(x => x.k === st.srcTab) || tabs[0];
+  /* Every source is drawn, the others hidden: a tab shows its own at once, and their buttons are bound like any other. */
+  return `<div class="panelbox srcpanel"><div class="hdr srctabs" data-key="Sources"><span class="srctab-list" role="tablist" aria-label="Sources">${tabs.map(x => `<button type="button" role="tab" id="srctab-${x.k}" class="srctab${x === cur ? ' sel' : ''}" aria-selected="${x === cur}" aria-controls="srcbody-${x.k}" data-srctab="${x.k}">${esc(x.title)}</button>`).join('')}</span><span class="grow"></span>${tabs.map(x => `<span class="srcmeta" data-srcmeta="${x.k}" ${x === cur ? '' : 'hidden'}>${x.meta}</span>`).join('')}</div>${tabs.map(x => `<div role="tabpanel" id="srcbody-${x.k}" aria-labelledby="srctab-${x.k}" ${x === cur ? '' : 'hidden'}>${x.body}</div>`).join('')}</div>`;
+}
 /* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
 export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
@@ -861,13 +889,10 @@ export function renderObj(o){
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${o.ad ? `<label>AD account</label><div class="ctlrow entries"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<span class="admore">${adMoreHtml(o.ad)}</span>` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
-      ${feedPanel(o)}
-      ${graphPanel(o)}
+      ${sourcesPanel(o)}
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
@@ -901,10 +926,17 @@ export function renderObj(o){
     if (e.target.dataset.k === 'user' && e.target.value === '__new'){ e.target.value = o.hotdesk ? '__hotdesk' : (o.uid || ''); newPersonModal(o); return; }
     dirty(); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type');
   });
+  /* A source tab shows its part of the Sources panel; the choice stays for the next device page. */
+  objView.querySelectorAll('[data-srctab]').forEach(b => b.onclick = () => {
+    const k = st.srcTab = b.dataset.srctab, box = b.closest('.srcpanel');
+    box.querySelectorAll('[data-srctab]').forEach(x => { const on = x.dataset.srctab === k; x.classList.toggle('sel', on); x.setAttribute('aria-selected', String(on)); });
+    box.querySelectorAll('[role=tabpanel]').forEach(x => { x.hidden = x.id !== 'srcbody-' + k; });
+    box.querySelectorAll('[data-srcmeta]').forEach(x => { x.hidden = x.dataset.srcmeta !== k; });
+  });
   /* A panel stays open or closed as the person left it. The choice is kept in this browser, by the panel's title. */
   $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
-    const key = (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
+    const key = h.dataset.key || (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
     const closed = !!collapsedPanels()[key];
     h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
     const toggle = () => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(key, c); };

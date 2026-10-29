@@ -43,22 +43,24 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  // the Sources panel opens on Entra & Intune, the part this test reads
+  await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   /* Graph counts as set up for the page, as it would after a sync with a certificate. */
   await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
 
   // the panel on a device
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
-  await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
-  const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
+  await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
+  const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
-  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
+  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:has-text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=over 30 days ago');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
+  assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
   await p.waitForSelector('text=Not found in Microsoft Entra or Intune');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /joined to AD only/);
+  assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
@@ -74,7 +76,7 @@ try {
   // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
   assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['2', '1', '1'], 'a device gone from Entra is not Entra joined');
   // duplicates in Entra, a device gone from it, and a record that fits two devices here, on the device
-  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'); };
+  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'); };
   assert.match(await graphText('d'), /2 records in Entra.*Entra registered.*last heard of.*Delete old records/s);
   assert.match(await graphText('e'), /Gone.*Not in Entra or Intune any more since the sync of 26\.10\.2026/s);
   assert.match(await graphText('k1'), /Not matched.*named Kiosk.*INV-k2 kiosk.*distinct names/s);

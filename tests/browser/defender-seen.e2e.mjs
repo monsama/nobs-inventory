@@ -34,6 +34,8 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  // the Sources panel opens on Entra & Intune, the part this test reads
+  await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
   await p.waitForSelector('.card[data-open=a] .jbar4');
@@ -59,13 +61,13 @@ try {
   // the device: Defender's row, the IDs, a disabled record apart from duplicates; searchable by its device ID
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await p.waitForSelector('text=Object ID');
-  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'defender-panel.png') });
-  const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
+  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:has-text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'defender-panel.png') });
+  const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['Active', 'risk low', 'exposure medium', 'antivirus updated', '11111111-2222-3333-4444-555555555555', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'iiiiiiii-0000', '1 disabled record in Entra']) assert.ok(panel.includes(t), 'panel: ' + t);
   assert.ok(!/records in Entra/.test(panel), 'no duplicate warning for a disabled record');
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=Defender for Endpoint only');
-  assert.ok(!(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))')).includes('Compliance'), 'no Intune compliance for a device Intune does not manage');
+  assert.ok(!(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))')).includes('Compliance'), 'no Intune compliance for a device Intune does not manage');
   const found = await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.q = 'aaaaaaaa-bbbb'; return c.filtered().map(o => o.id); });
   assert.deepEqual(found, ['a']);
 

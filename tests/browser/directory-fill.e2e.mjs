@@ -39,13 +39,17 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  // the Sources panel opens on Entra & Intune, the part this test reads
+  await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
 
   // the server: where its fields came from, and its AD account
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('s1'));
-  await p.waitForSelector('text=AD account');
-  const form = await p.textContent('#view .form');
+  // the AD account has its own tab in the Sources panel (or its own panel when AD is the only source)
+  await p.waitForSelector('#view .panelbox:has(.hdr:has-text("Active Directory"))');
+  if (await p.locator('[data-srctab=ad]').count()) { await p.click('[data-srctab=ad]'); assert.equal(await p.isVisible('#srcbody-ad'), true); }
+  const form = await p.textContent('#view .panelbox:has(.hdr:has-text("Active Directory"))');
   const mark = k => p.evaluate(k => { const m = document.querySelector(`#f_s1_${k}`).closest('.ctlrow').querySelector('.fsrc'); return m ? [m.dataset.src, m.title] : null; }, k);
   const [osSrc, osTip] = await mark('os');
   assert.equal(osSrc, 'ad'); assert.match(osTip, /From the computer account in Active Directory.*Typing a value here keeps yours/);
@@ -98,8 +102,8 @@ try {
 
   // the phone: what Intune says of it
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));
-  await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
-  const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
+  await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
+  const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['CategorySales phones', 'SupervisedYes', 'AutopilotGroup tag Sales · order PO-7 · enrolled', 'Phone number+41 79 123 45 67', 'IMEI351234567890123', 'Owned byCompany', 'Free storage32 GB']) assert.ok(panel.replace(/\s+/g, '').includes(t.replace(/\s+/g, '')), 'panel: ' + t);
   assert.match(await p.getAttribute('#f_m1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]', 'title'), /From Microsoft Entra & Intune.*Typing a value here keeps yours/);
 
