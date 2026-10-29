@@ -71,6 +71,14 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
+/* Why a numbered port cannot be used on a device with ports: it has none set up yet, or the number is not one of them.
+   '' when it can. Nothing is plugged into a port before the port exists. */
+export const portRangeError = (t, p) => {
+  if (!hasPorts(t) || typeof p !== 'number') return '';
+  const n = (t.ports || 0) + (t.sfp || 0);
+  if (!n) return `${t.name} has no ports yet. Set its port count first (Ports, or its details).`;
+  return Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
+};
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */

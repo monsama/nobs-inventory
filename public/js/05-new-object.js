@@ -1,4 +1,4 @@
-import { lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
 import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
@@ -83,7 +83,7 @@ export function newObjModal(pre={}){
       const t = byId(upId), pp = $('#nPort').value.trim();
       const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
       /* As in Link…: a numbered port must be one the device has, or it would be counted but never shown. */
-      if (typeof val === 'number' && t.ports > 0 && (val < 1 || val > (t.ports || 0) + (t.sfp || 0))){ portNote('nPort', `${t.name} has ports 1 to ${(t.ports || 0) + (t.sfp || 0)}.`); return; }
+      if (portRangeError(t, val)){ portNote('nPort', portRangeError(t, val)); return; }
       releaseRetiredPort(t, val);
       if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('nPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
       if (lagOfPort(t, val)){ portNote('nPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
@@ -165,7 +165,7 @@ export function linkObjModal(pre = {}){
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
     if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
     const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
-    if (typeof val === 'number' && t.ports > 0 && (val < 1 || val > (t.ports || 0) + (t.sfp || 0))){ portNote('lkPort', `${t.name} has ports 1 to ${(t.ports || 0) + (t.sfp || 0)}.`); return; }
+    if (portRangeError(t, val)){ portNote('lkPort', portRangeError(t, val)); return; }
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
     if (val != null && lagOfPort(t, val)){ portNote('lkPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
