@@ -453,18 +453,24 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
 }
-/* The source as a small monochrome mark beside the field; an empty slot of the same width when the field is empty. */
+/* Whether field k of o is fixed to one source: the source picked for it, or 'hand' for a value kept as typed here. */
+export const fieldFixed = (o, k) => (o.pick && o.pick[k]) || (o.ovr && o.ovr[k] === false ? 'hand' : '');
+const LOCK = '<svg class="fsrc-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
+/* The source as a small monochrome mark beside the field, the one place that says where the value comes from and whether
+   it follows its sources: a lock when it is fixed to one, a dot when the sources differ. Click it to compare and pick.
+   An empty field has an empty slot of the same width, unless it is fixed (emptied by hand): then the lock shows. */
 export function sourceMark(o, k){
-  const src = sourceOf(o, k);
-  if (!src) return '<span class="fsrc-slot" aria-hidden="true"></span>';
-  const t = sourceText(o, k, src), others = sourcesDisagree(o, k), picked = o.pick && o.pick[k];
-  const tip = t + (others ? ' · The sources differ: click to compare and pick one' : (o.vals && o.vals[k]) ? ' · Click to see each source' : '');
-  return `<span class="fsrc${others ? ' fsrc-multi' : ''}${picked ? ' fsrc-picked' : ''}" data-src="${src}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[src]}</svg></span>`;
+  const src = sourceOf(o, k), fixed = FIELD_LABEL[k] ? fieldFixed(o, k) : '';
+  if (!src && !fixed) return '<span class="fsrc-slot" aria-hidden="true"></span>';
+  const shown = src || 'hand', others = sourcesDisagree(o, k);
+  const t = src ? sourceText(o, k, src) : 'Emptied here: no source fills it in';
+  const tip = t + (fixed ? ' · Fixed: the syncs leave it as it is' : '') + (others ? ' · The sources differ: click to compare and pick one' : ' · Click to see each source');
+  return `<span class="fsrc${others ? ' fsrc-multi' : ''}${fixed ? ' fsrc-picked' : ''}${src ? '' : ' fsrc-empty'}" data-src="${shown}" data-fk="${esc(k)}" data-oid="${esc(o.id)}" role="button" tabindex="0" aria-label="${esc(tip)}" title="${esc(tip)}"><svg viewBox="0 0 24 24" aria-hidden="true">${SRC_ICON[shown]}</svg>${fixed ? LOCK : ''}</span>`;
 }
 /* Whether the sources give field k of o different values (or a value other than the one in use): worth a look. */
-/* Once a source is picked for the field, the person has decided: no dot. A value kept from by hand does not count. */
+/* Once the field is fixed to a source (or kept as typed), the person has decided: no dot. A value kept from by hand does not count. */
 export function sourcesDisagree(o, k){
-  const f = o.vals && o.vals[k]; if (!f || (o.pick && o.pick[k])) return false;
+  const f = o.vals && o.vals[k]; if (!f || fieldFixed(o, k)) return false;
   const vals = new Set(Object.entries(f).filter(([src]) => src !== 'hand').map(([, [v]]) => String(v)));
   if (!vals.size) return false;
   return vals.size > 1 || (o[k] != null && o[k] !== '' && !vals.has(String(o[k])));

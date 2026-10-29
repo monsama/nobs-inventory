@@ -158,13 +158,15 @@ async function loadLdapPassword(replace = false){
   const box = $('#ldapPw'); if (!box) return;
   const r = await fetch('api/ldap/password', {credentials: 'same-origin'}).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => ({})) : {};
-  if (!$('#ldapPw')) return;
+  /* The pane can be drawn again while the answer is on its way: this box is then no longer on the page. */
+  if (!box.isConnected) return;
+  const q = sel => box.querySelector(sel);
   const day = dateText;
   if (j.source === 'server'){ box.innerHTML = '<span class="muted">Set on the server (NI_LDAP_SERVICE_PASSWORD), which takes precedence</span>'; return; }
   if (j.source === 'app' && !replace){
     box.innerHTML = `<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${esc(day(j.setAt))}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
-    $('#lpReplace').onclick = () => loadLdapPassword(true);
-    $('#lpRemove').onclick = async () => {
+    q('#lpReplace').onclick = () => loadLdapPassword(true);
+    q('#lpRemove').onclick = async () => {
       if (!confirm('Remove the saved password? The directory cannot be read until a new one is saved.')) return;
       await fetch('api/ldap/password', {method: 'DELETE', credentials: 'same-origin'});
       toast('Password removed'); loadLdapPassword();
@@ -173,14 +175,14 @@ async function loadLdapPassword(replace = false){
   }
   box.innerHTML = `<input id="lk_pw" type="password" autocomplete="new-password" placeholder="The service account’s password" aria-label="Service account password"><button type="button" id="lpSave" style="flex:none">Save password</button>${replace ? '<button type="button" id="lpCancel" style="flex:none">Cancel</button>' : ''}`;
   const save = async () => {
-    const pw = $('#lk_pw').value;
-    if (!pw){ $('#lk_pw').focus(); return; }
+    const pw = q('#lk_pw').value;
+    if (!pw){ q('#lk_pw').focus(); return; }
     const x = await fetch('api/ldap/password', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})});
     const e = await x.json().catch(() => ({}));
     if (!x.ok){ toast(e.error || 'Not saved.'); return; }
     toast('Password saved. Test connection checks it.'); loadLdapPassword();
   };
-  $('#lpSave').onclick = save;
-  $('#lk_pw').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); save(); } };
-  if ($('#lpCancel')) $('#lpCancel').onclick = () => loadLdapPassword();
+  q('#lpSave').onclick = save;
+  q('#lk_pw').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); save(); } };
+  if (q('#lpCancel')) q('#lpCancel').onclick = () => loadLdapPassword();
 }
