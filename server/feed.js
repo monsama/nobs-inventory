@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
+import { LS_FIELDS } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
 import { KNOWN_TYPES, intakeOf } from './state.js';
 
@@ -13,7 +14,8 @@ export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
 import { typeByRules } from '../public/js/type-rules.js';
 
-const FEED_FIELDS = ['ip', 'ip6', 'patch', 'mac', 'os', 'model', 'cpu', 'ram', 'fw', 'boot', 'disk', 'av', 'domain', 'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty'];
+/* The fields Lansweeper writes: one list with Settings → Data sources (public/js/sync-map.js). */
+const FEED_FIELDS = LS_FIELDS;
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
 import { stamp } from '../public/js/dates.js';

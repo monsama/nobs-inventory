@@ -1,5 +1,6 @@
 /* Microsoft Graph as a second source: the join status, Intune enrolment and compliance of each device, and the values
    the inventory does not have yet. It signs in with a certificate, so no password is kept, and it only reads. */
+import { GRAPH_FILL } from '../public/js/sync-map.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
@@ -276,7 +277,8 @@ const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, ...(r.entraI
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
   ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised'].map(k => [k, r[k]]).filter(([, v]) => v)) });
 /* The fields Graph can give a device, with their names for the history. */
-const FILL = { os: 'Operating system', model: 'Model', mac: 'MAC address', ram: 'Memory', disk: 'Disks' };
+/* The fields Intune fills in: one list with Settings → Data sources (public/js/sync-map.js). */
+const FILL = GRAPH_FILL;
 /* When a record was last heard of: its last Intune check-in or Entra sign-in. */
 const activity = r => Math.max(Date.parse(r.lastCheckIn) || 0, Date.parse(r.lastSignIn) || 0, Date.parse(r.lastSync) || 0);
 const JOIN_RANK = { 'Entra joined': 2, 'Hybrid joined': 2, 'Entra registered': 1 };

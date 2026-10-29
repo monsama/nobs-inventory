@@ -5,7 +5,7 @@ import { $, esc, st, toast } from './01-core.js';
 import { canEdit } from './04-settings.js';
 import { SERVER, reloadFromServer, render, flushSave } from './07-render.js';
 
-const SOURCES = {
+export const SOURCES = {
   lansweeper: { label: 'Lansweeper', url: 'api/feed/sync', settings: 'feed' },
   ldap: { label: 'Active Directory', url: 'api/ldap/sync', settings: 'directory' },
   graph: { label: 'Entra & Intune', url: 'api/graph/sync', settings: 'entra' },
@@ -13,16 +13,16 @@ const SOURCES = {
 let running = '';   /* the source being synced now, or 'all' */
 
 /* Which sources are set up here, and whether each can be run from the page. */
-function sources(){
+export function sources(){
   const out = [];
   if (st.useLansweeper !== false) out.push(['lansweeper', st.lsSource === 'api' && !!SERVER.lansweeper]);
   if (SERVER.ldap || (st.ldap && st.ldap.url)) out.push(['ldap', true]);
   if (SERVER.graph) out.push(['graph', true]);
   return out;
 }
-const runOf = src => (st.syncRuns || {})[src] || null;
+export const runOf = src => (st.syncRuns || {})[src] || null;
 /* "today 06:00", "yesterday 14:12", "12.10.2026 06:00" */
-function when(iso){
+export function when(iso){
   const d = new Date(iso); if (isNaN(d)) return '';
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()), t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
@@ -30,7 +30,7 @@ function when(iso){
   return diff === 0 ? `today ${hm}` : diff === 1 ? `yesterday ${hm}` : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${hm}`;
 }
 /* What a run brought, in a few words: "4 updated · 3 new in To review". */
-function summary(src, c){
+export function summary(src, c){
   if (!c) return '';
   const parts = [];
   const updated = src === 'ldap' ? (c.updated || 0) + (c.created || 0) : src === 'graph' ? c.filled || 0 : (c.updated || 0);

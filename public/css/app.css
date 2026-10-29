@@ -1394,3 +1394,26 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
   .wctl .wc-min,.wctl .wc-max{display:none}
   .face{box-shadow:inset -14px 0 12px -12px color-mix(in srgb,var(--fg) 35%,transparent)}
 }
+
+/* Settings → Data sources: a card per source, the field matrix, and what each brings beyond the fields. */
+.ds-intro{padding:10px 12px 0;margin:0}
+.ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
+.ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
+.ds-card.off{opacity:.65}
+.ds-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.ds-head b{flex:1}
+.ds-run{font-size:12px;margin-bottom:4px}.ds-run.err{color:var(--danger)}
+.ds-card ul{margin:4px 0 0;padding-left:16px;font-size:12px}
+.ds-dl{display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:4px 12px;margin:4px 0 0;font-size:12px}
+/* In a card, each item under its name: the cards stay readable side by side. */
+.ds-card .ds-dl{grid-template-columns:1fr;gap:0}.ds-card .ds-dl dd{margin-bottom:6px}
+.ds-wide{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.ds-dl dt{font-weight:600}.ds-dl dd{margin:0;color:var(--muted)}
+.ds-pad{padding:10px 12px 12px}
+.ds-order{margin:10px 12px 0;padding-left:22px;font-size:13px}.ds-order li{margin:2px 0}
+.ds-never{margin:10px 12px 12px;padding-left:18px;font-size:13px}
+.ds-scroll{overflow-x:auto;padding:8px 12px 0}
+.ds-matrix{width:100%;table-layout:fixed}.ds-matrix th:first-child{width:34%}.ds-matrix th[scope=row]{font-weight:500;text-align:left;white-space:nowrap}
+.ds-matrix td{text-align:center;font-size:12px;white-space:nowrap}
+.ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-o{color:var(--muted);opacity:.6}.ds-n{color:var(--muted);opacity:.4}
+.ds-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 12px 12px;font-size:12px}.ds-legend span{color:var(--muted)}.ds-legend b{margin-right:4px}
+.ds-legend .ds-w b{color:var(--ok)}.ds-legend .ds-f b{color:var(--accent)}
