@@ -8,7 +8,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { twinOf, keepByHand, defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { pickHand, feedOwns, twinOf, keepByHand, defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -496,9 +496,9 @@ export function feedPanel(o){
     return `<div class="panelbox">${head}${dl()}<div class="addrel"><span class="note" style="flex:1">${note}</span>${o.detached ? '<button id="attachFeed" class="primary">Attach</button>' : ''}</div></div>`;
   }
   const note = o.excluded ? 'Excluded from the sync, so Lansweeper does not change this object. Include it again from the More menu.'
-    : 'Ticked fields come from Lansweeper and are read-only. Untick one to edit it. Name and serial number are never overwritten.';
+    : 'Where a value comes from shows beside each field; click the mark to compare the sources or fix one. Name and serial number are never overwritten.';
   /* Software and Links sit in the same list as the rest, so their boxes line up with the values above. */
-  const takenBox = (k, text) => `<label class="pchk lsbox-check"><input type="checkbox" data-ovr="${k}" ${o.ovr && o.ovr[k] === false ? '' : 'checked'}> ${text}</label>`;
+  const takenBox = (k, text) => `<label class="pchk lsbox-check"><input type="checkbox" data-lslist="${k}" ${feedOwns(o, k) ? 'checked' : ''}> ${text}</label>`;
   return `<div class="panelbox">${head}${dl(o.excluded || o.detached ? '' : `<dt>Software</dt><dd class="plain">${takenBox('software', 'From Lansweeper')}</dd><dt>Links</dt><dd class="plain">${takenBox('links', 'From Lansweeper (monitors)')}</dd>`)}
     <div class="addrel"><span class="note" style="flex:1">${note}</span>${s.k === 'excluded' ? '' : '<button id="detachFeed">Detach</button>'}</div></div>`;
 }
@@ -572,7 +572,8 @@ export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
   const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
   const logon = ad.logon ? `Last logon ${esc(dayText(ad.logon))}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
-  return `${logon}${ad.created ? ` <span class="muted">· created ${esc(dayText(ad.created))}</span>` : ''}`;
+  /* One line, the stale mark beside the day as on Entra's Last sign-in: a bare chip in the column would stretch to its width. */
+  return `<span class="ad-line">${logon}${ad.created ? ` <span class="muted">· created ${esc(dayText(ad.created))}</span>` : ''}</span>`;
 }
 /* Who manages the account, where AD says it is and what it runs (from its service principal names). */
 function adMoreHtml(ad){
@@ -708,7 +709,7 @@ function newPersonModal(o){
     if (dept && !u.dept) u.dept = dept;
     const was = o.user;
     delete o.hotdesk; o.uid = u.id;
-    if (feedLinked(o) || (o.graph && o.graph.added)) o.ovr.user = false;
+    if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'user');
     hist(o, now(), `Given to ${name}${was ? ' (was ' + was + ')' : ''} by ${who()}`);
     closeModal(); queueServerSave(); toast(`${o.name} is now with ${name}`); render();
   };
@@ -724,7 +725,7 @@ function retireTies(o){
   const cts = contractsOf(o);
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
   return [
-    (o.uid || o.hotdesk) && ['user', `Take it from ${esc(o.user)}`, () => { o.uid = null; o.hotdesk = false; if (o.ovr) o.ovr.user = false; }],
+    (o.uid || o.hotdesk) && ['user', `Take it from ${esc(o.user)}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
     plugs.length && ['plug', `Unplug it from ${plugs.map(r => `${esc(byId(r.to).name)}${r.port != null ? ' port ' + esc(portLabel(byId(r.to), r.port)) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
     attached.length && ['attached', `Detach ${attached.map(r => esc(byId(r.from).name)).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
     plan && ['plan', `Take it off the floor plan ${esc(plan.name)}`, () => { delete o.planPos; }],
@@ -992,11 +993,12 @@ export function renderObj(o){
   });
   /* The address says at once when it is taken or is its subnet's gateway. */
   const ipIn = $('#f_' + o.id + '_ip'); if (ipIn) comboNote(ipIn);
-  $('#view').querySelectorAll('[data-ovr]').forEach(c => c.onchange = () => {
-    const k = c.dataset.ovr, name = FIELD_LABEL[k] || { software: 'Software', links: 'Links' }[k] || k;
-    o.ovr[k] = c.checked;
-    /* The tick says who writes the field now: a source picked for it before gives way. */
-    if (o.pick && o.pick[k]){ o.pick = {...o.pick}; delete o.pick[k]; if (!Object.keys(o.pick).length) delete o.pick; }
+  /* Software and links: ticked, Lansweeper keeps the list; unticked, it is kept as set here (o.pick, as for a field). */
+  $('#view').querySelectorAll('[data-lslist]').forEach(c => c.onchange = () => {
+    const k = c.dataset.lslist, name = { software: 'Software', links: 'Links' }[k] || k;
+    const rest = {...(o.pick || {})}; delete rest[k];
+    o.pick = c.checked ? ((st.policy || {})[k] === false ? {...rest, [k]: 'ls'} : rest) : {...rest, [k]: 'hand'};
+    if (!Object.keys(o.pick).length) delete o.pick;
     hist(o, now(), `${name}: ${c.checked ? 'taken from feed' : 'kept as set here'} (object override)`);
     toast(`${name} ${c.checked ? 'follows the feed' : 'is kept as set here'}`); render();
   });
@@ -1067,7 +1069,7 @@ export function renderObj(o){
         const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
         if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; }
         /* A user picked by hand on a linked device is kept: the next sync does not put the Lansweeper user back. */
-        if ((feedLinked(o) || (o.graph && o.graph.added)) && was !== (v || '')){ o.ovr.user = false; kept.push(FIELD_LABEL.user || 'User'); }
+        if ((feedLinked(o) || (o.graph && o.graph.added)) && was !== (v || '')){ pickHand(o, 'user'); kept.push(FIELD_LABEL.user || 'User'); }
         return;
       }
       if (['ports','sfp'].includes(k)) v = +v || 0;
@@ -1078,18 +1080,18 @@ export function renderObj(o){
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
         hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
-        o.ovr = {...(o.ovr || {}), type: false};   /* set by hand: the type rules leave it alone */
+        pickHand(o, 'type');   /* set by hand: the type rules leave it alone */
         /* A device that becomes a switch gets the port counts a new switch has, where it has none yet. */
         if (v === 'switch'){ o.ports ??= 24; o.sfp ??= 4; }
       }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
       /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added from Graph. */
-      if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ o.ovr[k] = false; kept.push(FIELD_LABEL[k]); }
+      if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ pickHand(o, k); kept.push(FIELD_LABEL[k]); }
       /* A value changed here is noted as set by hand, over any sync's (and kept from them); cleared, it stays empty: no
          sync fills it again. */
       if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
         if (String(v ?? '') === ''){
-          if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; o.ovr = {...(o.ovr || {}), [k]: false}; }
+          if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; pickHand(o, k); }
         } else o.src = {...(o.src || {}), [k]: 'hand'};
         keepByHand(o, k);
       }

@@ -62,7 +62,7 @@ try {
   assert.equal(await page.isDisabled('[data-k=model]'), false, 'a feed field is editable');
   await page.fill('[data-k=model]', 'HP EliteDesk 800 G9');
   await page.press('[data-k=model]', 'Tab');
-  await page.waitForFunction(async () => { const o = (await import('/js/01-core.js')).byId('o4'); return o.model === 'HP EliteDesk 800 G9' && o.ovr.model === false; });
+  await page.waitForFunction(async () => { const o = (await import('/js/01-core.js')).byId('o4'); return o.model === 'HP EliteDesk 800 G9' && o.pick?.model === 'hand'; });
   await page.waitForSelector('#f_o4_model >> xpath=ancestor::div[contains(@class,"ctlrow")][1]//span[contains(@class,"fsrc-picked")][@data-src="hand"]');
   assert.deepEqual(errors, [], 'no page errors');
   console.log('model pick list: all checks passed');

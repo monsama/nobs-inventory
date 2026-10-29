@@ -49,7 +49,7 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
   const db = freshDb();
   const s = loadState(db);
   const obj = {
-    id: 'o9', code: 'INV-0009', type: 'plc', name: 'PLC-1', status: 'active', loc: '', ovr: { warranty: false }, feed: { sys: 'Lansweeper', ref: 'x', seen: '01.10.2026 06:00' },
+    id: 'o9', code: 'INV-0009', type: 'plc', name: 'PLC-1', status: 'active', loc: '', pick: { warranty: 'hand' }, feed: { sys: 'Lansweeper', ref: 'x', seen: '01.10.2026 06:00' },
     ip: '172.21.103.38', mask: '255.255.255.0', gateway: '172.21.103.1', dns: '172.21.1.5, 172.21.1.6', dhcp: 'static', purchased: '2023-04-01', warranty: '2027-03-31', uid: 'u-ls1',
   };
   const printer = { id: 'o10', code: 'INV-0010', type: 'printer', name: 'PRN-1', status: 'active', loc: '', ovr: {}, feed: null, ports: 2, pfx: 'eth' };

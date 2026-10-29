@@ -1,7 +1,7 @@
 /* The source picker: a click on a field's source mark shows what each source says of the field (Lansweeper, Entra and
    Intune, Active Directory, and a value set by hand), each with the time it is from, the newest marked, and lets an admin
-   fix the field to one: a picked source is the only one that writes it from then on (o.pick), a value kept as typed is
-   left alone by every sync (o.ovr[k] = false). Automatic goes back to the usual order: Lansweeper, Intune, AD. */
+   fix the field to one: a picked source is the only one that writes it from then on (o.pick), a value kept as typed
+   ('hand') is left alone by every sync. Automatic goes back to the usual order: Lansweeper, Intune, AD. */
 import { FIELD_LABEL, SRC_ICON, byId, dayText, esc, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
 import { stamp } from './dates.js';
 import { canEdit, who } from './04-settings.js';
@@ -70,7 +70,6 @@ function pickerOf(mark, close){
     if (!src){
       /* Automatic: no source picked and no value kept as typed; the usual order decides at once, as the next syncs would. */
       if (o.pick){ const rest = { ...o.pick }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick; }
-      if (o.ovr && k in o.ovr){ o.ovr = { ...o.ovr }; delete o.ovr[k]; }
       const auto = ['ls', 'graph', 'ad'].filter(s => s !== 'ls' || feedOwns(o, k)).map(s => list.find(x => x.src === s)).find(Boolean);
       if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
       hist(o, now(), `${label}: back to the automatic order of the sources${auto && was !== auto.value ? ` (${was || 'empty'} → ${auto.value})` : ''}, by ${who()}`);
@@ -79,8 +78,6 @@ function pickerOf(mark, close){
       o[k] = c.value;
       o.src = { ...(o.src || {}), [k]: src };
       o.pick = { ...(o.pick || {}), [k]: src };
-      /* By hand: no sync fills it again. A source: that source's next sync writes it, so a hand lock goes. */
-      if (src === 'hand') o.ovr = { ...(o.ovr || {}), [k]: false }; else if (o.ovr && k in o.ovr) { o.ovr = { ...o.ovr }; delete o.ovr[k]; }
       hist(o, now(), `${label}: fixed to ${src === 'hand' ? 'the value set by hand' : `${NAMES[src]}'s value`}${was !== c.value ? ` (${was || 'empty'} → ${c.value})` : ''}, by ${who()}`);
     }
     close(); render();

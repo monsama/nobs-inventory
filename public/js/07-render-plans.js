@@ -797,7 +797,7 @@ async function sendNow(){
   }
 }
 /* The fields a person changed on an object, to offer them again after a refused save. */
-export const NOT_EDITED = ['id', 'code', 'ovr', 'feed'];
+export const NOT_EDITED = ['id', 'code', 'feed'];
 export function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_EDITED.includes(k) && JSON.stringify(mine[k]) !== JSON.stringify((base || {})[k])); }
 export const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
 /* Shows what a person changed and the newer version, so a refused edit is not lost. */

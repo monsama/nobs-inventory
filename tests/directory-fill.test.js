@@ -40,7 +40,7 @@ test('AD fills empty OS and domain, notes the source and the history, and never 
   const s = state([
     { id: 'a', name: 'SRV-01', status: 'active' },
     { id: 'b', name: 'SRV-02', status: 'active', os: 'Windows Server 2016 (typed)' },
-    { id: 'c', name: 'SRV-03', status: 'active', ovr: { os: false } },
+    { id: 'c', name: 'SRV-03', status: 'active', pick: { os: 'hand' } },
     { id: 'd', name: 'SRV-04', status: 'active', excluded: true },
   ]);
   const comp = (name, os) => ({ name, dns: name.toLowerCase() + '.corp.ch', groups: [], os, domain: 'corp.ch', logon: '2026-10-20', created: '2020-01-02' });
@@ -253,14 +253,14 @@ test('sign-in lock: an address that signed in to a login before is not locked ou
 });
 
 test('each source\'s value is kept beside the field, and a source picked for it is the only one that writes it', () => {
-  const s = state([{ id: 'a', name: 'PC-1', serial: 'S1', status: 'active', type: 'pc', os: 'Win 10 (typed)', src: { os: 'hand' }, ovr: { os: false } }]);
+  const s = state([{ id: 'a', name: 'PC-1', serial: 'S1', status: 'active', type: 'pc', os: 'Win 10 (typed)', src: { os: 'hand' }, pick: { os: 'hand' } }]);
   applyGraph(s, [rec({ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise', lastCheckIn: '2026-10-28T07:00:00Z' })], NOW);
   applyComputers(s, [{ name: 'PC-1', dns: 'pc-1.corp.ch', groups: [], os: 'Windows 11 Enterprise (10.0.26100)', domain: 'corp.ch', logon: '2026-10-24' }], NOW);
   const o = s.objs[0];
   assert.equal(o.os, 'Win 10 (typed)', 'a value set by hand stays');
   assert.deepEqual(o.vals.os, { graph: ['Windows 11 Enterprise', '2026-10-28T07:00:00Z'], ad: ['Windows 11 Enterprise (10.0.26100)', '2026-10-24'] });
   // picked: AD writes it from now on, Intune does not
-  o.pick = { os: 'ad' }; delete o.ovr.os;
+  o.pick = { os: 'ad' };
   applyGraph(s, [rec({ name: 'PC-1', serial: 'S1', os: 'Windows 11 Enterprise', lastCheckIn: '2026-10-28T08:00:00Z' })], NOW);
   assert.equal(o.os, 'Win 10 (typed)', 'Intune is not the picked source');
   applyComputers(s, [{ name: 'PC-1', dns: 'pc-1.corp.ch', groups: [], os: 'Windows 11 Enterprise (10.0.26100)', domain: 'corp.ch', logon: '2026-10-24' }], NOW);
@@ -303,4 +303,18 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(by('nb-35.corp.example').review.src, 'lansweeper', 'a probable second record of NB-35 waits');
   assert.equal(by('nb-77.corp.example').review, undefined, 'no device named nb-77: added as Settings says');
   assert.equal(by('NB-36').review, undefined);
+});
+
+test('a device\'s old overrides (o.ovr) become picks: false is By hand, true is Lansweeper only where the policy says otherwise', async () => {
+  const { liftOvr } = await import('../server/fill.js');
+  const policy = { os: true, user: false, software: true, links: false };
+  const o = { id: 'x', name: 'PC-1', ovr: { os: false, user: true, ip: true, type: false, software: false, links: true }, pick: { ip: 'graph' } };
+  assert.equal(liftOvr(o, policy), true);
+  assert.equal(o.ovr, undefined, 'o.ovr goes');
+  assert.deepEqual(o.pick, { ip: 'graph', os: 'hand', user: 'ls', type: 'hand', software: 'hand', links: 'ls' },
+    'a pick already there stays; true only where the policy would not give the field to Lansweeper');
+  const p = { id: 'y', name: 'PC-2', ovr: { os: true } };
+  liftOvr(p, policy);
+  assert.equal(p.pick, undefined, 'true where the policy says so already: automatic, nothing to keep');
+  assert.equal(liftOvr({ id: 'z', name: 'PC-3' }, policy), false, 'nothing to do');
 });

@@ -148,7 +148,7 @@ test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, 
   assert.equal(s.objs.filter(o => o.name === 'iPhone Ana').length, 1, 'a device listed twice is added once');
   const phone = s.objs.find(o => o.name === 'iPhone Ana');
   // a model corrected by hand is kept
-  phone.model = 'iPhone 15 (blue)'; phone.ovr.model = false;
+  phone.model = 'iPhone 15 (blue)'; phone.pick = { ...(phone.pick || {}), model: 'hand' };
   applyGraph(s, [{ ...rec, os: 'iOS 18.2' }], NOW);
   assert.equal(phone.model, 'iPhone 15 (blue)'); assert.equal(phone.os, 'iOS 18.2');
   // once Lansweeper has it, and fills the OS in, Graph only fills gaps
@@ -214,7 +214,7 @@ test('a Graph record that fits two inventory devices is put on neither and liste
 test('Graph does not refill a field cleared by hand, and does not take a device by name when its serial number is another', async () => {
   const { applyGraph, graphAll } = await import('../server/graph.js');
   const rec = { graphId: 'g1', aadId: 'a1', name: 'PC1', serial: 'AAA', join: 'Entra joined', managed: 'mdm', compliance: 'compliant', lastSync: '2026-10-25T08:00:00Z', model: 'Dell X', os: 'Windows 11' };
-  const s = { objs: [{ id: 'o1', name: 'PC1', status: 'active', ovr: { model: false }, model: '' }], history: {} };
+  const s = { objs: [{ id: 'o1', name: 'PC1', status: 'active', pick: { model: 'hand' }, model: '' }], history: {} };
   applyGraph(s, [rec], NOW);
   assert.equal(s.objs[0].model, '', 'cleared by hand, stays empty');
   assert.equal(s.objs[0].os, 'Windows 11', 'other empty fields are filled');

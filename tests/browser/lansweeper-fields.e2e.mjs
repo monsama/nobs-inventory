@@ -191,11 +191,11 @@ try {
   await page.waitForSelector('#f_o1_os');
   assert.equal(await page.locator('[data-k=boot]').count(), 0, 'no power event while the sync is paused');
   // a user picked by hand on a linked device is kept from the feed
-  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').ovr = { user: true }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').pick = { user: 'ls' }; (await import('/js/02-views.js')).openObj('o1'); });
   await page.waitForSelector('#f_o1_user');
   const other = await page.$eval('#f_o1_user', s => [...s.options].map(o => o.value).find(v => v && v !== '__hotdesk' && v !== s.value));
   await page.selectOption('#f_o1_user', other);
-  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').ovr.user === false);
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').pick?.user === 'hand');
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
 
   assert.deepEqual(errors, [], 'no page errors');

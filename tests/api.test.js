@@ -120,7 +120,7 @@ test('CSV parsing handles quotes and CRLF, and the delimiter the header uses', (
 test('a Lansweeper export: matched by serial, only allowed fields move, new assets get codes', () => {
   const s = baseState({
     objs: [{ id: 'o101', code: 'INV-0001', type: 'pc', name: 'ZH-PC-0142', serial: 'CZC1', ip: '10.10.20.42', os: 'Windows 10', ovr: {}, feed: null, loc: 'Zürich HQ / Büro 2.OG' },
-      { id: 'o102', code: 'INV-0002', type: 'pc', name: 'ZH-PC-0143', serial: 'CZC2', ip: '10.10.20.43', ovr: { ip: false }, feed: { sys: 'Lansweeper', ref: '3143', seen: 'x' } }],
+      { id: 'o102', code: 'INV-0002', type: 'pc', name: 'ZH-PC-0143', serial: 'CZC2', ip: '10.10.20.43', pick: { ip: 'hand' }, feed: { sys: 'Lansweeper', ref: '3143', seen: 'x' } }],
     codeN: 2, seq: 102
   });
   const csv = 'AssetName,AssetType,Serial,IPAddress,OS,Location\n' +
