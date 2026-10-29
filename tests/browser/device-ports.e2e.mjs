@@ -170,6 +170,9 @@ try {
   await p.waitForSelector('#assignBtn');
   await p.click('#assignBtn');
   await p.waitForSelector('#lkObj');
+  assert.equal(await p.inputValue('#lkObj'), '', 'no device is chosen for the person');
+  assert.match(await p.textContent('#mdl .mh'), /Plug into .* · .*3/);
+  assert.match(await p.textContent('#lkOk'), /Plug in/);
   assert.equal(await p.inputValue('#lkTo'), 'lagB'); assert.equal(await p.inputValue('#lkPort'), '3');
   await p.selectOption('#lkObj', 'pc77');
   assert.equal(await p.inputValue('#lkTo'), 'lagB', 'choosing the device keeps the switch'); assert.equal(await p.inputValue('#lkPort'), '3');
@@ -205,6 +208,16 @@ try {
   await p.fill('#enTitle', 'Warranty'); await p.fill('#enLink', 'https://files.example.ch/warranty.pdf'); await p.click('#enAdd');
   for (let i = 0; i < 150 && !(loadState(db).objs.find(o => o.id === 'o1').entries || []).length; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal(loadState(db).objs.find(o => o.id === 'o1').entries[0].title, 'Warranty', 'the note is saved');
+  // nothing is plugged into a port before it exists: a router with no ports yet opens no port, even one picked before
+  await p.evaluate(async () => { const core = await import('/js/01-core.js');
+    core.objs.push({ id: 'rt0', code: 'INV-9009', type: 'router', name: 'RTR-NEW', status: 'active', ovr: {}, feed: null });
+    core.st.portsDevice = 'rt0'; core.st.portNo = 3; core.st.tab = 'net'; (await import('/js/07-render.js')).render(); });
+  await p.waitForSelector('#psPorts');
+  assert.equal(await p.locator('#assignBtn').count(), 0, 'no Plug in on a router with no ports');
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.portNo), null);
+  const checks = await p.evaluate(async () => { const c = await import('/js/01-core.js'), r = c.byId('rt1'), n = (r.ports || 0) + (r.sfp || 0);
+    return [c.portRangeError(c.byId('rt0'), 1), c.portRangeError(r, n + 1) === `RTR-EDGE has ports 1 to ${n}.`, c.portRangeError(r, n), c.portRangeError(r, 0) !== '']; });
+  assert.deepEqual(checks, ['RTR-NEW has no ports yet. Set its port count first (Ports, or its details).', true, '', true]);
   assert.deepEqual(errors, [], 'page errors');
   console.log('device ports: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

@@ -466,6 +466,13 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .fb-scope{font-weight:600}
 .rv-chips .rv-also{color:var(--muted)}
 .cf-old{display:flex;margin-top:10px;width:auto}
+/* Ports: what is on the picked port. */
+.portinfo{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;margin:0;padding:4px 12px 12px;font-size:13px}
+.portinfo dt{color:var(--muted)}.portinfo dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.ports-none{padding:0 12px}
+/* The picked devices' actions: a row of their own under the toolbar, so nothing else moves when a pick is made. */
+.pickrow{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0 2px;border-top:1px solid var(--bd2)}
+@media (max-width:760px){.rv-banner{flex-wrap:wrap}.rv-banner>span{flex-basis:100%}}
 /* Resolve a duplicate: the two records side by side, what differs marked, and what it is. */
 .rv-twin[data-resolve]{cursor:pointer}.rv-twin[data-resolve]:hover{text-decoration:underline}
 .dup-cmp{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:13px}

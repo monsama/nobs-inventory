@@ -39,6 +39,15 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
 
+  // the device itself says it has a probable second record, on its card and its page, and resolves it from there
+  await p.click('#tabsbar [data-tab=cards]');
+  assert.match(await p.textContent('#cards .card[data-open="n35"] .rv-twin'), /Also as nb-35\.corp\.example/);
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
+  await p.waitForSelector('#twResolve');
+  assert.match(await p.textContent('.rv-banner'), /nb-35\.corp\.example is most likely a second record of this device/);
+  await p.click('#twResolve'); await p.waitForSelector('.dup-cmp');
+  assert.match(await p.textContent('.dup-cmp'), /nb-35\.corp\.example[\s\S]*NB-35/);
+  await p.click('#dupCancel');
   // the dock's record merges from its page: address as an adapter of NB-35, the monitor with it, kept as ignored
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('d35'));
   await p.waitForSelector('#twMerge');

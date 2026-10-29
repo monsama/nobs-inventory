@@ -9,7 +9,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -277,12 +277,15 @@ export function retireModal(o){
    adapter, and it is kept as ignored so no sync brings it back. A device still waiting in To review is said so. */
 function twinBanner(o){
   const tw = twinOf(o);
+  /* The device itself says so too: its probable second records, to open or resolve from here. */
+  const tws = twinsOf(o);
+  if (!tw && tws.length) return `<div class="rv-banner warn"><span>${tws.length === 1 ? `<b>${esc(tws[0].name)}</b> is most likely a second record of this device` : `${tws.length} records are most likely second records of this device: ${tws.map(x => `<b>${esc(x.name)}</b>`).join(', ')}`}${tws.some(x => x.review) ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? `<button type="button" id="twOpen">Open ${esc(tws[0].name)}</button>` : ''}${canEdit() ? `<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
   if (!tw){
     const was = o.notTwin && twinOf(o, { marked: true });
     return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${canEdit() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
   }
   const can = canEdit() && !o.review && mergeTarget(o) === tw;
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: named by its DNS name, with no serial number, as a docking station's or a USB network adapter often leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
+  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -485,7 +488,7 @@ export function renderObj(o){
     let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && hasPorts(to)) port = +port;
     const inLag = (to.portGroups || []).find(g => g.lag && typeof port === 'number' && port >= g.from && port <= g.to);
     if (inLag){ toast(`Port ${port} is part of the LAG ${inLag.name}. Choose the LAG instead.`); return; }
-    if (hasPorts(to) && typeof port === 'number' && to.ports && port > to.ports){ toast(`${port} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); return; }
+    if (portRangeError(to, port)){ toast(portRangeError(to, port)); return; }
     if (hasPorts(to) && typeof port === 'number') releaseRetiredPort(to, port);
     if (hasPorts(to) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
@@ -749,6 +752,11 @@ export function renderObj(o){
   const tw = twinOf(o);
   const ag = $('#twAgain');
   if (ag) ag.onclick = () => { delete o.notTwin; hist(o, now(), `Checked again as a possible duplicate by ${who()}`); render(); };
+  const tws = !tw ? twinsOf(o) : [];
+  if (tws.length){
+    const to = $('#twOpen'); if (to) to.onclick = () => openObj(tws[0].id);
+    const tr = $('#twResolve'); if (tr) tr.onclick = () => resolveModal(tws);
+  }
   if (tw){
     $('#twOpen').onclick = () => openObj(tw.id);
     const tr = $('#twResolve'); if (tr) tr.onclick = () => resolveModal([o]);

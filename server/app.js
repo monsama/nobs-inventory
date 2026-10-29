@@ -113,11 +113,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.set('Connection', 'close').status(401).json({ error: 'Sign in as an admin first.' });
   });
   /* A backup can be larger than a normal save; the largest is a full backup with its history and plan pictures. */
-  app.use(express.json({ limit: '30mb' }));
+  /* Bodies are read only under /api, after the check above: a request elsewhere is never parsed. */
+  app.use('/api', express.json({ limit: '30mb' }));
   /* A backup file comes with its floor-plan pictures (up to 2 MB each), so its upload has a higher limit of its own. */
   const textBody = express.text({ type: ['text/plain', 'text/csv'], limit: '30mb' });
   const backupBody = express.text({ type: ['text/plain', 'text/csv'], limit: '200mb' });
-  app.use((req, res, next) => (req.path === '/api/backups/restore-file' ? backupBody : textBody)(req, res, next));
+  app.use('/api', (req, res, next) => (req.path === '/backups/restore-file' ? backupBody : textBody)(req, res, next));
 
   const userDoc = id => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(id); return r ? JSON.parse(r.data) : null; };
   /* A deactivated user loses access at once, even with a session that is still open. */

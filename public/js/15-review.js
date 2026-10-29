@@ -66,16 +66,18 @@ function merge(pairs, how = ''){
 }
 /* Undo puts every device touched back as it was: its fields, and in which list it sits; and the relations a merge moved. */
 function withUndo(list, msg, change){
-  const was = list.map(o => [o, JSON.parse(JSON.stringify(o)), objs.includes(o)]);
+  /* The user is read from uid (bindUser): writing its name back would look the person up again, or make one. */
+  const was = list.map(o => { const b = JSON.parse(JSON.stringify(o)); delete b.user; return [o, b, objs.includes(o)]; });
   const relsWas = rels.map(r => [r, { ...r }]);
   change(list);
   render();
   toastUndo(msg, () => {
     for (const [o, before, inObjs] of was){
-      for (const k of Object.keys(o)) if (!(k in before)) delete o[k];
+      for (const k of Object.keys(o)) if (k !== 'user' && !(k in before)) delete o[k];
       Object.assign(o, before);
       for (const a of [objs, REVIEW]){ const i = a.indexOf(o); if (i >= 0) a.splice(i, 1); }
       (inObjs ? objs : REVIEW).push(o);
+      hist(o, now(), `Undone: ${msg}`);
     }
     rels.splice(0, rels.length, ...relsWas.map(([r, w]) => Object.assign(r, w)));
     render();
@@ -103,7 +105,12 @@ export function reviewDo(kind, list, { asked = false } = {}){
       'Accept anyway', () => reviewDo(kind, list, { asked: true }));
     const ok = document.getElementById('cfOk');
     if (ok){ const mg = document.createElement('button'); mg.id = 'cfMerge'; mg.className = 'primary'; mg.textContent = 'Merge'; ok.before(mg);
-      mg.onclick = () => { document.getElementById('cfCancel').click(); reviewDo('merge', known); const rest = list.filter(o => !known.includes(o)); if (rest.length) reviewDo('accept', rest, { asked: true }); }; }
+      mg.onclick = () => {
+        document.getElementById('cfCancel').click();
+        /* Merged and accepted in one step, so one Undo takes back both. */
+        const pairs = known.map(o => [o, mergeTarget(o)]).filter(([, t]) => t), rest = list.filter(o => !known.includes(o));
+        withUndo([...new Set([...pairs.flat(), ...rest])], `${pairs.length} merged${rest.length ? `, ${rest.length} accepted` : ''}`, () => { merge(pairs); accept(rest); });
+      }; }
     return;
   }
   if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
@@ -133,7 +140,9 @@ function resolve(kind, list){
     withUndo(pairs.map(([o]) => o), `${what} marked as no duplicate`, () => { for (const [o, t] of pairs){ o.notTwin = true; hist(o, now(), `Marked as not a duplicate of ${t.name} by ${who()}`); } });
     return;
   }
-  withUndo(pairs.map(([o]) => o), `${what} ${n === 1 ? 'is' : 'are'} obsolete: ${objs.includes(pairs[0][0]) ? 'retired and excluded' : 'ignored'}`, () => {
+  /* Devices stacked on one that leaves its rack come out with it (unplace): they are put back by Undo too. */
+  const onTop = objs.filter(x => pairs.some(([o]) => x.ontop === o.id));
+  withUndo([...pairs.map(([o]) => o), ...onTop], `${what} ${n === 1 ? 'is' : 'are'} obsolete: ${objs.includes(pairs[0][0]) ? 'retired and excluded' : 'ignored'}`, () => {
     for (const [o, t] of pairs){
       if (o.review){ o.review = { ...o.review, ignored: now() }; o.excluded = true; }
       else { if (o.rack) unplace(o); o.status = 'retired'; o.excluded = true; }
@@ -153,10 +162,10 @@ export function resolveModal(list){
   const one = list.length === 1, o = list[0], t = dupOf(o);
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
-    ['Operating system', x => x.os], ['Code', x => x.code], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
+    ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? `<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
     const a = String(f(o) || ''), b = String(f(t) || '');
-    return `<tr${a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
+    return `<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
   }).join('')}</tbody></table>`
     : `<ul class="dup-list">${list.slice(0, 12).map(x => `<li><b>${esc(x.name)}</b> → ${esc(dupOf(x).name)}</li>`).join('')}${list.length > 12 ? `<li>and ${list.length - 12} more</li>` : ''}</ul>`;
   const def = dns ? 'dock' : 'same';
@@ -165,7 +174,12 @@ export function resolveModal(list){
     <div class="dup-ways" role="radiogroup" aria-label="What it is">${RESOLVE.map(([k, l, d]) => `<label class="dup-way"><input type="radio" name="dupWay" value="${k}" ${k === def ? 'checked' : ''}><span><b>${l}</b><span class="muted">${d}</span></span></label>`).join('')}</div></div>
     <div class="mf"><button id="dupCancel">Cancel</button><button id="dupOk" class="primary">Resolve</button></div>`);
   document.getElementById('dupCancel').onclick = closeModal;
-  document.getElementById('dupOk').onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
+  /* The button says what the choice does. */
+  const okText = k => ({ dock: 'Merge as adapter', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
+  const ok = document.getElementById('dupOk');
+  const label = () => { ok.textContent = okText(document.querySelector('[name=dupWay]:checked').value); };
+  document.querySelectorAll('[name=dupWay]').forEach(r => r.onchange = label); label();
+  ok.onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
@@ -173,7 +187,7 @@ export function reviewBanner(o){
   const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
     ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore">Back to review</button>` : ''}</div>`
-    : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)}</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
+    : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
 }
 export function bindReviewBanner(o){
   document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {

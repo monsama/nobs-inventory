@@ -259,6 +259,9 @@ test('Defender for Endpoint: read with its own token when Settings asks for it, 
   applyDefender(t, on.machines, NOW);
   assert.equal(t.objs[0].defender, undefined, 'not on the second record');
   assert.equal(t.objs[1].defender.health, 'Active', 'on the device itself');
+  const ig = { objs: [{ id: 'd', name: 'zh-pc-0142.corp.local', status: 'active' }, { id: 'n', name: 'ZH-PC-0142', status: 'active', excluded: true, review: { src: 'ad', at: 'x', ignored: 'y' } }] };
+  applyDefender(ig, on.machines, NOW);
+  assert.equal(ig.objs[0].defender.health, 'Active', 'an ignored record of the short name takes nothing from the device in use');
   const v = { objs: [{ id: 'd', name: 'srv-files.corp.local', status: 'active' }] };
   applyDefender(v, on.machines, NOW);
   assert.equal(v.objs[0].defender.health, 'Inactive', 'with no device named srv-files, the DNS name still finds it');

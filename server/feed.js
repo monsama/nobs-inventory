@@ -266,9 +266,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   s.objs.forEach(index);
   /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
      it stands for (after Clear inventory, both are new). */
-  const pushed = new Set(records.map(r => lc(r.name)).filter(Boolean));
+  const pushed = new Set(records.map(r => lc(r.name)).filter(n => n && !(byName.get(n) || []).some(o => o.status === 'retired' || o.excluded)));
   /* DNS-named records come last, so with mergeTwins on the device they stand for is already here, also when both are new. */
-  const dnsNamed = r => !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
+  const dnsNamed = r => (!r.serial || isPlaceholderSerial(r.serial)) && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
   const cleaned = [];
   for (const raw of [...records.filter(r => !dnsNamed(r)), ...records.filter(dnsNamed)]) {
     const r = clean(raw);
@@ -292,12 +292,17 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     /* With "Merge second records" on, such a record is no device of its own: its address is kept on the device it stands
        for, as an adapter of it (a docking station's), and nothing waits in To review. */
-    const into = twin && !found && s.mergeTwins ? (byName.get(lc(r.name).split('.')[0]) || []).find(o => o.status !== 'retired' && !o.excluded) : null;
+    /* A device the sync leaves alone (excluded, detached) or whose address is kept by hand is not changed; at most 16 adapters. */
+    const into = twin && !found && s.mergeTwins ? (byName.get(lc(r.name).split('.')[0]) || []).find(o => o.status !== 'retired' && !o.excluded && !o.detached) : null;
     if (into) {
-      if (r.ip && r.ip !== into.ip) {
+      if (r.ip && r.ip !== into.ip && lsWrites(s, into, 'ip')) {
         const nic = { name: 'Dock / USB adapter', ip: r.ip, ...(r.mac ? { mac: r.mac } : {}), merged: r.name };
         const rest = (into.nics || []).filter(n => n.ip !== r.ip && n.merged !== r.name);
-        if (JSON.stringify([...rest, nic]) !== JSON.stringify(into.nics || [])) { into.nics = [...rest, nic]; counts.updated++; }
+        const had = (into.nics || []).find(n => n.merged === r.name);
+        if (rest.length < 16 && JSON.stringify([...rest, nic]) !== JSON.stringify(into.nics || [])) {
+          into.nics = [...rest, nic]; counts.updated++;
+          ((s.history ??= {})[into.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${r.name} merged in as a dock's adapter (${had ? `address ${had.ip} → ${r.ip}` : r.ip})` });
+        }
       }
       counts.merged = (counts.merged || 0) + 1;
       continue;

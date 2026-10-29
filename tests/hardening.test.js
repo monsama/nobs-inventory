@@ -36,3 +36,17 @@ test('an icon cannot hide an attribute behind a > inside quotes; the directory s
   assert.match(ldapSettingsProblem({ loginAttr: 'cn)(x' }), /one attribute/);
   assert.equal(ldapSettingsProblem({ loginAttr: 'userPrincipalName', userFilter: '(objectClass=person)' }), '');
 });
+
+test('a body outside /api is never read, and a malformed session cookie is no session', async () => {
+  const { readCookie } = await import('../server/auth.js');
+  assert.equal(readCookie('ni_session=%', 'ni_session'), null);
+  assert.equal(readCookie('a=1; ni_session=x%20y', 'ni_session'), 'x y');
+  const srv = await startServer({});
+  try {
+    const big = JSON.stringify({ x: 'a'.repeat(3 * 1048576) });
+    const r = await fetch(srv.base + '/somewhere', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: big });
+    assert.equal(r.status, 404);
+    const me = await fetch(srv.base + '/api/me', { headers: { cookie: 'ni_session=%' } });
+    assert.notEqual(me.status, 500, 'a broken cookie is not a server error');
+  } finally { await srv.close(); }
+});

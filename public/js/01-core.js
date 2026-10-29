@@ -71,6 +71,14 @@ export const DEFAULT_TYPES = JSON.parse(JSON.stringify(TYPES));
 export const PORTED = ['switch', 'router', 'firewall', 'server'];
 /* A device has a port view when it has a port count, whatever its type. Patch panels have their own view. */
 export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
+/* Why a numbered port cannot be used on a device with ports: it has none set up yet, or the number is not one of them.
+   '' when it can. Nothing is plugged into a port before the port exists. */
+export const portRangeError = (t, p) => {
+  if (!hasPorts(t) || typeof p !== 'number') return '';
+  const n = (t.ports || 0) + (t.sfp || 0);
+  if (!n) return `${t.name} has no ports yet. Set its port count first (Ports, or its details).`;
+  return Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
+};
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
@@ -471,6 +479,18 @@ export function twinOf(o, { marked = false } = {}){
   }
   const t = twinIdx.get(String(o.name).toLowerCase().split('.')[0]);
   return t && t.id !== o.id ? t : null;
+}
+/* The other way round: the probable second records of a device (argonb35.corp.example for ARGONB35), in the inventory or
+   still waiting in To review. Indexed once per task, like twinOf. */
+let twinsIdx = null;
+export function twinsOf(o){
+  if (!o) return [];
+  if (!twinsIdx){
+    twinsIdx = new Map();
+    for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]){ const t = twinOf(x); if (t) twinsIdx.set(t.id, [...(twinsIdx.get(t.id) || []), x]); }
+    queueMicrotask(() => { twinsIdx = null; });
+  }
+  return twinsIdx.get(o.id) || [];
 }
 /* Whether field k of o is fixed to one source: the source picked for it, or 'hand' for a value kept as typed here. */
 export const fieldFixed = (o, k) => (o.pick && o.pick[k]) || '';

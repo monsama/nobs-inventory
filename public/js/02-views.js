@@ -4,13 +4,13 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
-import { dupOf, resolveModal, reviewDo, reviewStale } from './15-review.js';
+import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -19,6 +19,8 @@ const GRAPH_TIPS = {
   notjoined: 'Computers and phones that are neither in Entra nor have a computer account in AD',
   ambiguous: 'Graph has a device whose serial number or name fits more than one device here, so it was put on none: give them distinct names or serial numbers',
 };
+/* The views that show a list of devices, the inventory's or (st.scope) To review's. */
+const LIST_TABS = ['cards', 'table', 'map'];
 export function renderSide(){
   /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
@@ -33,8 +35,9 @@ export function renderSide(){
     + (st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? `<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : '')
     + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
     + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
-    + (st.scope ? '<button class="item" data-scope="" title="Back to the devices in the inventory"><span class="lbl">Back to inventory</span><span class="cnt">' + objs.length + '</span></button>' : '');
-  const pool = scopePool(), cnt = f => pool.filter(f).length;
+    + (st.scope ? '<button class="item" data-scope="" title="Back to the devices in the inventory"><span class="lbl">Back to inventory</span></button>' : '');
+  /* The sidebar counts what the list shows: in To review only while Cards, Table or the map show it. */
+  const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
@@ -109,6 +112,7 @@ $('#side').addEventListener('click', e => {
     /* The one shown, clicked again: a choice under Waiting goes back to Waiting, Waiting or Ignored to the inventory. */
     const next = !same ? to : to.rvSrc || to.rvKnown || to.rvOld ? { scope: 'review', rvSrc: '', rvKnown: false, rvOld: false } : { scope: null, rvSrc: '', rvKnown: false, rvOld: false };
     Object.assign(st, next); st.bulk = new Set();
+    if (st.scope && !LIST_TABS.includes(st.tab)) st.tab = 'cards';
   }
   if ('adgroup' in b.dataset) st.adGroup = null;
   if ('resp' in b.dataset) st.resp = null;
@@ -197,7 +201,7 @@ export function renderTabs(){
   const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.scope));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
-  const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+  const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope && LIST_TABS.includes(st.tab)) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
@@ -318,7 +322,7 @@ export const CARD_FIELDS = {
   ssid: ['Wi-Fi', o => esc(o.ssid || '')],
   domain: ['Domain', o => esc(o.domain || '')],
   units: ['Height', o => o.units ? o.units + ' U' : ''],
-  purpose: ['Purpose', o => esc(o.purpose || '')],
+  purpose: ['Description', o => esc(o.purpose || '')],
   model: ['Model', o => esc(o.model || '')],
   resp: ['Responsible', o => esc(respText(o))],
   /* On a card (a button) a link cannot be clicked: the line names the links, the device page opens them. */
@@ -374,25 +378,27 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
-    ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : ''}
+    ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? `<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
    all), the other sources that know it, and the device it is most likely a second record of. */
 const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
-const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : ''}</div>`;
+const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : mergeTarget(o) ? `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${canEdit() ? ' Click to resolve.' : ''}">Already in inventory: ${esc(mergeTarget(o).name)}</span>` : ''}</div>`;
 /* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
-const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station.${canEdit() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
+/* On the card of the device itself: its probable second records, so it is seen from both sides. */
+const twinsChip = o => { const l = twinsOf(o); return `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(l.map(x => x.id).join(','))}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${esc(l.map(x => x.name).join(', '))}.${canEdit() ? ' Click to resolve.' : ''}">${l.length === 1 ? `Also as ${esc(l[0].name)}` : `${l.length} possible duplicates`}</span>`; };
+const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Probably a second record of ${esc(twinOf(o).name)}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${canEdit() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 function scopeActs(list, allAlso){
   if (!st.scope || !canEdit()) return '';
   const n = st.bulk.size, ign = st.scope === 'ignored';
-  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvIgnore" class="danger-text">Ignore ${n}</button>${mergeBtn()}<button id="rvAccept" class="primary">Accept ${n}</button>`;
+  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvAccept" class="primary">Accept ${n}</button><button id="rvIgnore" class="danger-text">Ignore ${n}</button>`;
   if (!allAlso || !list.length) return '';
   const fresh = list.filter(o => !reviewStale(o)).length;
-  return ign ? `<button id="rvRestoreAll">All back to review (${list.length})</button>`
+  return ign ? `<button id="rvRestoreAll">Back to review (${list.length})</button>`
     : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" title="${fresh === list.length || !fresh ? '' : `Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out unless you tick them in the next step`}">Accept ${fresh === list.length ? `all ${fresh}` : fresh ? `${fresh} recently seen` : `all ${list.length} old`}</button>`;
 }
 /* Resolve: the picked records that are most likely a device the inventory has (a dock's DNS-named record, or one of the
@@ -406,7 +412,7 @@ function mergeBtn(){
 function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
   on('rvResolve', () => resolveModal(mergeable()));
-  const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
+  const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); if (kind !== 'accept') st.bulk.clear(); reviewDo(kind, l); };
   on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
   const fresh = list.filter(o => !reviewStale(o)), old = list.length - fresh.length;
   /* Accept all takes the recently seen ones; the old ones (likely gone) only when ticked here. With only old ones shown,
@@ -414,9 +420,9 @@ function bindScopeActs(list){
   on('rvAcceptAll', () => {
     let withOld = !fresh.length;
     confirmModal('Accept devices', fresh.length
-      ? `Accept the ${fresh.length} recently seen ${fresh.length === 1 ? 'device' : 'devices'} shown into the inventory?${old ? `<label class="pchk cf-old"><input type="checkbox" id="cfOld"> Also the ${old} not seen by any source for ${REVIEW_STALE_DAYS} days (likely gone)</label>` : ''}`
-      : `None of the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown has been seen by any source for ${REVIEW_STALE_DAYS} days: ${list.length === 1 ? 'it is' : 'they are'} likely gone. Accept ${list.length === 1 ? 'it' : 'them'} anyway?`,
-      'Accept', () => reviewDo('accept', withOld ? list : fresh));
+      ? `Add the ${fresh.length} recently seen ${fresh.length === 1 ? 'device' : 'devices'} shown to the inventory?${old ? `<label class="pchk cf-old"><input type="checkbox" id="cfOld"> Also add the ${old} that no source has seen for ${REVIEW_STALE_DAYS} days (likely gone)</label>` : ''}`
+      : `None of the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown has been seen by any source for ${REVIEW_STALE_DAYS} days: ${list.length === 1 ? 'it is' : 'they are'} likely gone. Add ${list.length === 1 ? 'it' : 'them'} to the inventory anyway?`,
+      'Accept', () => reviewDo('accept', withOld ? list : fresh), { primary: true });
     const cb = $('#cfOld'), ok = $('#cfOk');
     const label = () => { ok.textContent = `Accept ${withOld ? list.length : fresh.length}`; };
     label();
@@ -433,7 +439,7 @@ export function renderCardsBody(){
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
-    ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
+    ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
     <div class="grow"></div>${pickBar(list)}`;
   bindListFilter(); bindScopeActs(list);
   $('#grp').value = st.cardsGroup;
@@ -445,7 +451,7 @@ export function renderCardsBody(){
       ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
       : st.scope ? `<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing waits for review. New devices from Lansweeper, Active Directory, Entra and Intune show up here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
       : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
-    const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; view(); };
+    const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     bindHiddenHits();
@@ -484,7 +490,8 @@ export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addS
    rows can be moved, given a status or a responsible together. */
 function pickBar(list){
   const n = (st.bulk || new Set()).size;
-  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button>${st.scope ? '' : `<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>${mergeBtn()}`}<button id="cdClear">Clear</button>${scopeActs(list)}`
+  /* The picked devices' actions on a row of their own, always in one order: count, the To review actions, Resolve, the rest. */
+  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several · Ctrl+A all</span>' + scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
@@ -524,7 +531,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const c = e.target.closest && e.target.closest('#view [data-resolve]'); if (!c) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  resolveModal([byId(c.dataset.resolve)].filter(Boolean));
+  resolveModal(c.dataset.resolve.split(',').map(byId).filter(Boolean));
 }, true);
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */
@@ -532,8 +539,10 @@ document.addEventListener('keydown', e => {
   if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a'){
     e.preventDefault();
-    st.bulk = new Set(st.tab === 'table' ? [...$('#view').querySelectorAll('[data-sel]')].map(c => c.dataset.sel) : filtered().map(o => o.id));
-    keepScroll(st.tab === 'table' ? renderTable : renderCards);
+    /* In the Table the same as its select-all box: every row its filters leave, also those past the first drawn. */
+    if (st.tab === 'table'){ const all = $('#selAll'); if (all && !all.checked) all.click(); return; }
+    st.bulk = new Set(filtered().map(o => o.id));
+    keepScroll(renderCards);
   } else if (e.key === 'Escape' && st.bulk && st.bulk.size){
     st.bulk.clear(); keepScroll(st.tab === 'table' ? renderTable : renderCards);
   }
@@ -570,7 +579,7 @@ export const TABLE_COLS = [
   {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
   {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
   {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
-  {k:'purpose', w:180, label:'Purpose', cell: o => `<td>${esc(o.purpose || '')}</td>`},
+  {k:'purpose', w:180, label:'Description', cell: o => `<td>${esc(o.purpose || '')}</td>`},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
     return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
   {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
@@ -619,9 +628,8 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
-    ${n && st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button>${scopeActs(list)}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
-    ${n && !st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button>${mergeBtn()}<select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
@@ -1122,6 +1130,9 @@ export function renderPorts(){
   $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
     <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
+  /* A port picked on another device, or one no longer there after the count was lowered, is not this device's: no port
+     is open, so nothing can be plugged in before the port exists. */
+  if (st.portNo != null && portRangeError(sw, st.portNo)) st.portNo = null;
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; view(); };
   $('#portsOpen').onclick = () => openObj(sw.id);
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
@@ -1136,7 +1147,8 @@ export function renderPorts(){
     const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
     const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
     const poe = dev && (dev.type === 'sip');
-    const note = (sw.portNotes || {})[p];
+    /* No description of its own: the description of the device plugged in, if it has one. */
+    const note = (sw.portNotes || {})[p] || (dev && dev.purpose) || '';
     const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
     /* A device with a single port has nothing to choose: its port is shown, but not selectable. */
     const single = (sw.ports || 0) + (sw.sfp || 0) === 1;
@@ -1168,6 +1180,29 @@ export function renderPorts(){
   const selLag = st.portNo != null ? lagUse(st.portNo) : null;
   const selGroup = st.portNo != null ? groupOf(st.portNo) : null;
 
+  /* What is on the picked port: the device and how it is plugged in, so it is known without opening it. */
+  const portInfo = x => {
+    const d = x.d, note = (sw.portNotes || {})[st.portNo];
+    const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
+      ['Description', d.purpose], ['Location', d.loc], ['Link', isUplink(x.r.kind) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')],
+      ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
+    return `<dl class="kv portinfo">${rows.map(([k, v]) => `<dt>${k}</dt><dd${/IP|MAC/.test(k) ? ' class="mono"' : ''}>${esc(v)}</dd>`).join('')}${seenChip(d) ? `<dt>Last seen</dt><dd>${seenChip(d)}</dd>` : ''}</dl>`;
+  };
+  const portsBody = () => `<div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
+      <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
+        <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
+      ${groups0.length ? `<div class="pgrouplegend">${groups0.map((g, i) => `<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${esc(g.name)} <span class="muted">${esc(pfxOf(sw) + g.from)}${g.to !== g.from ? '–' + esc(pfxOf(sw) + g.to) : ''}</span>${g.lag ? '<b>LAG</b>' : ''}</span>`).join('')}</div>` : ''}
+      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
+    </div>
+    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="${esc(portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor')}" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
+    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>${portInfo(x)}`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>`}</div>`}</div>` : ''}
+    <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
+      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
+      <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
+    <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
+      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
+        <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
+    </tbody></table></div></div></div>`;
   $('#view').innerHTML = `<div id="net">
     <div class="panelbox"><div class="hdr">Port setup</div>
       <div class="form" style="padding:10px 12px">
@@ -1177,22 +1212,8 @@ export function renderPorts(){
       </div>
       <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span></div>
     </div>
-    ${!sw.ports && !sw.sfp ? `<p class="note">No ports yet. Set the port count in the details of ${esc(sw.name)}.</p>` : ''}
-    <div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
-      <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
-        <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
-      ${groups0.length ? `<div class="pgrouplegend">${groups0.map((g, i) => `<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${esc(g.name)} <span class="muted">${esc(pfxOf(sw) + g.from)}${g.to !== g.from ? '–' + esc(pfxOf(sw) + g.to) : ''}</span>${g.lag ? '<b>LAG</b>' : ''}</span>`).join('')}</div>` : ''}
-      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
-    </div>
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="What is on this port, e.g. Printer, 3rd floor" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>`}</div>`}</div>` : ''}
-    <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
-      <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
-    <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
-        <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
-    </tbody></table></div></div></div>`;
+    ${!sw.ports && !sw.sfp ? `<p class="note ports-none">${esc(sw.name)} has no ports yet. Enter the number of copper or SFP ports above.</p></div>` : portsBody()}`;
+
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; view(); });
   const total = (sw.ports || 0) + (sw.sfp || 0);
   $('#view').querySelectorAll('[data-delgroup]').forEach(b => b.onclick = () => {
@@ -1238,7 +1259,7 @@ export function renderPorts(){
     queueServerSave(); toast('Description saved'); render();
   };
   /* A free port: plug in a device the inventory has, or create one already plugged in. */
-  const ab = $('#assignBtn'); if (ab) ab.onclick = () => linkObjModal({to: sw.id, port: st.portNo});
-  const an = $('#assignNewBtn'); if (an) an.onclick = () => newObjModal({sw: sw.id, port: st.portNo});
+  const ab = $('#assignBtn'); if (ab) ab.onclick = () => { if (!portRangeError(sw, st.portNo)) linkObjModal({to: sw.id, port: st.portNo}); };
+  const an = $('#assignNewBtn'); if (an) an.onclick = () => { if (!portRangeError(sw, st.portNo)) newObjModal({sw: sw.id, port: st.portNo}); };
 }
 
