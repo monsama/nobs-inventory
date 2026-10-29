@@ -338,12 +338,14 @@ export function applyState(d){
   objs.forEach(bindUser); REVIEW.forEach(bindUser);
   SYNC.defender = objs.some(o => o.defender);   /* the cards show a Defender mark once Defender has been read */
 }
-/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay.
+/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay, the
+   racks too unless their box is ticked.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
+      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
@@ -361,19 +363,28 @@ export async function clearAll(){
   const d = await r.json();
   /* Objects excluded from sync are kept, unless the box to delete protected objects is ticked. Relations and history of
      the removed objects go with them; relations between kept objects stay. */
-  const deleteAll = !!($('#clrAll') && $('#clrAll').checked);
-  /* Racks stay, as the dialog says: they are objects, so they are kept here as well. */
-  const removed = new Set(d.objs.filter(o => o.type !== 'rack' && (deleteAll || !o.excluded)).map(o => o.id));
+  const deleteAll = !!($('#clrAll') && $('#clrAll').checked), racksToo = !!($('#clrRacks') && $('#clrRacks').checked);
+  /* Racks stay unless their box is ticked: they are objects, so they are kept here as well. */
+  const removed = new Set(d.objs.filter(o => (racksToo || o.type !== 'rack') && (deleteAll || !o.excluded)).map(o => o.id));
   const kept = d.objs.length - removed.size;
+  const base = (kind, id) => d.revs[kind + '|' + id] ?? 0;
+  /* What stays must not point at what goes: a kept device leaves a deleted rack (or the device it sat on), and the
+     contracts no longer list the deleted devices. */
+  const puts = d.objs.filter(o => !removed.has(o.id) && (removed.has(o.rack) || removed.has(o.ontop))).map(o => {
+    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) delete v.ontop;
+    return {kind: 'object', id: o.id, value: v, base: base('object', o.id)};
+  });
+  if (Array.isArray(d.contracts) && d.contracts.some(c => (c.devices || []).some(id => removed.has(id))))
+    puts.push({kind: 'setting', id: 'contracts', value: d.contracts.map(c => c.devices ? {...c, devices: c.devices.filter(id => !removed.has(id))} : c), base: base('setting', 'contracts')});
   const dels = [
     ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),
     ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
     ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
-  ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
+  ].map(c => ({...c, base: base(c.kind, c.id)}));
   /* A backup first, kept until someone deletes it: without one nothing is cleared. */
   const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
   if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
-  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
+  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts, dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
   /* The connections go after the devices, so the save above cannot write their settings back. */
