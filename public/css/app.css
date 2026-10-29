@@ -1362,3 +1362,13 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .modal .box.moving{box-shadow:0 16px 50px rgba(0,0,0,.5)}
 .modal .box.maxed{transform:none!important}
 @media (max-width:760px){.modal .mh.movable{cursor:default}.modal .box{transform:none!important}}
+/* Picking cards (Cards, To review): a tick in the corner, shown on hover, while any card is picked, and on a picked
+   card, which is also outlined. */
+.card{position:relative}
+.cardtick{position:absolute;top:8px;right:8px;width:16px;height:16px;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg);opacity:0;transition:opacity .1s;z-index:1;cursor:pointer}
+.card:hover .cardtick,.card:focus-visible .cardtick,#cards:has(.card.picked) .cardtick,.card.picked .cardtick{opacity:1}
+.card.picked{outline:2px solid var(--accent);outline-offset:-1px}
+.card.picked .cardtick{background:var(--accent);border-color:var(--accent)}
+.card.picked .cardtick::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.card .ch{padding-right:22px}
+.pick-n{white-space:nowrap}

@@ -339,7 +339,8 @@ export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
-  return `<button class="card" data-open="${esc(o.id)}">
+  const picked = (st.bulk && st.bulk.has(o.id)) || (st.rvSel && st.rvSel.has(o.id));
+  return `<button class="card${picked ? ' picked' : ''}" data-open="${esc(o.id)}" aria-pressed="${!!picked}"><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
@@ -355,7 +356,7 @@ export function renderCardsBody(){
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
-    <div class="grow"></div><span class="muted hide-n">Click a card to open it in its own tab</span>`;
+    <div class="grow"></div>${pickBar()}`;
   bindListFilter();
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
@@ -398,7 +399,46 @@ export function renderCardsBody(){
   if (ea) ea.onclick = () => setAll(false);
 }
 
-export function renderCards(){ renderCardsBody(); addSearchHits(); }
+export function renderCards(){ st.bulk ??= new Set(); st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id))); renderCardsBody(); addSearchHits(); bindPickBar(); }
+/* Cards picked (the same choice as the Table's ticks): open them all as tabs, or go on in the Table, where the picked
+   rows can be moved, given a status or a responsible together. */
+function pickBar(){
+  const n = (st.bulk || new Set()).size;
+  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button><button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button><button id="cdClear">Clear</button>`
+    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several</span>';
+}
+function bindPickBar(){
+  const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
+  const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
+  const c = $('#cdClear'); if (c) c.onclick = () => { st.bulk.clear(); keepScroll(renderCards); };
+}
+/* Several objects at once, each in its own tab; the first is shown. A very long pick opens its first 30. */
+export function openObjs(ids){
+  const list = ids.filter(byId).slice(0, 30);
+  if (!list.length) return;
+  for (const id of list) if (!st.open.includes(id)){ st.open.push(id); st.tabIds.push(id); }
+  if (ids.length > list.length) toast(`The first ${list.length} of ${ids.length} are open: the tab bar holds no more at once.`);
+  openObj(list[0]);
+}
+/* A redraw that leaves the list where it was scrolled to. */
+export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 0; draw(); const w = $('#view'); if (w) w.scrollTop = y; };
+/* Picking cards, in Cards and in To review: Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
+   Shift + click picks every card from the last one picked to this one. A plain click still opens the card. */
+let lastPick = null;
+document.addEventListener('click', async e => {
+  const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card) return;
+  const tick = e.target.closest('.cardtick');
+  if (!tick && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const review = !!card.closest('.rv-item'), id = card.dataset.open;
+  const set = review ? (st.rvSel ??= new Set()) : (st.bulk ??= new Set());
+  if (e.shiftKey && lastPick && lastPick !== id){
+    const ids = [...$('#view').querySelectorAll('.card[data-open]')].map(c => c.dataset.open), a = ids.indexOf(lastPick), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => set.add(x)); else set.add(id);
+  } else if (set.has(id)) set.delete(id); else set.add(id);
+  lastPick = id;
+  if (review) keepScroll((await import('./15-review.js')).renderReview); else keepScroll(renderCards);
+}, true);
 /* When the search matches a person or a place, those come first as buttons. */
 export function addSearchHits(){
   const q = st.q.trim().toLowerCase(); if (!q) return;
@@ -481,7 +521,7 @@ export function renderTable(){
   st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
-    ${n ? `<b>${n} selected</b><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
+    ${n ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter();
@@ -516,6 +556,7 @@ export function renderTable(){
     toastUndo(`${CONTACT_KINDS[kind]} responsible ${id ? 'set' : 'removed'} on ${changed} ${changed === 1 ? 'device' : 'devices'}`, () => { restoreSnapshot(snap, 'Responsible change undone'); render(); }); renderTable(); render();
   };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
+  const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
   const idx = relIndex();   /* one index of the relations for all rows */
   const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
   /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
