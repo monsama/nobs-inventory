@@ -68,6 +68,7 @@ export const PEOPLE_SOURCES = [
   ['Active Directory', 'People with their login, name and department, and their card: title, phones, office, manager and e-mail'],
   ['Entra', 'People and their departments, as a reference beside AD (Settings → Entra & Intune)'],
   ['Lansweeper', 'The departments of the people it sees as users, unless "Feed may overwrite" turns that off'],
+  ['Contacts', 'People from AD or Entra are added as internal contacts only when picked (Contacts → From directory…), with their title, department, e-mail, phones and office'],
 ];
 
 /* Who wins when several sources know a field. */

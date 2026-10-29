@@ -1427,3 +1427,13 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 @media (max-width:760px){.lrow.adloc{grid-template-columns:minmax(0,1fr) 50px}.lrow.adloc .adloc-tags,.lrow.adloc.head>span:nth-child(2){display:none}.lrow.adloc .adloc-ctl{grid-column:1 / -1}}
 .lrow.adloc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .adloc-ctl{display:flex;align-items:center;gap:8px;min-width:0}.adloc-ctl select{width:100%}
+
+/* Contacts → From directory: search and department, then a list to pick from. */
+.dir-bar{display:flex;gap:8px;margin:8px 0}.dir-bar input{flex:1;min-width:0}.dir-bar select{width:auto;max-width:45%}
+.dir-list{max-height:min(52vh,460px);overflow:auto;border:1px solid var(--bd);border-radius:var(--r-m)}
+.dir-row{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,auto);gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--bd2);cursor:pointer}
+.dir-row:last-child{border-bottom:0}.dir-row:hover{background:var(--hover)}.dir-row.done{cursor:default;opacity:.7}
+.dir-who{display:flex;flex-direction:column;min-width:0}.dir-who b,.dir-who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dir-who span{font-size:12px}
+.dir-how{font-size:12px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+.dir-all{width:auto}
+@media (max-width:760px){.dir-row{grid-template-columns:auto minmax(0,1fr)}.dir-how{grid-column:2;text-align:left}}
