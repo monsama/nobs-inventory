@@ -32,9 +32,9 @@ export function modal(html, cls=''){
 }
 /* Asks before something is deleted, in the app's own small dialog: what goes, what it means, Cancel or the red button.
    text is HTML: the caller escapes the names in it. */
-export function confirmModal(title, text, okLabel, onOk){
+export function confirmModal(title, text, okLabel, onOk, { primary = false } = {}){
   modal(`<div class="mh">${esc(title)}</div><div class="mb"><p class="note">${text}</p></div>
-    <div class="mf"><button id="cfCancel">Cancel</button><button id="cfOk" class="danger-text">${esc(okLabel)}</button></div>`, 'sm');
+    <div class="mf"><button id="cfCancel">Cancel</button><button id="cfOk" class="${primary ? 'primary' : 'danger-text'}">${esc(okLabel)}</button></div>`, 'sm');
   $('#cfCancel').onclick = closeModal;
   $('#cfOk').onclick = () => { closeModal(); onOk(); };
 }

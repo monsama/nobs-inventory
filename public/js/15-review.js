@@ -162,10 +162,10 @@ export function resolveModal(list){
   const one = list.length === 1, o = list[0], t = dupOf(o);
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
-    ['Operating system', x => x.os], ['Code', x => x.code], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
+    ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? `<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
     const a = String(f(o) || ''), b = String(f(t) || '');
-    return `<tr${a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
+    return `<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
   }).join('')}</tbody></table>`
     : `<ul class="dup-list">${list.slice(0, 12).map(x => `<li><b>${esc(x.name)}</b> → ${esc(dupOf(x).name)}</li>`).join('')}${list.length > 12 ? `<li>and ${list.length - 12} more</li>` : ''}</ul>`;
   const def = dns ? 'dock' : 'same';
@@ -174,7 +174,12 @@ export function resolveModal(list){
     <div class="dup-ways" role="radiogroup" aria-label="What it is">${RESOLVE.map(([k, l, d]) => `<label class="dup-way"><input type="radio" name="dupWay" value="${k}" ${k === def ? 'checked' : ''}><span><b>${l}</b><span class="muted">${d}</span></span></label>`).join('')}</div></div>
     <div class="mf"><button id="dupCancel">Cancel</button><button id="dupOk" class="primary">Resolve</button></div>`);
   document.getElementById('dupCancel').onclick = closeModal;
-  document.getElementById('dupOk').onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
+  /* The button says what the choice does. */
+  const okText = k => ({ dock: 'Merge as adapter', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
+  const ok = document.getElementById('dupOk');
+  const label = () => { ok.textContent = okText(document.querySelector('[name=dupWay]:checked').value); };
+  document.querySelectorAll('[name=dupWay]').forEach(r => r.onchange = label); label();
+  ok.onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
@@ -182,7 +187,7 @@ export function reviewBanner(o){
   const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
     ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore">Back to review</button>` : ''}</div>`
-    : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)}</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
+    : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
 }
 export function bindReviewBanner(o){
   document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {

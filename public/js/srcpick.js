@@ -12,7 +12,7 @@ const WHEN = { ls: 'last scan', graph: 'last check-in', ad: 'last logon', hand: 
 const ORDER = ['ls', 'graph', 'ad', 'hand', 'unknown'];
 /* The time a source last said something of the device, for a value in use that it has not noted on its own. */
 const timeOf = (o, src) => src === 'ls' ? (o.feed && o.feed.scanned) || '' : src === 'graph' ? (o.graph && (o.graph.lastCheckIn || o.graph.lastSync)) || '' : src === 'ad' ? (o.ad && o.ad.logon) || '' : src === 'hand' ? o.handAt || '' : '';
-const LABELS = { ...FIELD_LABEL, purpose: 'Purpose', serial: 'Serial number', loc: 'Location' };
+const LABELS = { ...FIELD_LABEL, purpose: 'Description', serial: 'Serial number', loc: 'Location' };
 /* A source's time, written the app's way: 2026-10-27T08:00:00Z → 27.10.2026 08:00, 2026-10-27 → 27.10.2026. */
 const shown = t => /T\d{2}:\d{2}/.test(t || '') && Date.parse(t) ? stamp(new Date(t)) : /^\d{4}-\d{2}-\d{2}$/.test(t || '') ? dayText(t) : String(t || '');
 const ms = t => { if (!t) return 0; if (/^\d{2}\.\d{2}\.\d{4}/.test(t)) { const [d, m, y, h = '0', mi = '0'] = t.split(/[. :]/); return Date.UTC(+y, m - 1, +d, +h, +mi); } return Date.parse(/T/.test(t) ? t : t + 'T00:00:00Z') || 0; };

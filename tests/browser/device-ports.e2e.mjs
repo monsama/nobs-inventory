@@ -170,6 +170,9 @@ try {
   await p.waitForSelector('#assignBtn');
   await p.click('#assignBtn');
   await p.waitForSelector('#lkObj');
+  assert.equal(await p.inputValue('#lkObj'), '', 'no device is chosen for the person');
+  assert.match(await p.textContent('#mdl .mh'), /Plug into .* · .*3/);
+  assert.match(await p.textContent('#lkOk'), /Plug in/);
   assert.equal(await p.inputValue('#lkTo'), 'lagB'); assert.equal(await p.inputValue('#lkPort'), '3');
   await p.selectOption('#lkObj', 'pc77');
   assert.equal(await p.inputValue('#lkTo'), 'lagB', 'choosing the device keeps the switch'); assert.equal(await p.inputValue('#lkPort'), '3');

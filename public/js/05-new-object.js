@@ -1,4 +1,4 @@
-import { portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
 import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
@@ -133,19 +133,21 @@ export function linkObjModal(pre = {}){
     .filter(o => !into || (o.id !== into.id && linkOf(o).port && linkOf(o).ok(into)));
   if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create an object first.'); return; }
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
-  modal(`<div class="mh">Link object</div>
+  /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
+  const atPort = into && pre.port != null;
+  modal(`<div class="mh">${atPort ? `Plug into ${esc(into.name)} · ${esc(pfxOf(into) + pre.port)}` : 'Link object'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="lkObj">Object</label><select id="lkObj">${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
+      <label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${atPort ? '<option value="">Choose a device…</option>' : ''}${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
     </div><p class="note" id="lkNote">Only the link is added; the object's details stay as they are.</p></div>
-    <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">Link</button></div>`, 'sm');
+    <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
      link to. */
   const ctx = byId(st.tab), obj = pre.obj || (ctx && list.some(o => o.id === ctx.id) ? ctx.id : null);
   if (obj && list.some(o => o.id === obj)) $('#lkObj').value = obj;
   const fit = () => {
-    const o = byId($('#lkObj').value), link = linkOf(o), keep = $('#lkTo').value;
+    const o = byId($('#lkObj').value) || list[0], link = linkOf(o), keep = $('#lkTo').value;
     document.querySelector('label[for="lkTo"]').textContent = link.label;
     $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
@@ -161,6 +163,7 @@ export function linkObjModal(pre = {}){
   $('#lkObj').focus();
   $('#lkCancel').onclick = closeModal;
   $('#lkOk').onclick = () => {
+    if (!$('#lkObj').value){ $('#lkObj').focus(); toast('Choose the device to plug in.'); return; }
     const e = byId($('#lkObj').value), link = linkOf(e), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
     if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
