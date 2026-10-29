@@ -146,9 +146,11 @@ details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;bo
 details.fmenu .menubox{min-width:210px;top:30px}
 /* Other network adapters under the MAC address: name, address and details on one row each. */
 .nics{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
-.nics li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
-.nics .nic-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nics .nic-meta{grid-column:1/-1}
+.nics li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
+/* The name keeps room to be read: when the address does not fit beside it, the address goes to the next line. */
+.nics .nic-name{flex:1 1 14em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nics .nic-addr{margin-left:auto}
+.nics .nic-meta{flex-basis:100%}
 .adgroups{display:flex;flex-wrap:wrap;gap:4px;padding:3px 0;min-width:0}
 .adgroups .chip.adg{cursor:pointer;border:1px solid var(--bd);background:var(--panel2);color:var(--fg);font:inherit;font-size:12px}
 .adgroups .chip.adg:hover{border-color:var(--accent)}
@@ -899,6 +901,9 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 .form>span{font-size:13px;line-height:18px;padding:5px 0}
 /* A remark under a field, in the field's column: a gateway other than the subnet's, a warranty that ends. */
 .fieldnote{margin:-2px 0 2px;font-size:12px}
+/* Under a field on the device page, a note and the other adapters end where the field ends: the source mark and the ⋯
+   menu keep their columns (16px + 26px and the gaps; 16px without the menu). On a phone those columns are not kept. */
+@media (min-width:761px){.form.props>:is(.fieldnote,.nics){margin-right:62px}.form.props.ro>:is(.fieldnote,.nics){margin-right:26px}}
 /* Disks: a bar per drive, filled as far as the drive is used; orange from 80 %, red from 90 %. */
 .disks{display:flex;flex-direction:column;gap:5px;min-width:0;padding:3px 0}
 .disk{display:grid;grid-template-columns:24px minmax(60px,1fr) auto;align-items:center;gap:8px;font-size:12px}
