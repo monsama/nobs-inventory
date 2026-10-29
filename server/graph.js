@@ -125,7 +125,11 @@ const DEFENDER_ORIGIN = 'https://api.securitycenter.microsoft.com';
 const DEFENDER_PERMISSION = 'Machine.Read.All (WindowsDefenderATP)';
 const AUTOPILOT_PERMISSION = 'DeviceManagementServiceConfig.Read.All';
 const DEVICE_SELECT = 'id,deviceId,displayName,trustType,isManaged,approximateLastSignInDateTime,accountEnabled';
-const MANAGED_SELECT = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType,deviceCategoryDisplayName,autopilotEnrolled,jailBroken,isSupervised';
+const MANAGED_BASE = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,model,operatingSystem,osVersion,userPrincipalName,totalStorageSpaceInBytes,freeStorageSpaceInBytes,physicalMemoryInBytes,wiFiMacAddress,ethernetMacAddress,lastSyncDateTime,enrolledDateTime,complianceState,isEncrypted,managementAgent,userDisplayName,imei,phoneNumber,managedDeviceOwnerType';
+/* Category, jailbroken and supervised: v1.0 has them. A tenant or API version that refuses one of them (Graph answers 400
+   for a property it does not know) gets the list without them, so the sync never fails over an extra. Whether a device
+   was set up with Autopilot comes from the Autopilot list (Settings), as v1.0 has no autopilotEnrolled. */
+const MANAGED_SELECT = MANAGED_BASE + ',deviceCategoryDisplayName,jailBroken,isSupervised';
 /* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
@@ -154,7 +158,7 @@ export function toRecords(devices, managed) {
       imei: clean(m.imei).replace(/\s+/g, ''), phone: clean(m.phoneNumber), ownership: OWNERSHIP[m.managedDeviceOwnerType] || '',
       /* Its category in Intune, whether Autopilot set it up, a jailbroken or rooted phone, a supervised iPhone or iPad. */
       category: /^unknown$/i.test(clean(m.deviceCategoryDisplayName)) ? '' : clean(m.deviceCategoryDisplayName).slice(0, 60),
-      autopilot: m.autopilotEnrolled === true ? 'yes' : '', jailbroken: /^true$/i.test(clean(m.jailBroken)) ? 'yes' : '', supervised: m.isSupervised === true ? 'yes' : '',
+      jailbroken: /^true$/i.test(clean(m.jailBroken)) ? 'yes' : '', supervised: m.isSupervised === true ? 'yes' : '',
     };
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
@@ -172,7 +176,8 @@ export function toRecords(devices, managed) {
 export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
   const token = await graphToken(cfg, now, fetchImpl);
   const devices = await graphAll(token, `${GRAPH}/devices?$select=${DEVICE_SELECT}`, fetchImpl);
-  const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl);
+  const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl)
+    .catch(e => (e.upstream === 400 ? graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_BASE}`, fetchImpl) : Promise.reject(e)));
   let users = null, peopleError = '';
   if (cfg.people && cfg.people !== 'off') {
     try {
