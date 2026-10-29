@@ -55,10 +55,11 @@ try {
   assert.match(form, /created 02.01.2020/);
   assert.match(form, /Managed by Anna Muster/);
   assert.match(form, /SQL Server/, 'what it runs, from its service principal names');
-  // a click on a source mark shows its tooltip; a click elsewhere or Escape closes it
+  // a click on a source mark shows where the value is from (here only AD) and when; a click elsewhere or Escape closes it
   const osMark = p.locator('#f_s1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]');
+  assert.match(await osMark.getAttribute('title'), /From the computer account in Active Directory/);
   await osMark.click();
-  assert.match(await p.textContent('#fsrcPop'), /From the computer account in Active Directory/);
+  assert.match(await p.textContent('#fsrcPop'), /Automatic[\s\S]*Active Directory\s*in use\s*Windows Server 2019 Standard[\s\S]*last logon 12\.04\.2026/);
   await p.click('#objTitle');
   assert.equal(await p.locator('#fsrcPop').count(), 0, 'closed by a click elsewhere');
   await osMark.focus(); await p.keyboard.press('Enter');
@@ -82,10 +83,18 @@ try {
   await p.waitForSelector('#fsrcPop.pick');
   const pop = await p.textContent('#fsrcPop');
   assert.match(pop, /Entra & Intune\s*newest\s*Windows 11 Enterprise\s*last check-in 28\.10\.2026/);
-  assert.match(pop, /Active Directory\s*Windows 11 Pro\s*last logon 24\.10\.2026/);
+  assert.match(pop, /Active Directory\s*in use\s*Windows 11 Pro\s*last logon 24\.10\.2026/);
   await p.click('#fsrcPop [data-pick=graph]');
   await stored(st => { const o = st.objs.find(x => x.id === 'v1'); return o.os === 'Windows 11 Enterprise' && o.pick && o.pick.os === 'graph' && o.src.os === 'graph'; });
   await until(p, () => document.querySelector('#f_v1_os').value === 'Windows 11 Enterprise');
+  // fixed: the mark has a lock, the picker says so and goes back to automatic
+  await until(p, () => document.querySelector('#f_v1_os').closest('.ctlrow').querySelector('.fsrc.fsrc-picked .fsrc-lock'));
+  await p.locator('#f_v1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]').first().click();
+  await p.waitForSelector('#fsrcPop.pick');
+  assert.match(await p.textContent('#fsrcPop .sp-head'), /Fixed to Entra & Intune/);
+  await p.click('#fsrcPop .sp-foot [data-pick=""]');
+  await stored(st => { const o = st.objs.find(x => x.id === 'v1'); return !(o.pick && o.pick.os); });
+  await until(p, () => !document.querySelector('#f_v1_os').closest('.ctlrow').querySelector('.fsrc-lock'));
 
   // the phone: what Intune says of it
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('m1'));

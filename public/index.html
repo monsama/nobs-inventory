@@ -113,6 +113,13 @@ table.locs td.site{color:var(--muted)}
 .fsrc{position:relative}
 .fsrc-multi::after{content:"";position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
 .fsrc.fsrc-picked{color:var(--accent)}
+.fsrc-lock{position:absolute;right:-4px;bottom:-3px;width:9px!important;height:9px!important;fill:var(--bg)!important;stroke:var(--accent)!important;stroke-width:1.6!important;background:var(--bg);border-radius:2px}
+.fsrc.fsrc-empty>svg:first-child{opacity:.55}
+.sp-mode{display:inline-flex;align-items:center;gap:4px}
+.sp-mode.fixed{color:var(--accent)!important;font-weight:600}
+.sp-lock{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.6}
+.sp-use{font-size:10px;padding:0 5px;line-height:15px}
+.sp-none{margin:0;padding:10px 12px}
 .fsrc-pop.pick{pointer-events:auto;overflow:auto;padding:0;max-width:340px;width:max-content;min-width:260px;background:var(--bg);color:var(--fg);border:1px solid var(--bd);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:13px}
 .sp-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 12px;border-bottom:1px solid var(--bd2)}
 .sp-head span{font-size:12px;color:var(--muted)}
@@ -128,7 +135,7 @@ table.locs td.site{color:var(--muted)}
 .sp-val{font-weight:600;overflow-wrap:anywhere}
 .sp-at{font-size:11px;color:var(--muted)}
 .sp-tick{color:var(--accent);font-weight:700}
-.sp-foot{padding:6px 12px 8px;border-top:1px solid var(--bd2);font-size:12px}
+.sp-foot{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:8px 12px;border-top:1px solid var(--bd2);font-size:12px;line-height:1.4}
 .fsrc:focus-visible{color:var(--fg);outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
 .fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */

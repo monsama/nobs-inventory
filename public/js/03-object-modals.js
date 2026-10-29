@@ -8,7 +8,7 @@ import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, WARRANTY_SOON_DAYS, warrantyState } from './01-core.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
-import { keepByHand, defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, feedOwns, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
+import { keepByHand, defenderState, joinBadges, JOIN_INFO, joinOf, graphAmbiguousOf, SYNC, GRAPH_TYPES, GRAPH_STALE_DAYS, graphLast, graphStale, complianceChip, hiddenOf, lsLive, SCAN_ONLY, scanOld, scanChip, neverScanned, dayText, isAttached, MODELS, modelNames, DOMAINS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, fullTextTooltips, feedLinked, vlanLabel, hasPorts, lagOfPort, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, syncChip, syncOf, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, showOnPlan } from './07-render-plans.js';
 import { USERS, applyRole, canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -394,32 +394,22 @@ export function fieldMenu(o, f, hiddenBy = ''){
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
   return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
 }
-/* Over the two narrow columns at the right of Properties, for an object Lansweeper fills in: what the boxes are, so a row
-   without one reads as "not from Lansweeper", not as a gap. The text ends over the boxes. */
-function propHead(o, menu){
-  if (!(LS_ON() && feedLinked(o))) return '';
-  return `<span></span><div class="ctlrow prop-head" aria-hidden="true"><span></span><span class="fsrc-slot"></span><span class="pchk-slot ph-ls">From Lansweeper</span>${menu ? '<span class="fm-slot"></span>' : ''}</div>`;
-}
 /* When a device was last saved here, for the toolbar: the time today, else the day. */
 const savedAt = iso => { const d = new Date(iso), t = new Date(); return d.toDateString() === t.toDateString() ? d.toTimeString().slice(0, 5) : dateText(d); };
-/* One row of Properties. For an object linked to Lansweeper, a field the feed fills in is read-only while "From feed" is
-   ticked; untick it to edit the value here. */
+/* One row of Properties: the field, its source mark (where the value comes from, and whether it is fixed to one source;
+   a click compares the sources and picks one) and its ⋯ menu. A value typed here is kept as typed. */
 export function propRow(o, f, menu = ''){
   const k = f[0];
-  const linked = LS_ON() && feedLinked(o) && !!FIELD_LABEL[k];
-  const taken = linked && feedOwns(o, k);
-  /* A field from Lansweeper can be typed over: the value typed is kept, and its From feed box is unticked. */
   const ctl = fieldCtl(o, f);
   /* Disks from Lansweeper show as bars under the field. */
   const bars = k === 'disk' ? diskBars(o.disk, lsLive() && feedLinked(o)) : '';
-  const box = linked ? `<label class="pchk pchk-only" title="Ticked: Lansweeper fills this in. Type a value to keep your own; tick again to follow Lansweeper."><input type="checkbox" data-ovr="${k}" aria-label="From feed" ${taken ? 'checked' : ''}></label>` : (LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : '');
   /* An amount: the currency is in the label, so the field is as wide as the others. */
   const label = f[2] === 'money' ? `${f[1]} (${COSTS.currency || 'CHF'})` : f[1];
   const comboNoteSlot = k === 'model' || k === 'ip' ? `<span hidden></span><p class="fieldnote" id="f_${o.id}_${k}_note" aria-live="polite" hidden></p>` : '';
-  /* The bars sit under the field and end where it ends: the From feed box and the menu keep their columns free. */
-  const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
+  /* The bars sit under the field and end where it ends: the source mark and the menu keep their columns free. */
+  const barsBelow = bars ? `<span></span><div class="ctlrow below">${bars}<span class="fsrc-slot" aria-hidden="true"></span>${menu ? '<span class="fm-slot" aria-hidden="true"></span>' : ''}</div>` : '';
   const nics = k === 'mac' ? nicsHtml(o) : '';
-  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${sourceMark(o, k)}${box}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
+  return `<label for="f_${o.id}_${k}">${esc(label)}</label><div class="ctlrow">${ctl}${sourceMark(o, k)}${menu}</div>${comboNoteSlot}${barsBelow}${fieldNote(o, k)}${nics}`;
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
 export function nicsHtml(o){
@@ -861,13 +851,13 @@ export function renderObj(o){
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
   $('#view').innerHTML = `${reviewBanner(o)}<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${propHead(o, !!menuSlot)}${fields.map(row).join('')}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form">${fields.map(row).join('')}
         ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.ad ? `<label>AD account</label><div class="ctlrow entries"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<span class="admore">${adMoreHtml(o.ad)}</span>` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${LS_ON() ? '<span class="pchk-slot" aria-hidden="true"></span>' : ''}${menuSlot}</div>
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${(o.adGroups || []).length ? `<label>AD groups</label><div class="ctlrow"><div class="adgroups">${o.adGroups.map(g => `<button type="button" class="chip adg" data-adg="${esc(g)}" title="Show the devices in ${esc(g)}">${esc(g)}</button>`).join('')}</div><span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${o.ad ? `<label>AD account</label><div class="ctlrow entries"><span class="ad-acct">${adAccountHtml(o.ad)}${adMoreHtml(o.ad) ? `<span class="admore">${adMoreHtml(o.ad)}</span>` : ''}</span><span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${feedPanel(o)}
       ${graphPanel(o)}
@@ -1132,12 +1122,6 @@ export function renderObj(o){
     return true;
   };
   $('#saveBtn').onclick = () => saveObj();
-  /* Typing over a value from Lansweeper keeps it: the field's From feed box is unticked, and the save keeps it as set here. */
-  objView.addEventListener('input', e => {
-    if (e.target.matches('[data-ovr]')) return;
-    const box = e.target.closest('.ctlrow') && e.target.closest('.ctlrow').querySelector('[data-ovr]');
-    if (box) box.checked = false;
-  });
   /* An AD group on the device: the devices in that group, in the table. */
   objView.querySelectorAll('[data-adg]').forEach(b => b.onclick = () => { st.adGroup = b.dataset.adg; st.tab = 'table'; render(); });
   /* The ⋯ menu of each field. One is open at a time; a click elsewhere or Escape closes it. */
@@ -1162,15 +1146,14 @@ export function renderObj(o){
     }
     if (act === 'clear'){
       const el = objView.querySelector(`[data-k="${CSS.escape(k)}"]`); if (!el) return;
-      const fromFeed = feedLinked(o) && LS_ON() && !!FIELD_LABEL[k];
+      const fromFeed = (feedLinked(o) && LS_ON()) || (o.graph && o.graph.added) || o.ad ? !!FIELD_LABEL[k] : false;
       modal(`<div class="mh">Clear ${esc(name)}?</div>
-        <div class="mb"><p class="note">The value of ${esc(name)} on ${esc(o.name)} is removed. The history keeps a note.${fromFeed ? ' Lansweeper no longer fills it in on this device; tick its From feed box to let it again.' : ''}</p></div>
+        <div class="mb"><p class="note">The value of ${esc(name)} on ${esc(o.name)} is removed. The history keeps a note.${fromFeed ? ' No source fills it in again; pick Back to automatic at its source mark to let them.' : ''}</p></div>
         <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Clear</button></div>`, 'sm');
       $('#fmCancel').onclick = closeModal;
       $('#fmOk').onclick = () => {
         closeModal();
         el.value = '';
-        if (fromFeed){ const box = el.closest('.ctlrow') && el.closest('.ctlrow').querySelector('[data-ovr]'); if (box) box.checked = false; }
         saveObj(true);
       };
       return;
