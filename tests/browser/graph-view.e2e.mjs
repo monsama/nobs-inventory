@@ -63,7 +63,10 @@ try {
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
-  assert.deepEqual([await count('duplicates'), await count('ambiguous')], ['1', '2']);
+  // the duplicates have their own group, whatever found them
+  const dup = k => p.textContent(`#dupList [data-intune="${k}"] .cnt`);
+  assert.deepEqual([await dup('duplicates'), await dup('ambiguous')], ['1', '2']);
+  assert.equal(await p.locator('#grList [data-intune="duplicates"]').count(), 0, 'not also under Entra & Intune');
   if (process.env.NI_SHOTS) await p.locator('#grHdr').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-side-h.png') });
   await p.click('#grList [data-intune="missing"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c', 'e']);
@@ -93,7 +96,7 @@ try {
   assert.match(await p.textContent('.panelbox:has(.hdr:text("How devices are joined"))'), /Entra joined.*2.*Hybrid joined.*1.*AD joined only.*1/s);
   await p.click('.ov-row[data-ovintune="hybrid"]'); assert.deepEqual(await ids(), ['b']);
   await overview(); await p.click('.ov-bar[data-ovintune="duplicates"]'); assert.deepEqual(await ids(), ['d']);
-  assert.equal(await p.locator('#grList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
+  assert.equal(await p.locator('#dupList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
   await overview(); await p.click('.ov-bar[data-ovintune="managed"]'); assert.deepEqual(await ids(), ['a', 'b', 'd']);
   assert.equal(await p.locator('#grList [data-intune="managed"]').count(), 1, 'an Overview-only filter shows while it filters');
   // a column filter typed in the table before does not hide what the Overview opens
