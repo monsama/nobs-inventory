@@ -1,0 +1,88 @@
+/* Browser test of merging a second record into its device: a dock's DNS-named record merges from its page (its address
+   becomes an adapter of the device, its monitor goes along, Undo puts it back); accepting a device the inventory has
+   asks first and offers Merge; To review shows which other sources know a device and filters by AD or Entra. */
+import { chromium } from 'playwright';
+import { createApp } from '../../server/app.js';
+import { openDb } from '../../server/db.js';
+import { bootstrap } from '../../server/index.js';
+import { loadState, saveState } from '../../server/state.js';
+import { until } from './until.mjs';
+import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import assert from 'node:assert/strict';
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-merge-'));
+const db = openDb(path.join(dir, 'inventory.db'));
+bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
+const day = new Date().toISOString().slice(0, 10);
+const s0 = loadState(db);
+saveState(db, { ...s0,
+  objs: [
+    { id: 'n35', code: 'INV-0001', type: 'notebook', name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', status: 'active', feed: null },
+    { id: 'd35', code: 'INV-0002', type: 'other', name: 'nb-35.corp.example', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', status: 'active', feed: null },
+    { id: 'm1', code: 'INV-0003', type: 'monitor', name: 'MON-1', serial: 'M1', status: 'active', feed: null },
+    { id: 'p7', code: 'INV-0004', type: 'pc', name: 'PC-7', serial: 'P7', status: 'active', feed: null },
+    { id: 'r7', code: 'INV-0005', type: 'pc', name: 'PC-7', ip: '10.1.4.7', status: 'active', feed: null, inAd: true, review: { src: 'lansweeper', at: day + ' 08:00' } },
+    { id: 'r8', code: 'INV-0006', type: 'pc', name: 'PC-8', status: 'active', feed: null, review: { src: 'lansweeper', at: day + ' 08:00' } },
+  ],
+  rels: [{ id: 'a1', from: 'm1', to: 'd35', kind: 'attached', port: null, vlan: null }], history: {} });
+
+const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
+const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
+const errors = [];
+const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
+try {
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none */ } });
+  const p = await ctx.newPage();
+  p.on('pageerror', e => errors.push(e.message));
+  await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
+  await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
+
+  // the dock's record merges from its page: address as an adapter of NB-35, the monitor with it, kept as ignored
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('d35'));
+  await p.waitForSelector('#twMerge');
+  assert.match(await p.textContent('#twMerge'), /Merge into NB-35/);
+  await p.click('#twMerge');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return !c.objs.some(o => o.id === 'd35'); });
+  const after = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const n = c.byId('n35'), d = c.byId('d35');
+    return [n.nics, c.rels.find(r => r.id === 'a1').to, d.review.ignored ? 'ignored' : '', d.review.merged, d.excluded]; });
+  assert.deepEqual(after, [[{ name: 'Dock / USB adapter', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', merged: 'nb-35.corp.example' }], 'n35', 'ignored', 'n35', true]);
+  assert.match(await p.textContent('.rv-banner'), /Merged into NB-35/);
+  // Undo puts all of it back
+  await p.click('#toast .t-undo');
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.objs.some(o => o.id === 'd35') && !c.byId('n35').nics && c.rels.find(r => r.id === 'a1').to === 'd35'; });
+  // the Duplicates list picks it, and Merge works from the pick too
+  await p.click('#tabsbar [data-tab=cards]');
+  await p.click('#dupList [data-twins]');
+  await p.click('#cards .card[data-open="d35"] .cardtick');
+  await p.click('#rvMerge');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').nics || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
+  await p.click('#fbar [data-fx=twins]');
+
+  // To review: the other sources that know a device, and the filter by AD or Entra
+  await p.click('#tabsbar [data-tab=review]');
+  await p.waitForSelector('#cards .card[data-open="r7"]');
+  assert.match(await p.textContent('#cards .card[data-open="r7"]'), /also AD/);
+  await p.click('#scopeList [data-rvknown]');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 1);
+  await p.click('#fbar [data-fx=rvKnown]');
+  await until(p, () => document.querySelectorAll('#cards .card').length === 2);
+
+  // accepting PC-7, which the inventory has, asks first: Accept anyway makes a second one (undone), Merge folds it in
+  await p.click('#cards .card[data-open="r7"] .cardtick');
+  await p.click('#rvAccept');
+  await p.waitForSelector('#cfMerge');
+  assert.match(await p.textContent('#mdl'), /PC-7.*→.*PC-7/s);
+  await p.click('#cfOk');
+  await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => o.name === 'PC-7').length === 2);
+  await p.click('#toast .t-undo');
+  await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => o.name === 'PC-7').length === 1);
+  await p.click('#cards .card[data-open="r7"] .cardtick');
+  await p.click('#rvAccept'); await p.click('#cfMerge');
+  await stored(st => { const r = st.objs.find(o => o.id === 'r7'); return r.review.merged === 'p7' && (st.objs.find(o => o.id === 'p7').nics || []).some(n => n.ip === '10.1.4.7'); });
+  assert.equal(await p.locator('#cards .card').count(), 1, 'PC-8 still waits');
+
+  assert.deepEqual(errors, []);
+  console.log('merge: all checks passed');
+} finally { await browser.close(); server.close(); }

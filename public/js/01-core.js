@@ -235,7 +235,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvSrc:'', rvKnown:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -455,13 +455,14 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 }
 /* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
    device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
-   adapter. Retired devices count on neither side. The names are indexed once per task, so a list of thousands stays quick. */
+   adapter. Retired devices count on neither side; the device may also still wait in To review. The names are indexed
+   once per task, so a list of thousands stays quick. */
 let twinIdx = null;
 export function twinOf(o){
   if (!o || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
-    for (const x of objs) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);
+    for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);
     queueMicrotask(() => { twinIdx = null; });
   }
   const t = twinIdx.get(String(o.name).toLowerCase().split('.')[0]);
@@ -602,13 +603,17 @@ export const isAttached = k => k === 'attached';
 export const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup);
+/* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
+   one source of them (st.rvSrc), or the ones ignored there. */
+export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
+  : st.scope === 'review' ? REVIEW.filter(o => o.review && !o.review.ignored && (!st.rvSrc || o.review.src === st.rvSrc) && (!st.rvKnown || o.inAd || !!o.graph)) : objs;
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
-export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? objs.filter(o => matchesQ(o, q)) : []; };
+export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return objs.filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
     && matchesQ(o, q));
 }
 
@@ -708,4 +713,6 @@ export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand
 
 /* The one way to edit a row or a card: a pencil button at its end, the same in every list (contacts, contracts, licences).
    attr says what it opens (data-…="id"); a viewer gets Show instead of Edit. */
+/* Delete at the end of a row or card, next to Edit: a monochrome bin; what it does is asked first (confirmModal). */
+export const deleteButton = (attr, name) => `<button type="button" class="icon ghost delbtn" ${attr} aria-label="Delete ${esc(name)}" title="Delete"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>`;
 export const editButton = (attr, name, edit = true) => `<button type="button" class="icon ghost editbtn" ${attr} aria-label="${edit ? 'Edit' : 'Show'} ${esc(name)}" title="${edit ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button>`;

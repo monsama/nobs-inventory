@@ -2,7 +2,7 @@
    from Settings brings Settings back when it closes. */
 import { $, esc, fullTextTooltips, toast } from './01-core.js';
 import { applyRole } from './04-settings.js';
-import { render } from './07-render.js';
+import { checkForChanges, render } from './07-render.js';
 import { bindPolicy } from './03-object-modals.js';
 
 /* ---------- modals ---------- */
@@ -30,6 +30,14 @@ export function modal(html, cls=''){
   const first = [...$('#mdl').querySelectorAll('input, select, textarea, button')].find(el => !el.closest('.wctl')); if (first) first.focus();
   applyRole();
 }
+/* Asks before something is deleted, in the app's own small dialog: what goes, what it means, Cancel or the red button.
+   text is HTML: the caller escapes the names in it. */
+export function confirmModal(title, text, okLabel, onOk){
+  modal(`<div class="mh">${esc(title)}</div><div class="mb"><p class="note">${text}</p></div>
+    <div class="mf"><button id="cfCancel">Cancel</button><button id="cfOk" class="danger-text">${esc(okLabel)}</button></div>`, 'sm');
+  $('#cfCancel').onclick = closeModal;
+  $('#cfOk').onclick = () => { closeModal(); onOk(); };
+}
 /* Minimize, maximize and close in a dialog's top right corner, as in NOBS SQL Editor. A minimized dialog keeps what was
    typed in it and waits as a chip at the bottom right; opening another dialog takes its place. A sign-in dialog has none. */
 const WSVG = p => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -47,6 +55,41 @@ function addWindowControls(m){
     b.innerHTML = on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>');
   };
   strip.querySelector('.wc-close').onclick = closeModal;
+  makeMovable(m);
+}
+/* A dialog moves by its title bar, as in NOBS SQL Editor: the bar always stays on the screen, and the dialog opens again
+   where it was last left (kept in this browser, by its title). A double-click on the bar maximizes it or gives it back
+   its size. Settings, which fills the window, and a phone, where every dialog does, do not move. */
+const PLACES_KEY = 'ni-dlg-pos';
+const places = () => { try { return JSON.parse(localStorage.getItem(PLACES_KEY)) || {}; } catch { return {}; } };
+const keepPlace = (key, xy) => { try { const all = places(); if (xy) all[key] = xy; else delete all[key]; localStorage.setItem(PLACES_KEY, JSON.stringify(all)); } catch { /* not kept: the dialog opens in the middle */ } };
+function makeMovable(m){
+  const head = m.querySelector('.mh'), box = m.querySelector('.box');
+  if (!head || box.classList.contains('settings') || box.querySelector('#setPane')) return;
+  const key = box.getAttribute('aria-label') || 'Dialog';
+  const fixed = () => box.classList.contains('maxed') || matchMedia('(max-width:760px)').matches;
+  let x = 0, y = 0;
+  const place = (nx, ny) => { x = nx; y = ny; box.style.transform = x || y ? `translate(${x}px, ${y}px)` : ''; };
+  /* The bar stays reachable: at least 120px of it across, and its top inside the window. */
+  const clamp = () => {
+    const r = box.getBoundingClientRect();
+    const dx = r.right < 120 ? 120 - r.right : r.left > window.innerWidth - 120 ? window.innerWidth - 120 - r.left : 0;
+    const dy = r.top < 0 ? -r.top : r.top > window.innerHeight - 40 ? window.innerHeight - 40 - r.top : 0;
+    if (dx || dy) place(x + dx, y + dy);
+  };
+  const kept = places()[key];
+  if (kept && !fixed()) { place(kept[0], kept[1]); clamp(); }
+  head.classList.add('movable');
+  head.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || fixed() || e.target.closest('button, input, select, textarea, a, .wctl')) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, x0 = x, y0 = y;
+    head.setPointerCapture(e.pointerId); box.classList.add('moving');
+    const move = ev => { place(x0 + ev.clientX - sx, y0 + ev.clientY - sy); clamp(); };
+    const up = () => { head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); box.classList.remove('moving'); keepPlace(key, x || y ? [x, y] : null); };
+    head.addEventListener('pointermove', move); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
+  });
+  head.addEventListener('dblclick', e => { if (!e.target.closest('button, input, select, textarea, a, .wctl')) { const b = head.querySelector('.wc-max'); if (b) b.click(); } });
 }
 export function minimizeModal(){
   const m = $('#mdl'); if (!m) return;
@@ -77,7 +120,8 @@ export const closeModal = () => {
   const wasSettings = !!$('#modalHost #setPane');
   $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
   renderTray();
-  if (wasSettings) render();
+  /* While Settings was open the page did not look for changes on the server (a push, someone else): it does now. */
+  if (wasSettings){ render(); checkForChanges(); }
   else if (backToSettings && settingsOpener){ backToSettings = false; render(); settingsOpener(); }
 };
 document.addEventListener('keydown', e => {

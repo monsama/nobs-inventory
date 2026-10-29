@@ -82,6 +82,11 @@ export function applyTable(t){
   let left = 0, pinned = 0;
   for (const th of head.cells){ if (!th.dataset.pin || !th.style.width) break; t.style.setProperty('--pin' + pinned, left + 'px'); left += parseFloat(th.style.width); pinned++; }
   t.dataset.pinned = pinned;
+  /* The shade at the edge of the pinned columns shows only while the table is scrolled sideways, when something passes
+     under them; at rest it would read as a thick line between Name and the next column. */
+  const box = t.parentElement;
+  if (box && !box._pinShade){ box._pinShade = true; box.addEventListener('scroll', () => { const tt = box.querySelector('table.grid'); if (tt) tt.classList.toggle('hscrolled', box.scrollLeft > 0); }, { passive: true }); }
+  t.classList.toggle('hscrolled', !!box && box.scrollLeft > 0);
   applyView(t);
 }
 /* Sorting and filtering on the rows, after the columns are in their order. Numbers and dates sort by value. */

@@ -264,8 +264,13 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const bySerial = new Map(), byName = new Map();
   const index = o => { if (o.serial && !bySerial.has(lc(o.serial))) bySerial.set(lc(o.serial), o); const k = lc(o.name); byName.set(k, [...(byName.get(k) || []), o]); };
   s.objs.forEach(index);
+  /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
+     it stands for (after Clear inventory, both are new). */
+  const pushed = new Set(records.map(r => lc(r.name)).filter(Boolean));
+  /* DNS-named records come last, so with mergeTwins on the device they stand for is already here, also when both are new. */
+  const dnsNamed = r => !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name);
   const cleaned = [];
-  for (const raw of records) {
+  for (const raw of [...records.filter(r => !dnsNamed(r)), ...records.filter(dnsNamed)]) {
     const r = clean(raw);
     cleaned.push(r);
     if (!r.name && !r.serial) continue;
@@ -275,7 +280,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
        here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
        it is never added straight away, whatever Settings says, so a person decides in To review. */
-    const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && (byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired');
+    const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && ((byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired') || pushed.has(lc(r.name).split('.')[0]));
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
@@ -285,6 +290,18 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* An object excluded from sync, or detached from it, is left as it is. */
     if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
+    /* With "Merge second records" on, such a record is no device of its own: its address is kept on the device it stands
+       for, as an adapter of it (a docking station's), and nothing waits in To review. */
+    const into = twin && !found && s.mergeTwins ? (byName.get(lc(r.name).split('.')[0]) || []).find(o => o.status !== 'retired' && !o.excluded) : null;
+    if (into) {
+      if (r.ip && r.ip !== into.ip) {
+        const nic = { name: 'Dock / USB adapter', ip: r.ip, ...(r.mac ? { mac: r.mac } : {}), merged: r.name };
+        const rest = (into.nics || []).filter(n => n.ip !== r.ip && n.merged !== r.name);
+        if (JSON.stringify([...rest, nic]) !== JSON.stringify(into.nics || [])) { into.nics = [...rest, nic]; counts.updated++; }
+      }
+      counts.merged = (counts.merged || 0) + 1;
+      continue;
+    }
     if (!found) {
       if (!r.name) continue;
       const type = typeFor(s, r.assetType, r.model, r.role, r.name, r.chassis);
@@ -349,8 +366,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     }
     /* The other adapters go with the address: kept from Lansweeper while it fills in the IP address. */
     const nicsOwned = lsWrites(s, found, 'ip');
-    if (nicsOwned && Array.isArray(r.nics) && JSON.stringify(r.nics) !== JSON.stringify(found.nics || [])) {
-      if (r.nics.length) found.nics = r.nics; else delete found.nics;
+    /* An adapter merged in from a second record (merged) is kept: Lansweeper has it on that record, not on this one. */
+    const keep = (found.nics || []).filter(n => n.merged), nics = Array.isArray(r.nics) ? [...r.nics.filter(n => !keep.some(k => k.ip === n.ip)), ...keep] : null;
+    if (nicsOwned && nics && JSON.stringify(nics) !== JSON.stringify(found.nics || [])) {
+      if (nics.length) found.nics = nics; else delete found.nics;
       changed = true;
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */

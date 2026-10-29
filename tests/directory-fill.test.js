@@ -303,6 +303,24 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(by('nb-35.corp.example').review.src, 'lansweeper', 'a probable second record of NB-35 waits');
   assert.equal(by('nb-77.corp.example').review, undefined, 'no device named nb-77: added as Settings says');
   assert.equal(by('NB-36').review, undefined);
+
+  // after Clear inventory both are new: the DNS-named record comes first in the push and is still known as the second one
+  const u = { ...state([]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
+  mergeRecords(u, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
+  assert.equal(u.objs.find(o => o.name === 'nb-35.corp.example').review.src, 'lansweeper', 'in To review, whatever the order of the push');
+  assert.equal(u.objs.find(o => o.name === 'NB-35').review, undefined, 'the device itself goes in as Settings says');
+
+  // with "Merge second records" on, the record is no device: its address goes to NB-35 as a dock's adapter, and the next
+  // push, which brings the device's own adapters, keeps it
+  const w = { ...state([]), feedOn: true, mergeTwins: true, codeN: 1, seq: 100, policy: { ip: true } };
+  mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
+  assert.deepEqual(w.objs.map(o => o.name), ['NB-35'], 'no second device');
+  assert.deepEqual(w.objs[0].nics, [{ name: 'Dock / USB adapter', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', merged: 'nb-35.corp.example' }]);
+  mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200', nics: [{ name: 'Wi-Fi', ip: '10.1.3.9' }] }, { name: 'nb-35.corp.example', serial: '', ip: '10.1.2.110', ref: '18257' }], NOW);
+  assert.deepEqual(w.objs[0].nics.map(n => [n.name, n.ip]), [['Wi-Fi', '10.1.3.9'], ['Dock / USB adapter', '10.1.2.110']], 'the device\'s own adapter from Lansweeper, and the dock\'s new address');
+  const ok = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
+  checkState({ ...ok, mergeTwins: true, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', excluded: true, review: { src: 'lansweeper', at: '2026-10-27 10:00', ignored: '2026-10-27 10:05', merged: 'o1' } }] });
+  assert.throws(() => checkState({ ...ok, mergeTwins: 'yes' }), /mergeTwins is on or off/);
 });
 
 test('a device\'s old overrides (o.ovr) become picks: false is By hand, true is Lansweeper only where the policy says otherwise', async () => {

@@ -5,7 +5,6 @@ import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
-import { renderReview } from './15-review.js';
 import { FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
@@ -16,6 +15,8 @@ import { renderPlans } from './20-plans.js';
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
 export function render({ save = true } = {}){
+  /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
+  if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); } st.tab = 'cards'; }
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -27,7 +28,6 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contracts') renderContracts();
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
-  else if (st.tab === 'review') renderReview();
   else renderObj(byId(st.tab));
   renderFilterBar();
   fullTextTooltips();
@@ -42,7 +42,7 @@ export function render({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){
@@ -113,7 +113,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -328,7 +328,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
@@ -338,12 +338,14 @@ export function applyState(d){
   objs.forEach(bindUser); REVIEW.forEach(bindUser);
   SYNC.defender = objs.some(o => o.defender);   /* the cards show a Defender mark once Defender has been read */
 }
-/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay.
+/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay, the
+   racks too unless their box is ticked.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
   modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone. Users, locations, sites, racks and settings stay, and so do the objects excluded from sync unless you tick the box below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
+    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → Maintenance) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
+      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
       <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
     <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
@@ -361,19 +363,28 @@ export async function clearAll(){
   const d = await r.json();
   /* Objects excluded from sync are kept, unless the box to delete protected objects is ticked. Relations and history of
      the removed objects go with them; relations between kept objects stay. */
-  const deleteAll = !!($('#clrAll') && $('#clrAll').checked);
-  /* Racks stay, as the dialog says: they are objects, so they are kept here as well. */
-  const removed = new Set(d.objs.filter(o => o.type !== 'rack' && (deleteAll || !o.excluded)).map(o => o.id));
+  const deleteAll = !!($('#clrAll') && $('#clrAll').checked), racksToo = !!($('#clrRacks') && $('#clrRacks').checked);
+  /* Racks stay unless their box is ticked: they are objects, so they are kept here as well. */
+  const removed = new Set(d.objs.filter(o => (racksToo || o.type !== 'rack') && (deleteAll || !o.excluded)).map(o => o.id));
   const kept = d.objs.length - removed.size;
+  const base = (kind, id) => d.revs[kind + '|' + id] ?? 0;
+  /* What stays must not point at what goes: a kept device leaves a deleted rack (or the device it sat on), and the
+     contracts no longer list the deleted devices. */
+  const puts = d.objs.filter(o => !removed.has(o.id) && (removed.has(o.rack) || removed.has(o.ontop))).map(o => {
+    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) delete v.ontop;
+    return {kind: 'object', id: o.id, value: v, base: base('object', o.id)};
+  });
+  if (Array.isArray(d.contracts) && d.contracts.some(c => (c.devices || []).some(id => removed.has(id))))
+    puts.push({kind: 'setting', id: 'contracts', value: d.contracts.map(c => c.devices ? {...c, devices: c.devices.filter(id => !removed.has(id))} : c), base: base('setting', 'contracts')});
   const dels = [
     ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),
     ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
     ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
-  ].map(c => ({...c, base: d.revs[c.kind + '|' + c.id] ?? 0}));
+  ].map(c => ({...c, base: base(c.kind, c.id)}));
   /* A backup first, kept until someone deletes it: without one nothing is cleared. */
   const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
   if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
-  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts: [], dels})});
+  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts, dels})});
   const j = await res.json().catch(() => ({}));
   if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
   /* The connections go after the devices, so the save above cannot write their settings back. */

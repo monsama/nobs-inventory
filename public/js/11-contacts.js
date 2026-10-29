@@ -1,10 +1,10 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { editButton, CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
+import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
 import { USERS, canEdit, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
 import { resetFilters } from './02-views.js';
@@ -26,12 +26,29 @@ export const contactCompanies = () => [...new Set(CONTACTS.list.filter(c => c.ki
 /* The company field of a contact offers the companies there are, in the app's own list (as Model and Supplier do). */
 COMBO_SOURCES.company = () => contactCompanies();
 
+/* Deleting a contact: asked first, then gone at once with Undo, from its card or its dialog. The devices it was
+   responsible for lose it as their responsible, and get it back with Undo. */
+function deleteContact(c){
+  const devs = objs.filter(o => o.respIn === c.id || o.respEx === c.id);
+  confirmModal(`Delete the contact ${c.name}?`, `<b>${esc(c.name)}</b> is removed from the contacts.${devs.length ? ` ${devs.length} ${devs.length === 1 ? 'device loses' : 'devices lose'} this responsible.` : ''}`, 'Delete contact', () => {
+    const was = devs.map(o => [o, o.respIn, o.respEx]), i = CONTACTS.list.indexOf(c);
+    for (const o of devs){ for (const k of ['respIn', 'respEx']) if (o[k] === c.id) delete o[k]; hist(o, now(), `Responsible ${c.name} removed (contact deleted) by ${who()}`); }
+    CONTACTS.list = CONTACTS.list.filter(x => x !== c);
+    if (st.resp === c.id) st.resp = null;
+    queueServerSave(); render();
+    toastUndo(`Contact ${c.name} deleted`, () => {
+      CONTACTS.list.splice(Math.min(i, CONTACTS.list.length), 0, c);
+      for (const [o, a, b] of was){ if (a) o.respIn = a; if (b) o.respEx = b; hist(o, now(), `Responsible ${c.name} back (delete undone) by ${who()}`); }
+      queueServerSave(); render();
+    });
+  });
+}
 function contactCard(c){
   const n = devicesOf(c).length;
   return `<div class="cn-card ${c.kind}">
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${esc(initials(c.name))}</span>
       <div class="cn-who"><b>${esc(c.name)}</b><span class="muted">${esc([c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind])}</span></div>
-      ${editButton(`data-cnedit="${esc(c.id)}"`, c.name, canEdit())}</div>
+      <span class="rowacts">${editButton(`data-cnedit="${esc(c.id)}"`, c.name, canEdit())}${canEdit() ? deleteButton(`data-cndel="${esc(c.id)}"`, c.name) : ''}</span></div>
     ${c.area ? `<div class="cn-area" title="Ask about">${esc(c.area)}</div>` : ''}
     <div class="cn-ways">${reach(c) || '<span class="muted">No e-mail or phone yet</span>'}</div>
     ${c.note ? `<p class="cn-note">${esc(c.note)}</p>` : ''}
@@ -73,6 +90,7 @@ export function renderContacts(){
     ${shown.length ? '' : `<div class="empty">Nothing matches “${esc(st.cnQ || '')}”.</div>`}</div>`;
   const v = $('#view');
   v.querySelectorAll('[data-cnedit]').forEach(b => b.onclick = () => contactModal(contactOf(b.dataset.cnedit)));
+  v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });
   v.querySelectorAll('[data-cndevs]').forEach(b => b.onclick = () => showDevicesOfContact(b.dataset.cndevs));
 }
 /* The devices of a contact, in the table: the filter shows in the sidebar, with a way out. */
@@ -106,14 +124,7 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
   $('#cn_user').onchange = e => { const u = USERS.find(x => x.id === e.target.value); if (u && !$('#cn_name').value.trim()) $('#cn_name').value = u.name; };
   $('#cnCancel').onclick = closeModal;
   if (!edit) return;
-  if (!isNew) $('#cnDel').onclick = () => {
-    const devs = objs.filter(o => o.respIn === cur.id || o.respEx === cur.id);
-    if (!confirm(`Delete the contact ${cur.name}?${devs.length ? ` ${devs.length} ${devs.length === 1 ? 'device loses' : 'devices lose'} this responsible.` : ''}`)) return;
-    for (const o of devs){ for (const k of ['respIn', 'respEx']) if (o[k] === cur.id) delete o[k]; hist(o, now(), `Responsible ${cur.name} removed (contact deleted) by ${who()}`); }
-    CONTACTS.list = CONTACTS.list.filter(x => x.id !== cur.id);
-    if (st.resp === cur.id) st.resp = null;
-    queueServerSave(); closeModal(); toast('Contact deleted'); render();
-  };
+  if (!isNew) $('#cnDel').onclick = () => deleteContact(cur);
   $('#cnOk').onclick = () => {
     const k = kindNow(), val = id => $('#cn_' + id).value.trim();
     const next = { id: cur.id, kind: k, name: val('name').replace(/\s+/g, ' ') };

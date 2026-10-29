@@ -3,7 +3,7 @@ import { sourcesPanel } from './18-sources.js';
 import { accessoriesHtml, canAddPorts, comboNote, entriesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
 import './srcpick.js';
 import { dateValue } from './datefield.js';
-import { reviewBanner, bindReviewBanner } from './15-review.js';
+import { reviewBanner, bindReviewBanner, mergeTarget, reviewDo } from './15-review.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
@@ -273,10 +273,12 @@ export function retireModal(o){
   };
 }
 /* A record that is most likely a second one of another device (argonb35.corp.example beside ARGONB35, see twinOf): said at
-   the top of its page, with the device to open and, to clean it up, retire and exclude it in one step. */
+   the top of its page, with the device to open and, to clean it up, Merge: its address goes to that device as a dock's
+   adapter, and it is kept as ignored so no sync brings it back. A device still waiting in To review is said so. */
 function twinBanner(o){
   const tw = twinOf(o); if (!tw) return '';
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>: named by its DNS name, with no serial number, as a docking station's or a USB network adapter often leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() && !o.review ? '<button type="button" id="twRetire">Retire and exclude</button>' : ''}</div>`;
+  const can = canEdit() && !o.review && mergeTarget(o) === tw;
+  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: named by its DNS name, with no serial number, as a docking station's or a USB network adapter often leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -743,14 +745,8 @@ export function renderObj(o){
   const tw = twinOf(o);
   if (tw){
     $('#twOpen').onclick = () => openObj(tw.id);
-    const tx = $('#twRetire');
-    if (tx) tx.onclick = () => {
-      if (!confirm(`Retire ${o.name} and exclude it from the sync? ${tw.name} stays as it is. Lansweeper will not add ${o.name} again.`)) return;
-      if (o.rack) unplace(o);
-      o.status = 'retired'; o.excluded = true;
-      hist(o, now(), `Retired and excluded from the sync as a second record of ${tw.name} by ${who()}`);
-      toast(`${o.name} is retired and excluded: ${tw.name} is the device`); render();
-    };
+    const tm = $('#twMerge');
+    if (tm) tm.onclick = () => reviewDo('merge', [o]);
   }
 }
 
