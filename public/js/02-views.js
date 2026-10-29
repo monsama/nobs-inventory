@@ -10,7 +10,7 @@ import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-top
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
-import { mergeTarget, reviewDo, reviewStale } from './15-review.js';
+import { dupOf, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -374,14 +374,16 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
-    ${o.review ? reviewChips(o, stale) : ''}
+    ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
 }
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
    all), the other sources that know it, and the device it is most likely a second record of. */
 const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
-const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}</div>`;
+const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : ''}</div>`;
+/* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
+const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station.${canEdit() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 function scopeActs(list, allAlso){
@@ -393,17 +395,17 @@ function scopeActs(list, allAlso){
   return ign ? `<button id="rvRestoreAll">All back to review (${list.length})</button>`
     : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" title="${fresh === list.length || !fresh ? '' : `Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out unless you tick them in the next step`}">Accept ${fresh === list.length ? `all ${fresh}` : fresh ? `${fresh} recently seen` : `all ${list.length} old`}</button>`;
 }
-/* Merge: the picked records the inventory already has (a dock's DNS-named record, or one of the same name or serial
-   number) are folded into those devices; see 15-review.js. */
-const mergeable = () => [...(st.bulk || [])].map(byId).filter(o => o && mergeTarget(o));
+/* Resolve: the picked records that are most likely a device the inventory has (a dock's DNS-named record, or one of the
+   same name or serial number): say what they are, all at once; see 15-review.js. */
+const mergeable = () => [...(st.bulk || [])].map(byId).filter(o => o && dupOf(o));
 function mergeBtn(){
   if (!canEdit()) return '';
   const m = mergeable().length;
-  return m ? `<button id="rvMerge" title="Fold ${m === 1 ? 'it' : 'them'} into the device${m === 1 ? '' : 's'} the inventory has: ${m === 1 ? 'its address is' : 'their addresses are'} kept as adapters, and no sync brings ${m === 1 ? 'it' : 'them'} back">Merge ${m}</button>` : '';
+  return m ? `<button id="rvResolve" title="Say what ${m === 1 ? 'it is' : 'they are'}: a dock's record, the same device, obsolete or no duplicate">Resolve ${m}…</button>` : '';
 }
 function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
-  on('rvMerge', () => { const l = mergeable(); st.bulk.clear(); reviewDo('merge', l); });
+  on('rvResolve', () => resolveModal(mergeable()));
   const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
   on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
   const fresh = list.filter(o => !reviewStale(o)), old = list.length - fresh.length;
@@ -517,6 +519,12 @@ document.addEventListener('click', e => {
   } else if (set.has(id)) set.delete(id); else set.add(id);
   lastPick = id;
   keepScroll(renderCards);
+}, true);
+/* The "Probably …" chip on a card opens Resolve instead of the card. */
+document.addEventListener('click', e => {
+  const c = e.target.closest && e.target.closest('#view [data-resolve]'); if (!c) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  resolveModal([byId(c.dataset.resolve)].filter(Boolean));
 }, true);
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */

@@ -3,7 +3,7 @@ import { sourcesPanel } from './18-sources.js';
 import { accessoriesHtml, canAddPorts, comboNote, entriesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
 import './srcpick.js';
 import { dateValue } from './datefield.js';
-import { reviewBanner, bindReviewBanner, mergeTarget, reviewDo } from './15-review.js';
+import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } from './15-review.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
@@ -276,9 +276,13 @@ export function retireModal(o){
    the top of its page, with the device to open and, to clean it up, Merge: its address goes to that device as a dock's
    adapter, and it is kept as ignored so no sync brings it back. A device still waiting in To review is said so. */
 function twinBanner(o){
-  const tw = twinOf(o); if (!tw) return '';
+  const tw = twinOf(o);
+  if (!tw){
+    const was = o.notTwin && twinOf(o, { marked: true });
+    return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${canEdit() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
+  }
   const can = canEdit() && !o.review && mergeTarget(o) === tw;
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: named by its DNS name, with no serial number, as a docking station's or a USB network adapter often leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
+  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: named by its DNS name, with no serial number, as a docking station's or a USB network adapter often leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -743,8 +747,11 @@ export function renderObj(o){
   const af = $('#attachFeed'); if (af) af.onclick = () => { delete o.detached; o.feed = {sys: 'Lansweeper', ref: null, seen: null}; hist(o, now(), 'Attached to Lansweeper by ' + who()); toast(o.name + ' is attached. The next sync fills it in'); render(); };
   bindReviewBanner(o);
   const tw = twinOf(o);
+  const ag = $('#twAgain');
+  if (ag) ag.onclick = () => { delete o.notTwin; hist(o, now(), `Checked again as a possible duplicate by ${who()}`); render(); };
   if (tw){
     $('#twOpen').onclick = () => openObj(tw.id);
+    const tr = $('#twResolve'); if (tr) tr.onclick = () => resolveModal([o]);
     const tm = $('#twMerge');
     if (tm) tm.onclick = () => reviewDo('merge', [o]);
   }

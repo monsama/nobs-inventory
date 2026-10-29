@@ -458,11 +458,12 @@ export function sourceText(o, k, src = sourceOf(o, k)){
 }
 /* The device a record named by a DNS name most likely stands for: argonb35.corp.example with no serial number, when a
    device here is named ARGONB35. Such a second record is often left in Lansweeper by a docking station's or a USB network
-   adapter. Retired devices count on neither side; the device may also still wait in To review. The names are indexed
+   adapter. A record marked as no duplicate (notTwin) has none, unless marked asks for the one it was marked against.
+   Retired devices count on neither side; the device may also still wait in To review. The names are indexed
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
-export function twinOf(o){
-  if (!o || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
+export function twinOf(o, { marked = false } = {}){
+  if (!o || (o.notTwin && !marked) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
     for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);

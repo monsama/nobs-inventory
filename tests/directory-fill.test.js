@@ -319,7 +319,8 @@ test('a second record named by the DNS name: the AD account stays with the devic
   mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200', nics: [{ name: 'Wi-Fi', ip: '10.1.3.9' }] }, { name: 'nb-35.corp.example', serial: '', ip: '10.1.2.110', ref: '18257' }], NOW);
   assert.deepEqual(w.objs[0].nics.map(n => [n.name, n.ip]), [['Wi-Fi', '10.1.3.9'], ['Dock / USB adapter', '10.1.2.110']], 'the device\'s own adapter from Lansweeper, and the dock\'s new address');
   const ok = { objs: [], rels: [], users: [], locs: [], types: {}, history: {} };
-  checkState({ ...ok, mergeTwins: true, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', excluded: true, review: { src: 'lansweeper', at: '2026-10-27 10:00', ignored: '2026-10-27 10:05', merged: 'o1' } }] });
+  checkState({ ...ok, mergeTwins: true, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', excluded: true, notTwin: true, review: { src: 'lansweeper', at: '2026-10-27 10:00', ignored: '2026-10-27 10:05', merged: 'o1' } }] });
+  assert.throws(() => checkState({ ...ok, objs: [{ id: 'x', code: 'INV-0001', type: 'pc', name: 'nb-1.corp.example', status: 'active', notTwin: 'no' }] }), /not a duplicate/);
   assert.throws(() => checkState({ ...ok, mergeTwins: 'yes' }), /mergeTwins is on or off/);
 });
 
