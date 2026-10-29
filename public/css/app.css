@@ -872,7 +872,10 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 .av-state{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
 /* The From feed box and the menu stay at the top of the list, level with its first entry. */
 .ctlrow:has(>.avpick){align-items:start}
-.ctlrow:has(>.avpick)>.pchk,.ctlrow:has(>.avpick)>.fmenu{margin-top:8px}
+/* The source mark and the menu sit on the middle of the first product (42px tall), as beside any field. */
+.ctlrow:has(>.avpick)>.fmenu{margin-top:8px}
+.ctlrow:has(>.avpick .avitem)>.fmenu{margin-top:7px}
+@media (min-width:761px){.ctlrow:has(>.avpick .avitem)>.fsrc{margin-top:14px}}
 .form label:has(+ .ctlrow .avpick){align-self:start;padding-top:8px}
 /* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
 /* A value the device takes from its subnet (gateway, DNS): shown like a value, not like an empty field's hint. */
