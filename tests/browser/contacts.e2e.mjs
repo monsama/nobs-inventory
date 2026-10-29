@@ -24,7 +24,9 @@ saveState(db, { ...s0,
     { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', ports: 24, ovr: {}, feed: null, respIn: 'k1', respEx: 'k2' },
     { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-1', status: 'active', ovr: {}, feed: null },
     { id: 'o3', code: 'INV-0003', type: 'pc', name: 'PC-2', status: 'active', ovr: {}, feed: null },
-  ], rels: [], history: {} });
+  ], rels: [], history: {},
+  users: [...s0.users, { id: 'ldap-amu', login: 'amu', name: 'Anna Muster', dept: 'IT', source: 'ldap', role: 'none', groups: [], active: true, profile: { title: 'Network engineer', mail: 'anna.muster@example.ch', phone: '+41 41 000 00 09', office: 'Bern EG', from: 'ldap' } },
+    { id: 'ldap-bfr', login: 'bfr', name: 'Beat Frei', dept: 'Finance', source: 'ldap', role: 'none', groups: [], active: true, profile: { title: 'Controller', mobile: 'not a number', from: 'ldap' } }] });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -94,6 +96,23 @@ try {
   await stored(st => st.contacts.some(c => c.name === 'Max Print'));
   assert.ok(loadState(db).contacts.some(c => c.name === 'Max Print' && c.company === 'Print AG' && c.kind === 'external'));
 
+  // from the directory: picked people become internal contacts linked to them, Undo takes them away again
+  await page.click('[data-tab=contacts]'); await page.waitForSelector('#cnDir');
+  await page.click('#cnDir'); await page.waitForSelector('#dirList .dir-row');
+  await page.selectOption('#dirDept', 'IT');
+  assert.equal(await page.locator('#dirList .dir-row').count(), 1);
+  await page.selectOption('#dirDept', '');
+  await page.check('#dirAll');
+  assert.equal((await page.textContent('#dirOk')).trim(), 'Add 2 contacts');
+  await page.click('#dirOk');
+  await stored(st => st.contacts.some(c => c.userId === 'ldap-amu') && st.contacts.some(c => c.userId === 'ldap-bfr'));
+  const anna = loadState(db).contacts.find(c => c.userId === 'ldap-amu'), beat = loadState(db).contacts.find(c => c.userId === 'ldap-bfr');
+  assert.deepEqual([anna.kind, anna.name, anna.role, anna.email, anna.phone, anna.note], ['internal', 'Anna Muster', 'Network engineer · IT', 'anna.muster@example.ch', '+41 41 000 00 09', 'Office: Bern EG']);
+  assert.equal(beat.mobile, undefined, 'a value the contact rules refuse is left out');
+  // the dialog knows who is a contact already
+  await page.click('#cnDir'); await page.waitForSelector('#dirList .dir-row');
+  assert.equal(await page.locator('#dirList .dir-row.done').count(), 2);
+  await page.click('#dirCancel');
   assert.deepEqual(errors, []);
   console.log('contacts: all checks passed');
 } finally { await browser.close(); server.close(); }

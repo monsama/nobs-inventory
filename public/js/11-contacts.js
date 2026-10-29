@@ -65,9 +65,10 @@ export function renderContacts(){
     <select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><div class="grow"></div>
     ${all.length ? '<button id="cnExport" title="All contacts as a CSV file for Excel">Export CSV</button>' : ''}
-    ${canEdit() ? '<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>' : ''}`;
+    ${canEdit() ? `${dirPeople().length ? '<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>' : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
   const nb = $('#cnNew'); if (nb) nb.onclick = () => contactModal(null);
   const ib = $('#cnImport'); if (ib) ib.onclick = () => importModal();
+  const db = $('#cnDir'); if (db) db.onclick = () => directoryModal();
   const eb = $('#cnExport'); if (eb) eb.onclick = () => {
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([contactsCsv(CONTACTS.list)], { type: 'text/csv;charset=utf-8' })), download: 'contacts.csv' });
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -92,6 +93,56 @@ export function renderContacts(){
   v.querySelectorAll('[data-cnedit]').forEach(b => b.onclick = () => contactModal(contactOf(b.dataset.cnedit)));
   v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });
   v.querySelectorAll('[data-cndevs]').forEach(b => b.onclick = () => showDevicesOfContact(b.dataset.cndevs));
+}
+/* From the directory: the people AD or Entra brought in, picked one by one or by department, become internal contacts
+   linked to them (userId), with their name, title, e-mail and phones. A value the contact rules refuse (a phone in a
+   form they do not take) is left out rather than stopping the import. */
+const dirPeople = () => USERS.filter(u => (u.source === 'ldap' || u.source === 'entra') && u.active !== false && u.name);
+export function contactFromUser(u, id){
+  const p = u.profile || {};
+  const c = { id, kind: 'internal', name: String(u.name).replace(/\s+/g, ' ').trim().slice(0, CONTACT_MAX.name), userId: u.id };
+  const role = [p.title, u.dept].filter(Boolean).join(' · ').slice(0, CONTACT_MAX.role); if (role) c.role = role;
+  for (const [k, v] of [['email', p.mail], ['phone', p.phone], ['mobile', p.mobile]]) if (v) c[k] = String(v).trim().slice(0, CONTACT_MAX[k]);
+  if (p.office) c.note = `Office: ${p.office}`.slice(0, CONTACT_MAX.note);
+  for (const k of ['email', 'phone', 'mobile']) if (c[k] && contactProblem(c)) delete c[k];
+  return contactProblem(c) ? null : c;
+}
+function directoryModal(){
+  const people = dirPeople().sort((a, b) => a.name.localeCompare(b.name));
+  const linked = new Set(CONTACTS.list.map(c => c.userId).filter(Boolean));
+  const depts = [...new Set(people.map(u => u.dept).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const picked = new Set();
+  modal(`<div class="mh">Contacts from the directory</div>
+    <div class="mb"><p class="note">People from ${[...new Set(people.map(u => u.source === 'ldap' ? 'Active Directory' : 'Entra'))].join(' and ')}. Each becomes an internal contact linked to the person, with the name, title, e-mail and phones the directory has.</p>
+      <div class="dir-bar"><input id="dirQ" type="search" placeholder="Find a person, title or department…" aria-label="Find a person"><select id="dirDept" aria-label="Department"><option value="">All departments</option>${depts.map(d => `<option>${esc(d)}</option>`).join('')}</select></div>
+      <div class="dir-list" id="dirList" role="listbox" aria-multiselectable="true"></div></div>
+    <div class="mf"><label class="pchk dir-all"><input type="checkbox" id="dirAll"> All shown</label><div class="grow"></div><button id="dirCancel">Cancel</button><button id="dirOk" class="primary" disabled>Add contacts</button></div>`);
+  const shown = () => { const q = $('#dirQ').value.trim().toLowerCase(), d = $('#dirDept').value;
+    return people.filter(u => (!d || u.dept === d) && (!q || [u.name, u.login, u.dept, u.profile && u.profile.title, u.profile && u.profile.mail].some(v => String(v || '').toLowerCase().includes(q)))); };
+  const line = u => { const p = u.profile || {}, on = linked.has(u.id);
+    return `<label class="dir-row${on ? ' done' : ''}"><input type="checkbox" data-dir="${esc(u.id)}" ${on ? 'disabled' : picked.has(u.id) ? 'checked' : ''}>
+      <span class="dir-who"><b>${esc(u.name)}</b><span class="muted">${esc([p.title, u.dept].filter(Boolean).join(' · ') || (u.source === 'ldap' ? 'Active Directory' : 'Entra'))}</span></span>
+      <span class="dir-how muted">${on ? '<span class="chip ok">Already a contact</span>' : esc([p.mail, p.phone || p.mobile].filter(Boolean).join(' · '))}</span></label>`; };
+  const draw = () => {
+    const list = shown(), free = list.filter(u => !linked.has(u.id));
+    $('#dirList').innerHTML = list.length ? list.map(line).join('') : '<p class="note">Nobody matches.</p>';
+    $('#dirList').querySelectorAll('[data-dir]').forEach(c => c.onchange = () => { c.checked ? picked.add(c.dataset.dir) : picked.delete(c.dataset.dir); count(); });
+    $('#dirAll').checked = free.length > 0 && free.every(u => picked.has(u.id)); $('#dirAll').disabled = !free.length;
+    count();
+  };
+  const count = () => { const n = picked.size; $('#dirOk').disabled = !n; $('#dirOk').textContent = n ? `Add ${n} ${n === 1 ? 'contact' : 'contacts'}` : 'Add contacts'; };
+  $('#dirQ').oninput = draw; $('#dirDept').onchange = draw;
+  $('#dirAll').onchange = () => { const free = shown().filter(u => !linked.has(u.id)); free.forEach(u => $('#dirAll').checked ? picked.add(u.id) : picked.delete(u.id)); draw(); };
+  $('#dirCancel').onclick = closeModal;
+  $('#dirOk').onclick = () => {
+    const before = CONTACTS.list;
+    const add = [...picked].map(id => USERS.find(u => u.id === id)).filter(Boolean).map(u => contactFromUser(u, newId())).filter(Boolean);
+    if (CONTACTS.list.length + add.length > 2000){ toast('At most 2000 contacts.'); return; }
+    CONTACTS.list = [...CONTACTS.list, ...add];
+    queueServerSave(); closeModal(); render();
+    toastUndo(`${add.length} ${add.length === 1 ? 'contact' : 'contacts'} added from the directory`, () => { CONTACTS.list = before; queueServerSave(); render(); });
+  };
+  draw(); $('#dirQ').focus();
 }
 /* The devices of a contact, in the table: the filter shows in the sidebar, with a way out. */
 export function showDevicesOfContact(id){ resetFilters(); st.resp = id; st.live = true; st.tab = 'table'; render(); }

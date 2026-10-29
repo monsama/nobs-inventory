@@ -8,7 +8,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
-import { fillField, lsOwns, profileFields, noteValue, pickOf } from './fill.js';
+import { fillField, lsOwns, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
@@ -521,6 +521,8 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (added.review) counts.review = added.review;
   if (added.direct) counts.added = added.direct;
   if (users) counts.people = applyGraphPeople(s, users, cfg.people, now);
+  /* Devices without a location take their user's office, when Settings → Locations says so. */
+  { const office = officeLocations(s, stamp(now)); if (office) counts.office = office; }
   if (peopleError) counts.peopleError = peopleError;
   if (machines) counts.defender = applyDefender(s, machines, now);
   if (defenderError) counts.defenderError = defenderError;

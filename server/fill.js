@@ -78,3 +78,47 @@ export function dropFill(o, k) {
    the fields that have something, each cut to 200 characters. */
 export const PROFILE_FIELDS = ['title', 'phone', 'mobile', 'office', 'manager', 'mail'];
 export const profileFields = f => Object.fromEntries(PROFILE_FIELDS.map(k => [k, String(f[k] ?? '').trim().slice(0, 200)]).filter(([, v]) => v));
+
+/* Location texts from the sources (AD's location, Lansweeper's building and location, a user's office) and the rooms
+   here: the room a text names, or the room it is mapped to in Settings → Locations (s.locMap; s.adLocMap before 0.9.65).
+   A text that names no room gives none: free text never makes a location. */
+const lowText = v => String(v || '').trim().toLowerCase();
+export function mappedRoom(s, text) {
+  const t = lowText(text); if (!t) return '';
+  const locs = s.locs || [];
+  const map = { ...(s.adLocMap || {}), ...(s.locMap || {}) };
+  const mapped = Object.entries(map).find(([k]) => lowText(k) === t);
+  return locs.find(l => lowText(l) === t) || (mapped && locs.includes(mapped[1]) ? mapped[1] : '');
+}
+/* With "Use the office of the device's user" on (Settings → Locations), a device without a location gets the room its
+   user's office (from AD or Entra) names or is mapped to. A location picked or set by hand is never touched. Returns how
+   many devices got one. */
+export function officeLocations(s, at) {
+  if (!s.locFromOffice) return 0;
+  const people = new Map((s.users || []).map(u => [u.id, u]));
+  let n = 0;
+  for (const o of s.objs || []) {
+    if (o.loc || o.status === 'retired' || o.excluded || o.detached || !o.uid) continue;
+    const u = people.get(o.uid), office = u && u.profile && u.profile.office;
+    /* Noted as the source the office came from: AD, or Entra (Intune's place in the order). */
+    const src = u && u.profile && u.profile.from === 'entra' ? 'graph' : 'ad';
+    if (pickOf(o, 'loc') && pickOf(o, 'loc') !== src) continue;
+    const room = office && mappedRoom(s, office);
+    if (!room) continue;
+    o.loc = room; markSource(o, 'loc', src);
+    ((s.history ??= {})[o.id] ??= []).unshift({ t: at, msg: `Location set to ${room} from the office of ${u.name} (${office})` });
+    n++;
+  }
+  return n;
+}
+/* A price as Lansweeper or a person writes it: 1'234.50, 1.234,50, 1234,50 or CHF 980.-; null when it is no amount. */
+export function priceOf(v) {
+  let t = String(v ?? '').replace(/[^\d.,-]/g, '').replace(/-+$/, '');
+  if (!t) return null;
+  const dot = t.lastIndexOf('.'), comma = t.lastIndexOf(',');
+  if (dot >= 0 && comma >= 0) t = dot > comma ? t.replace(/,/g, '') : t.replace(/\./g, '').replace(',', '.');
+  else if (comma >= 0) t = /,\d{1,2}$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if ((t.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(t)) t = t.replace(/\./g, '');
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 && n <= 1e9 ? Math.round(n * 100) / 100 : null;
+}

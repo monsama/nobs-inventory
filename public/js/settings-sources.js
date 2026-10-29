@@ -2,7 +2,7 @@
    is set up here right now. Drawn from sync-map.js (the lists the syncs themselves use) and from the current settings,
    so it changes with them and is never out of date. */
 import { $, LS_ON, SYNC, esc, st } from './01-core.js';
-import { AD_FILL, GRAPH_FILL, LS_FIELDS, NEVER, PEOPLE_SOURCES, PRECEDENCE, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL } from './sync-map.js';
+import { AD_FILL, GRAPH_FILL, LS_FIELDS, LS_FILL, NEVER, PEOPLE_SOURCES, PRECEDENCE, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL } from './sync-map.js';
 import { SERVER } from './07-render.js';
 import { runOf, summary, when } from './16-sync.js';
 
@@ -41,8 +41,9 @@ export function renderSetSources(){
   ].join('');
 
   /* Every field a sync knows, with what each source does with it under the current settings. */
-  const keys = Object.keys(SYNC_FIELD_LABEL).filter(k => LS_FIELDS.includes(k) || GRAPH_FILL[k] || AD_FILL[k]);
-  const lsCell = k => !LS_FIELDS.includes(k) ? 'none' : !on.ls ? 'off' : policy[k] ? 'writes' : 'shown';
+  const keys = Object.keys(SYNC_FIELD_LABEL).filter(k => LS_FIELDS.includes(k) || LS_FILL[k] || GRAPH_FILL[k] || AD_FILL[k] || k === 'loc');
+  /* Lansweeper's location is a room by its text (Settings → Locations), written while the policy lets it; purchase data fills empty fields. */
+  const lsCell = k => LS_FILL[k] ? (on.ls ? 'fills' : 'off') : k === 'loc' ? (!on.ls ? 'off' : policy.loc ? 'writes' : 'shown') : !LS_FIELDS.includes(k) ? 'none' : !on.ls ? 'off' : policy[k] ? 'writes' : 'shown';
   const dirCell = (map, src, fill) => k => !map[k] ? 'none' : !on[src] ? 'off' : fill === false ? 'shown' : 'fills';
   const graphCell = dirCell(GRAPH_FILL, 'graph', st.fillGraph), adCell = dirCell(AD_FILL, 'ad', st.fillAd);
   const matrix = `<table class="grid mini ds-matrix"><thead><tr><th>Field</th><th>${esc(SOURCE_LABEL.ls)}</th><th>Intune</th><th>${esc(SOURCE_LABEL.ad)}</th></tr></thead><tbody>
