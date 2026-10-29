@@ -620,8 +620,41 @@ export function render({ save = true } = {}){
   $('#stRels').textContent = rels.length + ' relations';
   renderStatus();
   applyRole();
+  noteNav();
   if (save) saveData();
 }
+/* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
+   and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
+   the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
+const NAV_KEYS = ['tab', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup'];
+const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
+let navRestoring = false;
+function noteNav(){
+  if (navRestoring || typeof history === 'undefined') return;
+  const now_ = navOf(), was = history.state && history.state.nobs ? history.state : null;
+  if (!was) { history.replaceState(now_, ''); return; }
+  if (NAV_KEYS.some(k => (was[k] ?? null) !== now_[k])) history.pushState(now_, '');
+  else if (was.q !== now_.q) history.replaceState(now_, '');
+}
+window.addEventListener('popstate', e => {
+  const to = e.state; if (!to || !to.nobs) return;
+  /* An open dialog closes first, as Escape would; the view behind it stays. A dialog that must be answered stays open. */
+  if ($('#mdl') && !$('#mdl.minimized')){
+    history.pushState(navOf(), '');
+    if (!$('#mdl .locked')) closeModal();
+    return;
+  }
+  for (const k of NAV_KEYS) st[k] = to[k] ?? (typeof st[k] === 'boolean' ? false : null);
+  st.q = to.q || '';
+  /* A device's page that was closed since opens again; one that is gone (deleted) gives way to the cards. */
+  if (!(st.tab in FIXED_TABS)){
+    if (byId(st.tab)){ if (!st.open.includes(st.tab)){ st.open.push(st.tab); st.tabIds.push(st.tab); } }
+    else st.tab = 'cards';
+  }
+  navRestoring = true;
+  try { view(); } finally { navRestoring = false; }
+  const v = $('#view'); if (v) v.scrollTop = 0;
+});
 /* A redraw that changes nothing: another tab, filter or search. */
 export const view = () => render({ save: false });
 /* The connection to the server: what it offers (LDAP, Lansweeper, Graph), the revision of each record this page has,
