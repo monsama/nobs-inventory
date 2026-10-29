@@ -296,8 +296,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     const into = twin && !found && s.mergeTwins ? (byName.get(lc(r.name).split('.')[0]) || []).find(o => o.status !== 'retired' && !o.excluded && !o.detached) : null;
     if (into) {
       /* The dock is an attachment of the device, kept by what stays the same: its MAC address (not its changing address). */
-      const accs = into.accessories || [], had = accs.find(a => a.seenAs === r.name);
-      const dock = { name: had ? had.name : 'Docking station', kind: had && had.kind ? had.kind : 'Dock', ...(had && had.serial ? { serial: had.serial } : {}), ...(r.mac ? { mac: r.mac } : had && had.mac ? { mac: had.mac } : {}), seenAs: r.name };
+      const accs = into.accessories || [], had = accs.find(a => lc(a.seenAs) === lc(r.name));
+      const dock = { name: had ? had.name : 'Docking station', kind: had && had.kind ? had.kind : 'Dock', ...(had && had.serial ? { serial: had.serial } : {}), ...(r.mac ? { mac: r.mac } : had && had.mac ? { mac: had.mac } : {}), seenAs: String(r.name).slice(0, 120) };
+      /* A dock merged in as an adapter before this (0.9.61) moves to the attachments: it is not kept twice. */
+      if ((into.nics || []).some(n => n.merged === r.name)){ into.nics = into.nics.filter(n => n.merged !== r.name); if (!into.nics.length) delete into.nics; counts.updated++; }
       if (had ? (r.mac && had.mac !== r.mac) : accs.length < 100) {
         into.accessories = had ? accs.map(a => a === had ? dock : a) : [...accs, dock]; counts.updated++;
         ((s.history ??= {})[into.id] ??= []).unshift({ t: seen, msg: had ? `Lansweeper: docking station ${r.name} has the MAC address ${r.mac}` : `Lansweeper: ${r.name} merged in as a docking station${r.mac ? ` (MAC ${r.mac})` : ''}` });

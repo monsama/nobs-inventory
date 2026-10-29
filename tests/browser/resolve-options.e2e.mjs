@@ -24,7 +24,8 @@ saveState(db, { ...loadState(db), feedOn: true,
     dev('d', 7, 'NB-42', { serial: 'S42' }), dev('d2', 8, 'nb-42.corp.example', { ip: '10.1.2.142', mac: '64:c9:01:00:00:42' }),
     dev('e', 9, 'NB-43', { serial: 'S43' }), dev('e2', 10, 'nb-43.corp.example', { ip: '10.1.2.143', mac: '64:c9:01:00:00:43', review: { src: 'lansweeper', at: day + ' 08:00' } }),
     dev('f', 11, 'PC-7', { serial: 'P7', type: 'pc' }), dev('f2', 12, 'PC-7', { type: 'pc', ip: '10.1.4.7', model: 'HP 800', review: { src: 'lansweeper', at: day + ' 08:00' } }),
-  ], rels: [], history: {} });
+    dev('sw', 13, 'SW-1', { type: 'switch', ports: 24 }), dev('sv', 14, 'SRV-1', { type: 'server', serial: 'SV1' }),
+  ], rels: [{ id: 'p5', from: 'sv', to: 'sw', kind: 'connected', port: 5, vlan: null }, { id: 'p6', from: 'sv', to: 'sw', kind: 'connected', port: 6, vlan: null }], history: {} });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -77,7 +78,8 @@ try {
   const where = await p.evaluate(async () => { const c = await import('/js/01-core.js');
     return { review: c.REVIEW.map(o => o.id).sort(), inv: c.objs.map(o => o.id).sort(), twins: [...c.objs, ...c.REVIEW].filter(o => c.twinOf(o)).map(o => o.id) }; });
   assert.deepEqual(where.review, ['a2', 'e2', 'f2']);
-  assert.deepEqual(where.inv, ['a', 'b', 'b2', 'c', 'c2', 'd', 'd2', 'e', 'f']);
+  assert.deepEqual(where.inv, ['a', 'b', 'b2', 'c', 'c2', 'd', 'd2', 'e', 'f', 'sv', 'sw']);
+  assert.deepEqual(loadState(db).rels.map(r => r.id).sort(), ['p5', 'p6'], 'parallel links elsewhere are left alone by every merge');
   assert.deepEqual(where.twins, [], 'nothing left to resolve');
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
   await p.waitForSelector('.nics.merged');
@@ -87,7 +89,20 @@ try {
   const s = loadState(db);
   const counts = mergeRecords(s, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.199', mac: '64:c9:01:00:00:35', ref: 'L35' }, { name: 'nb-43.corp.example', serial: '', ip: '10.1.2.198', ref: 'L43' }], new Date());
   assert.equal(counts.created, 0); assert.equal(counts.excluded, 2);
-  assert.equal(s.objs.length, 12);
+  assert.equal(s.objs.length, 14);
+  // Back to review on a merged record takes it out of its device too, like Unmerge
+  await p.evaluate(async () => (await import('/js/15-review.js')).reviewDo('restore', [(await import('/js/01-core.js')).byId('a2')]));
+  await stored(st => !obj(st, 'a2').review.merged && !obj(st, 'a2').excluded && !obj(st, 'a').accessories);
+  // a dock merged into a device that itself waits in To review: Unmerge takes the attachment off it again
+  await p.evaluate(async () => { const c = await import('/js/01-core.js');
+    c.REVIEW.push({ id: 'g', code: 'INV-0020', type: 'notebook', name: 'NB-60', serial: 'S60', status: 'active', feed: null, review: { src: 'ad', at: 'x' } });
+    c.objs.push({ id: 'g2', code: 'INV-0021', type: 'notebook', name: 'nb-60.corp.example', mac: '64:c9:01:00:00:60', status: 'active', feed: null });
+    (await import('/js/07-render.js')).render(); });
+  await resolve('g2', 'dock', 'Add as attachment');
+  await stored(st => (obj(st, 'g') || {}).accessories?.length === 1 && obj(st, 'g2').review?.merged === 'g');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('g'));
+  await p.waitForSelector('[data-unmerge="g2"]'); await p.click('[data-unmerge="g2"]');
+  await stored(st => !obj(st, 'g').accessories && !obj(st, 'g2').review.merged);
 
   assert.deepEqual(errors, []);
   console.log('resolve options: all checks passed');

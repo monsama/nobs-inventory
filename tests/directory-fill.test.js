@@ -322,6 +322,10 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(w.history[w.objs[0].id].length, before, 'a new address alone changes nothing');
   mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.111', mac: '64:c9:01:e3:9c:ff', ref: '18257' }], NOW);
   assert.equal(w.objs[0].accessories[0].mac, '64:c9:01:e3:9c:ff');
+  // a dock merged in as an adapter by 0.9.61 moves to the attachments with the next push of its record
+  w.objs[0].nics = [{ name: 'Dock / USB adapter', ip: '10.1.2.104', merged: 'nb-35.corp.example' }];
+  mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.111', mac: '64:c9:01:e3:9c:ff', ref: '18257' }], NOW);
+  assert.equal(w.objs[0].nics, undefined); assert.equal(w.objs[0].accessories.length, 1);
   // an adapter merged in before (merged) stays when Lansweeper sends the device's own adapters
   w.objs[0].nics = [{ name: 'Second record', ip: '10.1.2.120', merged: 'old' }];
   mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200', nics: [{ name: 'Wi-Fi', ip: '10.1.3.9' }] }], NOW);

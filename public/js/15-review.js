@@ -1,7 +1,7 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { byId, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
 import { canEdit, me } from './04-settings.js';
@@ -25,14 +25,17 @@ function accept(list){
 function ignore(list){
   for (const o of list){ o.review = { ...o.review, ignored: now() }; o.excluded = true; hist(o, now(), `Ignored in To review by ${who()}`); }
 }
-/* Back from the ignored ones into To review. */
+/* Back from the ignored ones into To review. A merged record leaves its device as Unmerge does, dock and adapter too. */
 function restore(list){
-  for (const o of list){ o.review = { src: o.review.src, at: o.review.at }; delete o.excluded; hist(o, now(), `Back in To review (${who()})`); }
+  for (const o of list){
+    if (o.review.merged){ unmerge([o]); continue; }
+    o.review = { src: o.review.src, at: o.review.at }; delete o.excluded; hist(o, now(), `Back in To review (${who()})`);
+  }
 }
 /* The inventory device a record most likely is too: one with its serial number, else one of its name, else (a record
    named by a DNS name, a docking station's) the one named by the first part. Only devices in the inventory count. */
 const lc = v => String(v || '').toLowerCase();
-const byIdOf = id => objs.find(x => x.id === id);
+const byIdOf = id => byId(id);
 export function mergeTarget(o){
   if (!o) return null;
   const live = objs.filter(x => x !== o && x.status !== 'retired');
@@ -40,27 +43,29 @@ export function mergeTarget(o){
   return (o.serial && live.find(x => x.serial && lc(x.serial) === lc(o.serial))) || live.find(x => lc(x.name) === lc(o.name))
     || (tw && live.includes(tw) ? tw : null);
 }
-/* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. Its address becomes an
-   adapter of the device (a dock's, for a DNS-named record); a record of the same name or serial number also fills the
-   fields the device has empty. Its relations (monitors attached to it) go to the device. */
+/* Merge: the record is folded into that device and kept as ignored, so no sync brings it back. A dock's DNS-named record
+   becomes an attachment of the device (its MAC address); a record of the same name or serial number fills the fields the
+   device has empty and keeps its address as an adapter. Its relations (monitors attached to it) go to the device. */
 function merge(pairs, how = ''){
   for (const [o, t] of pairs){
     const dock = how ? how === 'dock' : !!twinOf(o) && lc(o.name) !== lc(t.name);
     /* A dock is an attachment of the device, by what stays the same: its MAC address, and the record Lansweeper sees it as. */
     if (dock){
-      const accs = t.accessories || [], had = accs.find(a => a.seenAs === o.name);
-      const acc = { name: had ? had.name : 'Docking station', kind: 'Dock', ...(o.serial ? { serial: o.serial } : {}), ...(o.mac ? { mac: o.mac } : {}), seenAs: o.name };
-      t.accessories = had ? accs.map(a => a === had ? acc : a) : [...accs, acc];
+      const accs = t.accessories || [], had = accs.find(a => lc(a.seenAs) === lc(o.name));
+      /* One already there keeps its name, kind and serial as typed; a device holds up to 100 attachments. */
+      const acc = { name: had ? had.name : 'Docking station', kind: had && had.kind ? had.kind : 'Dock', ...(had && had.serial ? { serial: had.serial } : o.serial ? { serial: o.serial } : {}), ...(o.mac ? { mac: o.mac } : had && had.mac ? { mac: had.mac } : {}), seenAs: String(o.name).slice(0, 120) };
+      if (had) t.accessories = accs.map(a => a === had ? acc : a); else if (accs.length < 100) t.accessories = [...accs, acc];
     } else if (o.ip && o.ip !== t.ip){
       const nic = { name: 'Second record', ip: o.ip, ...(o.mac ? { mac: o.mac } : {}), merged: o.name };
       t.nics = [...(t.nics || []).filter(n => n.ip !== o.ip && n.merged !== o.name), nic];
     }
     if (!dock) for (const k of ['serial', 'model', 'os', 'domain', 'mac', 'user']) if (o[k] && !t[k]){ t[k] = o[k]; if (o.src && o.src[k]) (t.src ??= {})[k] = o.src[k]; }
-    for (const r of rels){ if (r.from === o.id) r.from = t.id; if (r.to === o.id) r.to = t.id; }
-    for (let i = rels.length - 1; i >= 0; i--){
-      const r = rels[i];
-      if (r.from === r.to || rels.some((x, j) => j < i && x.from === r.from && x.to === r.to && x.kind === r.kind)) rels.splice(i, 1);
-    }
+    /* Only the relations moved here are checked: one that now links the device to itself, or one the device already has
+       (same ends, kind, port and LAG), goes. Parallel links elsewhere are left alone. */
+    const moved = rels.filter(r => r.from === o.id || r.to === o.id);
+    for (const r of moved){ if (r.from === o.id) r.from = t.id; if (r.to === o.id) r.to = t.id; }
+    const same = (a, b) => a.from === b.from && a.to === b.to && a.kind === b.kind && String(a.port) === String(b.port) && a.lag === b.lag && a.fromLag === b.fromLag;
+    for (const r of moved) if (r.from === r.to || rels.some(x => x !== r && !moved.includes(x) && same(x, r))) rels.splice(rels.indexOf(r), 1);
     const i = objs.indexOf(o); if (i >= 0) objs.splice(i, 1);
     if (!REVIEW.includes(o)) REVIEW.push(o);
     const src = (o.review && o.review.src) || (o.feed ? 'lansweeper' : o.inAd ? 'ad' : o.graph ? 'graph' : 'lansweeper');
@@ -120,14 +125,14 @@ export function reviewDo(kind, list, { asked = false } = {}){
   }
   if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
   else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
-  else withUndo(list, `${what} back in To review`, restore);
+  else withUndo([...new Set([...list, ...list.map(o => o.review.merged && byId(o.review.merged)).filter(Boolean)])], `${what} back in To review`, () => restore(list));
 }
 /* Unmerge: a merged record leaves its device again: it waits in To review, and the adapter it brought goes. */
 function unmerge(list){
   for (const o of list){
-    const t = objs.find(x => x.id === o.review.merged);
+    const t = byId(o.review.merged);
     if (t && t.nics){ t.nics = t.nics.filter(n => n.merged !== o.name); if (!t.nics.length) delete t.nics; }
-    if (t && t.accessories){ t.accessories = t.accessories.filter(a => a.seenAs !== o.name); if (!t.accessories.length) delete t.accessories; }
+    if (t && t.accessories){ t.accessories = t.accessories.filter(a => lc(a.seenAs) !== lc(o.name)); if (!t.accessories.length) delete t.accessories; }
     o.review = { src: o.review.src, at: o.review.at }; delete o.excluded;
     hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To review`);
     if (t) hist(t, now(), `${o.name} unmerged from this device by ${who()}`);
@@ -136,11 +141,12 @@ function unmerge(list){
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-unmerge]'); if (!b) return;
   const o = REVIEW.find(x => x.id === b.dataset.unmerge); if (!o || !o.review || !o.review.merged) return;
-  const t = objs.find(x => x.id === o.review.merged);
+  const t = byId(o.review.merged);
   withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To review`, () => unmerge([o]));
 });
 /* Resolving a probable duplicate: the record and the device it most likely is, side by side, and what it is.
-   - dock: a docking station's or USB adapter's record: its address goes to the device as an adapter (Merge)
+   - dock: a docking station's or USB adapter's record: an attachment of the device, by its MAC address (Merge)
+   - desk: a shared dock at a desk: a device of its own, not flagged again
    - same: the same device, renamed or set up again: it fills the device's empty fields (Merge)
    - obsolete: gone: retired and excluded from the syncs (ignored, when it still waits in To review)
    - notdup: a device of its own: never flagged as a duplicate again (notTwin; Check again on its page undoes it) */
