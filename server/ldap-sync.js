@@ -82,7 +82,8 @@ const profileOf = p => p.profile && Object.keys(p.profile).length ? { profile: {
 /* A directory entry with none of them keeps what Entra gave, so the two syncs do not take it away from each other. */
 const profileNext = (u, p) => profileOf(p).profile || (u.profile && u.profile.from === 'entra' ? u.profile : undefined);
 
-/* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name) as
+/* Each device gets the groups of the computer account of the same name (its name, or the first part of its DNS name, when
+   no device has the account's own name) as
    adGroups, and is marked as being in Active Directory (inAd), with the account's last logon and creation day (o.ad).
    Its operating system and domain fill empty fields, as fill.js rules, unless Settings turned that off. A device with no
    account, or whose account is in no group, has no groups. Returns how many devices changed. */
@@ -92,10 +93,15 @@ export function applyComputers(s, computers, now = new Date()) {
   for (const c of computers) {
     for (const k of [c.name, c.dns, String(c.dns || '').split('.')[0]]) if (k && !byName.has(k.toLowerCase())) byName.set(k.toLowerCase(), c);
   }
+  /* A device named as the account is (ARGONB35) is the account's own; another named by its DNS name (argonb35.corp.example,
+     often a second record a docking station's network adapter left in Lansweeper) is not given it as well. */
+  const named = new Set(s.objs.filter(o => o.status !== 'retired' && o.name).map(o => low(o.name)));
   let n = 0;
   for (const o of s.objs) {
     if (o.status === 'retired' || !o.name) continue;
-    const key = String(o.name).toLowerCase(), c = byName.get(key) || byName.get(key.split('.')[0]);
+    const key = String(o.name).toLowerCase();
+    let c = byName.get(key) || byName.get(key.split('.')[0]);
+    if (c && low(c.name) !== key && named.has(low(c.name))) c = undefined;
     const groups = c && c.groups.length ? c.groups : null;
     /* Whether the device has a computer account in Active Directory: with Graph, this tells an AD-only device apart. */
     const ad = c ? adOf(c) : null;

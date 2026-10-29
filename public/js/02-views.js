@@ -4,7 +4,7 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
@@ -40,7 +40,11 @@ export function renderSide(){
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_ON() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_ON();
-  $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  /* Probable duplicates: a record named by a DNS name with no serial number, beside a device of that name. Listed only
+     when there are some. */
+  const nTwins = LS_ON() ? cnt(o => !!twinOf(o)) : 0;
+  $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>`
+    + (nTwins || st.twins ? `<button class="item ${st.twins?'sel':''}" data-twins="1" title="Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station"><span class="dot warn"></span><span class="lbl">Probable duplicates</span><span class="cnt">${nTwins}</span></button>` : '') : '';
   /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
@@ -75,6 +79,7 @@ $('#side').addEventListener('click', e => {
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
+  if ('twins' in b.dataset) st.twins = !st.twins;
   if ('adgroup' in b.dataset) st.adGroup = null;
   if ('resp' in b.dataset) st.resp = null;
   if ('osfam' in b.dataset) st.osFam = null;
@@ -85,7 +90,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = null; st.scanOld = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = null; st.scanOld = st.twins = st.live = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -102,6 +107,7 @@ export function renderFilterBar(){
     st.live && ['live', '', 'Not retired'],
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
+    st.twins && ['twins', '', 'Probable duplicates'],
     st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
@@ -116,7 +122,7 @@ $('#fbar').addEventListener('click', e => {
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
-  else if (k === 'scanOld' || k === 'live') st[k] = false;
+  else if (k === 'scanOld' || k === 'twins' || k === 'live') st[k] = false;
   else st[k] = null;
   view();
 });

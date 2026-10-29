@@ -1,7 +1,7 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Each card has Accept (it becomes an ordinary device) and Ignore (it leaves the view and is kept out
    of every sync from then on, so it does not come back). Ignored devices can be brought back from their own list. */
-import { REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, $, esc, hist, lastSeenOf, now, objs, st, toastUndo, relIndex, matchesQ } from './01-core.js';
+import { twinOf, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, $, esc, hist, lastSeenOf, now, objs, st, toastUndo, relIndex, matchesQ } from './01-core.js';
 import { cardHtml } from './02-views.js';
 import { canEdit, me } from './04-settings.js';
 import { render, queueServerSave } from './07-render-plans.js';
@@ -68,7 +68,7 @@ export function renderReview(){
   const item = o => {
     const stale = reviewStale(o);
     return `<div class="rv-item${stale ? ' stale' : ''}" data-rv="${esc(o.id)}">${cardHtml(o, idx)}
-      <div class="rv-acts"><span class="chip rv-src" title="Found by ${esc(REVIEW_SRC[o.review.src] || '')}">${esc(REVIEW_SRC[o.review.src] || '')}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}<span class="grow"></span>
+      <div class="rv-acts"><span class="chip rv-src" title="Found by ${esc(REVIEW_SRC[o.review.src] || '')}">${esc(REVIEW_SRC[o.review.src] || '')}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}<span class="grow"></span>
         ${!edit ? '' : showIgnored ? `<button type="button" data-rvrestore="${esc(o.id)}">Back to review</button>`
           : `<button type="button" class="rv-no" data-rvignore="${esc(o.id)}" title="Leave it out: no sync brings it back">✕ Ignore</button><button type="button" class="rv-yes" data-rvaccept="${esc(o.id)}" title="Take it into the inventory">✓ Accept</button>`}</div></div>`;
   };

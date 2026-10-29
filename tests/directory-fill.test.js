@@ -279,3 +279,28 @@ test('a location picked from AD is not taken back by Lansweeper; Intune\'s value
   applyGraph(s, [], NOW);
   assert.equal((s.objs[0].vals.os || {}).graph, undefined, 'gone from Intune: not offered any more');
 });
+
+test('a second record named by the DNS name: the AD account stays with the device of its own name, and Lansweeper puts the record in To review', () => {
+  const s = state([
+    { id: 'n', name: 'NB-35', serial: 'MP2V76BR', status: 'active', type: 'notebook' },
+    { id: 'd', name: 'nb-35.corp.example', status: 'active', type: 'other', mac: '64:c9:01:e3:9c:d1' },
+    { id: 'x', name: 'nb-99.corp.example', status: 'active', type: 'other' },
+  ]);
+  const comp = name => ({ name, dns: name.toLowerCase() + '.corp.example', groups: ['G_Clients'], os: 'Windows 11 Business (10.0.26200)', domain: 'corp.example', logon: '2026-10-22', created: '2026-10-02', description: 'Desk 4' });
+  applyComputers(s, [comp('NB-35'), comp('NB-99')], NOW);
+  const [n, d, x] = s.objs;
+  assert.equal(n.inAd, true); assert.deepEqual(n.adGroups, ['G_Clients']); assert.equal(n.purpose, 'Desk 4');
+  assert.equal(d.inAd, undefined, 'the DNS-named record does not get the account of NB-35');
+  assert.equal(d.adGroups, undefined); assert.equal(d.os, undefined); assert.equal(d.purpose, undefined);
+  assert.equal(x.inAd, true, 'with no device named NB-99, the DNS name still finds its account');
+
+  // Lansweeper: a new record named nb-35.corp.example with no serial waits in To review, even when new devices go straight in
+  const t = { ...state([{ id: 'n', name: 'NB-35', serial: 'MP2V76BR', status: 'active', type: 'notebook' }]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
+  mergeRecords(t, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', model: 'INVENTEC Corporation', ref: '18257' },
+    { name: 'nb-77.corp.example', serial: '', ip: '10.1.2.105', ref: '18258' },
+    { name: 'NB-36', serial: 'S36', ip: '10.1.2.106', ref: '18259' }], NOW);
+  const by = name => t.objs.find(o => o.name === name);
+  assert.equal(by('nb-35.corp.example').review.src, 'lansweeper', 'a probable second record of NB-35 waits');
+  assert.equal(by('nb-77.corp.example').review, undefined, 'no device named nb-77: added as Settings says');
+  assert.equal(by('NB-36').review, undefined);
+});
