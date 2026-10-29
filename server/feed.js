@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
-import { LS_FIELDS } from '../public/js/sync-map.js';
+import { LS_FIELDS, LS_FILL } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
 import { KNOWN_TYPES, intakeOf } from './state.js';
 
@@ -8,7 +8,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
-import { lsWrites, markSource, noteValue, pickOf } from './fill.js';
+import { lsWrites, mappedRoom, markSource, noteValue, pickOf, priceOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
@@ -47,7 +47,7 @@ export function recordsFromCsv(text) {
    found it (firstSeen). Only those it sent are set, so an older push script that sends none keeps what is there. */
 const scanDays = r => Object.fromEntries(['scanned', 'tried', 'firstSeen'].filter(k => r[k]).map(k => [k, r[k]]));
 const FEED_TEXT = ['name', 'serial', 'ip', 'ip6', 'mac', 'os', 'model', 'location', 'assetType', 'ref', 'cpu', 'ram', 'user', 'fw', 'boot', 'disk', 'patch', 'av', 'domain',
-  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned', 'tried', 'firstSeen'];
+  'mask', 'gateway', 'dns', 'dhcp', 'purchased', 'warranty', 'role', 'chassis', 'userDept', 'userName', 'scanned', 'tried', 'firstSeen', 'price', 'supplier', 'invoice'];
 /* Lists joined with "; " (every antivirus product, every drive) are longer than one value. */
 const LONG_TEXT = ['av', 'disk'];
 /* Records pushed as JSON (scripts/Lansweeper-Push.ps1) keep only the known fields, as short text. */
@@ -319,10 +319,11 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       taken.codes.add('INV-' + String(s.codeN).padStart(4, '0')); taken.ids.add('o' + s.seq);
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r), ...(r.location ? { location: r.location } : {}) }, loc: mappedRoom(s, r.location) || roomByIp(r) || '',
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
+        ...Object.fromEntries(Object.keys(LS_FILL).map(k => [k, k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim()]).filter(([, v]) => v !== null && v !== '')),
         ...(ipOnly || twin || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
       };
       /* Every value it came with is Lansweeper's. */
@@ -382,12 +383,22 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
     const userOwned = lsWrites(s, found, 'user');
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; markSource(found, 'user', 'ls'); changed = true; }
-    noteValue(found, 'loc', 'ls', r.location && locs.includes(r.location) ? r.location : '', r.scanned || seen);
-    /* Location: Lansweeper's location, when the policy lets the feed set it and the room is in the inventory's list. */
+    /* Its location as Lansweeper writes it (building / location) is kept, to be used as a room in Settings → Locations. */
+    if (found.feed && (r.location || '') !== (found.feed.location || '')) { if (r.location) found.feed.location = r.location; else delete found.feed.location; changed = true; }
+    const lsRoom = mappedRoom(s, r.location);
+    noteValue(found, 'loc', 'ls', lsRoom, r.scanned || seen);
+    /* Location: the room Lansweeper's location names or is mapped to, when the policy lets the feed set it. */
     const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc');
-    if (locOwned && r.location && locs.includes(r.location) && found.loc !== r.location) {
-      if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${r.location}` });
-      found.loc = r.location; markSource(found, 'loc', 'ls'); changed = true;
+    if (locOwned && lsRoom && found.loc !== lsRoom) {
+      if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${lsRoom}` });
+      found.loc = lsRoom; markSource(found, 'loc', 'ls'); changed = true;
+    }
+    /* Purchase data (price, supplier, order number) fills empty fields only: what a person typed always stays. */
+    for (const k of Object.keys(LS_FILL)) {
+      const v = k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim();
+      if (v === null || v === '' || (found[k] !== undefined && found[k] !== '') || s.feedOn === false || pickOf(found, k) === 'hand') continue;
+      found[k] = v; changed = true;
+      (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: ${LS_FILL[k]} filled in: ${v}` });
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
     if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }

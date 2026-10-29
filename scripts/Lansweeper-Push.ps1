@@ -9,6 +9,9 @@
 
     Columns that a Lansweeper version does not have are skipped (and logged). Required ones stop the run.
 
+    Purchase data goes along: the order number, and the price and supplier from the custom fields named in the
+    configuration (PriceField, SupplierField). NOBS fills them in only where the device has none.
+
     Monitors are linked to the PC they are attached to (from the monitor scan). The installed software of each device is
     sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not read: the
     inventory keeps those connections by hand.
@@ -64,6 +67,11 @@ $Config = @{
     MaxAgeDays          = 0       # 0 = all active assets; NOBS flags those not scanned for 3 months. N = only those seen in the last N days
     BatchSize           = 500     # assets per request
     DataDir             = (Join-Path $env:ProgramData 'LansweeperNobsPush')   # credential and log
+
+    # Purchase data: the order number is always sent. Price and supplier have no column of their own in Lansweeper:
+    # name the custom fields that hold them here (e.g. 'Custom1'), or leave them empty. NOBS fills empty fields only.
+    PriceField          = ''
+    SupplierField       = ''
 }
 # ============================================================
 
@@ -72,9 +80,12 @@ $script:LocalConfig = Join-Path $PSScriptRoot 'Lansweeper-Push.config.ps1'
 if (Test-Path -LiteralPath $script:LocalConfig) { . $script:LocalConfig }
 
 # The columns the push reads. Required ones must exist; the others are left out when a version does not have them.
+# A custom field is named by its column (Custom1 ... Custom20): anything else is ignored, so it can never reach the query.
+$script:PriceCol = if ($Config.PriceField -match '^\w{1,64}$') { $Config.PriceField } else { 'NoPriceField' }
+$script:SupplierCol = if ($Config.SupplierField -match '^\w{1,64}$') { $Config.SupplierField } else { 'NoSupplierField' }
 $script:Wanted = [ordered]@{
     tblAssets      = @('AssetID', 'AssetName', 'Username', 'Userdomain', 'IPAddress', 'Mac', 'Assettype', 'Lastseen', 'Lasttried', 'Firstseen', 'OScode', 'Memory', 'Processor')
-    tblAssetCustom = @('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate')
+    tblAssetCustom = @(@('AssetID', 'Manufacturer', 'Model', 'Serialnumber', 'State', 'Location', 'Building', 'PurchaseDate', 'Warrantydate', 'OrderNumber') + @(@($Config.PriceField, $Config.SupplierField) | Where-Object { $_ -match '^\w{1,64}$' }))
     tsysAssetTypes = @('AssetType', 'AssetTypename')
     tsysOS         = @('OScode', 'OSname')
     # The full name of a Windows (Microsoft Windows 10 Pro) and its version; tsysOS only has a short one (Win 10).
@@ -664,6 +675,8 @@ function Get-LsRecords {
             (Get-SelectItem 'tblAssetCustom' 'c' 'Serialnumber' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Location' $hasCustom),
             (Get-SelectItem 'tblAssetCustom' 'c' 'Building' $hasCustom),
             (Get-SelectItem 'tblAssetCustom' 'c' 'PurchaseDate' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' 'Warrantydate' $hasCustom),
+            (Get-SelectItem 'tblAssetCustom' 'c' 'OrderNumber' $hasCustom), (Get-SelectItem 'tblAssetCustom' 'c' $script:PriceCol $hasCustom),
+            (Get-SelectItem 'tblAssetCustom' 'c' $script:SupplierCol $hasCustom),
             (Get-SelectItem 'tblComputersystem' 'cs' 'Domainrole' $hasCs), (Get-SelectItem 'tblSystemEnclosure' 'se' 'ChassisTypes' $hasSe), (Get-SelectItem 'tblADusers' 'ad' 'Department' $hasAd), (Get-SelectItem 'tblADusers' 'ad' 'Displayname' $hasAd),
             (Get-SelectItem 'tsysAssetTypes' 'ty' 'AssetTypename'), (Get-SelectItem 'tsysOS' 'os' 'OSname' $hasOs),
             (Get-SelectItem 'tblOperatingsystem' 'ox' 'Caption' $hasOx), (Get-SelectItem 'tblOperatingsystem' 'ox' 'Version' $hasOx),
@@ -731,6 +744,9 @@ function Get-LsRecords {
                     domain = Get-Clean $reader['n__DNSDomain']
                     purchased = Get-DateText $reader['c__PurchaseDate']
                     warranty = Get-DateText $reader['c__Warrantydate']
+                    invoice = Get-Clean $reader['c__OrderNumber']
+                    price = Get-Clean $reader["c__$($script:PriceCol)"]
+                    supplier = Get-Clean $reader["c__$($script:SupplierCol)"]
                     scanned = Get-DateText $reader['a__Lastseen']
                     # The last scan Lansweeper tried (Lastseen is only the last one that worked) and when it first found the asset.
                     tried = Get-DateText $reader['a__Lasttried']

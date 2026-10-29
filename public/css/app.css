@@ -1420,6 +1420,10 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 
 /* Settings → Locations → From Active Directory: an AD location text, its devices, and the room it is used as. */
 #adLocs{margin-top:12px}
-.lrow.adloc{grid-template-columns:minmax(0,1fr) 70px minmax(0,1.2fr)}
+.lrow.adloc{grid-template-columns:minmax(0,1fr) 170px 70px minmax(0,1.2fr)}
+.adloc-tags{display:flex;flex-wrap:wrap;gap:4px}.adloc-src{font-weight:500}
+.adloc-to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adloc-office{width:auto;margin:4px 0 2px}
+@media (max-width:760px){.lrow.adloc{grid-template-columns:minmax(0,1fr) 50px}.lrow.adloc .adloc-tags,.lrow.adloc.head>span:nth-child(2){display:none}.lrow.adloc .adloc-ctl{grid-column:1 / -1}}
 .lrow.adloc>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .adloc-ctl{display:flex;align-items:center;gap:8px;min-width:0}.adloc-ctl select{width:100%}

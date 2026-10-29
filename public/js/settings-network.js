@@ -1,7 +1,7 @@
 /* Settings → Locations and Network: sites and rooms, subnets with their ranges, VLANs and domains. */
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
-import { canEdit, who } from './04-settings.js';
+import { USERS, canEdit, who } from './04-settings.js';
 import { REVIEW, esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -238,60 +238,76 @@ export function renderSetLocs(){
   $('#nlAdd').onclick = addRoom; enter('#nlRoom', addRoom);
   bindAdLocs(root);
 }
-/* From Active Directory: the location texts of the computer accounts, so they can be used. A text is never made a
-   location on its own (free text would fill the list with near-duplicates): each is mapped to a room here, or added as a
-   new room of a site. The AD sync then fills that room in on devices without a location, and does so at once here. */
+/* Location texts from the sources: AD's location of a computer account, Lansweeper's building and location, and (with
+   the option on) the office of a device's user. A text is never made a location on its own (free text would fill the
+   list with near-duplicates): each is used as a room here, existing or new. The syncs then fill that room in on devices
+   without a location, and devices here get it at once. */
 const lc = v => String(v || '').trim().toLowerCase();
-const adLocTexts = () => {
-  const n = new Map();
-  for (const o of [...objs, ...REVIEW]) { const t = o.ad && o.ad.location && String(o.ad.location).trim(); if (t) n.set(t, (n.get(t) || 0) + 1); }
-  return [...n].sort((a, b) => a[0].localeCompare(b[0]));
+const SRC_TAG = { ad: 'AD', ls: 'Lansweeper', office: 'User office' };
+/* What a device says its location is, by source. */
+const textsOf = o => {
+  const u = o.uid && USERS.find(x => x.id === o.uid), office = u && u.profile && u.profile.office;
+  return [['ad', o.ad && o.ad.location], ['ls', o.feed && o.feed.location], ['office', office]].filter(([, t]) => t && String(t).trim());
 };
-const adLocTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(st.adLocMap || {}).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
+const locTexts = () => {
+  const m = new Map();
+  for (const o of [...objs, ...REVIEW]) for (const [src, t] of textsOf(o)){
+    const k = lc(t), e = m.get(k) || { text: String(t).trim(), n: 0, src: new Set() };
+    e.n++; e.src.add(src); m.set(k, e);
+  }
+  return [...m.values()].sort((a, b) => a.text.localeCompare(b.text));
+};
+const locMap = () => ({ ...(st.adLocMap || {}), ...(st.locMap || {}) });
+const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap()).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
 function adLocsHtml(){
-  const list = adLocTexts();
-  if (!list.length) return '';
-  const row = ([t, n], i) => {
-    const direct = LOCS.find(l => lc(l) === lc(t)), to = adLocTarget(t);
+  const list = locTexts();
+  const office = `<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
+  if (!list.length) return `<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div><p class="note lnote">No source has sent a location text yet. Active Directory's location, Lansweeper's building and location, and the office of a device's user show here, to use as rooms.</p><div class="lnote">${office}</div></section>`;
+  const row = (e, i) => {
+    const direct = LOCS.find(l => lc(l) === lc(e.text)), to = locTarget(e.text);
     const ctl = direct ? '<span class="muted">Is a room here</span>'
-      : to ? `<span>→ <b>${esc(to)}</b></span>${canEdit() ? `<button type="button" class="link" data-adunmap="${i}">Remove</button>` : ''}`
-      : canEdit() ? `<select data-admap="${i}" aria-label="Use ${esc(t)} as"><option value="">Use as…</option>${LOCS.length ? `<optgroup label="An existing room">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>` : ''}${SITES.length ? `<optgroup label="A new room, in the site">${SITES.map(x => `<option value="site:${esc(x)}">${esc(x)} / ${esc(t)}</option>`).join('')}</optgroup>` : ''}</select>` : '<span class="muted">Not used</span>';
-    return `<div class="lrow adloc"><span title="${esc(t)}">${esc(t)}</span><span class="n" title="Devices with this location in AD">${n}</span><span class="adloc-ctl">${ctl}</span></div>`;
+      : to ? `<span class="adloc-to">→ <b>${esc(to)}</b></span>${canEdit() ? `<button type="button" class="link" data-adunmap="${i}">Remove</button>` : ''}`
+      : canEdit() ? `<select data-admap="${i}" aria-label="Use ${esc(e.text)} as"><option value="">Use as…</option>${LOCS.length ? `<optgroup label="An existing room">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>` : ''}${SITES.length ? `<optgroup label="A new room, in the site">${SITES.map(x => `<option value="site:${esc(x)}">${esc(x)} / ${esc(e.text.includes(' / ') ? e.text.split(' / ').slice(1).join(' - ') : e.text)}</option>`).join('')}</optgroup>` : ''}</select>` : '<span class="muted">Not used</span>';
+    const tags = [...e.src].map(x => `<span class="chip adloc-src">${SRC_TAG[x]}</span>`).join('');
+    return `<div class="lrow adloc"><span class="adloc-text" title="${esc(e.text)}">${esc(e.text)}</span><span class="adloc-tags">${tags}</span><span class="n" title="Devices with this location text">${e.n}</span><span class="adloc-ctl">${ctl}</span></div>`;
   };
-  return `<section class="panelbox" id="adLocs"><div class="hdr">From Active Directory <span class="cnt">${list.length}</span></div>
-    <p class="note lnote">The location of the computer accounts in AD. Use one as a room here, existing or new, and the AD sync fills it in on its devices without a location.</p>
-    <div class="lrows"><div class="lrow adloc head"><span>Location in AD</span><span class="n">Devices</span><span></span></div>${list.map(row).join('')}</div></section>`;
+  return `<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources <span class="cnt">${list.length}</span></div>
+    <p class="note lnote">What the sources call a device's location. Use a text as a room here, existing or new, and the syncs fill it in on devices without a location. A text alone never becomes a location.</p>
+    <div class="lnote">${office}</div>
+    <div class="lrows"><div class="lrow adloc head"><span>Location text</span><span>Source</span><span class="n">Devices</span><span></span></div>${list.map(row).join('')}</div></section>`;
 }
-/* Devices without a location whose AD account names text get its room now (as the next AD sync would), with one Undo. */
+/* Devices without a location whose sources name text get its room now (as the next sync would), with one Undo. */
 function useAdLoc(text, room, msg){
-  const mapBefore = { ...(st.adLocMap || {}) }, locsBefore = [...LOCS];
-  const devs = objs.filter(o => !o.loc && o.ad && lc(o.ad.location) === lc(text) && (!o.pick || !o.pick.loc || o.pick.loc === 'ad') && (st.fillAd !== false || (o.pick && o.pick.loc === 'ad')));
+  const mapBefore = { ...(st.locMap || {}) }, adBefore = st.adLocMap, locsBefore = [...LOCS];
+  const devs = objs.filter(o => !o.loc).map(o => [o, textsOf(o).find(([src, t]) => lc(t) === lc(text) && (src !== 'office' || st.locFromOffice))]).filter(([o, m]) => m && (!o.pick || !o.pick.loc || o.pick.loc === (m[0] === 'ls' ? 'ls' : 'ad')));
   if (!LOCS.includes(room)) LOCS.push(room);
-  if (!LOCS.some(l => lc(l) === lc(text))) st.adLocMap = { ...(st.adLocMap || {}), [text]: room };
-  for (const o of devs){ o.loc = room; (o.src ??= {}).loc = 'ad'; hist(o, now(), `Location set to ${room} from Active Directory (${text}) by ${who()}`); }
+  if (!LOCS.some(l => lc(l) === lc(text))) st.locMap = { ...(st.locMap || {}), [text]: room };
+  for (const [o, [src]] of devs){ o.loc = room; (o.src ??= {}).loc = src === 'ls' ? 'ls' : 'ad'; hist(o, now(), `Location set to ${room} from ${SRC_TAG[src]} (${text}) by ${who()}`); }
   queueServerSave(); renderSetLocs(); render();
   toastUndo(`${msg}${devs.length ? `; ${devs.length} ${devs.length === 1 ? 'device' : 'devices'} placed there` : ''}`, () => {
-    st.adLocMap = mapBefore; LOCS.splice(0, LOCS.length, ...locsBefore);
-    for (const o of devs){ o.loc = ''; if (o.src){ delete o.src.loc; if (!Object.keys(o.src).length) delete o.src; } hist(o, now(), 'Location from Active Directory undone'); }
+    st.locMap = mapBefore; st.adLocMap = adBefore; LOCS.splice(0, LOCS.length, ...locsBefore);
+    for (const [o] of devs){ o.loc = ''; if (o.src){ delete o.src.loc; if (!Object.keys(o.src).length) delete o.src; } hist(o, now(), 'Location from the sources undone'); }
     queueServerSave(); renderSetLocs(); render();
   });
 }
 function bindAdLocs(root){
-  const list = adLocTexts();
+  const list = locTexts();
+  const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
   root.querySelectorAll('[data-admap]').forEach(sel => sel.onchange = () => {
-    const [t] = list[+sel.dataset.admap], v = sel.value; if (!v) return;
+    const t = list[+sel.dataset.admap].text, v = sel.value; if (!v) return;
     if (v.startsWith('loc:')) useAdLoc(t, v.slice(4), `${t} is used as ${v.slice(4)}`);
     else {
-      const room = cleanLoc(v.slice(5) + ' / ' + t.replace(/\//g, '-'));
+      const room = cleanLoc(v.slice(5) + ' / ' + (t.includes(' / ') ? t.split(' / ').slice(1).join(' - ') : t).replace(/\//g, '-'));
       if (!room){ toast('That makes no room name.'); return; }
       useAdLoc(t, room, `Room ${room} added for ${t}`);
     }
   });
   root.querySelectorAll('[data-adunmap]').forEach(b => b.onclick = () => {
-    const [t] = list[+b.dataset.adunmap], before = { ...(st.adLocMap || {}) };
-    st.adLocMap = Object.fromEntries(Object.entries(before).filter(([k]) => lc(k) !== lc(t)));
+    const t = list[+b.dataset.adunmap].text, before = { ...(st.locMap || {}) }, adBefore = st.adLocMap;
+    st.locMap = Object.fromEntries(Object.entries(before).filter(([k]) => lc(k) !== lc(t)));
+    if (st.adLocMap) st.adLocMap = Object.fromEntries(Object.entries(st.adLocMap).filter(([k]) => lc(k) !== lc(t)));
     queueServerSave(); renderSetLocs();
-    toastUndo(`${t} is no longer used; devices keep their location`, () => { st.adLocMap = before; queueServerSave(); renderSetLocs(); });
+    toastUndo(`${t} is no longer used; devices keep their location`, () => { st.locMap = before; st.adLocMap = adBefore; queueServerSave(); renderSetLocs(); });
   });
 }
 export function addSite(){

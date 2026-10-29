@@ -4,7 +4,7 @@ import { HttpError } from './errors.js';
 import { freeUserId, loadState, saveState, intakeOf } from './state.js';
 import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
-import { fillField, lsOwns, noteValue, pickOf } from './fill.js';
+import { fillField, lsOwns, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
@@ -57,6 +57,9 @@ export async function syncLdapUsers(db, config) {
   if (computerError) counts.computerError = computerError;
   else if (computers && computers.length) {
     counts.computers = applyComputers(s, computers);
+    /* Devices without a location take their user's office, when Settings → Locations says so. */
+    const office = officeLocations(s, stamp(new Date()));
+    if (office) { counts.office = office; counts.computers += office; }
     Object.assign(counts, listAdUnmatched(s, computers));
     const added = intakeFromAd(s);
     if (added.review) counts.review = added.review;
@@ -125,6 +128,9 @@ export function applyComputers(s, computers, now = new Date()) {
         if (lsOwns(s, o, k) && o[k]) continue;
         if (fillField(s, o, k, v, 'ad', at, label)) changed = true;
       }
+      /* "Managed by" names the internal responsible, when a contact here has that name and the device has none yet. */
+      const resp = c.managedBy && !o.respIn && s.fillAd !== false && (s.contacts || []).find(k => k.kind === 'internal' && low(k.name) === low(c.managedBy));
+      if (resp) { o.respIn = resp.id; (s.history[o.id] ??= []).unshift({ t: at, msg: `Internal responsible set to ${resp.name} (managed by, in Active Directory)` }); changed = true; }
     }
     if (JSON.stringify(groups) === JSON.stringify(o.adGroups || null) && !!c === !!o.inAd && JSON.stringify(ad) === JSON.stringify(o.ad || null) && !changed) continue;
     if (groups) o.adGroups = groups; else delete o.adGroups;
@@ -139,11 +145,7 @@ const low = v => String(v || '').trim().toLowerCase();
    written there and what it runs (from its service principal names). */
 /* The room an AD location text stands for: a room of that name, or the room it is mapped to (Settings → Locations).
    A text that names no room here gives none: free text never makes a location. */
-export function adLocation(s, text) {
-  const t = low(text), locs = s.locs || [];
-  const mapped = Object.entries(s.adLocMap || {}).find(([k]) => low(k) === t);
-  return locs.find(l => low(l) === t) || (mapped && locs.includes(mapped[1]) ? mapped[1] : '');
-}
+export const adLocation = (s, text) => mappedRoom(s, text);
 function adOf(c) {
   const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
     ...(c.location ? { location: c.location } : {}), ...(c.description ? { description: c.description } : {}), ...(c.services && c.services.length ? { services: c.services } : {}) };

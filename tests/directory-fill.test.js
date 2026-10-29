@@ -286,7 +286,7 @@ test('an AD location text fills the location of a device when it names a room he
   applyComputers(s, [comp('PC-A', 'bern / eg'), comp('PC-B', 'Raum 3.12'), comp('PC-C', 'Lager hinten')], NOW);
   assert.deepEqual(s.objs.map(o => o.loc || ''), ['Bern / EG', 'Bern / 3. OG', '']);
   assert.equal(s.objs[2].ad.location, 'Lager hinten', 'kept on the account, to be used in Settings');
-  assert.throws(() => checkState({ objs: [], rels: [], users: [], locs: [], types: {}, history: {}, adLocMap: { x: 5 } }), /AD locations map texts to rooms/);
+  assert.throws(() => checkState({ objs: [], rels: [], users: [], locs: [], types: {}, history: {}, adLocMap: { x: 5 } }), /Location texts map to rooms/);
 });
 
 test('a second record named by the DNS name: the AD account stays with the device of its own name, and Lansweeper puts the record in To review', () => {
