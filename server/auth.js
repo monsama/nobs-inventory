@@ -84,7 +84,8 @@ export function endSession(db, token) {
 export function readCookie(header, name) {
   for (const part of (header || '').split(';')) {
     const [k, ...v] = part.trim().split('=');
-    if (k === name) return decodeURIComponent(v.join('='));
+    /* A malformed value (a stray %) is no cookie, not an error. */
+    if (k === name) { try { return decodeURIComponent(v.join('=')); } catch { return null; } }
   }
   return null;
 }
