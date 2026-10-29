@@ -41,6 +41,8 @@ function pickerOf(mark, close){
   const inUse = sourceOf(o, k), edit = canEdit(), label = LABELS[k] || k;
   const newest = list.length > 1 ? list.reduce((a, b) => ms(b.at) > ms(a.at) ? b : a) : null;
   const mode = fixed ? `${LOCK}${fixed === 'hand' ? 'Kept as typed' : `Fixed to ${esc(NAMES[fixed])}`}` : 'Automatic';
+  /* What fixing means: a value kept as typed is left alone by every sync; a picked source is the only one that writes it. */
+  const fixedText = fixed === 'hand' ? 'The syncs leave it as it is.' : fixed ? `Only ${esc(NAMES[fixed])} writes it from now on; the other sources are still shown here.` : '';
   const box = document.createElement('div');
   box.innerHTML = `<div class="sp-head"><b>${esc(label)}</b><span class="sp-mode${fixed ? ' fixed' : ''}">${mode}</span></div>
     ${list.length ? `<div class="sp-list" role="radiogroup" aria-label="Value of ${esc(label)}">${list.map(c => {
@@ -51,22 +53,29 @@ function pickerOf(mark, close){
         <span class="sp-at">${c.at && WHEN[c.src] ? `${WHEN[c.src]} ${esc(shown(c.at))}` : ''}</span></span>
         <span class="sp-tick" aria-hidden="true">${cur ? '✓' : ''}</span></button>`;
     }).join('')}</div>` : '<p class="sp-none muted">No source has a value for it.</p>'}
-    <div class="sp-foot">${!edit ? `<span class="muted">${fixed ? 'The syncs leave this field as it is.' : `Filled automatically: ${AUTO_TEXT}.`}</span>`
-      : fixed ? `<span class="muted">The syncs leave it as it is.</span><button type="button" class="link" data-pick="">Back to automatic</button>`
+    <div class="sp-foot">${!edit ? `<span class="muted">${fixed ? fixedText : `Filled automatically: ${AUTO_TEXT}.`}</span>`
+      : fixed ? `<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
       : `<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`;
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const src = b.dataset.pick === 'unknown' ? 'hand' : b.dataset.pick, c = list.find(x => x.src === b.dataset.pick);
-    const was = o[k], keepHand = () => { if (sourceOf(o, k) === 'hand' && was != null && was !== '') o.vals = { ...(o.vals || {}), [k]: { ...((o.vals || {})[k] || {}), hand: [String(was), o.handAt || ''] } }; };
+    /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand
+       as By hand, a source's value under that source when the source has not noted it beside the field (a value written
+       before the sources' values were kept), one of no known source as By hand. */
+    const was = o[k], keepCurrent = () => {
+      if (was == null || was === '') return;
+      const from = sourceOf(o, k), as = from === 'unknown' ? 'hand' : from, noted = ((o.vals || {})[k] || {})[as];
+      if (!as || (as !== 'hand' && noted)) return;
+      o.vals = { ...(o.vals || {}), [k]: { ...((o.vals || {})[k] || {}), [as]: [String(was).slice(0, 1000), String(timeOf(o, as) || '').slice(0, 40)] } };
+    };
     if (!src){
       /* Automatic: no source picked and no value kept as typed; the usual order decides at once, as the next syncs would. */
       if (o.pick){ const rest = { ...o.pick }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick; }
       if (o.ovr && k in o.ovr){ o.ovr = { ...o.ovr }; delete o.ovr[k]; }
       const auto = ['ls', 'graph', 'ad'].filter(s => s !== 'ls' || feedOwns(o, k)).map(s => list.find(x => x.src === s)).find(Boolean);
-      if (auto){ keepHand(); o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
+      if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
       hist(o, now(), `${label}: back to the automatic order of the sources${auto && was !== auto.value ? ` (${was || 'empty'} → ${auto.value})` : ''}, by ${who()}`);
     } else {
-      /* A value set by hand stays on offer when a source is picked over it, so it can be picked back. */
-      if (src !== 'hand') keepHand();
+      if (c.value !== String(was ?? '')) keepCurrent();
       o[k] = c.value;
       o.src = { ...(o.src || {}), [k]: src };
       o.pick = { ...(o.pick || {}), [k]: src };
