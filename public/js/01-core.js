@@ -471,7 +471,8 @@ export function sourceText(o, k, src = sourceOf(o, k)){
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
 export function twinOf(o, { marked = false } = {}){
-  if (!o || (o.notTwin && !marked) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
+  /* A record already decided on (ignored or merged in To review) is no open question. */
+  if (!o || (o.notTwin && !marked) || (o.review && o.review.ignored) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
     for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);
