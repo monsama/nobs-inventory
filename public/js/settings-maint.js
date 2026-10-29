@@ -1,6 +1,6 @@
 /* Settings → Maintenance and Log: backups (taken, restored, deleted), the factory reset, and the log with its filters. */
-import { modal, closeModal } from './03-object-modals.js';
-import { clearConfirm, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render-plans.js';
+import { modal, closeModal } from './19-modal.js';
+import { clearConfirm, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { pushDate } from './settings-feed.js';
 import { canEdit } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';

@@ -260,7 +260,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
      the device sync filled it in), is bound to them, so it moves with a rename. */
   const byOwner = new Map(s.users.filter(p => p.entra && !p.entra.gone && p.entra.upn).map(p => [low(p.entra.upn), p]));
   for (const o of s.objs) {
-    if (o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || (o.ovr && o.ovr.user === false)) continue;
+    if (o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || pickOf(o, 'user') === 'hand') continue;
     const p = byOwner.get(low(o.graph.owner));
     if (p && (!o.user || low(o.user) === low(p.name) || low(o.user) === low(o.graph.ownerName))) { o.uid = p.id; o.user = p.name; counts.bound++; }
   }
@@ -355,24 +355,23 @@ export function applyGraph(s, records, now = new Date()) {
       (s.history[o.id] ??= []).unshift({ t: at, msg: `Name changed from ${o.name} to ${r.name}: set up with Autopilot (Microsoft Graph)` });
       o.name = r.name;
     }
-    const ovr = o.ovr || {};
     /* Empty fields are filled in (fill.js says who wins), unless Settings turned that off. A device Graph added is Graph's
        and kept up to date in full, whatever the setting. */
     for (const [k, label] of Object.entries(FILL)) {
       const picked = pickOf(o, k);
       if (picked && picked !== 'graph') continue;
       if (!picked && s.fillGraph === false && !owns) continue;
-      if (!r[k] || (!picked && ovr[k] === false) || o[k] === r[k]) continue;
+      if (!r[k] || o[k] === r[k]) continue;
       /* A field Lansweeper fills in is left to it once it has a value: its next push decides. */
       if (lsOwns(s, o, k) && o[k]) continue;
       if (owns && o[k] && !(o.src && o.src[k])) (o.src ??= {})[k] = 'graph';
       if (fillField(s, o, k, r[k], 'graph', at, label)) counts.filled++;
     }
     /* Matched by name: the serial number Intune knows is taken over. */
-    if (!o.serial && r.serial && ovr.serial !== false) { o.serial = r.serial; counts.filled++; }
+    if (!o.serial && r.serial && pickOf(o, 'serial') !== 'hand') { o.serial = r.serial; counts.filled++; }
     /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. Graph gives the
        display name (Lansweeper gives a login): the page binds either to the person, by login first, then by name. */
-    if (r.ownerName && !o.uid && !o.user && !o.hotdesk && ovr.user !== false) { o.user = r.ownerName; counts.filled++; }
+    if (r.ownerName && !o.uid && !o.user && !o.hotdesk && pickOf(o, 'user') !== 'hand') { o.user = r.ownerName; counts.filled++; }
   }
   /* Graph had the device and has it no more (deleted in Entra, or renamed): what it said is kept, marked as gone, so the
      device no longer counts as joined. A device that fits a record twice keeps what it had. */
@@ -441,7 +440,7 @@ export function addFromGraph(s, ids, who, now = new Date(), { review = false } =
     do { s.seq = (s.seq || 100) + 1; } while (taken.has('o' + s.seq));
     codes.add('INV-' + String(s.codeN).padStart(4, '0')); taken.add('o' + s.seq);
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: graphType(s, d), name: d.name, serial: d.serial || '', status: 'active',
-      loc: '', ovr: {}, feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
+      loc: '', feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
       graph: { id: d.id, join: d.join, managed: d.managed, compliance: d.compliance, lastSync: d.lastSync, seen: at, added: true },
       ...(review ? { review: { src: 'graph', at } } : {}) };
     s.objs.push(o);
@@ -474,7 +473,7 @@ export function applyAutopilot(s, list, now = new Date()) {
     codes.add(code); ids.add(id);
     const model = modelFor(s, clean([a.manufacturer, a.model].filter(Boolean).join(' ')));
     const t = typeFor(s, '', model, '', serial, '');
-    const n = { id, code, type: t === 'other' ? 'pc' : t, name: serial, serial, status: 'active', loc: '', ovr: {}, feed: null,
+    const n = { id, code, type: t === 'other' ? 'pc' : t, name: serial, serial, status: 'active', loc: '', feed: null,
       ...(model ? { model, src: { model: 'graph', serial: 'graph' } } : { src: { serial: 'graph' } }), autopilot: { ...info, seen: at },
       ...(intakeOf(s, 'graph') === 'direct' ? {} : { review: { src: 'graph', at } }) };
     s.objs.push(n); bySerial.set(low(serial), n); hit.add(n);

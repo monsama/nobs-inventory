@@ -58,7 +58,7 @@ try {
 
   // with columns moved, typing goes on in the same filter box
   await page.evaluate(async () => {
-    const t = await import('/js/06-topbar.js'), r = await import('/js/07-render-plans.js');
+    const t = await import('/js/06-topbar.js'), r = await import('/js/07-render.js');
     const s = t.TBL['view:table:0']; const n = s.order.length; s.order = [0, 2, 1, ...[...Array(n).keys()].slice(3)]; s.filters = {}; s.sort = null; t.saveTBL(); r.view();
   });
   const box = page.locator('table.grid tr.fr input[data-fci="2"]');

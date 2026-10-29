@@ -30,7 +30,7 @@ try {
   assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('.btnlike[href*="buymeacoffee"]')).textDecorationLine), 'none', 'the coffee button is underlined');
   await p.click('#setClose');
 
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'table'; __mods[1].render(); });
   await p.waitForSelector('#selAll');
   await p.click('#selAll');
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.bulk.size); }), 7, 'select all did not select every row');
@@ -57,11 +57,11 @@ try {
   await p.fill('thead tr.fr input[aria-label="Filter Name"]', 'ZH-PC');
   await p.dispatchEvent('thead tr.fr input[aria-label="Filter Name"]', 'input'); await p.waitForTimeout(150);
   const narrowed = await shown();
-  await p.evaluate(async () => { const v = await import('/js/02-views.js'); window.__hid = v.hiddenCols().slice(); v.setHiddenCols([...window.__hid, 'code']); (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); window.__hid = v.hiddenCols().slice(); v.setHiddenCols([...window.__hid, 'code']); (await import('/js/07-render.js')).render(); });
   await p.waitForTimeout(200);
   assert.equal(await p.inputValue('thead tr.fr input[aria-label="Filter Name"]'), 'ZH-PC', 'the filter moved off its column');
   assert.equal(await shown(), narrowed, 'the filter applies to another column now');
-  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(window.__hid); (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(window.__hid); (await import('/js/07-render.js')).render(); });
   await p.waitForTimeout(200);
   assert.equal(await p.inputValue('thead tr.fr input[aria-label="Filter Name"]'), 'ZH-PC');
   assert.equal(await shown(), narrowed);

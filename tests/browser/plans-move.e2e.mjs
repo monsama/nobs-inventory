@@ -32,15 +32,15 @@ try {
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = 'plans'; __mods[1].renderPlans(); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/20-plans.js')]); __mods[0].st.tab = 'plans'; __mods[1].renderPlans(); });
   await p.waitForSelector('#plCanvas');
   const box = await p.locator('#plCanvas').boundingBox();
   const at = (x, y) => [box.x + box.width * x / 100, box.y + box.height * y / 100];
   // Drag the area from its top rectangle by 10 % across and 5 % down.
   const [sx, sy] = at(29, 11), [ex, ey] = at(39, 16);   // a corner the area's own devices, spread over it, leave free
   await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(ex, ey, { steps: 6 }); await p.mouse.up();
-  await until(p, async () => { const a = (await import('/js/07-render-plans.js')).planById('pl1').areas[0]; return Math.abs(a.rects[0].x - 20) < 0.3; });
-  const plan = await p.evaluate(async () => (await import('/js/07-render-plans.js')).planById('pl1'));
+  await until(p, async () => { const a = (await import('/js/20-plans.js')).planById('pl1').areas[0]; return Math.abs(a.rects[0].x - 20) < 0.3; });
+  const plan = await p.evaluate(async () => (await import('/js/20-plans.js')).planById('pl1'));
   const area = plan.areas[0];
   assert.deepEqual(area.rects.map(r => [r.x, r.y]), [[20, 15], [20, 25]], 'both rectangles moved together');
   assert.equal(area.x, 20, 'the box of the area moved too');
@@ -82,8 +82,8 @@ try {
   const [dx0, dy0] = at(60, 60), [dx1, dy1] = at(70, 70);
   await p.mouse.move(dx0, dy0); await p.mouse.down(); await p.mouse.move(dx1, dy1, { steps: 4 }); await p.mouse.up();
   await p.click('#plAreaDone');
-  await until(p, async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0].rects.length === 3);
-  const grown = (await p.evaluate(async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0]));
+  await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas[0].rects.length === 3);
+  const grown = (await p.evaluate(async () => (await import('/js/20-plans.js')).planById('pl1').areas[0]));
   assert.ok(grown.w >= 49, 'the area is widened to take the new rectangle: width ' + grown.w);
   assert.deepEqual(errors, [], 'page errors');
   console.log('plan areas: moving an area moves its devices, all checks passed');

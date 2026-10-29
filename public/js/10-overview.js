@@ -3,7 +3,7 @@
 import { SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
-import { view } from './07-render-plans.js';
+import { view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
 import { openSettings } from './04-settings.js';

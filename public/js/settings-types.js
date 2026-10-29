@@ -1,8 +1,8 @@
 /* Settings → Object types: names, colours and icons (uploaded icons cleaned to shapes), the fields each type has,
    and the four lines of its cards. */
-import { typeFieldsOf, canAddPorts, fieldKind } from './03-object-modals.js';
+import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
 import { cardLines, CARD_FIELDS } from './02-views.js';
-import { queueServerSave, render } from './07-render-plans.js';
+import { queueServerSave, render } from './07-render.js';
 import { VIEWBOX_RE, ICON, iconSvg, esc, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol } from './01-core.js';
 import { SVG_ELEMENTS, SVG_ATTRS } from './svg-rules.js';
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */

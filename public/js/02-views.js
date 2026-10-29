@@ -4,12 +4,12 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
-import { SERVER, queueServerSave, render, view } from './07-render-plans.js';
+import { pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { SERVER, queueServerSave, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
-import { closeModal, modal } from './03-object-modals.js';
+import { closeModal, modal } from './19-modal.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -40,11 +40,17 @@ export function renderSide(){
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_ON() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_ON();
-  /* Probable duplicates: a record named by a DNS name with no serial number, beside a device of that name. Listed only
-     when there are some. */
-  const nTwins = LS_ON() ? cnt(o => !!twinOf(o)) : 0;
-  $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>`
-    + (nTwins || st.twins ? `<button class="item ${st.twins?'sel':''}" data-twins="1" title="Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station"><span class="dot warn"></span><span class="lbl">Probable duplicates</span><span class="cnt">${nTwins}</span></button>` : '') : '';
+  $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  /* Duplicates, whatever found them: a second record by DNS name (Lansweeper, e.g. a docking station), more than one record
+     in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
+     one is. */
+  const dups = [
+    ['twins', 'By DNS name', 'Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station', o => !!twinOf(o), st.twins, () => LS_ON()],
+    ['duplicates', 'More than one in Entra', GRAPH_TIPS.duplicates, GRAPH_FILTERS.duplicates[2], st.intune === 'duplicates', () => SYNC.graph],
+    ['ambiguous', 'Name or serial used twice', GRAPH_TIPS.ambiguous, GRAPH_FILTERS.ambiguous[2], st.intune === 'ambiguous', () => SYNC.graph],
+  ].map(([k, l, tip, f, on, live]) => [k, l, tip, live() ? cnt(f) : 0, on]).filter(([, , , n, on]) => n || on);
+  $('#dupHdr').hidden = $('#dupList').hidden = !dups.length;
+  $('#dupList').innerHTML = dups.map(([k, l, tip, n, on]) => `<button class="item ${on ? 'sel' : ''}" ${k === 'twins' ? 'data-twins="1"' : `data-intune="${k}"`} title="${esc(tip)}"><span class="dot warn"></span><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`).join('');
   /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
@@ -52,6 +58,7 @@ export function renderSide(){
   $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f, onlyWhenSome, fromOverview]]) => {
     const n = cnt(f), join = c === 'join';
     if (fromOverview && st.intune !== k) return '';
+    if (k === 'duplicates' || k === 'ambiguous') return '';   /* under Duplicates */
     if ((join || onlyWhenSome) && !n && st.intune !== k) return '';
     return `${k === 'entra' ? '<div class="side-sub">Joined</div>' : ''}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l)}">${join ? '' : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
   }).join('') : '';
@@ -107,7 +114,7 @@ export function renderFilterBar(){
     st.live && ['live', '', 'Not retired'],
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
-    st.twins && ['twins', '', 'Probable duplicates'],
+    st.twins && ['twins', 'Duplicates', 'by DNS name'],
     st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
@@ -479,7 +486,7 @@ export function renderTable(){
     st.bulk.forEach(id => {
       const o = byId(id); if (!o || o.loc === bk.value) return;
       moved++;
-      if (feedLinked(o) || (o.graph && o.graph.added)) (o.ovr ??= {}).loc = false;
+      if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc');
       o.loc = bk.value; markHand(o, 'loc'); o.handAt = new Date().toISOString();
       hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
     });

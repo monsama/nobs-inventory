@@ -26,10 +26,10 @@ try {
   const p = await watch(await ctx.newPage());
   await signIn(p);
   const ids = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.map(o => o.id)); });
-  for (const id of ids) await p.evaluate(async id => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.open = [id]; __mods[0].st.tab = id; __mods[1].render(); }, id);
-  for (const t of ['cards', 'table', 'map', 'net', 'rack', 'sw']) await p.evaluate(async t => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render-plans.js')]); __mods[0].st.tab = t; __mods[1].render(); }, t);
+  for (const id of ids) await p.evaluate(async id => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.open = [id]; __mods[0].st.tab = id; __mods[1].render(); }, id);
+  for (const t of ['cards', 'table', 'map', 'net', 'rack', 'sw']) await p.evaluate(async t => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = t; __mods[1].render(); }, t);
   for (const tab of ['feed', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) await p.evaluate(async tab => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/04-settings.js')]); __mods[0].st.setTab = tab; __mods[1].openSettings(); }, tab);
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js')]); __mods[0].closeModal(); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); __mods[0].closeModal(); });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/05-new-object.js')]); const o = __mods[0].byName('ZH-PC-0142'); __mods[1].newObjModal({copy: o}); __mods[0].$('#nName').value = 'COPY-CHECK'; __mods[0].$('#nOk').click(); });
   assert.ok(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byName('COPY-CHECK')); }), 'duplicating an object did not create it');
   // Sites and rooms: a site is added on its own, a room is added under a site, and the sidebar shows both.
@@ -59,7 +59,7 @@ try {
   await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
   // wait until the server holds the change (the page saves in the background)
   await until(p, async () => (await (await fetch('api/state', { credentials: 'same-origin' })).json()).lansweeper?.endpoint === 'https://lansweeper.example.ch/api/v2/graphql', null, { timeout: 10000, polling: 200 });
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].reloadFromServer()); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].reloadFromServer()); });
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].st.lansweeper.endpoint); }), 'https://lansweeper.example.ch/api/v2/graphql', 'the Lansweeper address was not kept');
   assert.equal(await p.isDisabled('#lsSync'), true, 'Sync now is on without a token');
   await p.click('#setClose');
@@ -68,10 +68,10 @@ try {
   await p.fill('#ntName', 'Note'); await p.click('#ntAdd');
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.values(__mods[0].TYPES).some(t => t.label === 'Note')); }, null, { timeout: 5000 });
   await until(p, async () => Object.values((await (await fetch('api/state', { credentials: 'same-origin' })).json()).types).some(t => t.label === 'Note'), null, { timeout: 10000, polling: 200 });
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render-plans.js')]); return (__mods[0].reloadFromServer()); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].reloadFromServer()); });
   const types = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.keys(__mods[0].TYPES)); });
   assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
-  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/03-object-modals.js')]); return (__mods[0].closeModal()); });
+  await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); return (__mods[0].closeModal()); });
   await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
   await p.click('.icondd-btn[aria-label$="icon for PC"]');
   if (!(await p.isVisible('.icondd-list:not([hidden]) .icondd-up'))) throw new Error('the icon dropdown does not open');

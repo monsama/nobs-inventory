@@ -43,27 +43,32 @@ try {
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
+  // the Sources panel opens on Entra & Intune, the part this test reads
+  await p.waitForFunction(async () => !!(await import('/js/01-core.js')).st); await p.evaluate(async () => { (await import('/js/01-core.js')).st.srcTab = 'graph'; });
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   /* Graph counts as set up for the page, as it would after a sync with a certificate. */
-  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render.js')).render(); });
 
   // the panel on a device
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('a'));
-  await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))');
-  const panel = await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))');
+  await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
+  const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
-  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
+  if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:has-text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=over 30 days ago');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
+  assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /Hybrid joined.*Not compliant.*Not encrypted/s);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
   await p.waitForSelector('text=Not found in Microsoft Entra or Intune');
-  assert.match(await p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'), /joined to AD only/);
+  assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
-  assert.deepEqual([await count('duplicates'), await count('ambiguous')], ['1', '2']);
+  // the duplicates have their own group, whatever found them
+  const dup = k => p.textContent(`#dupList [data-intune="${k}"] .cnt`);
+  assert.deepEqual([await dup('duplicates'), await dup('ambiguous')], ['1', '2']);
+  assert.equal(await p.locator('#grList [data-intune="duplicates"]').count(), 0, 'not also under Entra & Intune');
   if (process.env.NI_SHOTS) await p.locator('#grHdr').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-side-h.png') });
   await p.click('#grList [data-intune="missing"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c', 'e']);
@@ -71,7 +76,7 @@ try {
   // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
   assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['2', '1', '1'], 'a device gone from Entra is not Entra joined');
   // duplicates in Entra, a device gone from it, and a record that fits two devices here, on the device
-  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:text("Entra & Intune"))'); };
+  const graphText = async id => { await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id); await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))'); return p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'); };
   assert.match(await graphText('d'), /2 records in Entra.*Entra registered.*last heard of.*Delete old records/s);
   assert.match(await graphText('e'), /Gone.*Not in Entra or Intune any more since the sync of 26\.10\.2026/s);
   assert.match(await graphText('k1'), /Not matched.*named Kiosk.*INV-k2 kiosk.*distinct names/s);
@@ -82,18 +87,18 @@ try {
   await p.click('#grList [data-intune="adonly"]');
 
   // the Overview tiles open the list
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
   await p.click('[data-ovintune="noncompliant"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['b']);
   // the Overview: how devices are joined, Intune, operating systems, and Windows 10 under Needs attention
   const ids = () => p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id));
-  const overview = async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); }); await p.waitForSelector('.ov-split'); };
+  const overview = async () => { await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('.ov-split'); };
   await overview();
   if (process.env.NI_SHOTS) await p.screenshot({ path: path.join(process.env.NI_SHOTS, 'overview-join.png'), fullPage: true });
   assert.match(await p.textContent('.panelbox:has(.hdr:text("How devices are joined"))'), /Entra joined.*2.*Hybrid joined.*1.*AD joined only.*1/s);
   await p.click('.ov-row[data-ovintune="hybrid"]'); assert.deepEqual(await ids(), ['b']);
   await overview(); await p.click('.ov-bar[data-ovintune="duplicates"]'); assert.deepEqual(await ids(), ['d']);
-  assert.equal(await p.locator('#grList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
+  assert.equal(await p.locator('#dupList [data-intune="duplicates"].sel').count(), 1, 'the filter shows in the sidebar while it filters');
   await overview(); await p.click('.ov-bar[data-ovintune="managed"]'); assert.deepEqual(await ids(), ['a', 'b', 'd']);
   assert.equal(await p.locator('#grList [data-intune="managed"]').count(), 1, 'an Overview-only filter shows while it filters');
   // a column filter typed in the table before does not hide what the Overview opens
@@ -136,7 +141,7 @@ try {
   const id = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').id);
   await p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id);
   await p.fill(`#f_${id}_model`, 'iPhone 15 (blue)'); await p.press(`#f_${id}_model`, 'Tab');
-  await until(p, async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').ovr.model === false);
+  await until(p, async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').pick?.model === 'hand');
   assert.deepEqual(errors, []);
   console.log('graph in the inventory: ok');
 } finally { await browser.close(); server.close(); }

@@ -62,7 +62,7 @@ try {
   await p.click('#setClose');
 
   // a linked LAG renamed: the link follows; its size cannot change while linked
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = 's1'; c.st.tab = 'net'; (await import('/js/07-render-plans.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.portsDevice = 's1'; c.st.tab = 'net'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('[data-editgroup="0"]'); await p.click('[data-editgroup="0"]');
   assert.equal(await p.inputValue('#pgName'), 'Core');
   await p.fill('#pgTo', '27'); await p.click('#pgAdd');
@@ -73,17 +73,17 @@ try {
   assert.equal(await p.locator('#pgCancel').count(), 0, 'the form is back to adding');
 
   // a plan's name, an area's name; the area keeps the room the devices are in
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render-plans.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('#plEdit'); await p.click('#plEdit');
   assert.equal(await p.isDisabled('#peSite'), true, 'the site stays while the plan has areas');
   await p.fill('#peName', 'Erdgeschoss'); await p.click('#peOk');
-  await until(p, async () => (await import('/js/07-render-plans.js')).planById('pl1').name === 'Erdgeschoss');
+  await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').name === 'Erdgeschoss');
   const box = await p.locator('#plCanvas').boundingBox();
   await p.mouse.move(box.x + box.width * 0.385, box.y + box.height * 0.385); await p.mouse.down(); await p.mouse.up();   // the area's lower right corner, clear of its spread-out pins
   await p.waitForSelector('#plAreaEdit'); await p.click('#plAreaEdit');
   assert.equal(await p.inputValue('#aeRoom'), 'Zürich HQ / Büro', 'the area\'s room is chosen');
   await p.fill('#aeName', 'Büro Nord'); await p.click('#aeOk');
-  const area = await core(async () => (await import('/js/07-render-plans.js')).planById('pl1').areas[0]);
+  const area = await core(async () => (await import('/js/20-plans.js')).planById('pl1').areas[0]);
   assert.deepEqual([area.name, area.room], ['Büro Nord', 'Zürich HQ / Büro'], 'renamed, in the same room');
 
   // Use all adds every subnet Lansweeper suggests: a gateway outside its subnet is left out, an overlap is skipped
@@ -150,7 +150,7 @@ try {
 
   // the sidebar: a search stays on while switching types and looks within the type; a type clicked again shows all
   assert.equal(await p.locator('#searchAll').count(), 0, 'no separate All devices option');
-  await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/03-object-modals.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/19-modal.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
   await p.fill('#listQ', 'SW-'); await p.waitForTimeout(200);
   const cards = () => p.$$eval('#view .card', cs => cs.map(c => c.dataset.open).sort());
   assert.deepEqual(await cards(), ['s1', 's2'], 'both switches match');
@@ -170,7 +170,7 @@ try {
   assert.match(await p.textContent('#typeList'), /Workstation/, 'the sidebar shows the new name after Settings is left');
 
   // no racks: New rack opens the rack dialog: name, room, height, model and serial, nothing a rack does not have
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render-plans.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'rack'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('#rackNew'); await p.click('#rackNew');
   await p.waitForSelector('#rnName');
   assert.deepEqual(await p.$$eval('#mdl .form label', ls => ls.map(l => l.textContent)), ['Name', 'Room', 'Height', 'Model', 'Serial number']);

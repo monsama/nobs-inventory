@@ -3,7 +3,7 @@
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
 import { $, esc, st, toast } from './01-core.js';
 import { canEdit } from './04-settings.js';
-import { SERVER, reloadFromServer, render, flushSave } from './07-render-plans.js';
+import { SERVER, reloadFromServer, render, flushSave } from './07-render.js';
 
 const SOURCES = {
   lansweeper: { label: 'Lansweeper', url: 'api/feed/sync', settings: 'feed' },

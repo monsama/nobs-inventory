@@ -41,28 +41,28 @@ try {
   assert.equal(await p.$eval('#stSync .dot', e => e.classList.contains('warn')), true);
 
   // a fresh sync is plain
-  await p.evaluate(async t => { const c = await import('/js/01-core.js'); c.byId('b').feed = { src: 'lansweeper', key: 'k2', seen: t }; (await import('/js/07-render-plans.js')).renderStatus(); }, fresh);
+  await p.evaluate(async t => { const c = await import('/js/01-core.js'); c.byId('b').feed = { src: 'lansweeper', key: 'k2', seen: t }; (await import('/js/07-render.js')).renderStatus(); }, fresh);
   assert.equal(await text('#stSync'), 'Lansweeper ' + fresh);
   assert.equal(await p.$eval('#stSync .dot', e => e.classList.contains('warn')), false);
 
   // the sync turned off
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = false; (await import('/js/07-render-plans.js')).renderStatus(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = false; (await import('/js/07-render.js')).renderStatus(); });
   assert.equal(await text('#stSync'), 'Lansweeper off');
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('b').feed = null; (await import('/js/07-render-plans.js')).renderStatus(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('b').feed = null; (await import('/js/07-render.js')).renderStatus(); });
 
   // the server cannot be reached: the change waits, and is sent once the server answers
   await p.route('**/api/changes', r => r.abort());
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2b'; await (await import('/js/07-render-plans.js')).flushSave(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2b'; await (await import('/js/07-render.js')).flushSave(); });
   assert.equal(await text('#stSave'), 'Server not reachable');
   assert.equal(await p.$eval('#stSave .bad', e => e.classList.contains('chip')), true, 'a red chip, not just a dot');
   await p.unroute('**/api/changes');
-  await p.evaluate(async () => { document.activeElement && document.activeElement.blur(); await (await import('/js/07-render-plans.js')).checkForChanges(); });
+  await p.evaluate(async () => { document.activeElement && document.activeElement.blur(); await (await import('/js/07-render.js')).checkForChanges(); });
   await until(p, async () => document.querySelector('#stSave').textContent.trim() === 'All changes saved');
   assert.equal(loadState(db).objs.find(o => o.id === 'b').name, 'PC-2b');
 
   // a sign-in that has ended does not leave "Saving…" behind
   await p.route('**/api/changes', r => r.fulfill({ status: 401, body: '{}' }));
-  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2c'; await (await import('/js/07-render-plans.js')).flushSave(); });
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('b').name = 'PC-2c'; await (await import('/js/07-render.js')).flushSave(); });
   assert.equal(await text('#stSave'), 'Not saved');
   await p.unroute('**/api/changes');
 

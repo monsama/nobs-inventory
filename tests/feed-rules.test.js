@@ -67,7 +67,7 @@ test('a field the policy does not give to the feed, or an override, is never ove
   const pc = s.objs[0];
   assert.equal(pc.model, 'Mine', 'a field the feed may not own was overwritten');
   assert.equal(pc.os, 'Feed OS', 'a field the feed owns was not updated');
-  pc.ovr.os = false;
+  pc.pick = { ...(pc.pick || {}), os: 'hand' };
   mergeRecords(s, recordsFromJson([{ name: 'PC1', serial: 'SN1', ref: 'p', os: 'Newer OS' }]), now);
   assert.equal(pc.os, 'Feed OS', 'an overridden field was overwritten');
 });
@@ -121,7 +121,7 @@ test('every antivirus product and drive is kept, past 200 characters', () => {
 test('other network adapters: kept with valid addresses, never the main one; a push without them keeps them', () => {
   const s = base({ objs: [
     { id: 'a', type: 'notebook', name: 'NB-A', serial: 'A1', status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: 'a', seen: 'x' }, ip: '10.10.20.42' },
-    { id: 'b', type: 'pc', name: 'PC-B', serial: 'B1', status: 'active', ovr: { ip: false }, feed: { sys: 'Lansweeper', ref: 'b', seen: 'x' }, ip: '10.10.20.43' },
+    { id: 'b', type: 'pc', name: 'PC-B', serial: 'B1', status: 'active', pick: { ip: 'hand' }, feed: { sys: 'Lansweeper', ref: 'b', seen: 'x' }, ip: '10.10.20.43' },
   ], rels: [], policy: { ip: true } });
   const nics = [{ name: 'Intel Wi-Fi 6 AX201', ip: '10.50.0.7', mac: 'AA:BB:CC:00:00:02', mask: '255.255.0.0', gateway: '', dhcp: 'dhcp' },
     { name: 'Same as main', ip: '10.10.20.42' }, { name: 'Broken', ip: 'not an ip' }, { name: 'Twice', ip: '10.50.0.7' }];

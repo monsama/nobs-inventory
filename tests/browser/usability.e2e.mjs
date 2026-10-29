@@ -89,7 +89,7 @@ try {
   await gs('Jane', 'People', 'Jane Doe');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'cards' && c.st.q === 'Jane Doe'; });
   assert.equal(await p.inputValue('#listQ'), 'Jane Doe', 'a person opens their devices, in the cards\' own filter');
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; (await import('/js/07-render-plans.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; (await import('/js/07-render.js')).render(); });
   await p.fill('#search', 'zzz-nothing');
   await p.waitForSelector('#gsList .gs-none');
   await p.keyboard.press('Escape');
@@ -157,7 +157,7 @@ try {
   assert.equal(await core(() => document.activeElement.id), 'plQ');
   await p.fill('#plQ', '');
   // placing a device of another site asks first
-  await core(async () => { const r = await import('/js/07-render-plans.js'), c = await import('/js/01-core.js'); r.placeDevice(c.PLANS[0], c.byId('nb2'), 20, 20); });
+  await core(async () => { const r = await import('/js/20-plans.js'), c = await import('/js/01-core.js'); r.placeDevice(c.PLANS[0], c.byId('nb2'), 20, 20); });
   await p.waitForSelector('#pmOk');
   assert.match(await p.textContent('#mdl'), /NB-0002 is in Branch \/ Office.*HQ \/ Hall/s);
   await p.click('#pmOk');
@@ -187,7 +187,7 @@ try {
 
   // an Undo offered before a reload from the server is refused: its records are no longer the page's
   await core(async () => { const c = await import('/js/01-core.js'); c.toastUndo('Test change', () => { window.__undone = true; }); });
-  await core(async () => (await import('/js/07-render-plans.js')).reloadFromServer());
+  await core(async () => (await import('/js/07-render.js')).reloadFromServer());
   await p.click('#toast .t-undo');
   assert.match(await p.textContent('#toast'), /reloaded since, so this can no longer be undone/);
   assert.equal(await core(() => !!window.__undone), false);

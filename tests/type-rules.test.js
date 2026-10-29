@@ -87,7 +87,7 @@ test('Apply to existing devices: a preview first, then only the ticked ones chan
     saveState(srv.db, { ...s, objs: [
       dev('1', 'NB-1', 'pc', 'Lenovo ThinkPad T14', 'Windows'),
       dev('2', 'CAM-1', 'other', 'Hikvision DS-2CD2643G1-IZS', 'Network device'),
-      dev('3', 'NB-2', 'pc', 'HP EliteBook 840', 'Windows', { ovr: { type: false } }),
+      dev('3', 'NB-2', 'pc', 'HP EliteBook 840', 'Windows', { pick: { type: 'hand' } }),
       dev('4', 'NB-3', 'pc', 'Dell Latitude 5440', 'Windows'),
       dev('5', 'PC-HAND', 'pc', 'Dell Latitude 7440', 'Windows'),
       { id: '6', code: 'INV-6', name: 'NB-OWN', type: 'pc', model: 'Dell Latitude 5440', status: 'active', loc: '', ovr: {}, feed: null },
@@ -111,7 +111,7 @@ test('a push gives a device still filed as Other the type the rules now find, un
   const { mergeRecords } = await import('../server/feed.js');
   const dev = (id, name, model, extra = {}) => ({ id, code: 'INV-' + id, type: 'other', name, model, status: 'active', ovr: {}, feed: { sys: 'Lansweeper', ref: id, assetType: 'WebServer' }, ...extra });
   const s = { objs: [dev('a', 'FortiGate_40F', 'Fortinet FortiGate 40F'), dev('b', 'ILOX01', 'HP iLO 5'), dev('c', 'Redirect to Login', 'nginx'),
-    dev('d', 'ILOX02', 'HP iLO 5', { ovr: { type: false } }), { ...dev('e', 'ACMENB29', 'HP EliteBook 840'), type: 'pc' }], rels: [], users: [], locs: [], types: {}, history: {}, policy: {} };
+    dev('d', 'ILOX02', 'HP iLO 5', { pick: { type: 'hand' } }), { ...dev('e', 'ACMENB29', 'HP EliteBook 840'), type: 'pc' }], rels: [], users: [], locs: [], types: {}, history: {}, policy: {} };
   mergeRecords(s, ['a', 'b', 'c', 'd', 'e'].map(id => { const o = s.objs.find(x => x.id === id); return { name: o.name, model: o.model, ref: id, assetType: 'WebServer' }; }), new Date('2026-10-27T10:00:00Z'));
   assert.deepEqual(s.objs.map(o => o.type), ['firewall', 'bmc', 'other', 'other', 'pc']);
   assert.match(s.history.a[0].msg, /Type changed from other to firewall by the type rules/);

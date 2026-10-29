@@ -155,7 +155,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).rels.some(r => r.lag === 'Peer' && r.fromLag === 'Core' && r.port === null));
   assert.match(await p.textContent('#view'), /LAG Peer/, 'the LAG link is listed on the card');
   // On the Ports view, every member of a linked LAG is in use and shows the device on the other end, not "free".
-  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.portsDevice = 'lagB'; core.st.portNo = 25; core.st.tab = 'net'; (await import('/js/07-render-plans.js')).render(); });
+  await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.portsDevice = 'lagB'; core.st.portNo = 25; core.st.tab = 'net'; (await import('/js/07-render.js')).render(); });
   await p.waitForSelector('.port[data-port="26"]');
   assert.match(await p.getAttribute('.port[data-port="26"]', 'class'), /upl|used/, 'a LAG member port shows as in use');
   assert.match(await p.textContent('#net'), /2 of 28 ports in use/);
@@ -165,7 +165,7 @@ try {
   await p.evaluate(async () => {
     const core = await import('/js/01-core.js');
     core.objs.push({ id: 'pc77', code: 'INV-9077', type: 'pc', name: 'PC-PLUG-ME', status: 'active', loc: core.objs[0].loc, ovr: {}, feed: null });
-    core.st.portNo = 3; (await import('/js/07-render-plans.js')).render();
+    core.st.portNo = 3; (await import('/js/07-render.js')).render();
   });
   await p.waitForSelector('#assignBtn');
   await p.click('#assignBtn');

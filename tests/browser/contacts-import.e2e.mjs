@@ -35,7 +35,7 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card, .empty');
-  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'contacts'; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'contacts'; (await import('/js/07-render.js')).render(); });
   await page.click('#cnImport');
   await page.setInputFiles('#impFile', { name: 'kontakte.csv', mimeType: 'text/csv', buffer: win1252 });
   await page.waitForSelector('.imp-table tbody tr');

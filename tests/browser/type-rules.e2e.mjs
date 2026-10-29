@@ -30,7 +30,7 @@ const page = await ctx.newPage();
 page.on('dialog', d => d.accept());
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const shots = process.env.NI_SHOTS;
-const saved = async () => { await page.evaluate(async () => (await import('/js/07-render-plans.js')).flushSave()); return loadState(db).typeRules; };
+const saved = async () => { await page.evaluate(async () => (await import('/js/07-render.js')).flushSave()); return loadState(db).typeRules; };
 try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');

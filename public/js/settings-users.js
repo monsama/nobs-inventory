@@ -1,8 +1,8 @@
 /* Settings → Users: the people, where each comes from, their role, login, password and entry sheet; the company
    (name and logo for the entry sheets). */
-import { modal, closeModal } from './03-object-modals.js';
+import { modal, closeModal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
-import { SERVER, queueServerSave, render, flushSave } from './07-render-plans.js';
+import { SERVER, queueServerSave, render, flushSave } from './07-render.js';
 import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
 import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */

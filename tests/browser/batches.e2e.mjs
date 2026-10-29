@@ -24,7 +24,7 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   await p.evaluate(async () => {
-    const core = await import('/js/01-core.js'); const r = await import('/js/07-render-plans.js');
+    const core = await import('/js/01-core.js'); const r = await import('/js/07-render.js');
     r.BATCH.bytes = 500;
     const loc = core.objs[0].loc;
     for (let i = 0; i < 12; i++) core.objs.push({ id: 'bt' + i, code: 'INV-' + (9300 + i), type: 'pc', name: 'BATCH-PC-' + i, status: 'active', loc, ovr: {}, feed: null, purpose: 'batch ' + i });

@@ -32,7 +32,7 @@ test('a device with no location gets the room its address is in; a location set 
   const s = base({ objs: [
     { id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: '', ovr: {}, feed: null },
     { id: 'b', code: 'INV-2', type: 'pc', name: 'PC-B', status: 'active', loc: 'Bern / Büro', ovr: {}, feed: null },
-    { id: 'c', code: 'INV-3', type: 'pc', name: 'PC-C', status: 'active', loc: '', ovr: { loc: false }, feed: null },
+    { id: 'c', code: 'INV-3', type: 'pc', name: 'PC-C', status: 'active', loc: '', pick: { loc: 'hand' }, feed: null },
   ] });
   mergeRecords(s, recordsFromJson([
     { name: 'PC-A', ip: '172.21.108.14', ref: '1' }, { name: 'PC-B', ip: '172.21.108.15', ref: '2' }, { name: 'PC-C', ip: '172.21.108.16', ref: '3' },
@@ -48,7 +48,7 @@ test('a device with no location gets the room its address is in; a location set 
 });
 
 test('gateway, DHCP and warranty dates come in under the overwrite rules; the Windows role sets PC or server', () => {
-  const s = base({ objs: [{ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: '', ovr: { warranty: false }, warranty: '2026-01-01', feed: null }] });
+  const s = base({ objs: [{ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: '', pick: { warranty: 'hand' }, warranty: '2026-01-01', feed: null }] });
   mergeRecords(s, recordsFromJson([
     { name: 'PC-A', ref: '1', ip: '10.10.20.5', mask: '255.255.255.0', gateway: '10.10.20.1', dhcp: 'True', purchased: '2023-04-01T00:00:00', warranty: '2028-04-01' },
     { name: 'DC01', ref: '2', assetType: 'Windows', role: 'dc', ip: '10.10.1.5' },

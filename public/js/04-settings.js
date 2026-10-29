@@ -6,9 +6,10 @@ import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
 import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSetModels } from './settings-feed.js';
 import { renderSetLocs, renderSetVlans, renderSetSubnets, resetSubnetEdit } from './settings-network.js';
-import { setSettingsOpener, collapsedPanels, rememberPanel, bindPolicy, closeModal, modal, policyGrid, followOnTop } from './03-object-modals.js';
+import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
+import { setSettingsOpener, closeModal, modal } from './19-modal.js';
 import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
-import { loadVersion, queueServerSave, render } from './07-render-plans.js';
+import { loadVersion, queueServerSave, render } from './07-render.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
 export * from './settings-feed.js';

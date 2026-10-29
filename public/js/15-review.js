@@ -4,7 +4,7 @@
 import { twinOf, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, $, esc, hist, lastSeenOf, now, objs, st, toastUndo, relIndex, matchesQ } from './01-core.js';
 import { cardHtml } from './02-views.js';
 import { canEdit, me } from './04-settings.js';
-import { render, queueServerSave } from './07-render-plans.js';
+import { render, queueServerSave } from './07-render.js';
 
 /* A device no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, and left out of Accept all. */
 export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };

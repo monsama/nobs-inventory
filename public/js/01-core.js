@@ -179,7 +179,7 @@ export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile',
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
 /* Ids are random so two people creating things at once cannot pick the same one. Object codes are given by the server when the object is first saved. */
 export const rid = () => Math.random().toString(36).slice(2, 10);
-export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ovr:{}, ...f});
+export const O = (type, name, f) => ({id:'o'+rid(), code:null, type, name, status:'active', feed:null, ...f});
 
 export const objs = [];
 /* The models named in the inventory: those typed on a device, and those listed in Settings. Every device offers them to choose from. */
@@ -234,7 +234,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
    others set from the sidebar or the Overview), the open tab and object tabs, the view settings of the Cards, Ports,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
-   Each object can override these on its own page (o.ovr). */
+   Each object can override these on its own page: the source picked for a field (o.pick). */
 export const st = {type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
@@ -430,7 +430,7 @@ export function sourceOf(o, k){
   if (custom) return 'hand';
   const s = o.src && o.src[k];
   if (s) return s;
-  if (o.ovr && o.ovr[k] === false) return 'hand';
+  if (o.pick && o.pick[k] === 'hand') return 'hand';
   if (FIELD_LABEL[k] && feedLinked(o) && (feedOwns(o, k) || (o.feed && o.feed.created))) return 'ls';
   if (o.graph && o.graph.added && ['model', 'os', 'serial', 'user'].includes(k)) return 'graph';
   if (!o.feed && !(o.graph && o.graph.added)) return 'hand';
@@ -468,7 +468,7 @@ export function twinOf(o){
   return t && t.id !== o.id ? t : null;
 }
 /* Whether field k of o is fixed to one source: the source picked for it, or 'hand' for a value kept as typed here. */
-export const fieldFixed = (o, k) => (o.pick && o.pick[k]) || (o.ovr && o.ovr[k] === false ? 'hand' : '');
+export const fieldFixed = (o, k) => (o.pick && o.pick[k]) || '';
 const LOCK = '<svg class="fsrc-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 /* The source as a small monochrome mark beside the field, the one place that says where the value comes from and whether
    it follows its sources: a lock when it is fixed to one, a dot when the sources differ. Click it to compare and pick.
@@ -493,7 +493,12 @@ export { SRC_ICON };
 /* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
 let srcPicker = null;
 export const setSrcPicker = f => { srcPicker = f; };
-export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (o.pick && o.pick[k] ? o.pick[k] === 'ls' : k in o.ovr ? o.ovr[k] : st.policy[k]));
+/* Whether Lansweeper writes field k of o: the source picked for it, else the policy (Settings → Lansweeper); the lists
+   (software, links) are Lansweeper's unless the policy turns them off. As the server's lsOwns (fill.js). */
+export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (o.pick && o.pick[k] ? o.pick[k] === 'ls'
+  : ['software', 'links'].includes(k) ? (st.policy || {})[k] !== false : !!(st.policy || {})[k]));
+/* A field (or list) set by hand: no sync writes it from then on. */
+export const pickHand = (o, k) => { o.pick = {...(o.pick || {}), [k]: 'hand'}; };
 
 /* ---------- helpers ---------- */
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
@@ -696,7 +701,7 @@ export function markHand(o, k){
   if (o.src && o.src[k] && o.src[k] !== 'hand') o.src = {...o.src, [k]: 'hand'};
   keepByHand(o, k);
   /* Lansweeper writes a field it owns whatever its source note says: a linked device keeps the value as set here. */
-  if (feedLinked(o)) o.ovr = {...(o.ovr || {}), [k]: false};
+  if (feedLinked(o)) pickHand(o, k);
 }
 /* A value set by hand over a source picked for the field: the field is the page's from then on, no sync writes it. */
 export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand') o.pick = {...o.pick, [k]: 'hand'}; }

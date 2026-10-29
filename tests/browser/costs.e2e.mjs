@@ -114,7 +114,7 @@ try {
   await page.click('[data-ovtab=sw]'); await page.waitForSelector('.lic');
 
   // saved on the server (saves are batched: wait for the batch)
-  await page.evaluate(async () => (await import('/js/07-render-plans.js')).flushSave());
+  await page.evaluate(async () => (await import('/js/07-render.js')).flushSave());
   const saved = loadState(db);
   assert.equal(saved.contracts.length, 2);
   assert.equal(saved.licences[0].seats, 2);

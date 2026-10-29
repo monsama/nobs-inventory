@@ -86,7 +86,7 @@ try {
     const core = await import('/js/01-core.js');
     const day = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
     core.byId('o1').feed = { sys: 'Lansweeper', ref: '1', scanned: day(400) }; core.byId('o2').feed = { sys: 'Lansweeper', ref: '2', scanned: day(5) };
-    core.st.tab = 'cards'; (await import('/js/07-render-plans.js')).render();
+    core.st.tab = 'cards'; (await import('/js/07-render.js')).render();
   });
   await page.waitForSelector('.card[data-open=o1]');
   assert.match(await page.textContent('.card[data-open=o1]'), /Check by hand/);
@@ -95,7 +95,7 @@ try {
   await page.click('#chkList [data-scanold]');
   await page.waitForFunction(() => document.querySelectorAll('.card').length === 1);
   await page.click('#chkList [data-scanold]');
-  await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
   await page.waitForSelector('[data-ovscan]');
   assert.match(await page.textContent('[data-ovscan]'), /1\s*Check by hand.*not scanned by Lansweeper for over 3 months/s);
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
@@ -164,6 +164,9 @@ try {
 
   // AD groups from the directory: chips on the device; one opens the table filtered to that group, cleared from the sidebar
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('o1').adGroups = ['GPO-Kiosk', 'SW-Office365']; c.byId('o2').adGroups = ['SW-Office365']; (await import('/js/02-views.js')).openObj('o1'); });
+  // they are on the Active Directory tab of the Sources panel
+  await page.waitForSelector('#view .obj');
+  if (await page.locator('[data-srctab=ad]').count()) await page.click('[data-srctab=ad]');
   await page.waitForSelector('[data-adg]');
   assert.deepEqual(await page.$$eval('[data-adg]', b => b.map(x => x.textContent)), ['GPO-Kiosk', 'SW-Office365']);
   await page.click('[data-adg="GPO-Kiosk"]');
@@ -191,11 +194,11 @@ try {
   await page.waitForSelector('#f_o1_os');
   assert.equal(await page.locator('[data-k=boot]').count(), 0, 'no power event while the sync is paused');
   // a user picked by hand on a linked device is kept from the feed
-  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').ovr = { user: true }; (await import('/js/02-views.js')).openObj('o1'); });
+  await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.feedOn = true; c.byId('o1').pick = { user: 'ls' }; (await import('/js/02-views.js')).openObj('o1'); });
   await page.waitForSelector('#f_o1_user');
   const other = await page.$eval('#f_o1_user', s => [...s.options].map(o => o.value).find(v => v && v !== '__hotdesk' && v !== s.value));
   await page.selectOption('#f_o1_user', other);
-  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').ovr.user === false);
+  await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').pick?.user === 'hand');
   await page.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.useLansweeper = true; c.byId('o1').feed = null; });
 
   assert.deepEqual(errors, [], 'no page errors');

@@ -7,7 +7,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
-import { markSource, noteValue, pickOf } from './fill.js';
+import { lsWrites, markSource, noteValue, pickOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
 import { ipLocationOf, prefixOf, roomForIpLocation, suggestNets } from './lsnet.js';
@@ -146,7 +146,7 @@ function applySoftware(s, pairs) {
   let n = 0;
   if (s.feedOn === false) return n;
   for (const { r, obj } of pairs) {
-    const owned = obj.ovr && 'software' in obj.ovr ? obj.ovr.software : !(s.policy && s.policy.software === false);
+    const owned = lsWrites(s, obj, 'software');
     if (!Array.isArray(r.software) || !owned) continue;
     const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
     const next = [...manual, ...r.software.map(x => ({ name: x.name, version: x.version, src: 'Lansweeper' }))];
@@ -169,7 +169,7 @@ function applyLinks(s, pairs, counts) {
   }
   const wantedOf = new Map();
   for (const { r, obj } of pairs) {
-    const owned = obj.ovr && 'links' in obj.ovr ? obj.ovr.links : !(s.policy && s.policy.links === false);
+    const owned = lsWrites(s, obj, 'links');
     if (!Array.isArray(r.links) || !owned) continue;
     const wanted = new Set();
     wantedOf.set(obj.id, wanted);
@@ -210,7 +210,7 @@ export function modelFor(s, name) {
 /* The app type for a Lansweeper type name: a type mapping set in Settings (the name, without case) wins; then the type
    rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
 /* A type chosen by hand on the page (or one the history says was changed by a person) is never changed by the rules. */
-export const typeSetByHand = (s, o) => (o.ovr && o.ovr.type === false) || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
+export const typeSetByHand = (s, o) => pickOf(o, 'type') === 'hand' || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());
@@ -295,7 +295,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       taken.codes.add('INV-' + String(s.codeN).padStart(4, '0')); taken.ids.add('o' + s.seq);
       const obj = {
         id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type, name: r.name, serial: r.serial, status: 'active',
-        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, ovr: {}, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
+        feed: { sys: 'Lansweeper', ref: r.ref, seen, created: seen, assetType: r.assetType || '', ...(r.role ? { role: r.role } : {}), ...(r.chassis ? { chassis: r.chassis } : {}), ...scanDays(r) }, loc: locs.includes(r.location) ? r.location : (roomByIp(r) || ''),
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
@@ -338,8 +338,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       noteValue(found, k, 'ls', incoming, r.scanned || seen);
       if (!incoming) continue;
       /* A source a person picked for the field decides it: Lansweeper writes it only when it is the one picked. */
-      const picked = pickOf(found, k);
-      const owns = s.feedOn !== false && (picked ? picked === 'ls' : found.ovr && k in found.ovr ? found.ovr[k] : !!policy[k]);
+      const owns = lsWrites(s, found, k);
       /* What Lansweeper sets is Lansweeper's: noted as its source, over a directory's fill (fill.js). */
       if (owns) markSource(found, k, 'ls');
       if (found[k] === incoming) continue;
@@ -349,23 +348,23 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
       }
     }
     /* The other adapters go with the address: kept from Lansweeper while it fills in the IP address. */
-    const nicsOwned = s.feedOn !== false && (found.ovr && 'ip' in found.ovr ? found.ovr.ip : !!policy.ip);
+    const nicsOwned = lsWrites(s, found, 'ip');
     if (nicsOwned && Array.isArray(r.nics) && JSON.stringify(r.nics) !== JSON.stringify(found.nics || [])) {
       if (r.nics.length) found.nics = r.nics; else delete found.nics;
       changed = true;
     }
     /* The last user fills in an object that has nobody assigned yet; a person chosen by hand is never replaced. */
-    const userPick = pickOf(found, 'user'), userOwned = s.feedOn !== false && (userPick ? userPick === 'ls' : found.ovr && 'user' in found.ovr ? found.ovr.user : !!policy.user);
+    const userOwned = lsWrites(s, found, 'user');
     if (r.user && userOwned && !found.uid && !found.user && !found.hotdesk) { found.user = r.user; markSource(found, 'user', 'ls'); changed = true; }
     noteValue(found, 'loc', 'ls', r.location && locs.includes(r.location) ? r.location : '', r.scanned || seen);
     /* Location: Lansweeper's location, when the policy lets the feed set it and the room is in the inventory's list. */
-    const locPick = pickOf(found, 'loc'), locOwned = s.feedOn !== false && (locPick ? locPick === 'ls' : found.ovr && 'loc' in found.ovr ? found.ovr.loc : !!policy.loc);
+    const locPick = pickOf(found, 'loc'), locOwned = lsWrites(s, found, 'loc');
     if (locOwned && r.location && locs.includes(r.location) && found.loc !== r.location) {
       if (found.loc) (s.history[found.id] ??= []).unshift({ t: seen, msg: `Lansweeper: Location changed from ${found.loc} to ${r.location}` });
       found.loc = r.location; markSource(found, 'loc', 'ls'); changed = true;
     }
     /* A device with no location gets the room its address is in (Room from IP location); one held by the device stays. */
-    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && !(found.ovr && found.ovr.loc === false) && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
+    if (!found.loc && s.feedOn !== false && policy.ipRoom !== false && (!locPick || locPick === 'ls')) { const room = roomByIp(r); if (room) { found.loc = room; markSource(found, 'loc', 'ls'); changed = true; } }
     if (wasLinked && changed) { found.feed.seen = seen; counts.updated++; }
     else if (!wasLinked) counts.linked++;
     else { found.feed.seen = seen; counts.unchanged++; }

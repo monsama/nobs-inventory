@@ -32,7 +32,7 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card, .empty');
-  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
 
   // the Overview: a line under Needs attention, once the certificate is known
   const line = page.locator('[data-ovcert]');
@@ -57,7 +57,7 @@ try {
   await page.waitForFunction(() => /Valid/.test(document.querySelector('#certPanel .hdr')?.textContent || ''));
   assert.match(await page.textContent('#certPanel'), /(729|730) days left/);
   await page.click('#setClose');
-  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'overview'; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
   await page.waitForSelector('.ov-cols');
   assert.equal(await page.locator('[data-ovcert]').count(), 0, 'no line for a certificate valid for long');
 

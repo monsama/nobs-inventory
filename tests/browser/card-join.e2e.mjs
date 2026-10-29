@@ -46,7 +46,7 @@ try {
   // without Microsoft Graph set up, what Graph said before is not shown: only AD
   await page.check('#cardJoin');
   assert.deepEqual(await page.locator('.card:has(.nm:text-is("NB-CLOUD")) .jb small').allTextContents(), ['not joined', 'not checked', 'not checked'], 'without Graph, Entra and Intune are not known');
-  await page.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render-plans.js')).render(); });
+  await page.evaluate(async () => { (await import('/js/01-core.js')).SYNC.graph = true; (await import('/js/07-render.js')).render(); });
   assert.equal(await page.locator('.jbar').count(), 4);
   const marks = name => page.locator(`.card:has(.nm:text-is("${name}")) .jb`).evaluateAll(els => els.map(e => e.className.replace('jb ', '') + ':' + e.querySelector('small').textContent));
   assert.deepEqual(await marks('NB-HYBRID'), ['on ad:hybrid', 'on hy:hybrid', 'on ok:compliant']);

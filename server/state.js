@@ -8,6 +8,7 @@ import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
+import { liftOvr } from './fill.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'seq', 'codeN', 'rseq'];
@@ -464,6 +465,8 @@ export const HISTORY_KEEP = 500;
 /* Replaces the stored inventory with the one sent. Used by the admin's full save and by the server's own jobs
    (feed, directory). Logins and sessions are not touched. */
 export function saveState(db, s) {
+  /* A page or backup from before the source picker may still send o.ovr: it becomes picks (fill.js). */
+  if (s && Array.isArray(s.objs)) for (const o of s.objs) liftOvr(o, s.policy || {});
   checkState(s);
   /* The counters only go up, so a save that leaves one out cannot make a new code or id repeat an old one. */
   for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(settingOf(db, k)) || 0);
@@ -520,6 +523,8 @@ export function applyChanges(db, body, guard = () => {}) {
     if (c.kind === 'setting' && !PAGE_SETTINGS.includes(c.id)) bad(`${c.id} is not a setting the page can change.`);
   }
   for (const c of puts) if (c.value === undefined || c.value === null || (c.kind !== 'setting' && typeof c.value !== 'object')) bad('Every saved record needs a value.');
+  /* A page from before the source picker may still send o.ovr: it becomes picks (fill.js). */
+  { const policy = settingOf(db, 'policy') || {}; for (const c of puts) if (c.kind === 'object') liftOvr(c.value, typeof policy === 'object' ? policy : {}); }
 
   const revs = revsOf(db);
   const conflicts = [];

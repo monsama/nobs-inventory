@@ -3,9 +3,9 @@
 import { parseTime, timeFieldHtml } from './datefield.js';
 import { dateTimeText } from './dates.js';
 import { scheduleOf, SCHEDULE_JOBS, EVERY_HOURS, nextRun, scheduleText } from './schedule.js';
-import { modal, closeModal } from './03-object-modals.js';
+import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
-import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render-plans.js';
+import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { canEdit, renderSetPane, who } from './04-settings.js';
 import { $, LS_ON, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
 /* The switch that turns Lansweeper on or off for this inventory. */

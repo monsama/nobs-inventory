@@ -197,7 +197,7 @@ export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}
     codes.add('INV-' + String(s.codeN).padStart(4, '0')); ids2.add('o' + s.seq);
     const src = { ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}), ...(d.description ? { purpose: 'ad' } : {}) };
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
-      loc: '', ovr: {}, feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(d.description ? { purpose: d.description } : {}), ...(Object.keys(src).length ? { src } : {}),
+      loc: '', feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(d.description ? { purpose: d.description } : {}), ...(Object.keys(src).length ? { src } : {}),
       inAd: true, ...(adOf(d) ? { ad: adOf(d) } : {}),
       ...(d.groups ? { adGroups: d.groups } : {}), ...(review ? { review: { src: 'ad', at } } : {}) };
     s.objs.push(o);
