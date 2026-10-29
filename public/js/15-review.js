@@ -1,16 +1,13 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
-   in the inventory. Each card has Accept (it becomes an ordinary device) and Ignore (it leaves the view and is kept out
-   of every sync from then on, so it does not come back). Ignored devices can be brought back from their own list. */
-import { twinOf, REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, $, esc, hist, lastSeenOf, now, objs, st, toastUndo, relIndex, matchesQ } from './01-core.js';
-import { cardHtml } from './02-views.js';
+   in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
+   out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
+import { REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, esc, hist, lastSeenOf, now, objs, st, toastUndo } from './01-core.js';
 import { canEdit, me } from './04-settings.js';
 import { render, queueServerSave } from './07-render.js';
 
 /* A device no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, and left out of Accept all. */
 export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
 const who = () => (me() && (me().name || me().login)) || 'an admin';
-const waiting = () => REVIEW.filter(o => !o.review.ignored);
-const ignored = () => REVIEW.filter(o => o.review.ignored);
 
 /* Accept: out of To review into the inventory, as an ordinary device. */
 function accept(list){
@@ -47,59 +44,13 @@ function withUndo(list, msg, change){
   });
 }
 
-export function renderReview(){
-  st.rvSrc = st.rvSrc || '';
-  const showIgnored = st.rvSrc === 'ignored';
-  const q = (st.rvQ || '').trim().toLowerCase();
-  const pool = showIgnored ? ignored() : waiting();
-  const list = pool.filter(o => (showIgnored || !st.rvSrc || o.review.src === st.rvSrc) && matchesQ(o, q))
-    .sort((a, b) => reviewStale(a) - reviewStale(b) || String(a.name).localeCompare(String(b.name)));
-  const fresh = list.filter(o => !reviewStale(o)), edit = canEdit();
-  /* Cards picked with Ctrl+click or their corner (02-views.js): only those still shown here count. */
-  st.rvSel = new Set([...(st.rvSel || [])].filter(id => list.some(o => o.id === id)));
-  const picked = list.filter(o => st.rvSel.has(o.id));
-  const count = src => waiting().filter(o => o.review.src === src).length;
-  const chips = [['', `All (${waiting().length})`], ...Object.entries(REVIEW_SRC).filter(([k]) => count(k)).map(([k, l]) => [k, `${l} (${count(k)})`]),
-    ...(ignored().length ? [['ignored', `Ignored (${ignored().length})`]] : [])];
-  $('#toolbar').innerHTML = `<input id="rvQ" class="listq" type="search" placeholder="Filter this list…" aria-label="Filter the devices to review" value="${esc(st.rvQ || '')}">
-    <span class="rv-chips" role="group" aria-label="Found by">${chips.map(([k, l]) => `<button type="button" class="chipbtn ${st.rvSrc === k ? 'sel' : ''}" data-rvsrc="${k}">${esc(l)}</button>`).join('')}</span>
-    <div class="grow"></div>
-    ${picked.length && edit ? `<b class="pick-n">${picked.length} selected</b><button id="rvSelClear">Clear</button>${showIgnored
-      ? `<button id="rvSelRestore">Back to review (${picked.length})</button>`
-      : `<button id="rvSelIgnore" class="danger-text">Ignore ${picked.length}</button><button id="rvSelAccept" class="primary">Accept ${picked.length}</button>`}`
-      : showIgnored
-      ? (edit && list.length ? `<button id="rvRestoreAll">Back to review (${list.length})</button>` : '')
-      : (edit && list.length ? `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" ${fresh.length ? '' : 'disabled'} title="Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out; accept them one by one">Accept ${fresh.length === list.length ? 'all ' : ''}${fresh.length}${fresh.length === list.length ? '' : ' recently seen'}</button>` : '')}`;
-  const idx = relIndex();
-  const item = o => {
-    const stale = reviewStale(o);
-    return `<div class="rv-item${stale ? ' stale' : ''}" data-rv="${esc(o.id)}">${cardHtml(o, idx)}
-      <div class="rv-acts"><span class="chip rv-src" title="Found by ${esc(REVIEW_SRC[o.review.src] || '')}">${esc(REVIEW_SRC[o.review.src] || '')}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}<span class="grow"></span>
-        ${!edit ? '' : showIgnored ? `<button type="button" data-rvrestore="${esc(o.id)}">Back to review</button>`
-          : `<button type="button" class="rv-no" data-rvignore="${esc(o.id)}" title="Leave it out: no sync brings it back">✕ Ignore</button><button type="button" class="rv-yes" data-rvaccept="${esc(o.id)}" title="Take it into the inventory">✓ Accept</button>`}</div></div>`;
-  };
-  $('#view').innerHTML = list.length
-    ? `<p class="note rv-note">${showIgnored ? 'Ignored devices are kept out of every sync. Bring one back to review it again.' : `Devices a sync found that are not in the inventory yet. Accept the ones that belong; ignore the rest, and no sync brings them back. Until then they are in no list, count or cost.`} Ctrl+click a card, or its corner, to select several; Shift+click selects a range.</p><div id="cards" class="rv-grid">${list.map(item).join('')}</div>`
-    : `<div class="empty">${showIgnored ? 'No ignored devices.' : q ? `Nothing to review matches “${esc(q)}”.` : 'Nothing to review. New devices from Lansweeper, Active Directory, Entra and Intune show up here.'}</div>`;
-
-  const byIdIn = id => REVIEW.find(o => o.id === id);
-  $('#rvQ').oninput = e => { st.rvQ = e.target.value; renderReview(); const b = $('#rvQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
-  $('#toolbar').querySelectorAll('[data-rvsrc]').forEach(b => b.onclick = () => { st.rvSrc = b.dataset.rvsrc; renderReview(); });
-  $('#view').querySelectorAll('[data-rvaccept]').forEach(b => b.onclick = () => { const o = byIdIn(b.dataset.rvaccept); withUndo([o], `${o.name} accepted into the inventory`, accept); });
-  $('#view').querySelectorAll('[data-rvignore]').forEach(b => b.onclick = () => { const o = byIdIn(b.dataset.rvignore); withUndo([o], `${o.name} ignored: no sync brings it back`, ignore); });
-  $('#view').querySelectorAll('[data-rvrestore]').forEach(b => b.onclick = () => { const o = byIdIn(b.dataset.rvrestore); withUndo([o], `${o.name} is back in To review`, restore); });
-  const all = $('#rvAcceptAll');
-  if (all) all.onclick = () => { if (confirm(`Accept ${fresh.length} devices into the inventory?`)) withUndo(fresh, `${fresh.length} devices accepted`, accept); };
-  const none = $('#rvIgnoreAll');
-  if (none) none.onclick = () => { if (confirm(`Ignore all ${list.length} devices shown? No sync brings them back; you can bring them back from Ignored.`)) withUndo(list, `${list.length} devices ignored`, ignore); };
-  /* The picked ones: the same as one by one, with one Undo for all of them. */
-  const done = () => { st.rvSel.clear(); };
-  const sa = $('#rvSelAccept'); if (sa) sa.onclick = () => { done(); withUndo(picked, `${picked.length} ${picked.length === 1 ? 'device' : 'devices'} accepted`, accept); };
-  const si = $('#rvSelIgnore'); if (si) si.onclick = () => { done(); withUndo(picked, `${picked.length} ${picked.length === 1 ? 'device' : 'devices'} ignored: no sync brings them back`, ignore); };
-  const sr = $('#rvSelRestore'); if (sr) sr.onclick = () => { done(); withUndo(picked, `${picked.length} back in To review`, restore); };
-  const sc = $('#rvSelClear'); if (sc) sc.onclick = () => { done(); renderReview(); };
-  const back = $('#rvRestoreAll');
-  if (back) back.onclick = () => withUndo(list, `${list.length} devices back in To review`, restore);
+/* Accept, ignore or bring back one device or many, from Cards, Table or the device page, with one Undo for all. */
+export function reviewDo(kind, list){
+  if (!list.length) return;
+  const n = list.length, what = n === 1 ? list[0].name : `${n} devices`;
+  if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
+  else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
+  else withUndo(list, `${what} back in To review`, restore);
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
@@ -112,9 +63,7 @@ export function reviewBanner(o){
 export function bindReviewBanner(o){
   document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {
     const k = b.dataset.rvpage;
-    if (k === 'accept') withUndo([o], `${o.name} accepted into the inventory`, accept);
-    else if (k === 'ignore') withUndo([o], `${o.name} ignored: no sync brings it back`, ignore);
-    else withUndo([o], `${o.name} is back in To review`, restore);
+    reviewDo(k, [o]);
   });
 }
 /* Settings: where a source's new devices go. To review is the default for every source; a source trusted fully can add

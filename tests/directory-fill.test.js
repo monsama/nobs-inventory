@@ -303,6 +303,12 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(by('nb-35.corp.example').review.src, 'lansweeper', 'a probable second record of NB-35 waits');
   assert.equal(by('nb-77.corp.example').review, undefined, 'no device named nb-77: added as Settings says');
   assert.equal(by('NB-36').review, undefined);
+
+  // after Clear inventory both are new: the DNS-named record comes first in the push and is still known as the second one
+  const u = { ...state([]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
+  mergeRecords(u, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
+  assert.equal(u.objs.find(o => o.name === 'nb-35.corp.example').review.src, 'lansweeper', 'in To review, whatever the order of the push');
+  assert.equal(u.objs.find(o => o.name === 'NB-35').review, undefined, 'the device itself goes in as Settings says');
 });
 
 test('a device\'s old overrides (o.ovr) become picks: false is By hand, true is Lansweeper only where the policy says otherwise', async () => {

@@ -4,12 +4,13 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
-import { closeModal, modal } from './19-modal.js';
+import { closeModal, confirmModal, modal } from './19-modal.js';
+import { reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -19,16 +20,25 @@ const GRAPH_TIPS = {
   ambiguous: 'Graph has a device whose serial number or name fits more than one device here, so it was put on none: give them distinct names or serial numbers',
 };
 export function renderSide(){
-  const cnt = f => objs.filter(f).length;
+  /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
+     on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
+  const waitingR = REVIEW.filter(o => !o.review.ignored), ignoredR = REVIEW.filter(o => o.review.ignored);
+  const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitingR.filter(o => o.review.src === k).length]).filter(([, , n]) => n);
+  $('#scopeHdr').hidden = $('#scopeList').hidden = !(waitingR.length || ignoredR.length || st.scope);
+  $('#scopeList').innerHTML = `<button class="item ${st.scope === 'review' && !st.rvSrc ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>`
+    + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
+    + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
+    + (st.scope ? '<button class="item" data-scope="" title="Back to the devices in the inventory"><span class="lbl">Back to inventory</span><span class="cnt">' + objs.length + '</span></button>' : '');
+  const pool = scopePool(), cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All objects" is marked only when nothing at all narrows the list. */
-  const byType = objs.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
+  const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
   const typeBtn = ([k, v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${byType[k] || 0}</span></button>`;
   const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   $('#typeList').innerHTML =
-    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${objs.length}</span></button>` +
+    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${pool.length}</span></button>` +
     shown.map(typeBtn).join('') +
     (folded ? `<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
       : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? '<button class="side-more" data-alltypes="0">Fewer types</button>' : '');
@@ -87,6 +97,7 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('twins' in b.dataset) st.twins = !st.twins;
+  if ('scope' in b.dataset){ st.scope = b.dataset.scope || null; st.rvSrc = b.dataset.rvsrc || ''; st.bulk = new Set(); }
   if ('adgroup' in b.dataset) st.adGroup = null;
   if ('resp' in b.dataset) st.resp = null;
   if ('osfam' in b.dataset) st.osFam = null;
@@ -121,14 +132,18 @@ export function renderFilterBar(){
     st.adGroup && ['adGroup', 'AD group', st.adGroup],
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
-  bar.hidden = !chips.length;
-  bar.innerHTML = chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '';
+  const pool = list && st.scope ? scopePool().length : 0;
+  const scope = !list || !st.scope ? '' : `<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
+    : `${pool} ${pool === 1 ? 'device' : 'devices'} waiting for review${st.rvSrc ? ` (found by ${esc(REVIEW_SRC[st.rvSrc] || st.rvSrc)})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
+  bar.hidden = !chips.length && !scope;
+  bar.innerHTML = scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
 }
 $('#fbar').addEventListener('click', e => {
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
+  else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.bulk = new Set(); }
   else if (k === 'scanOld' || k === 'twins' || k === 'live') st[k] = false;
   else st[k] = null;
   view();
@@ -165,10 +180,10 @@ export const FIXED_TABS = {overview:'Overview', review:'To review', cards:'Cards
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
-  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.tab === 'review'));
+  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.scope));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
-  const viewTab = id => `<button class="tab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+  const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
@@ -339,33 +354,60 @@ export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
-  const picked = (st.bulk && st.bulk.has(o.id)) || (st.rvSel && st.rvSel.has(o.id));
-  return `<button class="card${picked ? ' picked' : ''}" data-open="${esc(o.id)}" aria-pressed="${!!picked}"><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
+  const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
+  return `<button class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${esc(o.id)}" aria-pressed="${!!picked}"><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
+    ${o.review ? reviewChips(o, stale) : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
+}
+/* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
+   all), and the device it is most likely a second record of. */
+const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? `<span class="chip warn rv-twin" title="Named by a DNS name, with no serial number: most likely a second record of ${esc(twinOf(o).name)}, e.g. from a docking station">Probably ${esc(twinOf(o).name)}</span>` : ''}</div>`;
+/* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
+   none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
+function scopeActs(list, allAlso){
+  if (!st.scope || !canEdit()) return '';
+  const n = st.bulk.size, ign = st.scope === 'ignored';
+  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvIgnore" class="danger-text">Ignore ${n}</button><button id="rvAccept" class="primary">Accept ${n}</button>`;
+  if (!allAlso || !list.length) return '';
+  const fresh = list.filter(o => !reviewStale(o)).length;
+  return ign ? `<button id="rvRestoreAll">All back to review (${list.length})</button>`
+    : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" ${fresh ? '' : 'disabled'} title="Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out; accept them one by one">Accept ${fresh === list.length ? 'all ' : ''}${fresh}${fresh === list.length ? '' : ' recently seen'}</button>`;
+}
+function bindScopeActs(list){
+  const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
+  const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
+  on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
+  const fresh = list.filter(o => !reviewStale(o));
+  on('rvAcceptAll', () => confirmModal('Accept devices', `Accept the ${fresh.length} ${fresh.length === 1 ? 'device' : 'devices'} shown into the inventory?`, 'Accept', () => reviewDo('accept', fresh)));
+  on('rvIgnoreAll', () => confirmModal('Ignore devices', `Ignore the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown? No sync brings them back; you can bring them back from Ignored.`, 'Ignore', () => reviewDo('ignore', list)));
+  on('rvRestoreAll', () => reviewDo('restore', list));
 }
 /* How many cards or table rows are drawn before "Show all". */
 export const SHOW_FIRST = 500;
 export function renderCardsBody(){
   let list = filtered();
-  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted">${list.length} of ${objs.length} objects</span><span class="tbsep"></span>
+  const pool = scopePool();
+  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> AD · Entra · Intune</label>` : ''}
-    <div class="grow"></div>${pickBar()}`;
-  bindListFilter();
+    <div class="grow"></div>${pickBar(list)}`;
+  bindListFilter(); bindScopeActs(list);
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
-    $('#view').innerHTML = objs.length
+    $('#view').innerHTML = pool.length
       ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
+      : st.scope ? `<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing waits for review. New devices from Lansweeper, Active Directory, Entra and Intune show up here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
       : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
+    const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; view(); };
     const c2 = $('#clr2'); if (c2) c2.onclick = () => $('#clearF').click();
     const nfs = $('#newFromSearch'); if (nfs) nfs.onclick = () => newObjModal({name: st.q.trim()});
     bindHiddenHits();
@@ -399,14 +441,16 @@ export function renderCardsBody(){
   if (ea) ea.onclick = () => setAll(false);
 }
 
-export function renderCards(){ st.bulk ??= new Set(); st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id))); renderCardsBody(); addSearchHits(); bindPickBar(); }
+export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addSearchHits(); bindPickBar(); }
 /* Cards picked (the same choice as the Table's ticks): open them all as tabs, or go on in the Table, where the picked
    rows can be moved, given a status or a responsible together. */
-function pickBar(){
+function pickBar(list){
   const n = (st.bulk || new Set()).size;
-  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button><button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button><button id="cdClear">Clear</button>`
-    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several</span>';
+  return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button>${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear</button>${scopeActs(list)}`
+    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several</span>' + scopeActs(list, true);
 }
+/* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
+const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };
 function bindPickBar(){
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
   const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
@@ -422,22 +466,21 @@ export function openObjs(ids){
 }
 /* A redraw that leaves the list where it was scrolled to. */
 export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 0; draw(); const w = $('#view'); if (w) w.scrollTop = y; };
-/* Picking cards, in Cards and in To review: Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
+/* Picking cards (also of To review): Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
    Shift + click picks every card from the last one picked to this one. A plain click still opens the card. */
 let lastPick = null;
-document.addEventListener('click', async e => {
+document.addEventListener('click', e => {
   const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card) return;
   const tick = e.target.closest('.cardtick');
   if (!tick && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  const review = !!card.closest('.rv-item'), id = card.dataset.open;
-  const set = review ? (st.rvSel ??= new Set()) : (st.bulk ??= new Set());
+  const id = card.dataset.open, set = (st.bulk ??= new Set());
   if (e.shiftKey && lastPick && lastPick !== id){
     const ids = [...$('#view').querySelectorAll('.card[data-open]')].map(c => c.dataset.open), a = ids.indexOf(lastPick), b = ids.indexOf(id);
     if (a >= 0 && b >= 0) ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => set.add(x)); else set.add(id);
   } else if (set.has(id)) set.delete(id); else set.add(id);
   lastPick = id;
-  if (review) keepScroll((await import('./15-review.js')).renderReview); else keepScroll(renderCards);
+  keepScroll(renderCards);
 }, true);
 /* When the search matches a person or a place, those come first as buttons. */
 export function addSearchHits(){
@@ -517,14 +560,14 @@ const withSource = (o, c, html) => {
 export function renderTable(){
   let list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
-  st.bulk ??= new Set();
-  st.bulk = new Set([...st.bulk].filter(id => objs.some(o => o.id === id)));
+  st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
-    ${n ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
+    ${n && st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button>${scopeActs(list)}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
+    ${n && !st.scope ? `<b>${n} selected</b><button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button><span class="tbsep"></span>` : ''}
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>`;
   if (colOpen) $('#colMenu').open = true;
-  bindListFilter();
+  bindListFilter(); bindScopeActs(list);
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();
     setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);

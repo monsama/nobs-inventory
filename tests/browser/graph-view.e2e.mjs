@@ -123,18 +123,19 @@ try {
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
   assert.equal(await p.inputValue('#intake_graph'), 'review', 'new devices from Graph wait in To review by default');
   await p.click('.wc-close');
-  // To review: the device Graph found waits there, in no list or count, and is accepted from its card
+  // To review: the device Graph found waits there, in no list or count; Cards shows it, picked and accepted
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana')), false, 'not in the inventory yet');
   await p.click('#tabsbar [data-tab=review]');
-  await p.waitForSelector('.rv-item[data-rv="m9o"]');
+  await p.waitForSelector('#view .card[data-open="m9o"]');
   assert.match(await p.textContent('#tabsbar [data-tab=review]'), /To review\s*1/);
-  assert.match(await p.textContent('.rv-item[data-rv="m9o"]'), /iPhone Ana.*Entra & Intune/s);
+  assert.match(await p.textContent('#fbar'), /1 device waiting for review/);
+  assert.match(await p.textContent('#view .card[data-open="m9o"]'), /iPhone Ana.*Entra & Intune/s);
   if (process.env.NI_SHOTS) await p.locator('#view').screenshot({ path: path.join(process.env.NI_SHOTS, 'to-review.png') });
-  await p.click('[data-rvaccept="m9o"]');
+  await p.click('#view .card[data-open="m9o"] .cardtick'); await p.click('#rvAccept');
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'iPhone Ana'));
   const added = await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana'); return [o.type, o.serial, o.code, o.review]; });
   assert.deepEqual(added, ['ios', 'F2LX', 'INV-0901', undefined]);
-  await until(p, () => !document.querySelector('.rv-item'));
+  await until(p, () => !document.querySelector('#view .card[data-open="m9o"]'));
   const savedAccept = async () => { const t0 = Date.now(); while (loadState(db).objs.find(o => o.id === 'm9o').review) { if (Date.now() - t0 > 8000) throw new Error('accept not saved'); await new Promise(r => setTimeout(r, 100)); } };
   await savedAccept();
   // a model corrected by hand on a device added from Graph is kept from the next sync

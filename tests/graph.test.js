@@ -254,6 +254,14 @@ test('Defender for Endpoint: read with its own token when Settings asks for it, 
   assert.deepEqual([s.objs[0].defender.health, s.objs[0].defender.risk], ['Active', 'Low'], 'by the Entra device id, whatever the name');
   assert.deepEqual([s.objs[1].defender.health, s.objs[1].defender.risk], ['Inactive', 'High'], 'by the name');
   assert.equal(s.objs[2].defender, undefined, 'a device Defender does not have any more loses it');
+  // a docking station's DNS-named second record does not take Defender from the device of that name; alone, it gets it
+  const t = { objs: [{ id: 'd', name: 'zh-pc-0142.corp.local', status: 'active' }, { id: 'n', name: 'ZH-PC-0142', status: 'active' }] };
+  applyDefender(t, on.machines, NOW);
+  assert.equal(t.objs[0].defender, undefined, 'not on the second record');
+  assert.equal(t.objs[1].defender.health, 'Active', 'on the device itself');
+  const v = { objs: [{ id: 'd', name: 'srv-files.corp.local', status: 'active' }] };
+  applyDefender(v, on.machines, NOW);
+  assert.equal(v.objs[0].defender.health, 'Inactive', 'with no device named srv-files, the DNS name still finds it');
 });
 
 test('a record disabled in Entra is no duplicate: an enabled one is the device, and a device with only disabled records is not offered', () => {

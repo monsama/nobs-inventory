@@ -128,23 +128,25 @@ try {
   // To review: the two AD devices, in no count; the stale one grey and left out of Accept all
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.length), 3, 'waiting devices are not in the inventory');
   await p.click('#tabsbar [data-tab=review]');
-  await p.waitForSelector('.rv-item');
-  assert.equal(await p.locator('.rv-item').count(), 2);
-  assert.match(await p.getAttribute('.rv-item[data-rv="pold"]', 'class'), /stale/);
+  const pold = '#view .card[data-open="pold"]';
+  await p.waitForSelector(pold);
+  assert.equal(await p.locator('#view .card[data-open]').count(), 2);
+  assert.match(await p.getAttribute(pold, 'class'), /stale/);
+  assert.match(await p.textContent(pold), /Old/);
   assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
   // ignore, undo, ignore again: kept out of every sync, listed under Ignored, and back from there
-  await p.click('[data-rvignore="pold"]');
-  await p.waitForSelector('.rv-item[data-rv="pold"]', { state: 'detached' });
+  await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
+  await p.waitForSelector(pold, { state: 'detached' });
   await p.click('#toast .t-undo');
-  await p.waitForSelector('.rv-item[data-rv="pold"]');
-  await p.click('[data-rvignore="pold"]');
+  await p.waitForSelector(pold);
+  await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review.ignored && o.excluded === true; });
-  await p.click('[data-rvsrc="ignored"]');
-  await p.waitForSelector('[data-rvrestore="pold"]');
-  await p.click('[data-rvsrc=""]');
-  // accept all: only the one seen recently
-  p.once('dialog', d => d.accept());
-  await p.click('#rvAcceptAll');
+  await p.click('#scopeList [data-scope=ignored]');
+  await p.waitForSelector('#rvRestoreAll');
+  assert.match(await p.textContent('#fbar'), /1 ignored device/);
+  await p.click('#scopeList [data-scope=review]');
+  // accept all: only the one seen recently, after the app's own question
+  await p.click('#rvAcceptAll'); await p.click('#cfOk');
   await stored(st => !st.objs.find(o => o.id === 'n20').review);
   const nb = loadState(db).objs.find(o => o.id === 'n20');
   assert.equal(nb.type, 'notebook'); assert.equal(nb.inAd, true);

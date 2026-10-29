@@ -5,7 +5,6 @@ import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
-import { renderReview } from './15-review.js';
 import { FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
@@ -16,6 +15,8 @@ import { renderPlans } from './20-plans.js';
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
 export function render({ save = true } = {}){
+  /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
+  if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); } st.tab = 'cards'; }
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -27,7 +28,6 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contracts') renderContracts();
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
-  else if (st.tab === 'review') renderReview();
   else renderObj(byId(st.tab));
   renderFilterBar();
   fullTextTooltips();
@@ -42,7 +42,7 @@ export function render({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){

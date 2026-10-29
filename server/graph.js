@@ -489,8 +489,10 @@ export function applyAutopilot(s, list, now = new Date()) {
 const defenderOf = (m, at) => ({ health: clean(m.healthStatus), onboarding: clean(m.onboardingStatus), risk: clean(m.riskScore),
   exposure: clean(m.exposureLevel), av: clean(m.defenderAvStatus), lastSeen: clean(m.lastSeen), seen: at });
 /* Each device gets the Defender machine that is it: by its Entra device id (from Graph), else by its name or the first
-   part of the machine's DNS name. Of two machines with one name, the one seen last. A device Defender does not have
-   any more loses what Defender said. Returns how many devices Defender has. */
+   part of the machine's DNS name. Of two machines with one name, the one seen last. A device named by a DNS name
+   (argonb35.corp.example, a docking station's second record) gets it by name only when no device is named by its
+   first part: like AD, Defender belongs to ARGONB35 itself. A device Defender does not have any more loses what Defender said.
+   Returns how many devices Defender has. */
 export function applyDefender(s, machines, now = new Date()) {
   const at = stamp(now), byAad = new Map(), byName = new Map();
   const newer = (a, b) => !a || (Date.parse(b.lastSeen) || 0) > (Date.parse(a.lastSeen) || 0);
@@ -499,10 +501,11 @@ export function applyDefender(s, machines, now = new Date()) {
     for (const k of [low(m.computerDnsName), low(m.computerDnsName).split('.')[0]]) if (k && newer(byName.get(k), m)) byName.set(k, m);
   }
   let n = 0;
+  const names = new Set(s.objs.filter(o => o.status !== 'retired').map(o => low(o.name)));
   for (const o of s.objs) {
     if (o.status === 'retired') continue;
-    const name = low(o.name);
-    const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && (byName.get(name) || byName.get(name.split('.')[0])));
+    const name = low(o.name), short = name.split('.')[0];
+    const m = (o.graph && o.graph.aadId && byAad.get(low(o.graph.aadId))) || (name && !(short !== name && names.has(short)) && (byName.get(name) || byName.get(short)));
     if (m) { o.defender = defenderOf(m, at); n++; } else delete o.defender;
   }
   return n;

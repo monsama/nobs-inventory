@@ -264,6 +264,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const bySerial = new Map(), byName = new Map();
   const index = o => { if (o.serial && !bySerial.has(lc(o.serial))) bySerial.set(lc(o.serial), o); const k = lc(o.name); byName.set(k, [...(byName.get(k) || []), o]); };
   s.objs.forEach(index);
+  /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
+     it stands for (after Clear inventory, both are new). */
+  const pushed = new Set(records.map(r => lc(r.name)).filter(Boolean));
   const cleaned = [];
   for (const raw of records) {
     const r = clean(raw);
@@ -275,7 +278,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
        here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
        it is never added straight away, whatever Settings says, so a person decides in To review. */
-    const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && (byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired');
+    const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && ((byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired') || pushed.has(lc(r.name).split('.')[0]));
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */

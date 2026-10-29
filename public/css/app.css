@@ -441,9 +441,8 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sched-l{flex:none;width:172px;color:var(--muted);font-size:12px}
 @media (max-width:760px){.sched-l{width:100%}}
 .gu-box{border-top:1px solid var(--bd2)}
-/* To review: each card with Accept and Ignore under it; a device not seen for long is grey. */
+/* To review: a waiting device's card says what found it; one not seen for long is grey. */
 .tab-cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;line-height:16px;text-align:center}
-.rv-note{padding:10px 12px 0;margin:0}
 /* The Sync button beside To review, and its menu: each source with when it last ran and what it brought. */
 .sync-btn{display:inline-flex;align-items:center;gap:6px}
 .sync-btn .i{width:15px;height:15px}
@@ -459,18 +458,10 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-what span{font-size:12px;overflow-wrap:anywhere}
 .sync-err{color:var(--danger)}
 .sync-row>button{flex:none;height:26px;min-height:0;padding:0 10px}
-.rv-item{display:flex;flex-direction:column;min-width:0;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--bg)}
-.rv-item>.card{flex:1;border:0;border-radius:var(--r-m) var(--r-m) 0 0}
-.rv-item>.card .cf{border-radius:0}
-.rv-item.stale>.card{background:var(--panel)}.rv-item.stale>.card .nm,.rv-item.stale>.card .model{color:var(--muted)}
-.rv-acts{display:flex;align-items:center;gap:6px;padding:6px 10px;border-top:1px solid var(--bd2);font-size:12px;color:var(--muted);white-space:nowrap;min-height:40px;box-sizing:border-box}
-.rv-acts .chip{flex:none}
-.rv-acts .rv-src{max-width:140px;overflow:hidden;text-overflow:ellipsis}
-.rv-acts button{height:28px;min-height:0;padding:0 10px;flex:none}
-.rv-acts .grow{flex:1}
-.rv-chips{display:inline-flex;flex-wrap:wrap;gap:4px}
-.rv-chips .chipbtn{height:24px;min-height:0;padding:0 10px;border-radius:12px;font-size:12px}
-.rv-chips .chipbtn.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.rv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
+.rv-chips .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.card.stale{background:var(--panel)}.card.stale .nm,.card.stale .model{color:var(--muted)}
+.fb-scope{font-weight:600}
 .rv-yes{border-color:color-mix(in srgb,var(--ok) 50%,var(--bd))}
 .rv-no{color:var(--muted)}
 .rv-banner{display:flex;align-items:center;gap:8px;margin:12px 12px 0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--bd));border-left:3px solid var(--accent);border-radius:var(--r-m);background:color-mix(in srgb,var(--accent) 8%,var(--bg));font-size:13px}
@@ -1175,7 +1166,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--accentbtn)}
 input.bad{border-color:var(--danger);outline-color:var(--danger)}
 .timefield{width:72px;text-align:center}
 /* On a phone what is tapped often is at least 36px high: review buttons, filter chips, a source mark's hit area, contact links. */
-@media (max-width:760px){.rv-acts button{height:40px}.rv-chips .chipbtn{height:36px}.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;min-height:36px}}
+@media (max-width:760px){.fsrc::before{content:"";position:absolute;inset:-8px}.cn-way{display:inline-flex;align-items:center;min-height:36px}}
 .filepick{display:flex;align-items:center;gap:8px;min-width:0}.filepick>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
 /* Leftover colour outside plans and the map: shades of the one accent instead. */
