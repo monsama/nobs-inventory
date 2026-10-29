@@ -272,6 +272,10 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* With "IP-only devices to review" on, a device named only by its IP address (no serial number) is never added
        straight away: it waits in To review, like every new device does unless Settings adds them directly. */
     const ipOnly = !!s.skipIpOnly && /^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && !r.serial;
+    /* A device named by a DNS name (argonb35.corp.example) with no serial number, whose first part is the name of a device
+       here (ARGONB35), is most likely a second record of that device, left by a docking station's or a USB network adapter:
+       it is never added straight away, whatever Settings says, so a person decides in To review. */
+    const twin = !r.serial && /^[^.\s]+\.[^.\s]+/.test(r.name || '') && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.name) && (byName.get(lc(r.name).split('.')[0]) || []).some(o => o.status !== 'retired');
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
@@ -295,7 +299,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ...Object.fromEntries(FEED_FIELDS.map(k => [k, r[k]]).filter(([, v]) => v)),
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
-        ...(ipOnly || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
+        ...(ipOnly || twin || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
       };
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');
