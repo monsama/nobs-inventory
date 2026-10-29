@@ -471,7 +471,8 @@ export function sourceText(o, k, src = sourceOf(o, k)){
    once per task, so a list of thousands stays quick. */
 let twinIdx = null;
 export function twinOf(o, { marked = false } = {}){
-  if (!o || (o.notTwin && !marked) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
+  /* A record already decided on (ignored or merged in To review) is no open question. */
+  if (!o || (o.notTwin && !marked) || (o.review && o.review.ignored) || o.serial || o.status === 'retired' || !/^[^.\s]+\.[^.\s]+/.test(o.name || '') || /^\d{1,3}(\.\d{1,3}){3}$/.test(o.name)) return null;
   if (!twinIdx){
     twinIdx = new Map();
     for (const x of [...objs, ...REVIEW.filter(r => !r.review.ignored)]) if (x.status !== 'retired' && x.name && !twinIdx.has(String(x.name).toLowerCase())) twinIdx.set(String(x.name).toLowerCase(), x);
@@ -624,7 +625,7 @@ export const isAttached = k => k === 'attached';
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
-export const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
+export const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,

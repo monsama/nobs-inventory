@@ -55,12 +55,12 @@ try {
   await p.click('#twMerge');
   await until(p, async () => { const c = await import('/js/01-core.js'); return !c.objs.some(o => o.id === 'd35'); });
   const after = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const n = c.byId('n35'), d = c.byId('d35');
-    return [n.nics, c.rels.find(r => r.id === 'a1').to, d.review.ignored ? 'ignored' : '', d.review.merged, d.excluded]; });
-  assert.deepEqual(after, [[{ name: 'Dock / USB adapter', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', merged: 'nb-35.corp.example' }], 'n35', 'ignored', 'n35', true]);
+    return [n.accessories, c.rels.find(r => r.id === 'a1').to, d.review.ignored ? 'ignored' : '', d.review.merged, d.excluded]; });
+  assert.deepEqual(after, [[{ name: 'Docking station', kind: 'Dock', mac: '64:c9:01:e3:9c:d1', seenAs: 'nb-35.corp.example' }], 'n35', 'ignored', 'n35', true]);
   assert.match(await p.textContent('.rv-banner'), /Merged into NB-35/);
   // Undo puts all of it back
   await p.click('#toast .t-undo');
-  await until(p, async () => { const c = await import('/js/01-core.js'); return c.objs.some(o => o.id === 'd35') && !c.byId('n35').nics && c.rels.find(r => r.id === 'a1').to === 'd35'; });
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.objs.some(o => o.id === 'd35') && !c.byId('n35').accessories && c.rels.find(r => r.id === 'a1').to === 'd35'; });
   // the Duplicates list picks it, and Merge works from the pick too
   await p.click('#tabsbar [data-tab=cards]');
   await p.click('#dupList [data-twins]');
@@ -82,9 +82,28 @@ try {
   // picked from the Duplicates list: Resolve, as a dock
   await p.click('#cards .card[data-open="d35"] .cardtick');
   await p.click('#rvResolve'); await p.click('#dupOk');
-  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').nics || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
+  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && d.review.merged === 'n35' && d.excluded && (st.objs.find(o => o.id === 'n35').accessories || []).length === 1 && st.rels.find(r => r.id === 'a1').to === 'n35'; });
   await p.click('#fbar [data-fx=twins]');
+  // the device lists what was merged into it, and Unmerge takes it out again: back in To review, the adapter gone
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
+  await p.waitForSelector('.nics.merged');
+  assert.match(await p.textContent('.nics.merged'), /nb-35\.corp\.example[\s\S]*10\.1\.2\.104/);
+  await p.click('[data-unmerge="d35"]');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && !d.review.merged && !d.review.ignored && !d.excluded && !st.objs.find(o => o.id === 'n35').accessories; });
+  await p.click('#toast .t-undo');
+  await stored(st => st.objs.find(o => o.id === 'd35').review.merged === 'n35' && (st.objs.find(o => o.id === 'n35').accessories || []).length === 1);
+  await p.click('#tabsbar [data-tab=cards]');
 
+  // the dock shows among the device's attachments, with its MAC address
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
+  await p.waitForSelector('.entries-box');
+  assert.match(await p.textContent('.ctlrow.entries'), /Docking station[\s\S]*Dock[\s\S]*64:c9:01:e3:9c:d1/);
+  // a shared dock at a desk: kept as a device of its own, not flagged again
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'd98', code: 'INV-0098', type: 'notebook', name: 'nb-35.desk.example', mac: '00:11:22:33:44:55', status: 'active', feed: null }); (await import('/js/07-render.js')).render(); });
+  await p.evaluate(async () => (await import('/js/15-review.js')).resolveModal([(await import('/js/01-core.js')).byId('d98')]));
+  await p.check('[name=dupWay][value=desk]'); assert.equal((await p.textContent('#dupOk')).trim(), 'Keep as dock');
+  await p.click('#dupOk');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd98'); return d && d.notTwin === true && d.type === 'other' && d.purpose === 'Docking station'; });
   // Obsolete: a second record retired and excluded
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'd99', code: 'INV-0099', type: 'other', name: 'pc-7.corp.example', status: 'active', feed: null }); (await import('/js/07-render.js')).render(); });
   await p.evaluate(async () => (await import('/js/15-review.js')).resolveModal([(await import('/js/01-core.js')).byId('d99')]));

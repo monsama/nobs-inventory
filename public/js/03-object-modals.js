@@ -285,7 +285,7 @@ function twinBanner(o){
     return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${canEdit() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
   }
   const can = canEdit() && !o.review && mergeTarget(o) === tw;
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Its address goes to ${esc(tw.name)} as an adapter; this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
+  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${esc(tw.name)} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -380,7 +380,7 @@ export function renderObj(o){
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${o.type === 'pc' || o.type === 'notebook' ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}

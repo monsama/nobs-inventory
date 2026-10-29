@@ -310,20 +310,32 @@ test('a second record named by the DNS name: the AD account stays with the devic
   assert.equal(u.objs.find(o => o.name === 'nb-35.corp.example').review.src, 'lansweeper', 'in To review, whatever the order of the push');
   assert.equal(u.objs.find(o => o.name === 'NB-35').review, undefined, 'the device itself goes in as Settings says');
 
-  // with "Merge second records" on, the record is no device: its address goes to NB-35 as a dock's adapter, and the next
-  // push, which brings the device's own adapters, keeps it
+  // with "Merge second records" on, the record is no device: it is NB-35's docking station, an attachment kept by its MAC
+  // address (not its changing IP address); the next push changes nothing, a new MAC is noted
   const w = { ...state([]), feedOn: true, mergeTwins: true, codeN: 1, seq: 100, policy: { ip: true } };
   mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
   assert.deepEqual(w.objs.map(o => o.name), ['NB-35'], 'no second device');
-  assert.deepEqual(w.objs[0].nics, [{ name: 'Dock / USB adapter', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', merged: 'nb-35.corp.example' }]);
-  mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200', nics: [{ name: 'Wi-Fi', ip: '10.1.3.9' }] }, { name: 'nb-35.corp.example', serial: '', ip: '10.1.2.110', ref: '18257' }], NOW);
-  assert.deepEqual(w.objs[0].nics.map(n => [n.name, n.ip]), [['Wi-Fi', '10.1.3.9'], ['Dock / USB adapter', '10.1.2.110']], 'the device\'s own adapter from Lansweeper, and the dock\'s new address');
-  // a device the sync leaves alone (detached) gets no adapter; one that takes it gets a history line
+  assert.deepEqual(w.objs[0].accessories, [{ name: 'Docking station', kind: 'Dock', mac: '64:c9:01:e3:9c:d1', seenAs: 'nb-35.corp.example' }]);
+  assert.equal(w.objs[0].nics, undefined, 'no adapter of the device');
+  const before = (w.history[w.objs[0].id] || []).length;
+  mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }, { name: 'nb-35.corp.example', serial: '', ip: '10.1.2.110', mac: '64:c9:01:e3:9c:d1', ref: '18257' }], NOW);
+  assert.equal(w.history[w.objs[0].id].length, before, 'a new address alone changes nothing');
+  mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.111', mac: '64:c9:01:e3:9c:ff', ref: '18257' }], NOW);
+  assert.equal(w.objs[0].accessories[0].mac, '64:c9:01:e3:9c:ff');
+  // a dock merged in as an adapter by 0.9.61 moves to the attachments with the next push of its record
+  w.objs[0].nics = [{ name: 'Dock / USB adapter', ip: '10.1.2.104', merged: 'nb-35.corp.example' }];
+  mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.111', mac: '64:c9:01:e3:9c:ff', ref: '18257' }], NOW);
+  assert.equal(w.objs[0].nics, undefined); assert.equal(w.objs[0].accessories.length, 1);
+  // an adapter merged in before (merged) stays when Lansweeper sends the device's own adapters
+  w.objs[0].nics = [{ name: 'Second record', ip: '10.1.2.120', merged: 'old' }];
+  mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200', nics: [{ name: 'Wi-Fi', ip: '10.1.3.9' }] }], NOW);
+  assert.deepEqual(w.objs[0].nics.map(n => [n.name, n.ip]), [['Wi-Fi', '10.1.3.9'], ['Second record', '10.1.2.120']]);
+  // a device the sync leaves alone (detached) gets no dock; one that takes it gets a history line
   const v = { ...state([{ id: 'n', name: 'NB-50', serial: 'S50', status: 'active', detached: true }, { id: 'm', name: 'NB-51', serial: 'S51', status: 'active' }]), feedOn: true, mergeTwins: true, codeN: 1, seq: 100, policy: { ip: true } };
   mergeRecords(v, [{ name: 'nb-50.corp.example', serial: '', ip: '10.1.2.150', ref: '1' }, { name: 'nb-51.corp.example', serial: 'To be filled by O.E.M.', ip: '10.1.2.151', ref: '2' }], NOW);
-  assert.equal(v.objs.find(o => o.id === 'n').nics, undefined, 'detached: left alone');
-  assert.deepEqual(v.objs.find(o => o.id === 'm').nics.map(n => n.ip), ['10.1.2.151'], 'a placeholder serial is no serial');
-  assert.match(v.history.m[0].msg, /nb-51\.corp\.example merged in as a dock's adapter/);
+  assert.equal(v.objs.find(o => o.id === 'n').accessories, undefined, 'detached: left alone');
+  assert.deepEqual(v.objs.find(o => o.id === 'm').accessories.map(a => a.seenAs), ['nb-51.corp.example'], 'a placeholder serial is no serial');
+  assert.match(v.history.m[0].msg, /nb-51\.corp\.example merged in as a docking station/);
   // a retired device of that name in the push makes no record a second one of it
   const rx = { ...state([{ id: 'r9', name: 'PC9', serial: 'S9', status: 'retired' }]), intake: { lansweeper: 'direct' }, feedOn: true, codeN: 1, seq: 100 };
   mergeRecords(rx, [{ name: 'PC9', serial: 'S9', ref: '9' }, { name: 'pc9.corp.example', serial: '', ip: '10.1.2.9', ref: '10' }], NOW);
