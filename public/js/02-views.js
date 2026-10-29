@@ -25,7 +25,11 @@ export function renderSide(){
   const waitingR = REVIEW.filter(o => !o.review.ignored), ignoredR = REVIEW.filter(o => o.review.ignored);
   const srcs = Object.entries(REVIEW_SRC).map(([k, l]) => [k, l, waitingR.filter(o => o.review.src === k).length]).filter(([, , n]) => n);
   $('#scopeHdr').hidden = $('#scopeList').hidden = !(waitingR.length || ignoredR.length || st.scope);
-  $('#scopeList').innerHTML = `<button class="item ${st.scope === 'review' && !st.rvSrc ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>`
+  /* Under Waiting one choice at a time (Old, In AD or Entra, a source); a second click on it, or on Waiting or Ignored
+     when shown, goes back a step. */
+  const sub = !!(st.rvSrc || st.rvKnown || st.rvOld);
+  $('#scopeList').innerHTML = `<button class="item ${st.scope === 'review' && !sub ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>`
+    + (st.scope === 'review' && waitingR.some(reviewStale) ? `<button class="item sub ${st.rvOld ? 'sel' : ''}" data-rvold title="Not seen by any source for ${REVIEW_STALE_DAYS} days or more: likely gone"><span class="lbl">Old</span><span class="cnt">${waitingR.filter(reviewStale).length}</span></button>` : '')
     + (st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? `<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : '')
     + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
     + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
@@ -98,8 +102,14 @@ $('#side').addEventListener('click', e => {
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('twins' in b.dataset) st.twins = !st.twins;
-  if ('rvknown' in b.dataset) st.rvKnown = !st.rvKnown;
-  if ('scope' in b.dataset){ st.scope = b.dataset.scope || null; st.rvSrc = b.dataset.rvsrc || ''; st.bulk = new Set(); }
+  if ('scope' in b.dataset || 'rvknown' in b.dataset || 'rvold' in b.dataset){
+    const was = { scope: st.scope, rvSrc: st.rvSrc, rvKnown: st.rvKnown, rvOld: st.rvOld };
+    const to = { scope: 'scope' in b.dataset ? b.dataset.scope || null : 'review', rvSrc: b.dataset.rvsrc || '', rvKnown: 'rvknown' in b.dataset, rvOld: 'rvold' in b.dataset };
+    const same = Object.keys(to).every(k => was[k] === to[k]);
+    /* The one shown, clicked again: a choice under Waiting goes back to Waiting, Waiting or Ignored to the inventory. */
+    const next = !same ? to : to.rvSrc || to.rvKnown || to.rvOld ? { scope: 'review', rvSrc: '', rvKnown: false, rvOld: false } : { scope: null, rvSrc: '', rvKnown: false, rvOld: false };
+    Object.assign(st, next); st.bulk = new Set();
+  }
   if ('adgroup' in b.dataset) st.adGroup = null;
   if ('resp' in b.dataset) st.resp = null;
   if ('osfam' in b.dataset) st.osFam = null;
@@ -129,6 +139,7 @@ export function renderFilterBar(){
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
     st.twins && ['twins', 'Duplicates', 'by DNS name'],
     st.scope === 'review' && st.rvKnown && ['rvKnown', '', 'In AD or Entra'],
+    st.scope === 'review' && st.rvOld && ['rvOld', '', `Not seen for ${REVIEW_STALE_DAYS} days`],
     st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
@@ -146,8 +157,8 @@ $('#fbar').addEventListener('click', e => {
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
   else if (k === 'q') st.q = '';
-  else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.bulk = new Set(); }
-  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown') st[k] = false;
+  else if (k === 'scope'){ st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); }
+  else if (k === 'scanOld' || k === 'twins' || k === 'live' || k === 'rvKnown' || k === 'rvOld') st[k] = false;
   else st[k] = null;
   view();
 });
@@ -380,7 +391,7 @@ function scopeActs(list, allAlso){
   if (!allAlso || !list.length) return '';
   const fresh = list.filter(o => !reviewStale(o)).length;
   return ign ? `<button id="rvRestoreAll">All back to review (${list.length})</button>`
-    : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" ${fresh ? '' : 'disabled'} title="Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out; accept them one by one">Accept ${fresh === list.length ? 'all ' : ''}${fresh}${fresh === list.length ? '' : ' recently seen'}</button>`;
+    : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" title="${fresh === list.length || !fresh ? '' : `Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out unless you tick them in the next step`}">Accept ${fresh === list.length ? `all ${fresh}` : fresh ? `${fresh} recently seen` : `all ${list.length} old`}</button>`;
 }
 /* Merge: the picked records the inventory already has (a dock's DNS-named record, or one of the same name or serial
    number) are folded into those devices; see 15-review.js. */
@@ -395,8 +406,20 @@ function bindScopeActs(list){
   on('rvMerge', () => { const l = mergeable(); st.bulk.clear(); reviewDo('merge', l); });
   const picked = kind => () => { const l = [...st.bulk].map(byId).filter(o => o && o.review); st.bulk.clear(); reviewDo(kind, l); };
   on('rvAccept', picked('accept')); on('rvIgnore', picked('ignore')); on('rvRestore', picked('restore'));
-  const fresh = list.filter(o => !reviewStale(o));
-  on('rvAcceptAll', () => confirmModal('Accept devices', `Accept the ${fresh.length} ${fresh.length === 1 ? 'device' : 'devices'} shown into the inventory?`, 'Accept', () => reviewDo('accept', fresh)));
+  const fresh = list.filter(o => !reviewStale(o)), old = list.length - fresh.length;
+  /* Accept all takes the recently seen ones; the old ones (likely gone) only when ticked here. With only old ones shown,
+     it says so instead. */
+  on('rvAcceptAll', () => {
+    let withOld = !fresh.length;
+    confirmModal('Accept devices', fresh.length
+      ? `Accept the ${fresh.length} recently seen ${fresh.length === 1 ? 'device' : 'devices'} shown into the inventory?${old ? `<label class="pchk cf-old"><input type="checkbox" id="cfOld"> Also the ${old} not seen by any source for ${REVIEW_STALE_DAYS} days (likely gone)</label>` : ''}`
+      : `None of the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown has been seen by any source for ${REVIEW_STALE_DAYS} days: ${list.length === 1 ? 'it is' : 'they are'} likely gone. Accept ${list.length === 1 ? 'it' : 'them'} anyway?`,
+      'Accept', () => reviewDo('accept', withOld ? list : fresh));
+    const cb = $('#cfOld'), ok = $('#cfOk');
+    const label = () => { ok.textContent = `Accept ${withOld ? list.length : fresh.length}`; };
+    label();
+    if (cb) cb.onchange = () => { withOld = cb.checked; label(); };
+  });
   on('rvIgnoreAll', () => confirmModal('Ignore devices', `Ignore the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown? No sync brings them back; you can bring them back from Ignored.`, 'Ignore', () => reviewDo('ignore', list)));
   on('rvRestoreAll', () => reviewDo('restore', list));
 }
@@ -460,7 +483,7 @@ export function renderCards(){ st.bulk = pickedInPool(); renderCardsBody(); addS
 function pickBar(list){
   const n = (st.bulk || new Set()).size;
   return n ? `<b class="pick-n">${n} selected</b><button id="cdOpen" title="Open each as a tab">Open ${n > 1 ? n + ' ' : ''}in tabs</button>${st.scope ? '' : `<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>${mergeBtn()}`}<button id="cdClear">Clear</button>${scopeActs(list)}`
-    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several</span>' + scopeActs(list, true);
+    : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several · Ctrl+A all</span>' + scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
 const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };
@@ -495,6 +518,18 @@ document.addEventListener('click', e => {
   lastPick = id;
   keepScroll(renderCards);
 }, true);
+/* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
+   takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */
+document.addEventListener('keydown', e => {
+  if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a'){
+    e.preventDefault();
+    st.bulk = new Set(st.tab === 'table' ? [...$('#view').querySelectorAll('[data-sel]')].map(c => c.dataset.sel) : filtered().map(o => o.id));
+    keepScroll(st.tab === 'table' ? renderTable : renderCards);
+  } else if (e.key === 'Escape' && st.bulk && st.bulk.size){
+    st.bulk.clear(); keepScroll(st.tab === 'table' ? renderTable : renderCards);
+  }
+});
 /* When the search matches a person or a place, those come first as buttons. */
 export function addSearchHits(){
   const q = st.q.trim().toLowerCase(); if (!q) return;

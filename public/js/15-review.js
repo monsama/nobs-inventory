@@ -1,13 +1,12 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { REVIEW, REVIEW_SRC, REVIEW_STALE_DAYS, esc, hist, lastSeenOf, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { REVIEW, REVIEW_SRC, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { confirmModal } from './19-modal.js';
 import { canEdit, me } from './04-settings.js';
 import { render, queueServerSave } from './07-render.js';
 
-/* A device no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, and left out of Accept all. */
-export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
+export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
 
 /* Accept: out of To review into the inventory, as an ordinary device. */
