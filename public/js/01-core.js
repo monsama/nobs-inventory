@@ -1,5 +1,6 @@
 import { pad2, stamp, stampTime } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
+import { ORDER_FIELDS, maySet } from './sync-map.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -519,9 +520,10 @@ export { SRC_ICON };
 /* The source picker (srcpick.js) draws what a click on a mark shows when the field has values from the sources. */
 let srcPicker = null;
 export const setSrcPicker = f => { srcPicker = f; };
-/* Whether Lansweeper writes field k of o: the source picked for it, else the policy (Settings → Lansweeper); the lists
+/* Whether Lansweeper writes field k of o: for a field the sources set, as its order says (Settings → Data sources);
+   else the source picked for it, else the policy (Settings → Lansweeper); the lists
    (software, links) are Lansweeper's unless the policy turns them off. As the server's lsOwns (fill.js). */
-export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (o.pick && o.pick[k] ? o.pick[k] === 'ls'
+export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedOn && linked && (ORDER_FIELDS.includes(k) ? maySet(st, o, k, 'ls') : o.pick && o.pick[k] ? o.pick[k] === 'ls'
   : ['software', 'links'].includes(k) ? (st.policy || {})[k] !== false : !!(st.policy || {})[k]));
 /* A field (or list) set by hand: no sync writes it from then on. */
 export const pickHand = (o, k) => { o.pick = {...(o.pick || {}), [k]: 'hand'}; };

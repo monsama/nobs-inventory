@@ -2,7 +2,7 @@
    checks keep the two from drifting apart. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AD_FILL, GRAPH_FILL, LS_FIELDS, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL } from '../public/js/sync-map.js';
+import { AD_FILL, GRAPH_FILL, LS_FIELDS, ORDER_FIELDS, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldOrder, fieldOrderProblem, maySet } from '../public/js/sync-map.js';
 import { mergeRecords } from '../server/feed.js';
 
 test('every field a sync writes has a name on the page, and every source on the page has a name', () => {
@@ -47,4 +47,54 @@ test('AD: "managed by" sets the internal responsible when a contact has that nam
   const comp = name => ({ name, dns: name.toLowerCase() + '.corp.example', groups: [], os: '', domain: '', logon: '2026-10-22', created: '', managedBy: 'viktor hug' });
   applyComputers(s, [comp('PC-A'), comp('PC-B')], new Date('2026-10-29T10:00:00Z'));
   assert.equal(s.objs[0].respIn, 'k1'); assert.equal(s.objs[1].respIn, 'k2', 'one already set stays');
+});
+
+test('the order of a field\'s sources: the default as before, set per field, with the source picked on a device first', async () => {
+  const { fillField } = await import('../server/fill.js');
+  const at = '2026-10-29 10:00';
+  // without a set order: Lansweeper while the policy lets it, then Intune, then AD; purchase data is Lansweeper's
+  assert.deepEqual(fieldOrder({ policy: { os: true } }, 'os'), ['ls', 'graph', 'ad']);
+  assert.deepEqual(fieldOrder({ policy: { os: false } }, 'os'), ['graph', 'ad']);
+  assert.deepEqual(fieldOrder({}, 'price'), ['ls']);
+  assert.deepEqual(fieldOrder({ policy: {}, fieldOrder: { os: ['ad', 'graph'] } }, 'os'), ['ad', 'graph']);
+  assert.deepEqual(ORDER_FIELDS.slice().sort(), Object.keys(SYNC_FIELD_LABEL).sort(), 'every field on the page has its sources');
+  // AD first: it replaces Intune's value, and Intune no longer replaces AD's
+  const s = { policy: {}, fieldOrder: { os: ['ad', 'graph'] }, history: {} };
+  const o = { id: 'o1', os: 'Windows 11 (Intune)', src: { os: 'graph' } };
+  assert.equal(fillField(s, o, 'os', 'Windows 11 Pro', 'ad', at, 'Operating system'), true);
+  assert.equal(fillField(s, o, 'os', 'Windows 11 (Intune)', 'graph', at, 'Operating system'), false);
+  assert.deepEqual([o.os, o.src.os], ['Windows 11 Pro', 'ad']);
+  // a source left out only shows its value, and gives way to one in the order
+  s.fieldOrder.os = ['graph'];
+  assert.equal(maySet(s, o, 'os', 'ad'), false);
+  assert.equal(fillField(s, o, 'os', 'Windows 11 (Intune)', 'graph', at), true);
+  // a value set by hand, or another source picked on the device, wins over every order
+  o.pick = { os: 'hand' };
+  assert.equal(fillField(s, o, 'os', 'Windows 12', 'graph', at), false);
+  // without a set order, a source's value stays as before: AD never replaces Intune, Intune not Lansweeper's first value
+  assert.equal(maySet({ policy: {} }, { os: 'x', src: { os: 'graph' } }, 'os', 'ad'), false);
+  assert.equal(maySet({ policy: {} }, { disk: 'x', src: { disk: 'ls' } }, 'disk', 'graph'), false);
+  // on a device linked to Lansweeper, a field it comes before Intune for is left to it once it has a value
+  assert.equal(maySet({ policy: { os: true } }, { os: 'x', src: { os: 'graph' }, feed: { sys: 'Lansweeper' } }, 'os', 'graph'), false);
+  // what may be saved
+  assert.equal(fieldOrderProblem({ os: ['ad', 'graph', 'ls'], price: [] }), '');
+  for (const bad of [[], { os: ['ad', 'ad'] }, { os: ['x'] }, { purpose: ['graph'] }, { nofield: [] }, { os: 'ad' }]) assert.ok(fieldOrderProblem(bad), JSON.stringify(bad));
+});
+
+test('Lansweeper follows the order too: out of it, it only shows its value; after Intune, it fills empty fields only', () => {
+  const dev = extra => ({ id: 'o1', code: 'INV-0001', name: 'PC-1', serial: 'S1', status: 'active', type: 'pc', feed: { sys: 'Lansweeper', ref: '1' }, ...extra });
+  const push = (s, r) => mergeRecords(s, [{ name: 'PC-1', serial: 'S1', ref: '1', ...r }], new Date('2026-10-29T10:00:00Z'));
+  const base = { rels: [], users: [], locs: [], history: {}, feedOn: true, policy: { ip: true, os: true } };
+  // out of the order (Shown only), though "Feed may overwrite" says yes: the value is shown beside the field, not written
+  const a = { ...base, fieldOrder: { ip: [] }, objs: [dev({ ip: '10.0.0.1', src: { ip: 'ls' } })] };
+  push(a, { ip: '10.0.0.9' });
+  assert.equal(a.objs[0].ip, '10.0.0.1'); assert.equal(a.objs[0].vals.ip.ls[0], '10.0.0.9');
+  // after Intune: Intune's value stays, an empty field is filled
+  const b = { ...base, fieldOrder: { os: ['graph', 'ls'], model: ['graph', 'ls'] }, objs: [dev({ os: 'Windows 11 (Intune)', src: { os: 'graph' } })] };
+  push(b, { os: 'Windows 11 Pro', model: 'HP 800' });
+  assert.deepEqual([b.objs[0].os, b.objs[0].model, b.objs[0].src.model], ['Windows 11 (Intune)', 'HP 800', 'ls']);
+  // purchase data out of the order is not filled
+  const c = { ...base, fieldOrder: { price: [] }, objs: [dev({})] };
+  push(c, { price: '100', supplier: 'Shop AG' });
+  assert.deepEqual([c.objs[0].price, c.objs[0].supplier], [undefined, 'Shop AG']);
 });

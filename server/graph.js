@@ -8,7 +8,7 @@ import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
 import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
-import { fillField, lsOwns, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
+import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
@@ -364,8 +364,6 @@ export function applyGraph(s, records, now = new Date()) {
       if (picked && picked !== 'graph') continue;
       if (!picked && s.fillGraph === false && !owns) continue;
       if (!r[k] || o[k] === r[k]) continue;
-      /* A field Lansweeper fills in is left to it once it has a value: its next push decides. */
-      if (lsOwns(s, o, k) && o[k]) continue;
       if (owns && o[k] && !(o.src && o.src[k])) (o.src ??= {})[k] = 'graph';
       if (fillField(s, o, k, r[k], 'graph', at, label)) counts.filled++;
     }
