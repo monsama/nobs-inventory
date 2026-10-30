@@ -1539,3 +1539,4 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 /* Card footer: the "Seen" chip takes the room up to the relations on the right, so its text shows in full. */
 .card .cf .chip.lsst.seen{flex:1 1 auto;max-width:none;justify-content:flex-start}
 .card .cf .chip.lsst.seen ~ .grow{flex:0 0 0}
+.notes-box{width:100%;min-height:64px;resize:vertical;font:inherit;line-height:1.45}

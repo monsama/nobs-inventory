@@ -202,12 +202,13 @@ try {
   await p.fill('#pnDesc', 'Printer, 3rd floor'); await p.press('#pnDesc', 'Tab');
   await until(p, async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portNotes?.[2] === 'Printer, 3rd floor');
   assert.match(await p.getAttribute('#view .port[data-port="2"]', 'title'), /Printer, 3rd floor/, 'the description shows on the port');
-  // Notes: an entry with a title and a link is added and reaches the server.
+  // Notes: one text box, saved when it is left, and found by the search
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('o1'); });
-  await p.waitForSelector('#enAdd');
-  await p.fill('#enTitle', 'Warranty'); await p.fill('#enLink', 'https://files.example.ch/warranty.pdf'); await p.click('#enAdd');
-  for (let i = 0; i < 150 && !(loadState(db).objs.find(o => o.id === 'o1').entries || []).length; i++) await new Promise(r => setTimeout(r, 100));
-  assert.equal(loadState(db).objs.find(o => o.id === 'o1').entries[0].title, 'Warranty', 'the note is saved');
+  await p.waitForSelector('#objNotes');
+  await p.fill('#objNotes', 'Warranty papers in the blue folder\nhttps://files.example.ch/warranty.pdf'); await p.press('#objNotes', 'Tab');
+  for (let i = 0; i < 150 && !loadState(db).objs.find(o => o.id === 'o1').notes; i++) await new Promise(r => setTimeout(r, 100));
+  assert.equal(loadState(db).objs.find(o => o.id === 'o1').notes, 'Warranty papers in the blue folder\nhttps://files.example.ch/warranty.pdf', 'the notes are saved');
+  assert.equal(await p.evaluate(async () => { const c = await import('/js/01-core.js'); return c.matchesQ(c.byId('o1'), 'blue folder'); }), true);
   // nothing is plugged into a port before it exists: a router with no ports yet opens no port, even one picked before
   await p.evaluate(async () => { const core = await import('/js/01-core.js');
     core.objs.push({ id: 'rt0', code: 'INV-9009', type: 'router', name: 'RTR-NEW', status: 'active', ovr: {}, feed: null });

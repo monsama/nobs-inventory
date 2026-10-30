@@ -1,6 +1,6 @@
 import { closeModal, modal } from './19-modal.js';
 import { sourcesPanel } from './18-sources.js';
-import { accessoriesHtml, canAddPorts, comboNote, entriesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
+import { accessoriesHtml, canAddPorts, comboNote, notesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
 import './srcpick.js';
 import { dateValue } from './datefield.js';
 import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } from './15-review.js';
@@ -381,7 +381,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        <label>Notes</label><div class="ctlrow entries">${entriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
+        <label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}
     </div>
@@ -528,21 +528,14 @@ export function renderObj(o){
   /* The U position only matters for a device in a rack, and not for one sitting on another device. */
   const mountRow = () => { const mr = $('.rk-mount'); if (mr) mr.hidden = !$('#rk_rack').value || !!$('#rk_top').value; };
   if ($('#rk_rack')){ $('#rk_rack').onchange = mountRow; $('#rk_top').onchange = mountRow; }
-  /* Entries are added and removed on their own: each change is saved at once. */
-  const enAdd = $('#enAdd');
-  if (enAdd) enAdd.onclick = () => {
-    const title = $('#enTitle').value.trim(), text = $('#enText').value.trim(), link = $('#enLink').value.trim();
-    if (!title){ toast('Give the note a title.'); return; }
-    if ((o.entries || []).length >= 200){ toast('An object holds up to 200 notes.'); return; }
-    if (link && !/^https?:\/\//i.test(link)){ toast('An attachment link starts with http:// or https://.'); return; }
-    o.entries = [...(o.entries || []), {title, ...(text ? {text} : {}), ...(link ? {link} : {})}];
-    hist(o, now(), `Note added: ${title} by ${who()}`); queueServerSave(); render();
+  /* The notes are saved when the box is left, with a line in the history. */
+  const nb = $('#objNotes');
+  if (nb && !nb.readOnly) nb.onchange = () => {
+    const v = nb.value.replace(/\s+$/, '').slice(0, 5000);
+    if (v === (o.notes || '')) return;
+    if (v) o.notes = v; else delete o.notes;
+    hist(o, now(), `Notes ${v ? 'changed' : 'cleared'} by ${who()}`); queueServerSave(); toast('Notes saved');
   };
-  $('#view').querySelectorAll('[data-delentry]').forEach(b => b.onclick = () => {
-    const e = o.entries[+b.dataset.delentry];
-    o.entries = o.entries.filter((_, i) => i !== +b.dataset.delentry);
-    hist(o, now(), `Note removed: ${e.title} by ${who()}`); queueServerSave(); render();
-  });
   const accAdd = $('#accAdd');
   if (accAdd) accAdd.onclick = () => {
     const name = $('#accName').value.trim(), kind = $('#accKind').value.trim(), serial = $('#accSerial').value.trim();

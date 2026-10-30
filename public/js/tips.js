@@ -65,7 +65,7 @@ const TIPS = [
   ['[data-fm="clear"]', 'Empty this field (asks first)'],
   ['[data-fm="delete"]', 'Remove this field from the type (asks first); the values are kept'],
   ['#accAdd', 'Add this attachment to the device'],
-  ['#enAdd', 'Add this note to the device'],
+  ['#objNotes', 'Notes about this device: saved when you leave the box'],
   ['#swAdd', 'Add this software by hand'],
   ['#arAdd', 'Add this relation'],
   ['.panelbox > .hdr.sechdr, details.fold > summary', 'Click to collapse or expand'],

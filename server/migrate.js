@@ -38,10 +38,12 @@ export function migrateState(s) {
       return [{ ...r, from: r.to, to: r.from, kind: 'uplink', port: null }];
     });
   }
-  /* Notes were one text box; now they are entries (a title, a text and an optional link). An old note becomes the first entry. */
-  for (const o of s.objs) if (typeof o.notes === 'string') {
-    if (o.notes.trim()) o.entries = [{ title: 'Note', text: o.notes.slice(0, 2000) }, ...(Array.isArray(o.entries) ? o.entries : [])];
-    delete o.notes; changed = true;
+  /* Notes are one text box again (0.9.72): the entries of before (a title, a text and a link each) become its lines. */
+  for (const o of s.objs) if (o.entries !== undefined) {
+    const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' — ')).filter(Boolean);
+    const text = [typeof o.notes === 'string' ? o.notes.trim() : '', ...lines].filter(Boolean).join('\n').slice(0, 5000);
+    if (text) o.notes = text; else delete o.notes;
+    delete o.entries; changed = true;
   }
   /* The attachments of a PC were one text; each line (or comma) is now an accessory. */
   for (const o of s.objs) if (typeof o.attach === 'string') {
