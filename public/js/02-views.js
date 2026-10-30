@@ -73,12 +73,15 @@ export function renderSide(){
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
   /* The problems first; then how the devices are joined, each with what it means, and only the kinds that occur. */
+  /* The join kinds sit under their own heading, before the first one shown, each with its colour from the Overview. */
+  let joinHead = false;
   $('#grList').innerHTML = SYNC.graph ? Object.entries(GRAPH_FILTERS).map(([k, [l, c, f, onlyWhenSome, fromOverview]]) => {
     const n = cnt(f), join = c === 'join';
     if (fromOverview && st.intune !== k) return '';
     if (k === 'duplicates' || k === 'ambiguous') return '';   /* under Duplicates */
     if ((join || onlyWhenSome) && !n && st.intune !== k) return '';
-    return `${k === 'entra' ? '<div class="side-sub">Joined</div>' : ''}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l)}">${join ? '' : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
+    const head = join && !joinHead ? (joinHead = true, '<div class="side-sub">Joined</div>') : '';
+    return `${head}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l)}">${join ? `<span class="dot jdot j-${k}"></span>` : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
   }).join('') : '';
   /* An operating system picked on the Overview: shown here while it filters, with a way out. */
   $('#osHdr').hidden = $('#osList').hidden = !st.osFam;
