@@ -1,5 +1,6 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
+import { verifiedNote } from './22-stocktake.js';
 import { REVIEW, $, COSTS, DOMAINS, FIELD_LABEL, LOCS, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, canEdit } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
@@ -383,6 +384,7 @@ export function fieldNote(o, k){
     const sn = subnetFor(o);
     if (sn && sn.gateway && sn.gateway !== o.gateway) t = `Not the gateway of ${sn.name || sn.cidr}, which is ${sn.gateway}.`;
   }
+  if (k === 'loc' && o.status !== 'retired' && !o.review) return verifiedNote(o);
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') { t = 'The warranty has ended.'; cls = 'bad'; } else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
 }

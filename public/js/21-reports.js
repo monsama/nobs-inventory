@@ -10,7 +10,7 @@ let last = { kind: 'inventory', group: 'site', years: 5, year: new Date().getFul
 export function reportsModal(){
   const y = new Date().getFullYear();
   modal(`<div class="mh">Reports</div>
-    <div class="mb"><fieldset class="rp-kinds"><legend class="sr-only">Report</legend>${Object.entries(REPORTS).map(([k, [name, what]]) => `<label class="rp-kind"><input type="radio" name="rpKind" value="${k}" ${k === last.kind ? 'checked' : ''}><span><b>${esc(name)}</b><small>${esc(what)}</small></span></label>`).join('')}</fieldset>
+    <div class="mb"><fieldset class="rp-kinds"><legend class="sr-only">Report</legend>${Object.entries(REPORTS).filter(([, r]) => !r[2]).map(([k, [name, what]]) => `<label class="rp-kind"><input type="radio" name="rpKind" value="${k}" ${k === last.kind ? 'checked' : ''}><span><b>${esc(name)}</b><small>${esc(what)}</small></span></label>`).join('')}</fieldset>
       <div class="rp-opts">
         <label class="rp-opt" data-for="inventory">Grouped by <select id="rpGroup">${Object.entries(GROUPS).map(([k, l]) => `<option value="${k}" ${k === last.group ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <label class="rp-opt" data-for="lifecycle">Replace after <input id="rpYears" type="number" min="1" max="15" value="${last.years}" style="width:64px"> years from purchase</label>
