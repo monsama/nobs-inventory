@@ -25,6 +25,7 @@ export function contractProblem(c){
   if (!count(c.renew, 60)) return `${c.name}: the renewal term is 0 to 60 months.`;
   if (!money(c.cost)) return `${c.name}: the cost is a number of 0 or more.`;
   if (c.per !== undefined && !PERIODS[c.per]) return `${c.name}: the cost is per year, per month or once.`;
+  if (c.contacts !== undefined && (!Array.isArray(c.contacts) || c.contacts.length > 20 || !c.contacts.every(x => typeof x === 'string' && x && x.length <= 60))) return `${c.name}: the contacts are a list of up to 20 contacts.`;
   if (c.devices !== undefined && (!Array.isArray(c.devices) || c.devices.length > 10000 || !c.devices.every(d => typeof d === 'string' && d.length <= 60))) return `${c.name}: the devices are a list of device ids.`;
   return null;
 }

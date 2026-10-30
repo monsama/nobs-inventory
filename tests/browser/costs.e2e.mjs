@@ -15,6 +15,7 @@ const day = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 const sw = n => [{ name: 'Microsoft 365 Apps for enterprise - de-de', version: '16.0.' + n }];
 const s0 = loadState(db);
 saveState(db, { ...s0, locs: ['Bern / Lager', 'Luzern / Büro'],
+  contacts: [{ id: 'k1', kind: 'external', name: 'Petra Netz', company: 'HPE Schweiz', role: 'Account manager', email: 'petra@example.com', phone: '+41 31 000 00 00' }, { id: 'k2', kind: 'internal', name: 'Ivo Intern' }],
   objs: [
     { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', loc: 'Bern / Lager', ports: 24, sfp: 4, ovr: {}, feed: null },
     { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-1', status: 'active', loc: 'Bern / Lager', software: sw(1), warranty: day(-5), ovr: {}, feed: null },
@@ -55,8 +56,17 @@ try {
   await page.fill('#ctCost', '1200');
   await page.fill('#ctDevQ', 'SW-CO');
   await page.check('[data-ctdev=o1]');
+  // a contact from Contacts: external ones first; it shows with its role, mail and phone, and can be taken off again
+  assert.deepEqual(await page.$$eval('#ctAddContact optgroup', g => g.map(x => x.label)), ['External', 'Internal']);
+  await page.selectOption('#ctAddContact', 'k2'); await page.selectOption('#ctAddContact', 'k1');
+  assert.match(await page.textContent('#ctPeople'), /Ivo Intern[\s\S]*Petra Netz\s*HPE Schweiz\s*Account manager · petra@example\.com/);
+  assert.equal(await page.inputValue('#ctSupplier'), 'HPE', 'a supplier typed stays');
+  await page.click('[data-ctunlink=k2]');
   await page.click('#ctOk');
   await page.waitForSelector('table.contracts');
+  assert.match(await page.textContent('table.contracts'), /HPE\s*Petra Netz/);
+  assert.deepEqual((await core()).contracts[0].contacts, ['k1']);
+  await page.click('[data-ctcontact=k1]'); await page.waitForSelector('#mdl'); assert.match(await page.textContent('#mdl .mh'), /Petra Netz/); await page.click('#mdl .mf button:text("Cancel")');
   assert.match(await page.textContent('table.contracts'), /Switch maintenance.*Maintenance.*HPE.*1.*CHF 1.?200.*per year.*Give notice by/s);
   assert.match(await page.textContent('#toolbar'), /1 due within 60 days/);
   const c = (await core()).contracts[0];
