@@ -8,7 +8,7 @@ import { SERVER, queueServerSave } from './07-render.js';
 import { canEdit } from './04-settings.js';
 import { runOf, summary, when } from './16-sync.js';
 
-const SHORT = { ls: 'Lansweeper', graph: 'Intune', ad: 'AD' };
+const SHORT = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'AD' };
 /* The fields by topic, so the list reads like the device page. A field a sync learns later lands in Other. */
 const FIELD_GROUPS = [
   ['Network', ['ip', 'ip6', 'mac', 'mask', 'gateway', 'dns', 'dhcp']],
@@ -18,7 +18,7 @@ const FIELD_GROUPS = [
   ['Purchase and warranty', ['purchased', 'warranty', 'price', 'supplier', 'invoice']],
 ];
 const groupsOf = () => { const known = FIELD_GROUPS.flatMap(g => g[1]); const other = ORDER_FIELDS.filter(k => !known.includes(k)); return [...FIELD_GROUPS.map(([n, ks]) => [n, ks.filter(k => ORDER_FIELDS.includes(k))]), ...(other.length ? [['Other', other]] : [])].filter(g => g[1].length); };
-/* AD and Intune fill nothing while filling is turned off in their tab. */
+/* AD and Entra & Intune fill nothing while filling is turned off in their tab. */
 const globalOff = src => (src === 'graph' && st.fillGraph === false) || (src === 'ad' && st.fillAd === false);
 const list = names => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 /* What the order of field k means, in one plain sentence: who sets it, who only fills a gap, who is only shown. */
@@ -120,7 +120,7 @@ export function renderSetSources(){
     <td class="ds-chain">${chain(k)}</td><td class="ds-how">${esc(orderSentence(k, fieldOrder(st, k)))}</td>${edit ? `<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${esc(SYNC_FIELD_LABEL[k])}">Change…</button></td>` : ''}</tr>`;
   const matrix = `<table class="grid mini ds-matrix"><thead><tr><th>Field</th><th>Comes from (first wins)</th><th>What happens</th>${edit ? '<th><span class="sr-only">Change</span></th>' : ''}</tr></thead>
     ${groupsOf().map(([name, keys]) => `<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${esc(name)}</th></tr>${keys.map(row).join('')}</tbody>`).join('')}</table>`;
-  const fieldNote = `<div class="ds-explain"><p><b>The first source in the list wins.</b> Lansweeper in first place sets the field at every scan; Intune or AD in first place fill it and replace what the sources after them filled. The sources after it only fill a field while it is empty.</p>
+  const fieldNote = `<div class="ds-explain"><p><b>The first source in the list wins.</b> Lansweeper in first place sets the field at every scan; Entra & Intune or AD in first place fill it and replace what the sources after them filled. The sources after it only fill a field while it is empty.</p>
     <p>A source that is shown only does not write the field: its value is shown beside it on the device page, where it can be picked for that one device. A value typed by hand always stays.${edit ? ' Changes apply from each source\'s next sync, after a preview of what they change.' : ' An admin changes this here.'}</p></div>`;
   const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${Object.keys(st.fieldOrder).length} field${Object.keys(st.fieldOrder).length === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
   const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => `<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${esc(SOURCE_LABEL[src])}</b></div>
