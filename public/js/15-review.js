@@ -5,7 +5,7 @@ import { byId, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toas
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
 import { canEdit, me } from './04-settings.js';
-import { render, queueServerSave } from './07-render.js';
+import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
 
 export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
@@ -75,26 +75,28 @@ function merge(pairs, how = ''){
   }
 }
 /* Undo puts every device touched back as it was: its fields, and in which list it sits; and the relations a merge moved. */
-function withUndo(list, msg, change){
+function withUndo(list, msg, change, { reload = false } = {}){
   /* The user is read from uid (bindUser): writing its name back would look the person up again, or make one. */
-  const was = list.map(o => { const b = JSON.parse(JSON.stringify(o)); delete b.user; return [o, b, objs.includes(o)]; });
-  const relsWas = rels.map(r => [r, { ...r }]);
+  const was = list.map(o => { const b = JSON.parse(JSON.stringify(o)); delete b.user; return [o.id, b, objs.includes(o)]; });
+  const relsWas = rels.map(r => ({ ...r }));
   change(list);
   render();
+  /* Devices taken into the inventory: saved at once and the page loaded again from the server, so codes, counts and
+     what others changed meanwhile are current. Undo then finds the records again by id. */
+  if (reload) flushSave().then(() => reloadFromServer());
   toastUndo(msg, () => {
-    for (const [o, before, inObjs] of was){
+    for (const [id, before, inObjs] of was){
+      const o = objs.find(x => x.id === id) || REVIEW.find(x => x.id === id); if (!o) continue;
       for (const k of Object.keys(o)) if (k !== 'user' && !(k in before)) delete o[k];
       Object.assign(o, before);
       for (const a of [objs, REVIEW]){ const i = a.indexOf(o); if (i >= 0) a.splice(i, 1); }
       (inObjs ? objs : REVIEW).push(o);
       hist(o, now(), `Undone: ${msg}`);
     }
-    rels.splice(0, rels.length, ...relsWas.map(([r, w]) => Object.assign(r, w)));
-    render();
-  });
+    rels.splice(0, rels.length, ...relsWas.map(r => ({ ...r })));
+    render(); queueServerSave();
+  }, { anyEpoch: reload });
 }
-
-/* Accept, ignore or bring back one device or many, from Cards, Table or the device page, with one Undo for all. */
 export function reviewDo(kind, list, { asked = false } = {}){
   if (!list.length) return;
   const n = list.length, what = n === 1 ? list[0].name : `${n} devices`;
@@ -119,11 +121,11 @@ export function reviewDo(kind, list, { asked = false } = {}){
         document.getElementById('cfCancel').click();
         /* Merged and accepted in one step, so one Undo takes back both. */
         const pairs = known.map(o => [o, mergeTarget(o)]).filter(([, t]) => t), rest = list.filter(o => !known.includes(o));
-        withUndo([...new Set([...pairs.flat(), ...rest])], `${pairs.length} merged${rest.length ? `, ${rest.length} accepted` : ''}`, () => { merge(pairs); accept(rest); });
+        withUndo([...new Set([...pairs.flat(), ...rest])], `${pairs.length} merged${rest.length ? `, ${rest.length} accepted` : ''}`, () => { merge(pairs); accept(rest); }, { reload: true });
       }; }
     return;
   }
-  if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept);
+  if (kind === 'accept') withUndo(list, `${what} accepted into the inventory`, accept, { reload: true });
   else if (kind === 'ignore') withUndo(list, `${what} ignored: no sync brings ${n === 1 ? 'it' : 'them'} back`, ignore);
   else withUndo([...new Set([...list, ...list.map(o => o.review.merged && byId(o.review.merged)).filter(Boolean)])], `${what} back in To review`, () => restore(list));
 }
@@ -227,7 +229,7 @@ export function reviewBanner(o){
   if (!o || !o.review) return '';
   const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
-    ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore">Back to review</button>` : ''}</div>`
+    ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? 'Unmerge' : 'Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
     : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
 }
 export function bindReviewBanner(o){

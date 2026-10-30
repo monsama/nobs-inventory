@@ -3,20 +3,23 @@ import assert from 'node:assert/strict';
 import { migrateState } from '../server/migrate.js';
 import { checkState } from '../server/state.js';
 
-/* Notes are entries (a title, a text and an optional http(s) link). An old one-text note becomes the first entry. */
+/* Notes are one text box (o.notes). The entries of before (a title, a text and a link each) become its lines. */
 const base = (extra) => ({ objs: [{ id: 'pc', code: 'INV-0001', type: 'pc', name: 'PC1', status: 'active', ovr: {}, feed: null, ...extra }], rels: [], users: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 1, rseq: 0, types: {}, history: {} });
 
-test('an old note text becomes the first entry, and is not kept as a text', () => {
-  const s = base({ notes: 'Warranty until 2027' });
+test('the note entries of before become lines of the one notes text', () => {
+  const s = base({ notes: 'Old text', entries: [{ title: 'Warranty', text: 'until 2027' }, { title: 'Manual', link: 'https://files.example.ch/a.pdf' }] });
   assert.equal(migrateState(s), true);
-  assert.equal(s.objs[0].notes, undefined);
-  assert.deepEqual(s.objs[0].entries, [{ title: 'Note', text: 'Warranty until 2027' }]);
+  assert.equal(s.objs[0].entries, undefined);
+  assert.equal(s.objs[0].notes, 'Old text\nWarranty — until 2027\nManual — https://files.example.ch/a.pdf');
   assert.equal(migrateState(s), false, 'a second migration changes nothing');
+  const t = base({ entries: [] }); migrateState(t);
+  assert.equal(t.objs[0].notes, undefined, 'no entries, no notes');
 });
 
-test('an attachment link must be http or https', () => {
-  assert.doesNotThrow(() => checkState(base({ entries: [{ title: 'Doc', text: '', link: 'https://files.example.ch/a.pdf' }] })));
-  assert.throws(() => checkState(base({ entries: [{ title: 'Doc', link: 'file:///C:/a.pdf' }] })), /http/);
+test('the notes are text of up to 5000 characters', () => {
+  assert.doesNotThrow(() => checkState(base({ notes: 'Papers in the blue folder' })));
+  assert.throws(() => checkState(base({ notes: 'x'.repeat(5001) })), /5000/);
+  assert.throws(() => checkState(base({ notes: 42 })), /notes/);
 });
 
 test('the attachment text of a PC becomes accessories, one per line or comma', () => {

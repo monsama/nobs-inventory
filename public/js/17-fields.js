@@ -33,11 +33,9 @@ export function accessoriesHtml(o){
   return `<div class="entries-box">${list || '<p class="note">No attachments yet.</p>'}
     <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`;
 }
-/* Notes and attachments: each entry has a title, a text and an optional link (a document on a share, a web page). */
-export function entriesHtml(o){
-  const list = (o.entries || []).map((e, i) => `<div class="entry"><div class="entry-head"><b>${esc(e.title)}</b>${e.link ? ` <a class="link" href="${esc(e.link)}" target="_blank" rel="noopener">Open attachment</a>` : ''}<button class="icon ghost" data-delentry="${i}" aria-label="Remove ${esc(e.title)}" title="Remove">×</button></div>${e.text ? `<div class="entry-text">${esc(e.text)}</div>` : ''}</div>`).join('');
-  return `<div class="entries-box">${list || '<p class="note">No notes yet.</p>'}
-    <div class="addrel entry-add"><input id="enTitle" maxlength="120" placeholder="Title, e.g. Warranty" aria-label="Title of the note"><input id="enText" maxlength="2000" placeholder="Text (optional)" aria-label="Text of the note"><input id="enLink" maxlength="500" placeholder="Link, https://…" aria-label="Attachment link"><button id="enAdd">Add</button></div></div>`;
+/* Notes: one text box per device, saved when it is left. */
+export function notesHtml(o, edit){
+  return `<textarea id="objNotes" class="notes-box" rows="${Math.min(12, Math.max(3, String(o.notes || '').split('\n').length + 1))}" maxlength="5000" placeholder="${edit ? 'Anything worth knowing about this device: where its papers are, a known quirk, a link…' : ''}" aria-label="Notes" ${edit ? '' : 'readonly'}>${esc(o.notes || '')}</textarea>`;
 }
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;

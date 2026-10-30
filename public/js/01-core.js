@@ -588,14 +588,15 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
 /* A reload from the server replaces every record (applyState counts them in epoch): an Undo offered before it would write
    into records that are no longer the page's, so it is refused instead. */
 export const UNDO = { epoch: 0 };
-export function toastUndo(msg, undo){
+/* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
+export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   const t = $('#toast'), epoch = UNDO.epoch;
   t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
     t.classList.add('off'); clearTimeout(toast.h);
     if (!e.target.closest('.t-undo')) return;
-    if (UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
+    if (!anyEpoch && UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
     undo(); toast('Undone');
   };
   clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
@@ -640,7 +641,7 @@ export const isAttached = k => k === 'attached';
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
-export const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
+export const matchesQ = (o, q) => !q || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup || st.quality);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,

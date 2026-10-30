@@ -335,6 +335,7 @@ function checkStateRules(s, size = true) {
         for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
       }
     }
+    if (o.notes !== undefined && (typeof o.notes !== 'string' || o.notes.length > 5000)) bad(`${o.name}: the notes are text of up to 5000 characters.`);
     if (o.entries !== undefined) {
       if (!Array.isArray(o.entries) || o.entries.length > 200) bad(`${o.name}: notes must be a list of up to 200 entries.`);
       else for (const e of o.entries) {
