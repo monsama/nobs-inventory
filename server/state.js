@@ -328,7 +328,7 @@ function checkStateRules(s, size = true) {
         if (a.kind !== undefined && (typeof a.kind !== 'string' || a.kind.length > 60)) bad(`${o.name}: the kind of an attachment is text of up to 60 characters.`);
         if (a.serial !== undefined && (typeof a.serial !== 'string' || a.serial.length > 60)) bad(`${o.name}: the serial of an attachment is text of up to 60 characters.`);
         /* A docking station merged in: its MAC address and the record Lansweeper sees it as. */
-        for (const [k, n] of [['mac', 40], ['seenAs', 120]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
+        for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
       }
     }
     if (o.entries !== undefined) {

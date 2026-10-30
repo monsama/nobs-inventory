@@ -1445,3 +1445,10 @@ table.grid.ds-edit{min-width:680px}.ds-edit th:first-child{width:24%}.ds-edit td
 .ds-ord{font-size:12px;color:var(--muted)}
 .ds-matrix tr.ds-set th[scope=row]::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
 .ds-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px 12px;font-size:12px}
+/* Merged records: name and address, the details below, Open and Unmerge as small buttons on the right. */
+.nics.merged li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 12px}
+.nics.merged .nic-addr{margin-left:0}
+.nics.merged .nic-meta{grid-column:1 / 3}
+.nics.merged .nic-acts{grid-column:3;grid-row:1 / 3;display:flex;gap:6px}
+.nics.merged .nic-name{white-space:normal;overflow-wrap:anywhere}.nics.merged .chip{margin-left:6px;vertical-align:baseline}
+button.mini{height:24px;padding:0 8px;font-size:12px}

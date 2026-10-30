@@ -63,7 +63,7 @@ try {
   const osMark = p.locator('#f_s1_os >> xpath=ancestor::div[contains(@class,"ctlrow")]//span[contains(@class,"fsrc")]');
   assert.match(await osMark.getAttribute('title'), /From the computer account in Active Directory/);
   await osMark.click();
-  assert.match(await p.textContent('#fsrcPop'), /Automatic[\s\S]*Active Directory\s*in use\s*Windows Server 2019 Standard[\s\S]*last logon 12\.04\.2026/);
+  assert.match(await p.textContent('#fsrcPop'), new RegExp(`Automatic[\\s\\S]*Active Directory\\s*in use\\s*Windows Server 2019 Standard[\\s\\S]*last logon ${oldDay.replace(/\./g, '\\.')}`));
   await p.click('#objTitle');
   assert.equal(await p.locator('#fsrcPop').count(), 0, 'closed by a click elsewhere');
   await osMark.focus(); await p.keyboard.press('Enter');

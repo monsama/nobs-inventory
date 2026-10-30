@@ -324,7 +324,7 @@ test('a second record named by the DNS name: the AD account stays with the devic
   const w = { ...state([]), feedOn: true, mergeTwins: true, codeN: 1, seq: 100, policy: { ip: true } };
   mergeRecords(w, [{ name: 'nb-35.corp.example', serial: '', ip: '10.1.2.104', mac: '64:c9:01:e3:9c:d1', ref: '18257' }, { name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }], NOW);
   assert.deepEqual(w.objs.map(o => o.name), ['NB-35'], 'no second device');
-  assert.deepEqual(w.objs[0].accessories, [{ name: 'Docking station', kind: 'Dock', mac: '64:c9:01:e3:9c:d1', seenAs: 'nb-35.corp.example' }]);
+  assert.deepEqual(w.objs[0].accessories, [{ name: 'Docking station', kind: 'Dock', mac: '64:c9:01:e3:9c:d1', seenAs: 'nb-35.corp.example', ref: '18257' }]);
   assert.equal(w.objs[0].nics, undefined, 'no adapter of the device');
   const before = (w.history[w.objs[0].id] || []).length;
   mergeRecords(w, [{ name: 'NB-35', serial: 'MP2V76BR', ip: '10.1.2.107', ref: '18200' }, { name: 'nb-35.corp.example', serial: '', ip: '10.1.2.110', mac: '64:c9:01:e3:9c:d1', ref: '18257' }], NOW);

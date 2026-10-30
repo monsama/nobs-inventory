@@ -98,3 +98,25 @@ test('Lansweeper follows the order too: out of it, it only shows its value; afte
   push(c, { price: '100', supplier: 'Shop AG' });
   assert.deepEqual([c.objs[0].price, c.objs[0].supplier], [undefined, 'Shop AG']);
 });
+
+test('a monitor Lansweeper sees on a dock hangs on the device the dock was merged into, and stays there', () => {
+  const at = new Date('2026-10-30T07:00:00Z');
+  const pc = { id: 'pc', code: 'INV-0001', name: 'NB-7', serial: 'S7', status: 'active', type: 'pc', feed: { sys: 'Lansweeper', ref: 'nb7' } };
+  const dock = { id: 'dk', code: 'INV-0002', name: 'nb-7.corp.example', status: 'active', type: 'pc', feed: { sys: 'Lansweeper', ref: 'dk7' }, excluded: true, review: { src: 'lansweeper', at: 'x', ignored: 'x', merged: 'pc' } };
+  const mon = { id: 'mo', code: 'INV-0003', name: 'Dell P2422H', serial: 'M1', status: 'active', type: 'monitor', feed: { sys: 'Lansweeper', ref: 'm1' } };
+  const s = { objs: [pc, dock, mon], rels: [{ id: 'r0', from: 'mo', to: 'dk', kind: 'attached', port: null, vlan: null, src: 'Lansweeper' }], users: [], locs: [], history: {}, feedOn: true, policy: {} };
+  // the monitor says it hangs on the dock's record: the link goes to the device, the one to the merged record goes
+  mergeRecords(s, [{ name: 'Dell P2422H', serial: 'M1', ref: 'm1', links: [{ ref: 'dk7', kind: 'attached' }] }, { name: 'NB-7', serial: 'S7', ref: 'nb7', links: [] }], at);
+  assert.deepEqual(s.rels.map(r => [r.from, r.to, r.kind]), [['mo', 'pc', 'attached']]);
+  // the dock's own links (the switch port it is plugged into) are the device's, and a push of the device alone keeps them
+  const sw = { id: 'sw', code: 'INV-0004', name: 'SW-1', status: 'active', type: 'switch', ports: 24, feed: { sys: 'Lansweeper', ref: 'sw1' } };
+  s.objs.push(sw);
+  mergeRecords(s, [{ name: 'nb-7.corp.example', ref: 'dk7', links: [{ ref: 'sw1', kind: 'connected', port: '5' }] }], at);
+  assert.ok(s.rels.some(r => r.from === 'pc' && r.to === 'sw' && r.port === '5'), 'plugged in through the dock');
+  mergeRecords(s, [{ name: 'NB-7', serial: 'S7', ref: 'nb7', links: [] }, { name: 'Dell P2422H', serial: 'M1', ref: 'm1', links: [{ ref: 'dk7', kind: 'attached' }] }], at);
+  assert.ok(s.rels.some(r => r.from === 'mo' && r.to === 'pc'), 'the monitor stays on the device');
+  // a dock kept as an attachment (Merge docking-station records): by its ref and the name Lansweeper sees it as
+  const t = { objs: [{ ...pc, accessories: [{ name: 'Docking station', kind: 'Dock', seenAs: 'nb-7.corp.example', ref: 'dk7' }] }, { ...mon }], rels: [], users: [], locs: [], history: {}, feedOn: true, policy: {} };
+  mergeRecords(t, [{ name: 'Dell P2422H', serial: 'M1', ref: 'm1', links: [{ ref: 'dk7', kind: 'attached' }] }], at);
+  assert.deepEqual(t.rels.map(r => [r.from, r.to]), [['mo', 'pc']]);
+});
