@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { finishSso, startSso, userForClaims } from './sso.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
@@ -151,7 +152,41 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
-    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph() });
+    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph(), sso: ssoOn() });
+  });
+
+  /* Sign in with Microsoft (server/sso.js), when turned on in Settings → Entra & Intune and Graph is set up. The browser
+     goes to Microsoft and comes back to the callback; a cookie bound to the start keeps a sign-in begun elsewhere out. */
+  const ssoOn = () => graphSettings().sso === 'on' && !!cfgGraph();
+  const SSO_COOKIE = secureCookie ? '__Host-ni_sso' : 'ni_sso';
+  const ssoCookie = (v, age) => `${SSO_COOKIE}=${v}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${age}${secureCookie ? '; Secure' : ''}`;
+  const callbackUrl = req => `${req.protocol}://${req.get('host')}${req.baseUrl || ''}/api/sso/callback`;
+  app.get('/api/sso/start', (req, res, next) => {
+    try {
+      if (!ssoOn()) throw new HttpError(404, 'Sign-in with Microsoft is not turned on.');
+      const { url, bind } = startSso(cfgGraph(), callbackUrl(req));
+      res.setHeader('Set-Cookie', ssoCookie(bind, 600));
+      res.redirect(302, url);
+    } catch (e) { next(e); }
+  });
+  app.get('/api/sso/callback', async (req, res) => {
+    /* Back to the page, which says what went wrong by the code; the reason is in the log. */
+    const back = (code, cookies = []) => { res.setHeader('Set-Cookie', [ssoCookie('', 0), ...cookies]); res.redirect(302, `../../${code ? `?sso=${code}` : ''}`); };
+    try {
+      if (!ssoOn()) return back('off');
+      if (req.query.error) { audit(db, null, `sign in with Microsoft refused by Microsoft: ${String(req.query.error_description || req.query.error).split(/[\r\n]/)[0].slice(0, 200)}`); return back('denied'); }
+      const claims = await finishSso(cfgGraph(), { state: req.query.state, code: req.query.code, bind: readCookie(req.headers.cookie, SSO_COOKIE) }, graphFetch);
+      const user = userForClaims(loadState(db).users, claims);
+      const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
+      if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
+      if (user.role === 'none') { audit(db, user.id, 'sign in with Microsoft refused: no role'); return back('norole'); }
+      const token = createSession(db, user.id, req.get('user-agent') || '');
+      audit(db, user.id, `sign in with Microsoft (${who})`);
+      back('', [cookie(token, 43200)]);
+    } catch (e) {
+      audit(db, null, `sign in with Microsoft failed: ${String(e.message || e).slice(0, 200)}`);
+      back('failed');
+    }
   });
 
   /* One answer for every failed sign-in: wrong login, wrong password, deactivated, not in the group. This keeps
@@ -508,14 +543,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     let used = null;
     if (g) { const x = new crypto.X509Certificate(g.certPem); used = { expires: new Date(x.validTo).toISOString(), thumbprint: entraThumbprintOf(g.certPem) }; }
     const certs = (loadState(db).graphCerts || []).map(c => ({ ...c, inUse: !!used && c.thumbprint === used.thumbprint, chosen: c.thumbprint === set.thumbprint, onServer: hasGraphKey(db, c.thumbprint) }));
-    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', defender: set.defender || 'off', autopilot: set.autopilot || 'off', ...(used || {}), certs });
+    res.json({ configured: !!g, source: graphSource(), tenant: set.tenant || '', clientId: set.clientId || '', people: set.people || 'match', defender: set.defender || 'off', autopilot: set.autopilot || 'off', sso: set.sso || 'off', ...(used || {}), certs });
   });
   /* The tenant and the app (client) id, from the app registration's Overview page in Entra. */
   app.post('/api/graph/settings', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {};
       /* Each part is saved on its own: the IDs from step 1, how far people go from step 5. */
-      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}), ...('defender' in b ? { defender: String(b.defender) } : {}), ...('autopilot' in b ? { autopilot: String(b.autopilot) } : {}) }));
+      editGraph(g => ({ ...g, ...('tenant' in b ? { tenant: String(b.tenant || '').trim(), clientId: String(b.clientId || '').trim() } : {}), ...('people' in b ? { people: String(b.people) } : {}), ...('defender' in b ? { defender: String(b.defender) } : {}), ...('autopilot' in b ? { autopilot: String(b.autopilot) } : {}), ...('sso' in b ? { sso: String(b.sso) } : {}) }));
       audit(db, req.user.id, 'Microsoft Graph settings saved');
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -602,6 +637,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
       const s = loadState(db), r = buildReport(s, opts);
       const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}-${day}`;
+      if (opts.kind === 'stocktake' && !(s.stocktakes || []).some(t => t.id === opts.id && t.finished)) throw new HttpError(404, 'No such stocktake.');
       res.set('Cache-Control', 'no-store');
       if (req.query.format === 'xlsx') {
         res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));

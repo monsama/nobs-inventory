@@ -5,6 +5,7 @@ import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
+import { renderStocktake } from './22-stocktake.js';
 import { FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
@@ -28,6 +29,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contracts') renderContracts();
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
+  else if (st.tab === 'stocktake') renderStocktake();
   else renderObj(byId(st.tab));
   renderFilterBar();
   fullTextTooltips();
@@ -113,7 +115,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, fieldOrder: st.fieldOrder || {}, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, fieldOrder: st.fieldOrder || {}, stocktakes: st.stocktakes || [], fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -328,7 +330,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.fieldOrder = d.fieldOrder || null; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.fieldOrder = d.fieldOrder || null; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
@@ -431,8 +433,11 @@ export async function boot(){
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph;
-  if (!info.user){ clearInventory(); render(); loginModal(); return; }
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
+  /* Back from Microsoft: what went wrong, if anything, said on the sign-in; the address is cleaned. */
+  const ssoErr = new URLSearchParams(location.search).get('sso');
+  if (ssoErr) history.replaceState(null, '', location.pathname + location.hash);
+  if (!info.user){ clearInventory(); render(); loginModal(SSO_ERRORS[ssoErr] || (ssoErr ? SSO_ERRORS.failed : '')); return; }
   await loadFromServer(info.user);
 }
 /* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
@@ -456,14 +461,24 @@ export async function loadFromServer(user){
   st.meId = user.id;
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
-}/* Sign in with a login and password. The server checks the account, or the directory when LDAP is set up. */
+}/* What the sign-in says when Microsoft's sign-in did not let someone in (the reason itself is in the log). */
+const SSO_ERRORS = {
+  unknown: 'Your Microsoft account is not a user of the inventory. An admin can add you, or sync the people from AD or Entra.',
+  norole: 'Your account has no access to the inventory yet. An admin can give you the viewer role in Settings → Users.',
+  denied: 'The sign-in with Microsoft was cancelled or refused.',
+  off: 'Sign-in with Microsoft is turned off.',
+  failed: 'The sign-in with Microsoft did not work. Try again; if it keeps failing, an admin finds the reason in the log.',
+};
+/* Sign in with a login and password, or with Microsoft when that is turned on. The server checks the account, or the
+   directory when LDAP is set up. */
 export function loginModal(err = '', login = ''){
   document.body.classList.add('signed-out');
   modal(`<div class="mh">Sign in</div>
     <div class="mb"><div class="brandmark" style="margin:2px 0 16px"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div><form id="loginForm" class="form" style="padding:0">
       <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
       <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
-    </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p></div>
+    </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p>
+    ${SERVER.sso ? `<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>` : ''}</div>
     <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
   const go = async () => {
     const login = $('#lgUser').value;

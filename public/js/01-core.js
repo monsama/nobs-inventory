@@ -1,6 +1,7 @@
 import { pad2, stamp, stampTime } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
+import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -429,6 +430,7 @@ export const QUALITY = {
   noserial: ['No serial number', 'A physical device without its serial number', o => !o.serial && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type)],
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
+  unconfirmed: ['Not confirmed on site for 12 months', 'Not found in a stocktake, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */

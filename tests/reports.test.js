@@ -21,7 +21,7 @@ const state = () => ({
 });
 
 test('the reports: inventory by group, replacement by purchase date, costs of a year', () => {
-  assert.deepEqual(reportOptions({ kind: 'nope', group: 'x', years: '99', year: '1900' }, TODAY), { kind: 'inventory', group: 'site', years: 15, year: 2026 });
+  assert.deepEqual(reportOptions({ kind: 'nope', group: 'x', years: '99', year: '1900' }, TODAY), { kind: 'inventory', group: 'site', years: 15, year: 2026, id: '' });
   const inv = buildReport(state(), { kind: 'inventory', group: 'dept' }, TODAY);
   assert.equal(inv.count, 2, 'retired and waiting devices are not in the inventory');
   assert.deepEqual(inv.groups.map(g => [g.name, g.rows.map(r => r[1])]), [['IT', ['NB-1']], ['No department', ['PC-2']]]);
@@ -57,4 +57,24 @@ test('a report as a PDF and as an Excel workbook', async () => {
   assert.match(sheet, /<c r="H2" s="2"><v>600<\/v><\/c>/, 'amounts stay numbers');
   assert.match(sheet, /<f>SUM\(H2:H4\)<\/f><v>2700.5<\/v>/, 'with their total');
   assert.match(sheet, /<pane ySplit="1"/); assert.match(sheet, /<autoFilter ref="A1:H4"\/>/);
+});
+
+test('a stocktake as a report: missing, moved, not in the inventory, confirmed', async () => {
+  const { stocktakeResult, stocktakesProblem, verifiedProblem } = await import('../public/js/stocktake.js');
+  const s = state();
+  s.objs.push({ id: 'e', code: 'INV-0005', name: 'PC-E', type: 'pc', status: 'active', loc: 'Bern / EG' });
+  s.objs[0].verified = { at: '2026-10-30', by: 'Anna', st: 't1' };
+  s.objs[1].verified = { at: '2026-10-30', by: 'Anna', st: 't1', from: 'Bern / EG' };
+  const t = { id: 't1', name: 'Autumn', scope: '', started: '2026-10-30T07:00:00Z', by: 'Anna', unknown: [{ text: 'XYZ', at: 'x' }] };
+  t.result = stocktakeResult(t, s.objs); t.finished = '2026-10-30T09:00:00Z'; t.finishedBy = 'Anna';
+  assert.deepEqual([t.result.total, t.result.confirmed, t.result.missing.length, t.result.moved.map(m => m.from), t.result.unknown], [3, 2, 1, ['Bern / EG'], ['XYZ']]);
+  s.stocktakes = [t];
+  const r = buildReport(s, { kind: 'stocktake', id: 't1' }, TODAY);
+  assert.equal(r.title, 'Autumn');
+  assert.deepEqual(r.groups.map(g => [g.name, g.rows.length]), [['Missing', 1], ['Moved here', 1], ['Not in the inventory', 1], ['Confirmed', 2]]);
+  assert.equal(buildReport(s, { kind: 'stocktake', id: 'nope' }, TODAY).groups.length, 0);
+  assert.equal(stocktakesProblem([t]), '');
+  assert.ok(stocktakesProblem([{ id: '', name: 'x' }]));
+  assert.equal(verifiedProblem(s.objs[1].verified), '');
+  assert.ok(verifiedProblem({ at: '30.10.2026' }));
 });

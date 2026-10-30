@@ -77,8 +77,9 @@ export function renderOverview(){
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
   /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
+  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
+  $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
   $('#view').innerHTML = `<div class="ov">
     <div class="ov-kpis">
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock · ${compact(live.length - inUse.length - stock)} other`, 'data-ovs="active"')}

@@ -8,6 +8,8 @@ export const REPORTS = {
   inventory: ['Inventory', 'Every device not retired, with its user, place and warranty'],
   lifecycle: ['Lifecycle and replacement', 'Devices by when they are due for replacement, from their purchase date'],
   costs: ['Costs per year', 'Contracts, licences and the devices bought in one calendar year'],
+  /* From the Stocktake view: one finished stocktake (opts.id). */
+  stocktake: ['Stocktake', 'What a stocktake found: missing, moved, not in the inventory, confirmed', true],
 };
 export const GROUPS = { site: 'Site', loc: 'Location', dept: 'Department', type: 'Type', none: 'No grouping' };
 const STATUS_LABEL = { active: 'In use', stock: 'In stock', unused: 'Not in use', repair: 'In repair', retired: 'Retired' };
@@ -19,7 +21,8 @@ export function reportOptions(q = {}, today = new Date()) {
   const years = Math.min(15, Math.max(1, Math.round(Number(q.years)) || 5));
   const y = Math.round(Number(q.year));
   const year = y >= 2000 && y <= 2100 ? y : today.getFullYear();
-  return { kind, group, years, year };
+  const id = /^[\w-]{1,40}$/.test(String(q.id || '')) ? String(q.id) : '';
+  return { kind, group, years, year, id };
 }
 
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -54,6 +57,27 @@ export function buildReport(s, opts, today = new Date()) {
       columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'Serial number', w: 1.2 },
         { label: 'User', w: 1.4 }, { label: 'Department', w: 1.1 }, { label: 'Location', w: 1.4 }, { label: 'Status', w: 0.8 }, { label: 'Warranty ends', w: 1.1 }],
       groups: o.group === 'none' ? [{ name: '', rows: rows.map(r => r[1]) }] : grouped(rows, keyOf, { site: 'No site', loc: 'No location', dept: 'No department', type: 'No type' }[o.group]),
+    };
+  }
+
+  if (o.kind === 'stocktake') {
+    const t = (s.stocktakes || []).find(x => x.id === o.id && x.finished && x.result);
+    if (!t) return { title: 'Stocktake', subtitle: 'This stocktake is not finished, or no longer in the list.', columns: [{ label: 'Name' }], groups: [], count: 0 };
+    const r = t.result, byId = new Map(live.map(d => [d.id, d]));
+    const now = id => byId.get(id) || {};
+    const conf = live.filter(d => d.verified && d.verified.st === t.id).sort((a, b) => byName(a.loc || '', b.loc || '') || byName(a.name, b.name));
+    const cols = [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Serial number', w: 1.2 }, { label: 'User', w: 1.4 }, { label: 'Location', w: 1.6 }, { label: 'Note', w: 1.8 }];
+    const dev = (m, note) => { const d = now(m.id); return [m.code || d.code || '', m.name || d.name || '', typeLabel(d.type), d.serial || '', person(d), m.loc || d.loc || '', note]; };
+    return {
+      title: t.name, count: r.total,
+      subtitle: `${t.scope || 'Everywhere'} · started ${dateText(t.started.slice(0, 10))} by ${t.by || '—'}, finished ${dateText(t.finished.slice(0, 10))} by ${t.finishedBy || '—'} · ${r.confirmed} of ${r.total} confirmed, ${r.missing.length} missing, ${r.moved.length} moved, ${r.unknown.length} not in the inventory`,
+      columns: cols,
+      groups: [
+        { name: 'Missing', rows: r.missing.map(m => dev(m, 'Not found')) },
+        { name: 'Moved here', rows: r.moved.map(m => dev(m, `Was in ${m.from || 'no location'}`)) },
+        { name: 'Not in the inventory', rows: r.unknown.map(u => ['', u, '', '', '', '', 'Scanned, not known']) },
+        { name: 'Confirmed', rows: conf.map(d => dev(d, `Confirmed ${dateText(d.verified.at)}${d.verified.by ? ` by ${d.verified.by}` : ''}`)) },
+      ].filter(g => g.rows.length),
     };
   }
 

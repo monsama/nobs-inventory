@@ -100,6 +100,12 @@ export async function renderSetGraph(){
         <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.autopilot || 'off') === 'off' ? 'selected' : ''}>Don't read Autopilot</option>
           <option value="on" ${g.autopilot === 'on' ? 'selected' : ''}>Read Windows Autopilot</option></select></div></li>
+      <li><div class="gs-head"><b>Sign-in with Microsoft</b> <span class="muted">(optional)</span></div>
+        <p class="note">People sign in with their Microsoft account (with your Entra rules: multi-factor, conditional access) instead of a password here. They must be users of the inventory with a role, found by their Entra account, user principal name or e-mail; nobody new gets in this way. Passwords keep working. In the app registration, add this as a <b>Web</b> redirect URI (Authentication → Add a platform → Web):</p>
+        <div class="gs-uri"><span class="mono" id="gSsoUri">${esc(location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/sso/callback')}</span><button type="button" class="mini" id="gSsoCopy">Copy</button></div>
+        <div class="form" style="padding:8px 0 0"><label for="gSso">Sign-in</label><select id="gSso" ${edit && g.configured ? '' : 'disabled'}>
+          <option value="off" ${(g.sso || 'off') === 'off' ? 'selected' : ''}>Passwords only</option>
+          <option value="on" ${g.sso === 'on' ? 'selected' : ''}>Also with Microsoft</option></select></div></li>
       <li><div class="gs-head"><b>Device fields</b></div>
         <p class="note">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>
         <label class="pchk" style="width:auto;padding-top:6px"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Fill in empty fields from Intune</label></li>
@@ -124,6 +130,12 @@ export async function renderSetGraph(){
     const x = await post('api/graph/settings', {defender: $('#gDefender').value});
     toast(x.ok ? ($('#gDefender').value === 'on' ? 'Saved: Defender is read at the next sync. Test connection checks its permission.' : 'Saved: Defender is not read any more') : (x.j.error || 'Not saved.'));
   };
+  $('#gSso').onchange = async () => {
+    const x = await post('api/graph/settings', {sso: $('#gSso').value});
+    SERVER.sso = x.ok ? $('#gSso').value === 'on' : SERVER.sso;
+    toast(x.ok ? ($('#gSso').value === 'on' ? 'Saved: the sign-in offers Microsoft. Try it in a private window before you rely on it.' : 'Saved: sign-in with passwords only') : (x.j.error || 'Not saved.'));
+  };
+  $('#gSsoCopy').onclick = () => { navigator.clipboard?.writeText($('#gSsoUri').textContent).then(() => toast('Redirect URI copied'), () => toast('Select the address and copy it')); };
   $('#gAutopilot').onchange = async () => {
     const x = await post('api/graph/settings', {autopilot: $('#gAutopilot').value});
     toast(x.ok ? ($('#gAutopilot').value === 'on' ? 'Saved: Autopilot is read at the next sync. Test connection checks its permission.' : 'Saved: Autopilot is not read any more') : (x.j.error || 'Not saved.'));

@@ -195,11 +195,14 @@ function emptyHtml(){
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts'};
+export const FIXED_TABS = {overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
-  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.scope));
+  /* Stocktake shows while one runs, or while it is the tab open (from the Overview). */
+  if (!st.tabIds.includes('stocktake')) st.tabIds.push('stocktake');
+  const stk = (st.stocktakes || []).some(t => !t.finished);
+  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake'));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope && LIST_TABS.includes(st.tab)) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
