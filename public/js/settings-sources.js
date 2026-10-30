@@ -1,8 +1,9 @@
 /* Settings → Data sources: what each source brings into the inventory, who wins when several know a field, and how each
    is set up here right now. Drawn from sync-map.js (the lists the syncs themselves use) and from the current settings,
    so it changes with them and is never out of date. */
-import { $, LS_ON, SYNC, esc, st, toastUndo } from './01-core.js';
-import { LS_FILL, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, PRECEDENCE, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldOrder } from './sync-map.js';
+import { $, LS_ON, SYNC, esc, objs, st, toastUndo } from './01-core.js';
+import { closeModal, modal } from './19-modal.js';
+import { LS_FILL, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, PRECEDENCE, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldOrder, maySet } from './sync-map.js';
 import { SERVER, queueServerSave } from './07-render.js';
 import { canEdit } from './04-settings.js';
 import { runOf, summary, when } from './16-sync.js';
@@ -25,13 +26,56 @@ const roleOf = (src, k, i) => i < 0 ? 'shown' : i > 0 ? 'fills' : src === 'ls' &
 /* Every order of a list: the few sources of one field (at most three, six orders). */
 const orders = list => list.length <= 1 ? [list] : list.flatMap((x, i) => orders([...list.slice(0, i), ...list.slice(i + 1)]).map(r => [x, ...r]));
 
-/* Sets the sources of field k to list (in order), kept with Lansweeper's "Feed may overwrite" box, with Undo. */
+/* What the devices' fields would become under other settings (next: fieldOrder and policy), from the values each source
+   last reported (o.vals): the syncs run in turn, weakest source first, as maySet lets them. A field picked or set by hand
+   on a device never changes; a source turned off in its tab fills nothing. Only what changes is returned. */
+export function previewOrder(next, keys = ORDER_FIELDS){
+  const s2 = { ...st, ...next };
+  const off = src => (src === 'graph' && st.fillGraph === false) || (src === 'ad' && st.fillAd === false);
+  const out = [];
+  for (const o of objs) {
+    if (o.status === 'retired' || o.excluded || o.detached || !o.vals) continue;
+    for (const k of keys) {
+      const vals = o.vals[k]; if (!vals || (o.pick && o.pick[k])) continue;
+      const order = fieldOrder(s2, k).filter(src => !off(src) && !(src === 'ls' && !o.feed));
+      const cur = { [k]: o[k], src: { ...(o.src || {}) }, feed: o.feed };
+      for (const src of [...[...order].reverse(), ...order]) {
+        const v = vals[src] && vals[src][0];
+        if (v && cur[k] !== v && maySet(s2, cur, k, src)) { cur[k] = v; cur.src[k] = src; }
+      }
+      if (String(cur[k] ?? '') !== String(o[k] ?? '')) out.push({ o, k, from: o[k], to: cur[k], src: cur.src[k] });
+    }
+  }
+  return out;
+}
+/* Before a change is saved: which devices it changes, and how, to apply or cancel. Nothing changes: it is applied at once. */
+function confirmChange(title, next, keys, apply){
+  const list = previewOrder(next, keys);
+  if (!list.length) { apply(); return; }
+  const many = keys.length > 1, shown = list.slice(0, 200);
+  const devices = new Set(list.map(x => x.o.id)).size;
+  modal(`<div class="mh">${esc(title)}</div>
+    <div class="mb"><p class="note">${devices} ${devices === 1 ? 'device gets' : 'devices get'} ${list.length === devices ? 'another value' : `${list.length} other values`} with this, at the next sync of each source. Values set or picked by hand on a device stay as they are.</p>
+      <div class="ds-prev"><table class="grid mini"><thead><tr><th>Device</th>${many ? '<th>Field</th>' : ''}<th>Now</th><th>Then</th><th>From</th></tr></thead><tbody>
+      ${shown.map(x => `<tr><td><b>${esc(x.o.name)}</b> <span class="code">${esc(x.o.code || '')}</span></td>${many ? `<td>${esc(SYNC_FIELD_LABEL[x.k])}</td>` : ''}<td class="muted">${esc(x.from ?? '') || '—'}</td><td><b>${esc(x.to ?? '')}</b></td><td>${esc(SHORT[x.src] || '')}</td></tr>`).join('')}
+      </tbody></table></div>${list.length > shown.length ? `<p class="note">And ${list.length - shown.length} more.</p>` : ''}</div>
+    <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="primary">Apply</button></div>`, 'wide');
+  $('#dpCancel').onclick = () => closeModal();
+  $('#dpOk').onclick = () => { closeModal(); apply(); };
+}
+/* Sets the sources of field k to list (in order), kept with Lansweeper's "Feed may overwrite" box, with Undo; shown first
+   when it changes devices. */
 function setOrder(k, list, what){
-  const before = { fieldOrder: st.fieldOrder, policy: st.policy };
-  st.fieldOrder = { ...(st.fieldOrder || {}), [k]: list };
-  if (SOURCES_OF(k).includes('ls') && !LS_FILL[k]) st.policy = { ...(st.policy || {}), [k]: list.includes('ls') };
-  queueServerSave(); renderSetSources();
-  toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+  const policy = SOURCES_OF(k).includes('ls') && !LS_FILL[k] ? { ...(st.policy || {}), [k]: list.includes('ls') } : st.policy;
+  const fo = { ...(st.fieldOrder || {}), [k]: list };
+  confirmChange(`${SYNC_FIELD_LABEL[k]}: ${what}`, { fieldOrder: fo, policy }, [k], () => {
+    const before = { fieldOrder: st.fieldOrder, policy: st.policy };
+    st.fieldOrder = fo; st.policy = policy;
+    queueServerSave(); renderSetSources();
+    toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+  });
+  /* Until applied, the lists show what is saved. */
+  renderSetSources();
 }
 
 export function renderSetSources(){
@@ -113,9 +157,9 @@ export function renderSetSources(){
     const rest = fieldOrder(st, k).filter(x => !list.includes(x));
     setOrder(k, [...list, ...rest], `order ${list.map(x => SHORT[x]).join(' → ')}`);
   });
-  const rs = $('#dsReset'); if (rs) rs.onclick = () => {
+  const rs = $('#dsReset'); if (rs) rs.onclick = () => confirmChange('Field sources back to the defaults', { fieldOrder: null }, ORDER_FIELDS, () => {
     const before = { fieldOrder: st.fieldOrder };
     st.fieldOrder = null; queueServerSave(); renderSetSources();
     toastUndo('Field sources back to the defaults', () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
-  };
+  });
 }

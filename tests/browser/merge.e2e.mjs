@@ -98,6 +98,16 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
   await p.waitForSelector('.entries-box');
   assert.match(await p.textContent('.ctlrow.entries'), /Docking station[\s\S]*Dock[\s\S]*64:c9:01:e3:9c:d1/);
+  // the merged record says which attachment it is kept as, with Open and Unmerge as buttons
+  assert.match(await p.textContent('.nics.merged'), /nb-35\.corp\.example\s*Docking station/);
+  assert.equal(await p.locator('.nics.merged button.mini').count(), 2);
+  // removing the attachment takes the record out of Merged records: still ignored, so no sync brings it back; Undo both
+  await p.click('.entries-box [data-delacc="0"]');
+  await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return !d.review.merged && d.review.ignored && d.excluded && !st.objs.find(o => o.id === 'n35').accessories; });
+  assert.equal(await p.locator('.nics.merged').count(), 0);
+  await p.click('#toast .t-undo');
+  await stored(st => st.objs.find(o => o.id === 'd35').review.merged === 'n35' && (st.objs.find(o => o.id === 'n35').accessories || []).length === 1);
+  await p.waitForSelector('.nics.merged');
   // a shared dock at a desk: kept as a device of its own, not flagged again
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.push({ id: 'd98', code: 'INV-0098', type: 'notebook', name: 'nb-35.desk.example', mac: '00:11:22:33:44:55', status: 'active', feed: null }); (await import('/js/07-render.js')).render(); });
   await p.evaluate(async () => (await import('/js/15-review.js')).resolveModal([(await import('/js/01-core.js')).byId('d98')]));

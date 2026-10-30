@@ -328,7 +328,7 @@ function checkStateRules(s, size = true) {
         if (a.kind !== undefined && (typeof a.kind !== 'string' || a.kind.length > 60)) bad(`${o.name}: the kind of an attachment is text of up to 60 characters.`);
         if (a.serial !== undefined && (typeof a.serial !== 'string' || a.serial.length > 60)) bad(`${o.name}: the serial of an attachment is text of up to 60 characters.`);
         /* A docking station merged in: its MAC address and the record Lansweeper sees it as. */
-        for (const [k, n] of [['mac', 40], ['seenAs', 120]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
+        for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
       }
     }
     if (o.entries !== undefined) {
@@ -485,9 +485,12 @@ export function saveState(db, s) {
 
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
    many relations, users, types and which settings. The history lines that go with an object change are not counted. */
-const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', company: 'company', locs: 'locations', sites: 'sites',
+export const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', company: 'company', locs: 'locations', sites: 'sites',
   vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
-  policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources' };
+  policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources',
+  locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
+  fillAd: 'AD fills fields', mergeTwins: 'merge docking-station records', skipIpOnly: 'devices named by an IP address', autoBackups: 'automatic backups', backupKeep: 'backups kept',
+  feedOn: 'Lansweeper feed', feedSync: 'Lansweeper sync', useLansweeper: 'use Lansweeper', lsSource: 'Lansweeper source', lansweeper: 'Lansweeper', syncSchedule: 'sync schedule', currency: 'currency' };
 export function describeChanges(body, before) {
   const puts = (body && body.puts) || [], dels = (body && body.dels) || [];
   const names = list => list.length <= 5 ? list.join(', ') : `${list.slice(0, 5).join(', ')} and ${list.length - 5} more`;

@@ -7,7 +7,7 @@ import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } f
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS } from './01-core.js';
+import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
@@ -551,10 +551,24 @@ export function renderObj(o){
     o.accessories = [...(o.accessories || []), {name, ...(kind ? {kind} : {}), ...(serial ? {serial} : {})}];
     hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
   };
+  /* A docking station merged in goes with its merged record: it no longer belongs to this device and leaves Merged
+     records, but stays ignored, so no sync brings it back (Unmerge instead puts it back in To review). Undo takes both back. */
   $('#view').querySelectorAll('[data-delacc]').forEach(b => b.onclick = () => {
     const a = o.accessories[+b.dataset.delacc];
+    const rec = a.seenAs && REVIEW.find(x => x.review && x.review.merged === o.id && String(x.name).toLowerCase() === String(a.seenAs).toLowerCase());
+    const before = { accs: o.accessories, review: rec && rec.review };
     o.accessories = o.accessories.filter((_, i) => i !== +b.dataset.delacc);
-    hist(o, now(), `Attachment removed: ${a.name} by ${who()}`); queueServerSave(); render();
+    if (!o.accessories.length) delete o.accessories;
+    hist(o, now(), `Attachment removed: ${a.name}${rec ? ` (merged record ${rec.name})` : ''} by ${who()}`);
+    if (rec){
+      const rest = { ...rec.review }; delete rest.merged; rec.review = rest;
+      hist(rec, now(), `No longer merged into ${o.name}: its attachment was removed by ${who()}; still ignored`);
+    }
+    queueServerSave(); render();
+    toastUndo(`${a.name} removed${rec ? `; ${rec.name} is no longer a merged record` : ''}`, () => {
+      if (before.accs) o.accessories = before.accs; if (rec) rec.review = before.review;
+      queueServerSave(); render();
+    });
   });
   /* Saves the device's fields. Returns false when it stopped (a wrong address, a blocked change): then nothing is
      redrawn, so what was typed stays in the fields to be corrected. */

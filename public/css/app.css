@@ -1445,3 +1445,37 @@ table.grid.ds-edit{min-width:680px}.ds-edit th:first-child{width:24%}.ds-edit td
 .ds-ord{font-size:12px;color:var(--muted)}
 .ds-matrix tr.ds-set th[scope=row]::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
 .ds-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px 12px;font-size:12px}
+/* Merged records: name and address, the details below, Open and Unmerge as small buttons on the right. */
+.nics.merged li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 12px}
+.nics.merged .nic-addr{margin-left:0}
+.nics.merged .nic-meta{grid-column:1 / 3}
+.nics.merged .nic-acts{grid-column:3;grid-row:1 / 3;display:flex;gap:6px}
+.nics.merged .nic-name{white-space:normal;overflow-wrap:anywhere}.nics.merged .chip{margin-left:6px;vertical-align:baseline}
+button.mini{height:24px;padding:0 8px;font-size:12px}
+/* Settings → Log: what a settings change changed, folded under its line. */
+.lg-detail{margin-top:4px}.lg-detail summary{cursor:pointer;color:var(--linktext);font-size:12px;width:max-content}
+.lg-diff{border-collapse:collapse;margin:4px 0 2px;font-size:12px}
+.lg-diff th,.lg-diff td{padding:2px 10px 2px 0!important;vertical-align:top;text-align:left;border:0!important;background:none!important;white-space:normal;max-width:none;height:auto;position:static}
+.lg-diff th{font-weight:500;color:var(--muted);white-space:nowrap}
+.lg-was{color:var(--muted);text-decoration:line-through}.lg-now{font-weight:600}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ds-prev{overflow:auto;max-height:52vh}.ds-prev table.grid{min-width:560px}
+/* Overview → Data quality: the share of complete devices, then what the others lack. */
+.ov-q{display:flex;align-items:center;gap:10px;padding:10px 12px 4px}.ov-q b{font-size:15px;min-width:42px;text-align:right}
+.ov-qbar{flex:1;height:8px;border-radius:4px;background:var(--panel2);overflow:hidden}.ov-qbar span{display:block;height:100%;background:var(--ok);border-radius:4px}
+/* Reports: one choice per report, then its options. */
+.rp-kinds{border:0;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px}
+.rp-kind{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r-m);cursor:pointer}
+.rp-kind:has(input:checked){border-color:var(--accent);background:var(--panel2)}
+.rp-kind span{display:flex;flex-direction:column;gap:2px}.rp-kind small{color:var(--muted)}
+.rp-opts{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}.rp-opt{display:flex;align-items:center;gap:8px}
+a.btnlike.primary{background:var(--accentbtn);color:var(--accentfg);border-color:var(--accentbtn);font-weight:600}
+/* Settings → Maintenance → Health: one row per check, grouped by area. */
+.hl-area{padding:10px 12px 2px}
+.hl-list{display:flex;flex-direction:column;padding:0 12px 6px}
+.hl-row{display:grid;grid-template-columns:72px minmax(140px,220px) 1fr;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--bd2);font-size:13px}
+.hl-row:last-child{border-bottom:0}.hl-row .chip{justify-content:center}
+.hl-val{min-width:0;overflow-wrap:anywhere}.hl-val small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.panelbox.hl-bad{border-color:var(--danger-bg)}
+@media (max-width:640px){.hl-row{grid-template-columns:64px 1fr}.hl-val{grid-column:1 / -1}}
+.hl-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px 0;font-size:12px}

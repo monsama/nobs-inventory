@@ -147,7 +147,8 @@ function applyDepartments(s, records) {
 function applySoftware(s, pairs) {
   let n = 0;
   if (s.feedOn === false) return n;
-  for (const { r, obj } of pairs) {
+  for (const { r, obj, linksOnly } of pairs) {
+    if (linksOnly) continue;
     const owned = lsWrites(s, obj, 'software');
     if (!Array.isArray(r.software) || !owned) continue;
     const manual = (obj.software || []).filter(x => x.src !== 'Lansweeper');
@@ -160,22 +161,42 @@ function applySoftware(s, pairs) {
 
 /* Makes the links of the records that were merged match what Lansweeper reports: new links are added, changed ports
    are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
+/* What a dock's record says hangs on it, kept short: the monitors by their Lansweeper ref or name. */
+const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}) }));
 function applyLinks(s, pairs, counts) {
   let n = 0;
   if (s.feedOn === false) return n;
   /* The devices by Lansweeper ref and by name, once; and the links each merged device should have, removed in one pass. */
-  const byRef = new Map(), byName = new Map();
+  /* A record merged into a device (a dock's DNS-named one), and a dock kept as an attachment, stand for that device:
+     a monitor Lansweeper sees on the dock hangs on the device. */
+  const byRef = new Map(), byName = new Map(), ids = new Map(s.objs.map(o => [o.id, o]));
+  const standsFor = o => { const t = o.excluded && o.review && o.review.merged && ids.get(o.review.merged); return t && t.status !== 'retired' && !t.excluded ? t : o; };
   for (const o of s.objs) {
-    if (o.feed && o.feed.ref != null && !byRef.has(String(o.feed.ref))) byRef.set(String(o.feed.ref), o);
-    const k = o.name.toLowerCase(); byName.set(k, byName.has(k) ? null : o);   /* null: the name is used twice */
+    const d = standsFor(o);
+    if (o.feed && o.feed.ref != null && !byRef.has(String(o.feed.ref))) byRef.set(String(o.feed.ref), d);
+    const k = o.name.toLowerCase(); byName.set(k, byName.has(k) && byName.get(k) !== d ? null : d);   /* null: the name is used twice */
   }
-  const wantedOf = new Map();
-  for (const { r, obj } of pairs) {
+  for (const o of s.objs) for (const a of o.accessories || []) {
+    if (a.ref != null && !byRef.has(String(a.ref))) byRef.set(String(a.ref), o);
+    if (a.seenAs && !byName.has(a.seenAs.toLowerCase())) byName.set(a.seenAs.toLowerCase(), o);
+  }
+  /* A device and the dock merged into it report their links apart: the device has all of them. What the dock last
+     reported is kept with it (its merged record, or its attachment), so a push that brings the device without the dock
+     does not take the dock's links away. */
+  const mergedLinks = new Map();
+  const addMerged = (id, list) => { if (Array.isArray(list) && list.length) mergedLinks.set(id, [...(mergedLinks.get(id) || []), ...list]); };
+  for (const o of s.objs) {
+    if (o.excluded && o.review && o.review.merged && o.feed) addMerged(o.review.merged, o.feed.links);
+    for (const a of o.accessories || []) addMerged(o.id, a.links);
+  }
+  const wantedOf = new Map(), own = new Set();
+  for (const { r, obj, linksOnly } of pairs) {
     const owned = lsWrites(s, obj, 'links');
     if (!Array.isArray(r.links) || !owned) continue;
-    const wanted = new Set();
+    if (!linksOnly) own.add(obj.id);
+    const wanted = wantedOf.get(obj.id) || new Set();
     wantedOf.set(obj.id, wanted);
-    for (const l of r.links) {
+    for (const l of linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])]) {
       const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
       if (!to || to === obj) continue;
       const port = l.port || null;
@@ -198,7 +219,8 @@ function applyLinks(s, pairs, counts) {
   const before = s.rels.length;
   /* Only monitor links are managed; a connection of another kind that Lansweeper made earlier is left alone (it keeps
      its Lansweeper mark, but nothing changes or removes it any more). */
-  s.rels = s.rels.filter(x => !(x.src === 'Lansweeper' && x.kind === 'attached' && wantedOf.has(x.from) && !wantedOf.get(x.from).has(x.to + '|' + x.kind)));
+  /* Only for a device whose own record came: a dock's record alone adds its links, and takes none away. */
+  s.rels = s.rels.filter(x => !(x.src === 'Lansweeper' && x.kind === 'attached' && own.has(x.from) && !wantedOf.get(x.from).has(x.to + '|' + x.kind)));
   n += before - s.rels.length;
   return n;
 }
@@ -290,7 +312,13 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     const found = (r.serial && bySerial.get(lc(r.serial))) || (sameName.length === 1 ? sameName[0] : null);
     if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
     /* An object excluded from sync, or detached from it, is left as it is. */
-    if (found && found.excluded) { counts.excluded = (counts.excluded || 0) + 1; continue; }
+    /* A record merged into a device (a dock's DNS-named one) still says what it is linked to (the switch port the dock is
+       plugged into): those links are the device's. */
+    if (found && found.excluded) {
+      const t = found.review && found.review.merged && s.objs.find(o => o.id === found.review.merged && o.status !== 'retired' && !o.excluded && !o.detached);
+      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links) }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); }
+      counts.excluded = (counts.excluded || 0) + 1; continue;
+    }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
     /* With "Merge second records" on, such a record is no device of its own: it is the docking station of the device it
        stands for, an attachment of it, and nothing waits in To review. A device the sync leaves alone (excluded,
@@ -299,13 +327,15 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (into) {
       /* The dock is an attachment of the device, kept by what stays the same: its MAC address (not its changing address). */
       const accs = into.accessories || [], had = accs.find(a => lc(a.seenAs) === lc(r.name));
-      const dock = { name: had ? had.name : 'Docking station', kind: had && had.kind ? had.kind : 'Dock', ...(had && had.serial ? { serial: had.serial } : {}), ...(r.mac ? { mac: r.mac } : had && had.mac ? { mac: had.mac } : {}), seenAs: String(r.name).slice(0, 120) };
+      const dock = { name: had ? had.name : 'Docking station', kind: had && had.kind ? had.kind : 'Dock', ...(had && had.serial ? { serial: had.serial } : {}), ...(r.mac ? { mac: r.mac } : had && had.mac ? { mac: had.mac } : {}), seenAs: String(r.name).slice(0, 120), ...(r.ref != null ? { ref: String(r.ref).slice(0, 60) } : {}) };
       /* A dock merged in as an adapter before this (0.9.61) moves to the attachments: it is not kept twice. */
       if ((into.nics || []).some(n => n.merged === r.name)){ into.nics = into.nics.filter(n => n.merged !== r.name); if (!into.nics.length) delete into.nics; counts.updated++; }
-      if (had ? (r.mac && had.mac !== r.mac) : accs.length < 100) {
+      if (had ? (r.mac && had.mac !== r.mac) || (r.ref != null && had.ref !== String(r.ref).slice(0, 60)) : accs.length < 100) {
         into.accessories = had ? accs.map(a => a === had ? dock : a) : [...accs, dock]; counts.updated++;
         ((s.history ??= {})[into.id] ??= []).unshift({ t: seen, msg: had ? `Lansweeper: docking station ${r.name} has the MAC address ${r.mac}` : `Lansweeper: ${r.name} merged in as a docking station${r.mac ? ` (MAC ${r.mac})` : ''}` });
       }
+      const acc = Array.isArray(r.links) && (into.accessories || []).find(a => lc(a.seenAs) === lc(r.name));
+      if (acc) { acc.links = linksOf(r.links); pairs.push({ r: { links: r.links }, obj: into, linksOnly: true }); }
       counts.merged = (counts.merged || 0) + 1;
       continue;
     }

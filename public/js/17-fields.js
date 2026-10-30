@@ -334,11 +334,15 @@ export function propRow(o, f, menu = ''){
 export function mergedHtml(o){
   const list = REVIEW.filter(x => x.review && x.review.merged === o.id);
   if (!list.length) return '';
-  return `<label>Merged records</label><ul class="nics merged" aria-label="Records merged into this device">${list.map(x => `<li>
-    <span class="nic-name">${esc(x.name)}</span>
+  const lcName = v => String(v || '').toLowerCase();
+  return `<label>Merged records</label><ul class="nics merged" aria-label="Records merged into this device">${list.map(x => {
+    const acc = (o.accessories || []).find(a => lcName(a.seenAs) === lcName(x.name));
+    return `<li>
+    <span class="nic-name">${esc(x.name)}${acc ? ` <span class="chip" title="Kept as this attachment">${esc(acc.name)}</span>` : ''}</span>
     <span class="nic-addr mono">${esc(x.ip || '')}</span>
-    <span class="nic-meta muted">${[x.mac ? `<span class="mono">${esc(x.mac)}</span>` : '', `merged ${esc(dateText(x.review.ignored) || x.review.ignored || '')}`].filter(Boolean).join(' · ')}
-      <button type="button" class="link" data-open="${esc(x.id)}">Open</button>${canEdit() ? `<button type="button" class="link" data-unmerge="${esc(x.id)}" title="Take it out of this device again: it waits in To review">Unmerge</button>` : ''}</span></li>`).join('')}</ul>`;
+    <span class="nic-meta muted">${[x.mac ? `<span class="mono">${esc(x.mac)}</span>` : '', `merged ${esc(dateText(x.review.ignored) || x.review.ignored || '')}`].filter(Boolean).join(' · ')}</span>
+    <span class="nic-acts"><button type="button" class="mini" data-open="${esc(x.id)}" aria-label="Open ${esc(x.name)}">Open</button>${canEdit() ? `<button type="button" class="mini" data-unmerge="${esc(x.id)}" aria-label="Unmerge ${esc(x.name)}" title="Take it out of this device again: it waits in To review">Unmerge</button>` : ''}</span></li>`;
+  }).join('')}</ul>`;
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
 export function nicsHtml(o){

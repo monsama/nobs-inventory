@@ -4,7 +4,9 @@ import dns from 'node:dns/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
-import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { settingDiff } from './audit-diff.js';
+import { healthReport } from './health.js';
+import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
@@ -16,6 +18,8 @@ import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
 import { sheetPdf } from './sheet-pdf.js';
+import { reportPdf, reportXlsx } from './report-files.js';
+import { buildReport, reportOptions } from '../public/js/reports.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, initSheets, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { generateGraphCert } from './cert.js';
 import { certReport, probeCert } from './proxy-cert.js';
@@ -353,10 +357,21 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       };
       /* The names of objects and users being removed are read before they are gone. */
       const removes = Array.isArray(req.body?.dels) && req.body.dels.some(c => c && (c.kind === 'object' || c.kind === 'user'));
-      const before = removes ? loadState(db) : null;
+      /* Settings are logged one by one with what changed (before → after); the map layout is a preference, not logged. */
+      const all = [...(Array.isArray(req.body?.puts) ? req.body.puts : []), ...(Array.isArray(req.body?.dels) ? req.body.dels : [])].filter(c => c && typeof c === 'object');
+      const settingIds = [...new Set(all.filter(c => c.kind === 'setting' && c.id !== 'mapPos').map(c => String(c.id)))];
+      const before = removes || settingIds.length ? loadState(db) : null;
       const result = applyChanges(db, req.body, guard);
-      const skipped = result && Array.isArray(result.conflicts) && result.conflicts.length ? ` (${result.conflicts.length} not saved: changed by someone else first)` : '';
-      audit(db, req.user.id, describeChanges(req.body, before) + skipped);
+      const conflicts = new Set(result && Array.isArray(result.conflicts) ? result.conflicts : []);
+      const skipped = conflicts.size ? ` (${conflicts.size} not saved: changed by someone else first)` : '';
+      const rest = { puts: (req.body.puts || []).filter(c => c && c.kind !== 'setting'), dels: (req.body.dels || []).filter(c => c && c.kind !== 'setting') };
+      if (rest.puts.length || rest.dels.length || !settingIds.length) audit(db, req.user.id, describeChanges(settingIds.length ? rest : req.body, before) + skipped);
+      for (const id of settingIds) {
+        if (conflicts.has(`setting|${id}`)) continue;
+        const put = (req.body.puts || []).find(c => c && c.kind === 'setting' && String(c.id) === id);
+        const changes = settingDiff(before[id], put ? put.value : undefined);
+        if (changes.length) audit(db, req.user.id, `setting changed: ${SETTING_NAMES[id] || id}`, { setting: id, changes });
+      }
       res.json(result);
     } catch (e) { next(e); }
   });
@@ -580,6 +595,22 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.get('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
     try { purgePasswords(db, SHEET_KEY); res.json({ sheets: listSheets(db, String(req.query.user || '')), passwordDays: PASSWORD_DAYS }); } catch (e) { next(e); }
   });
+  /* Reports (public/js/reports.js) as a PDF or an Excel workbook, for everyone signed in: what the pages show anyway. */
+  app.get('/api/reports/:kind', requireUser, async (req, res, next) => {
+    try {
+      const opts = reportOptions({ ...req.query, kind: req.params.kind });
+      if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
+      const s = loadState(db), r = buildReport(s, opts);
+      const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}-${day}`;
+      res.set('Cache-Control', 'no-store');
+      if (req.query.format === 'xlsx') {
+        res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
+      } else {
+        res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, s.company || {}));
+      }
+      audit(db, req.user.id, `report made: ${r.title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'})`);
+    } catch (e) { next(e); }
+  });
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
     try {
       const made = createSheet(db, SHEET_KEY, loadState(db), req.body || {}, req.user.name || req.user.login || '');
@@ -717,9 +748,20 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const limit = Math.max(1, Math.min(1000, Number(req.query.limit) || 300));
       const names = new Map(loadState(db).users.map(u => [String(u.id), u.name || u.login || '']));
-      const rows = db.prepare('SELECT at, user_id, action FROM audit ORDER BY id DESC LIMIT ?').all(limit);
+      const rows = db.prepare('SELECT at, user_id, action, detail FROM audit ORDER BY id DESC LIMIT ?').all(limit);
       const isError = /fail|refus|error|throttl|denied|wrong|could not|not set|not allowed/i;
-      res.json({ entries: rows.map(r => ({ at: r.at, who: r.user_id ? (names.get(String(r.user_id)) || 'Unknown user') : 'Server', action: r.action, level: isError.test(r.action) ? 'error' : 'info' })) });
+      const detailOf = d => { try { return d ? JSON.parse(d) : null; } catch { return null; } };
+      res.json({ entries: rows.map(r => ({ at: r.at, who: r.user_id ? (names.get(String(r.user_id)) || 'Unknown user') : 'Server', action: r.action, level: isError.test(r.action) ? 'error' : 'info', ...(r.detail ? { detail: detailOf(r.detail) } : {}) })) });
+    } catch (e) { next(e); }
+  });
+  /* Health (Settings → Maintenance): the server, backups, syncs, certificates and the log, each ok, warn, bad or off. */
+  app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const s = loadState(db), g = cfgGraph();
+      let graphCert = null;
+      if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
+      const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db)), ldap: !!cfgLdap(), graph: !!g };
+      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert }));
     } catch (e) { next(e); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */

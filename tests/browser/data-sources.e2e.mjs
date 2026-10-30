@@ -18,7 +18,9 @@ saveState(db, { ...loadState(db), policy: { ...(loadState(db).policy || {}), ip:
   objs: [{ id: 'a', code: 'INV-0001', type: 'pc', name: 'PC-A', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
     { id: 'b', code: 'INV-0002', type: 'pc', name: 'PC-B', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
     { id: 'c', code: 'INV-0003', type: 'pc', name: 'PC-C', status: 'active', feed: null, inAd: true, ad: { location: 'bern / eg' } },
-    { id: 'd', code: 'INV-0004', type: 'pc', name: 'PC-D', status: 'active', feed: { sys: 'Lansweeper', ref: '4', location: 'HQ / Lager' } }] });
+    { id: 'd', code: 'INV-0004', type: 'pc', name: 'PC-D', status: 'active', feed: { sys: 'Lansweeper', ref: '4', location: 'HQ / Lager' } },
+    { id: 'e', code: 'INV-0005', type: 'pc', name: 'PC-E', status: 'active', feed: { sys: 'Lansweeper', ref: '5' }, os: 'Windows 11 (LS)', src: { os: 'ls' },
+      vals: { os: { ls: ['Windows 11 (LS)', '2026-10-28'], ad: ['Windows 11 Pro (AD)', '2026-10-27'] } } }] });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
@@ -54,6 +56,14 @@ try {
   assert.equal(await say('Disks', 1), '2. Fills empty');
   // the order of a field: set here, kept on the server, with Undo
   await row('Operating system').locator('[data-dso]').selectOption('ad,graph,ls');
+  // first a preview of what it changes: Cancel leaves everything as it was
+  await p.waitForSelector('#dpOk');
+  assert.match(await p.textContent('#mdl .mb'), /1 device gets another value[\s\S]*PC-E[\s\S]*Windows 11 \(LS\)\s*Windows 11 Pro \(AD\)\s*AD/);
+  await p.click('#dpCancel');
+  await p.waitForSelector('.ds-matrix');
+  assert.equal(await say('Operating system', 3), 'Lansweeper → Intune → AD');
+  await row('Operating system').locator('[data-dso]').selectOption('ad,graph,ls');
+  await p.click('#dpOk'); await p.waitForSelector('.ds-matrix');
   await stored(st => JSON.stringify((st.fieldOrder || {}).os) === '["ad","graph","ls"]');
   assert.equal(await say('Operating system', 2), '1. First'); assert.equal(await say('Operating system', 0), '3. Fills empty');
   assert.equal(await row('Operating system').getAttribute('class'), 'ds-set', 'a field set here is marked');
