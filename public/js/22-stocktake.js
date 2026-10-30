@@ -70,7 +70,8 @@ function wireStart(edit){
 
 /* A stocktake running: progress, the scan field and the devices by room, open ones first. */
 function activeHtml(t, edit){
-  const list = stocktakeDevices(objs, t.scope);
+  /* Devices of another place found here and left where they are count too (as when it is finished), listed by their room. */
+  const inPlace = stocktakeDevices(objs, t.scope), list = [...inPlace, ...objs.filter(o => confirmedIn(o, t.id) && !inPlace.includes(o))];
   const done = list.filter(o => confirmedIn(o, t.id)).length, moved = objs.filter(o => confirmedIn(o, t.id) && o.verified.from !== undefined).length;
   const pct = list.length ? Math.round(done / list.length * 100) : 100;
   const shown = list.filter(o => FILTER === 'all' || (FILTER === 'open') !== confirmedIn(o, t.id));
@@ -105,7 +106,7 @@ function wireActive(t, edit){
     $('#stcNo').onclick = closeModal;
     $('#stcYes').onclick = () => {
       for (const o of objs) if (confirmedIn(o, t.id)) { o.verified = o.verified.prev ? { ...o.verified.prev } : undefined; if (!o.verified) delete o.verified; }
-      st.stocktakes = st.stocktakes.filter(x => x.id !== t.id); closeModal(); queueServerSave(); render(); toast('Stocktake cancelled');
+      st.stocktakes = st.stocktakes.filter(x => x.id !== t.id); LAST = ''; closeModal(); queueServerSave(); render(); toast('Stocktake cancelled');
     };
   };
 }

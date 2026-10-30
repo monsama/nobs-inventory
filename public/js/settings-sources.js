@@ -1,7 +1,7 @@
 /* Settings → Data sources: what each source brings into the inventory, who wins when several know a field, and how each
    is set up here right now. Drawn from sync-map.js (the lists the syncs themselves use) and from the current settings,
    so it changes with them and is never out of date. */
-import { $, LS_ON, SYNC, esc, objs, st, toastUndo } from './01-core.js';
+import { $, DEFAULT_POLICY, LS_ON, SYNC, esc, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, PRECEDENCE, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldOrder, maySet } from './sync-map.js';
 import { SERVER, queueServerSave } from './07-render.js';
@@ -136,9 +136,10 @@ export function renderSetSources(){
 
   if (!edit) return;
   root.querySelectorAll('[data-dsedit]').forEach(b => b.onclick = () => editOrder(b.dataset.dsedit, on));
-  const rs = $('#dsReset'); if (rs) rs.onclick = () => confirmChange('Field sources back to the defaults', { fieldOrder: null }, ORDER_FIELDS, () => {
-    const before = { fieldOrder: st.fieldOrder };
-    st.fieldOrder = null; queueServerSave(); renderSetSources();
+  const resetPolicy = () => ({ ...(st.policy || {}), ...Object.fromEntries(ORDER_FIELDS.filter(k => k in DEFAULT_POLICY).map(k => [k, DEFAULT_POLICY[k]])) });
+  const rs = $('#dsReset'); if (rs) rs.onclick = () => confirmChange('Field sources back to the defaults', { fieldOrder: null, policy: resetPolicy() }, ORDER_FIELDS, () => {
+    const before = { fieldOrder: st.fieldOrder, policy: st.policy };
+    st.fieldOrder = null; st.policy = resetPolicy(); queueServerSave(); renderSetSources();
     toastUndo('Field sources back to the defaults', () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
   });
 }
@@ -156,8 +157,8 @@ function editOrder(k, on){
       <span class="ds-move"><button type="button" class="icon ghost" data-dsup="${x}" aria-label="Move ${esc(SOURCE_LABEL[x])} up" ${!use.has(x) || order.indexOf(x) === 0 ? 'disabled' : ''}>▲</button><button type="button" class="icon ghost" data-dsdown="${x}" aria-label="Move ${esc(SOURCE_LABEL[x])} down" ${!use.has(x) || order.indexOf(x) === order.length - 1 ? 'disabled' : ''}>▼</button></span></li>`).join('');
     $('#dsSays').textContent = orderSentence(k, order);
 
-    document.querySelectorAll('[data-dsuse]').forEach(c => c.onchange = () => { const x = c.dataset.dsuse; if (c.checked){ use.add(x); order.push(x); } else { use.delete(x); order = order.filter(y => y !== x); } draw(); });
-    const move = (x, d) => { const i = order.indexOf(x), j = i + d; if (j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; draw(); document.querySelector(`[data-ds${d < 0 ? 'up' : 'down'}="${x}"]:not([disabled])`)?.focus(); };
+    document.querySelectorAll('[data-dsuse]').forEach(c => c.onchange = () => { const x = c.dataset.dsuse; if (c.checked){ use.add(x); order.push(x); } else { use.delete(x); order = order.filter(y => y !== x); } draw(); document.querySelector(`[data-dsuse="${x}"]`)?.focus(); });
+    const move = (x, d) => { const i = order.indexOf(x), j = i + d; if (j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; draw(); (document.querySelector(`[data-ds${d < 0 ? 'up' : 'down'}="${x}"]:not([disabled])`) || document.querySelector(`[data-ds${d < 0 ? 'down' : 'up'}="${x}"]:not([disabled])`) || document.querySelector(`[data-dsuse="${x}"]`))?.focus(); };
     document.querySelectorAll('[data-dsup]').forEach(b => b.onclick = () => move(b.dataset.dsup, -1));
     document.querySelectorAll('[data-dsdown]').forEach(b => b.onclick = () => move(b.dataset.dsdown, 1));
   };
@@ -173,9 +174,11 @@ function editOrder(k, on){
     closeModal();
     const rest = { ...st.fieldOrder }; delete rest[k];
     const fo = Object.keys(rest).length ? rest : null;
-    confirmChange(`${SYNC_FIELD_LABEL[k]}: back to the default`, { fieldOrder: fo }, [k], () => {
-      const before = { fieldOrder: st.fieldOrder };
-      st.fieldOrder = fo; queueServerSave(); renderSetSources();
+    /* Lansweeper's "may overwrite" box for the field goes back to its default too: the default order follows it. */
+    const policy = k in DEFAULT_POLICY ? { ...(st.policy || {}), [k]: DEFAULT_POLICY[k] } : st.policy;
+    confirmChange(`${SYNC_FIELD_LABEL[k]}: back to the default`, { fieldOrder: fo, policy }, [k], () => {
+      const before = { fieldOrder: st.fieldOrder, policy: st.policy };
+      st.fieldOrder = fo; st.policy = policy; queueServerSave(); renderSetSources();
       toastUndo(`${SYNC_FIELD_LABEL[k]}: back to the default`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
     });
   };

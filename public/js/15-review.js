@@ -59,17 +59,21 @@ function merge(pairs, how = ''){
       const nic = { name: 'Second record', ip: o.ip, ...(o.mac ? { mac: o.mac } : {}), merged: o.name };
       t.nics = [...(t.nics || []).filter(n => n.ip !== o.ip && n.merged !== o.name), nic];
     }
-    if (!dock) for (const k of ['serial', 'model', 'os', 'domain', 'mac', 'user']) if (o[k] && !t[k]){ t[k] = o[k]; if (o.src && o.src[k]) (t.src ??= {})[k] = o.src[k]; }
+    const filled = [];
+    if (!dock) for (const k of ['serial', 'model', 'os', 'domain', 'mac', 'user']) if (o[k] && !t[k]){ t[k] = o[k]; filled.push(k); if (o.src && o.src[k]) (t.src ??= {})[k] = o.src[k]; }
     /* Only the relations moved here are checked: one that now links the device to itself, or one the device already has
        (same ends, kind, port and LAG), goes. Parallel links elsewhere are left alone. */
     const moved = rels.filter(r => r.from === o.id || r.to === o.id);
+    /* Noted with the record (which end was its), so Unmerge can give them back. */
+    const movedIds = moved.map(r => `${r.id}:${r.from === o.id ? 'f' : ''}${r.to === o.id ? 't' : ''}`);
     for (const r of moved){ if (r.from === o.id) r.from = t.id; if (r.to === o.id) r.to = t.id; }
     const same = (a, b) => a.from === b.from && a.to === b.to && a.kind === b.kind && String(a.port) === String(b.port) && a.lag === b.lag && a.fromLag === b.fromLag;
     for (const r of moved) if (r.from === r.to || rels.some(x => x !== r && !moved.includes(x) && same(x, r))) rels.splice(rels.indexOf(r), 1);
     const i = objs.indexOf(o); if (i >= 0) objs.splice(i, 1);
     if (!REVIEW.includes(o)) REVIEW.push(o);
     const src = (o.review && o.review.src) || (o.feed ? 'lansweeper' : o.inAd ? 'ad' : o.graph ? 'graph' : 'lansweeper');
-    o.review = { src, at: (o.review && o.review.at) || now(), ignored: now(), merged: t.id }; o.excluded = true;
+    const kept = movedIds.filter(m => rels.some(r => `${r.id}:` === m.slice(0, m.lastIndexOf(':') + 1))).join(',');
+    o.review = { src, at: (o.review && o.review.at) || now(), ignored: now(), merged: t.id, ...(filled.length ? { filled: filled.join(',') } : {}), ...(kept && kept.length <= 4000 ? { moved: kept } : {}) }; o.excluded = true;
     hist(o, now(), `Merged into ${t.name} by ${who()}: kept as ignored, so no sync brings it back`);
     hist(t, now(), dock ? `${o.name} merged into this device as a docking station by ${who()}` : `${o.name} merged into this device by ${who()}${o.ip && o.ip !== t.ip ? ` (its address ${o.ip} kept as an adapter)` : ''}`);
   }
@@ -78,8 +82,11 @@ function merge(pairs, how = ''){
 function withUndo(list, msg, change, { reload = false } = {}){
   /* The user is read from uid (bindUser): writing its name back would look the person up again, or make one. */
   const was = list.map(o => { const b = JSON.parse(JSON.stringify(o)); delete b.user; return [o.id, b, objs.includes(o)]; });
-  const relsWas = rels.map(r => ({ ...r }));
+  const relsWas = new Map(rels.map(r => [String(r.id), JSON.stringify(r)]));
   change(list);
+  /* Only the relations this change touched are put back on Undo; those others made meanwhile (a reload brings them) stay. */
+  const relsNow = new Map(rels.map(r => [String(r.id), JSON.stringify(r)]));
+  const relsUndo = [...new Set([...relsWas.keys(), ...relsNow.keys()])].filter(id => relsWas.get(id) !== relsNow.get(id)).map(id => [id, relsWas.get(id)]);
   render();
   /* Devices taken into the inventory: saved at once and the page loaded again from the server, so codes, counts and
      what others changed meanwhile are current. Undo then finds the records again by id. */
@@ -93,7 +100,11 @@ function withUndo(list, msg, change, { reload = false } = {}){
       (inObjs ? objs : REVIEW).push(o);
       hist(o, now(), `Undone: ${msg}`);
     }
-    rels.splice(0, rels.length, ...relsWas.map(r => ({ ...r })));
+    for (const [id, before] of relsUndo){
+      const i = rels.findIndex(r => String(r.id) === id);
+      if (before === undefined){ if (i >= 0) rels.splice(i, 1); }
+      else if (i >= 0) rels[i] = JSON.parse(before); else rels.push(JSON.parse(before));
+    }
     render(); queueServerSave();
   }, { anyEpoch: reload });
 }
@@ -135,6 +146,15 @@ function unmerge(list){
     const t = byId(o.review.merged);
     if (t && t.nics){ t.nics = t.nics.filter(n => n.merged !== o.name); if (!t.nics.length) delete t.nics; }
     if (t && t.accessories){ t.accessories = t.accessories.filter(a => lc(a.seenAs) !== lc(o.name)); if (!t.accessories.length) delete t.accessories; }
+    /* What the merge gave the device goes back: the fields it filled, while they still have the record's value, and the
+       relations it moved, while they still end at the device. */
+    if (t) for (const k of String(o.review.filled || '').split(',').filter(Boolean)) if (t[k] === o[k]){ delete t[k]; if (t.src && o.src && t.src[k] === o.src[k]) delete t.src[k]; }
+    if (t) for (const m of String(o.review.moved || '').split(',').filter(Boolean)){
+      const i = m.lastIndexOf(':'), r = rels.find(x => String(x.id) === m.slice(0, i)), ends = m.slice(i + 1);
+      if (!r) continue;
+      if (ends.includes('f') && r.from === t.id) r.from = o.id;
+      if (ends.includes('t') && r.to === t.id) r.to = o.id;
+    }
     o.review = { src: o.review.src, at: o.review.at }; delete o.excluded;
     hist(o, now(), `Unmerged from ${t ? t.name : 'its device'} by ${who()}: waiting in To review`);
     if (t) hist(t, now(), `${o.name} unmerged from this device by ${who()}`);
@@ -229,7 +249,7 @@ export function reviewBanner(o){
   if (!o || !o.review) return '';
   const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
-    ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? 'Unmerge' : 'Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
+    ? `<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
     : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
 }
 export function bindReviewBanner(o){

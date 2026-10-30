@@ -89,3 +89,15 @@ test('sign in with Microsoft: the round trip, and what is refused', async () => 
   assert.equal(userForClaims(users, { preferred_username: 'amuster@corp.example' }).id, '1');
   assert.equal(userForClaims(users, { preferred_username: 'dora@corp.example' }), null, 'not a deactivated user');
 });
+
+test('sign in with Microsoft: an address alone does not take over an account', () => {
+  const users = [
+    { id: 'a', login: 'jsmith', source: 'ldap', role: 'admin', profile: { mail: 'jsmith@corp.example' } },
+    { id: 'b', login: 'linked', source: 'ldap', entra: { id: 'oid-linked', upn: 'linked@corp.example' } },
+  ];
+  assert.equal(userForClaims(users, { preferred_username: 'jsmith@gmail.com', oid: 'x' }), null, 'another domain');
+  assert.equal(userForClaims(users, { preferred_username: 'jsmith@corp.example', oid: 'g1', idp: 'https://sts.windows.net/other-tenant/', tid: 'home' }), null, 'a guest');
+  assert.equal(userForClaims(users, { preferred_username: 'linked@corp.example', oid: 'someone-else' }), null, 'linked to another object ID');
+  assert.equal(userForClaims(users, { preferred_username: 'jsmith@corp.example', oid: 'new' }).id, 'a', 'its own address');
+  assert.equal(userForClaims(users, { preferred_username: 'JSmith@corp.example', oid: 'new', tid: 't1', idp: 'https://sts.windows.net/t1/' }).id, 'a', 'a member of the tenant');
+});

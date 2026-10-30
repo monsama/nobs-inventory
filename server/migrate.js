@@ -7,6 +7,7 @@ import { liftOvr } from './fill.js';
 const TYPE_RENAMES = { iphone: 'ios', tablet: 'mobile', smartphone: 'mobile' };
 
 /* Changes s in place and returns true when anything was changed. */
+export const NOTES_MAX = 20000;
 export function migrateState(s) {
   let changed = false;
   for (const o of s.objs) if (TYPE_RENAMES[o.type]) { o.type = TYPE_RENAMES[o.type]; changed = true; }
@@ -41,10 +42,23 @@ export function migrateState(s) {
   /* Notes are one text box again (0.9.72): the entries of before (a title, a text and a link each) become its lines. */
   for (const o of s.objs) if (o.entries !== undefined) {
     const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' — ')).filter(Boolean);
-    const text = [typeof o.notes === 'string' ? o.notes.trim() : '', ...lines].filter(Boolean).join('\n').slice(0, 5000);
+    const all = [typeof o.notes === 'string' ? o.notes.trim() : '', ...lines].filter(Boolean).join('\n');
+    /* The box takes 20000 characters; more than that (old entries could hold far more) is said in the server's log, and
+       the start takes a backup before saving a migration (server/index.js), where the whole text stays. */
+    if (all.length > NOTES_MAX) console.warn(`upgrade: the notes of ${o.name || o.id} were longer than ${NOTES_MAX} characters and are cut there; the backup taken before the upgrade has all of them.`);
+    const text = all.slice(0, NOTES_MAX);
     if (text) o.notes = text; else delete o.notes;
     delete o.entries; changed = true;
   }
+  /* A record's history is a list of { t, msg } (checked on every save since 0.9.73): anything else in an older inventory
+     is made into that, so the first save after the upgrade is not refused. */
+  if (s.history && typeof s.history === 'object') for (const [k, h] of Object.entries(s.history)) {
+    const fixed = (Array.isArray(h) ? h : []).filter(e => e && typeof e === 'object' && !Array.isArray(e) && e.msg != null)
+      .map(e => ({ ...e, msg: String(e.msg).slice(0, 5000), ...(e.t !== undefined ? { t: String(e.t) } : {}) }));
+    if (!Array.isArray(h) || fixed.length !== h.length || fixed.some((e, i) => e.msg !== h[i].msg || e.t !== h[i].t)) { s.history[k] = fixed; changed = true; }
+  }
+  /* A stocktake needs a name (checked since 0.9.73). */
+  for (const t of Array.isArray(s.stocktakes) ? s.stocktakes : []) if (t && typeof t.name === 'string' && !t.name.trim()) { t.name = 'Stocktake'; changed = true; }
   /* The attachments of a PC were one text; each line (or comma) is now an accessory. */
   for (const o of s.objs) if (typeof o.attach === 'string') {
     const names = o.attach.split(/[\n,]/).map(x => x.trim().slice(0, 120)).filter(Boolean);

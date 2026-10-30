@@ -74,8 +74,10 @@ test('the order of a field\'s sources: the default as before, set per field, wit
   // without a set order, a source's value stays as before: AD never replaces Intune, Intune not Lansweeper's first value
   assert.equal(maySet({ policy: {} }, { os: 'x', src: { os: 'graph' } }, 'os', 'ad'), false);
   assert.equal(maySet({ policy: {} }, { disk: 'x', src: { disk: 'ls' } }, 'disk', 'graph'), false);
-  // on a device linked to Lansweeper, a field it comes before Intune for is left to it once it has a value
-  assert.equal(maySet({ policy: { os: true } }, { os: 'x', src: { os: 'graph' }, feed: { sys: 'Lansweeper' } }, 'os', 'graph'), false);
+  // on a device linked to Lansweeper, a field it comes before Intune for is left to it once it has a value; a value
+  // Intune set itself (Lansweeper had none) Intune keeps up to date
+  assert.equal(maySet({ policy: { os: true } }, { os: 'x', src: { os: 'ad' }, feed: { sys: 'Lansweeper' } }, 'os', 'graph'), false);
+  assert.equal(maySet({ policy: { os: true } }, { os: 'x', src: { os: 'graph' }, feed: { sys: 'Lansweeper' } }, 'os', 'graph'), true);
   // what may be saved
   assert.equal(fieldOrderProblem({ os: ['ad', 'graph', 'ls'], price: [] }), '');
   for (const bad of [[], { os: ['ad', 'ad'] }, { os: ['x'] }, { purpose: ['graph'] }, { nofield: [] }, { os: 'ad' }]) assert.ok(fieldOrderProblem(bad), JSON.stringify(bad));
@@ -119,4 +121,10 @@ test('a monitor Lansweeper sees on a dock hangs on the device the dock was merge
   const t = { objs: [{ ...pc, accessories: [{ name: 'Docking station', kind: 'Dock', seenAs: 'nb-7.corp.example', ref: 'dk7' }] }, { ...mon }], rels: [], users: [], locs: [], history: {}, feedOn: true, policy: {} };
   mergeRecords(t, [{ name: 'Dell P2422H', serial: 'M1', ref: 'm1', links: [{ ref: 'dk7', kind: 'attached' }] }], at);
   assert.deepEqual(t.rels.map(r => [r.from, r.to]), [['mo', 'pc']]);
+});
+
+test('a source after Lansweeper keeps the value it set up to date', () => {
+  const o = { id: 'x', feed: { sys: 'Lansweeper' }, ram: '8 GB', src: { ram: 'graph' } };
+  assert.equal(maySet({ policy: { ram: true } }, o, 'ram', 'graph'), true);
+  assert.equal(maySet({ policy: { ram: true } }, { ...o, src: { ram: 'ls' } }, 'ram', 'graph'), false, 'not a value Lansweeper set');
 });

@@ -16,9 +16,9 @@ test('the note entries of before become lines of the one notes text', () => {
   assert.equal(t.objs[0].notes, undefined, 'no entries, no notes');
 });
 
-test('the notes are text of up to 5000 characters', () => {
+test('the notes are text of up to 20000 characters', () => {
   assert.doesNotThrow(() => checkState(base({ notes: 'Papers in the blue folder' })));
-  assert.throws(() => checkState(base({ notes: 'x'.repeat(5001) })), /5000/);
+  assert.throws(() => checkState(base({ notes: 'x'.repeat(20001) })), /20000/);
   assert.throws(() => checkState(base({ notes: 42 })), /notes/);
 });
 
@@ -81,4 +81,23 @@ test('a device can be marked not in use and stays in the inventory', () => {
   assert.doesNotThrow(() => checkState(s));
   s.objs[0].status = 'gone';
   assert.throws(() => checkState(s));
+});
+
+test('the old note entries are not cut at the old limit when they become the notes', () => {
+  const entries = Array.from({ length: 4 }, (_, i) => ({ title: `Entry ${i}`, text: 'x'.repeat(1900) }));
+  const s = base({ notes: 'keep me', entries });
+  migrateState(s);
+  assert.ok(s.objs[0].notes.includes('Entry 3'), 'the last entry is kept');
+  assert.doesNotThrow(() => checkState(s));
+});
+
+test('a record\'s history is a list of entries, so a sync can add to it', () => {
+  const s = base();
+  s.history = { pc: { note: 'x' } };
+  assert.throws(() => checkState(s), /history/);
+  s.history = { pc: [{ t: '2026-01-01', msg: 'ok' }] };
+  assert.doesNotThrow(() => checkState(s));
+  s.history = { pc: { note: 'x' }, other: [{ t: 5, msg: 'y' }, null] };
+  migrateState(s);
+  assert.deepEqual(s.history, { pc: [], other: [{ t: '5', msg: 'y' }] });
 });

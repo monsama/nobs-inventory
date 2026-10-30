@@ -3,7 +3,7 @@
    certificates that expire, and the errors in the log. Numbers and dates only: no secret, no data of a device or person. */
 import fs from 'node:fs';
 import { scheduleOf } from '../public/js/schedule.js';
-import { dateTimeText } from '../public/js/dates.js';
+import { dateText, dateTimeText } from '../public/js/dates.js';
 
 const DAY = 864e5;
 const mb = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -61,7 +61,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, now = 
 
   /* Certificates that expire: the one the server signs in to Graph with, and the directory's CA. */
   const certState = d => d < 0 ? 'bad' : d < 30 ? 'warn' : 'ok';
-  const certValue = (iso, now2) => { const d = days(iso, now2); return d < 0 ? `Expired on ${iso.slice(0, 10)}` : `Valid until ${iso.slice(0, 10)} (${d} days)`; };
+  const certValue = (iso, now2) => { const d = days(iso, now2); return d < 0 ? `Expired on ${dateText(iso.slice(0, 10))}` : `Valid until ${dateText(iso.slice(0, 10))} (${d} days)`; };
   if (graphCert) {
     const d = days(graphCert, now);
     add('Certificates', 'Microsoft Graph sign-in', certState(d), certValue(graphCert, now), d < 30 ? 'Make a new one in Settings → Entra & Intune and upload it to the app registration before this one ends.' : '');

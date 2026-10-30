@@ -239,6 +239,8 @@ export const HISTORY = {};
 /* The newest entries come first; the server keeps the same number (HISTORY_KEEP). */
 export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift({t, msg}); if (h.length > 500) h.length = 500; };
 
+/* What Lansweeper may overwrite out of the box (Settings → Lansweeper, and the field order's default). */
+export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false};
 /* ---------- state ----------
    What the page shows and remembers while it is open: the sidebar filters (type, loc, status, scanOld, q and the
    others set from the sidebar or the Overview), the open tab and object tabs, the view settings of the Cards, Ports,
@@ -247,7 +249,7 @@ export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift
    Each object can override these on its own page: the source picked for a field (o.pick). */
 export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
-  policy:{ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false},
+  policy:{ ...DEFAULT_POLICY },
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 export let APP_VERSION = '';
 export const setAppVersion = v => { APP_VERSION = v; };
@@ -684,7 +686,6 @@ function closeSrcPop(refocus = false){
     if (m) m.focus();
   }
 }
-export const closeSrcPopAndFocus = () => closeSrcPop(true);
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
   closeSrcPop();

@@ -1540,3 +1540,35 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .card .cf .chip.lsst.seen{flex:1 1 auto;max-width:none;justify-content:flex-start}
 .card .cf .chip.lsst.seen ~ .grow{flex:0 0 0}
 .notes-box{width:100%;min-height:64px;resize:vertical;font:inherit;line-height:1.45}
+/* Relations: beside a port box the VLAN has a slot of its own, so the port boxes line up with or without one. */
+.relrow .rvlan{flex:0 0 130px;min-width:0;display:flex}
+.relrow .chip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* On a phone a relation's kind goes on its own line, so the name, port and VLAN have the width. */
+@media (max-width:760px){
+  .relrow{flex-wrap:wrap;row-gap:2px}
+  .relrow .k{width:auto;flex:1 1 100%}
+  .relrow .t{flex:1 1 0}
+  .relrow .rvlan{flex:0 1 auto}
+  .pl-side{max-height:none}
+}
+/* Plan pins: a long name ends in … inside its pin. */
+.pl-pin>.pl-code{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* Touch screens: a link that looks like a button is as tall as the buttons beside it. */
+@media (pointer:coarse){a.btnlike{min-height:40px}}
+/* A narrower desktop: the views' tabs are tighter, and Reload and Sync show their icon only (the name stays for screen
+   readers and in the tooltip), so the bar fits without scrolling. */
+@media (min-width:761px) and (max-width:1600px){
+  #tabsbar .tab{padding:0 9px}
+  #tabsbar .sync-btn .tlbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}
+/* A record kept out (ignored, or merged into a device): a quiet grey banner, not the blue of one waiting for a decision. */
+.rv-banner.off{border-color:var(--bd);border-left-color:var(--muted);background:var(--panel2)}
+.cn-foot{display:flex;gap:4px 14px;flex-wrap:wrap}
+/* Data sources: a source not set up is marked by its dashed border and badge, not by fading its text (contrast). */
+.ds-card.off{opacity:1;border-style:dashed;background:var(--panel2)}
+.ds-dim{opacity:1;color:var(--muted)}
+/* Merged records: names break between words, the date stays on one line. */
+.nics.merged .nic-name{overflow-wrap:break-word;word-break:normal}
+.nics.merged .nic-meta{white-space:normal}
+.nics.merged .nic-meta time,.nics.merged .nic-when{white-space:nowrap}
+@media (max-width:760px){.nics.merged li{grid-template-columns:minmax(0,1fr)}.nics.merged .nic-meta{grid-column:1}.nics.merged .nic-acts{grid-column:1;grid-row:auto}}

@@ -118,7 +118,8 @@ export function reportXlsx(r) {
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
 <cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>
 <sheetData>${rows.join('')}</sheetData><autoFilter ref="A1:${lastRef}"/></worksheet>`;
-  const name = xml(r.title.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
+  /* Excel's rules for a sheet name: up to 31 characters, none of \\ / ? * [ ] :, not empty, no ' at either end. */
+  const name = xml(String(r.title || '').replace(/[\\/?*[\]:]/g, ' ').replace(/^[\s']+|[\s']+$/g, '').slice(0, 31).trim() || 'Report');
   return zip([
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>

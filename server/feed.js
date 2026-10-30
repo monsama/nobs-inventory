@@ -163,7 +163,8 @@ function applySoftware(s, pairs) {
    are updated, and links Lansweeper no longer reports are removed. Links made by hand are never touched. */
 /* What a dock's record says hangs on it, kept short: the monitors by their Lansweeper ref or name. */
 const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}) }));
-function applyLinks(s, pairs, counts) {
+const DOCK_LINKS_DAYS = 30;
+function applyLinks(s, pairs, counts, seen) {
   let n = 0;
   if (s.feedOn === false) return n;
   /* The devices by Lansweeper ref and by name, once; and the links each merged device should have, removed in one pass. */
@@ -183,11 +184,14 @@ function applyLinks(s, pairs, counts) {
   /* A device and the dock merged into it report their links apart: the device has all of them. What the dock last
      reported is kept with it (its merged record, or its attachment), so a push that brings the device without the dock
      does not take the dock's links away. */
+  /* A dock not seen for DOCK_LINKS_DAYS (the laptop undocked for good) no longer keeps its links, so they are removed
+     and their ports are free again. Links kept before the day was noted count from the first push that sees them. */
   const mergedLinks = new Map();
-  const addMerged = (id, list) => { if (Array.isArray(list) && list.length) mergedLinks.set(id, [...(mergedLinks.get(id) || []), ...list]); };
+  const fresh = at => !at || Date.parse(seen) - Date.parse(at) <= DOCK_LINKS_DAYS * 864e5;
+  const addMerged = (id, list, at) => { if (Array.isArray(list) && list.length && fresh(at)) mergedLinks.set(id, [...(mergedLinks.get(id) || []), ...list]); };
   for (const o of s.objs) {
-    if (o.excluded && o.review && o.review.merged && o.feed) addMerged(o.review.merged, o.feed.links);
-    for (const a of o.accessories || []) addMerged(o.id, a.links);
+    if (o.excluded && o.review && o.review.merged && o.feed) { if (o.feed.links && !o.feed.linksAt) o.feed.linksAt = seen; addMerged(o.review.merged, o.feed.links, o.feed.linksAt); }
+    for (const a of o.accessories || []) { if (a.links && !a.linksAt) a.linksAt = seen; addMerged(o.id, a.links, a.linksAt); }
   }
   const wantedOf = new Map(), own = new Set();
   for (const { r, obj, linksOnly } of pairs) {
@@ -316,7 +320,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
        plugged into): those links are the device's. */
     if (found && found.excluded) {
       const t = found.review && found.review.merged && s.objs.find(o => o.id === found.review.merged && o.status !== 'retired' && !o.excluded && !o.detached);
-      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links) }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); }
+      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links), linksAt: seen }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); }
       counts.excluded = (counts.excluded || 0) + 1; continue;
     }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
@@ -335,7 +339,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ((s.history ??= {})[into.id] ??= []).unshift({ t: seen, msg: had ? `Lansweeper: docking station ${r.name} has the MAC address ${r.mac}` : `Lansweeper: ${r.name} merged in as a docking station${r.mac ? ` (MAC ${r.mac})` : ''}` });
       }
       const acc = Array.isArray(r.links) && (into.accessories || []).find(a => lc(a.seenAs) === lc(r.name));
-      if (acc) { acc.links = linksOf(r.links); pairs.push({ r: { links: r.links }, obj: into, linksOnly: true }); }
+      if (acc) { acc.links = linksOf(r.links); acc.linksAt = seen; pairs.push({ r: { links: r.links }, obj: into, linksOnly: true }); }
       counts.merged = (counts.merged || 0) + 1;
       continue;
     }
@@ -442,7 +446,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const netsBefore = JSON.stringify([s.lsNets || [], before.ipLocations]);
   if (cleaned.some(r => r.mask)) s.lsNets = suggestNets(s.objs.filter(o => o.status !== 'retired'), s.subnets, ipLocations);
   counts.networks = JSON.stringify([s.lsNets || [], s.lsIpLocations || []]) === netsBefore ? 0 : 1;
-  counts.links = applyLinks(s, pairs, counts);
+  counts.links = applyLinks(s, pairs, counts, seen);
   counts.software = applySoftware(s, pairs);
   return counts;
 }

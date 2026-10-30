@@ -9,7 +9,7 @@ import { healthReport } from './health.js';
 import { finishSso, startSso, userForClaims } from './sso.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
-import { ldapEnabled, ldapHint, ldapLogin, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
+import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapHostOf } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
@@ -176,10 +176,29 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!ssoOn()) return back('off');
       if (req.query.error) { audit(db, null, `sign in with Microsoft refused by Microsoft: ${String(req.query.error_description || req.query.error).split(/[\r\n]/)[0].slice(0, 200)}`); return back('denied'); }
       const claims = await finishSso(cfgGraph(), { state: req.query.state, code: req.query.code, bind: readCookie(req.headers.cookie, SSO_COOKIE) }, graphFetch);
-      const user = userForClaims(loadState(db).users, claims);
+      let user = userForClaims(loadState(db).users, claims);
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
       if (user.role === 'none') { audit(db, user.id, 'sign in with Microsoft refused: no role'); return back('norole'); }
+      /* A directory user is checked as at a password sign-in: still in the directory and in its sign-in group, and admin
+         only while in the admin group (the last active admin stays one). Without a service account the role the last
+         sync gave stands. */
+      const lc = cfgLdap();
+      if (user.source === 'ldap' && ldapEnabled(lc)) {
+        const m = await ldapMembership(lc, user.login);
+        /* Read again after waiting on the directory: an admin may have changed the account meanwhile. */
+        const id = user.id;
+        user = loadState(db).users.find(u => u.id === id);
+        if (!user || user.active === false || user.role === 'none') return back('norole');
+        if (m && !(m.found && m.allowed)) { audit(db, user.id, `sign in with Microsoft refused: ${m.found ? 'not in the sign-in group' : 'not in the directory'}`); return back('norole'); }
+        const lastAdmin = !loadState(db).users.some(u => String(u.id) !== String(user.id) && u.role === 'admin' && u.active !== false);
+        if (m && user.role === 'admin' && !m.admin && !lastAdmin) {
+          /* As at a password sign-in: no access until an admin gives a role again. */
+          user.role = 'none'; saveUserDoc(user); bumpUser(user.id);
+          audit(db, user.id, 'sign in with Microsoft refused: not in the admin group any more');
+          return back('norole');
+        } else if (m && m.admin && user.role !== 'admin') { user.role = 'admin'; saveUserDoc(user); bumpUser(user.id); }
+      }
       const token = createSession(db, user.id, req.get('user-agent') || '');
       audit(db, user.id, `sign in with Microsoft (${who})`);
       back('', [cookie(token, 43200)]);
@@ -796,7 +815,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const s = loadState(db), g = cfgGraph();
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
-      const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db)), ldap: !!cfgLdap(), graph: !!g };
+      const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
       res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert }));
     } catch (e) { next(e); }
   });

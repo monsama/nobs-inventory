@@ -151,10 +151,14 @@ test('Graph keeps hand edits on a device it added, hands it over to Lansweeper, 
   phone.model = 'iPhone 15 (blue)'; phone.pick = { ...(phone.pick || {}), model: 'hand' };
   applyGraph(s, [{ ...rec, os: 'iOS 18.2' }], NOW);
   assert.equal(phone.model, 'iPhone 15 (blue)'); assert.equal(phone.os, 'iOS 18.2');
-  // once Lansweeper has it, and fills the OS in, Graph only fills gaps
+  // once Lansweeper has it, Graph keeps the OS it set up to date while Lansweeper reports none ...
   phone.feed = { sys: 'Lansweeper', ref: 'x' }; s.policy = { os: true };
+  applyGraph(s, [{ ...rec, os: 'iOS 18.3' }], NOW);
+  assert.equal(phone.os, 'iOS 18.3'); assert.equal(phone.graph.added, undefined);
+  // ... and once Lansweeper reports one, Graph only fills gaps
+  phone.vals = { ...(phone.vals || {}), os: { ...((phone.vals || {}).os || {}), ls: ['iOS 18.3', ''] } };
   applyGraph(s, [{ ...rec, os: 'iOS 19' }], NOW);
-  assert.equal(phone.os, 'iOS 18.2'); assert.equal(phone.graph.added, undefined);
+  assert.equal(phone.os, 'iOS 18.3');
   // excluded: what Graph reports is updated, the fields are not
   const pc = { id: 'p1', code: 'INV-0009', type: 'pc', name: 'PC-X', serial: 'X1', status: 'active', ovr: {}, feed: null, excluded: true };
   s.objs.push(pc);

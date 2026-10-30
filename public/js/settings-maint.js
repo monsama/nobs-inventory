@@ -120,7 +120,9 @@ export function restoreModal(label, run){
    anything; the two that delete ask for a typed word first, and sit together at the end, apart from everyday buttons. */
 /* Health: what the server says of itself (server/health.js), read when Maintenance opens and by Check again. */
 export let HEALTH = null;
+let HEALTH_AT = 0;
 export async function loadHealth(){
+  HEALTH_AT = Date.now();
   const r = await fetch('api/health/details', {credentials: 'same-origin'}).catch(() => null);
   HEALTH = r && r.ok ? await r.json() : { state: 'bad', checks: [{ area: 'Server', name: 'Health', state: 'bad', value: 'Could not be read', note: 'The server did not answer.' }] };
   if ($('#setMaint')) renderSetMaint();
@@ -141,7 +143,8 @@ function healthPanel(){
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
-  if (edit && HEALTH === null) { HEALTH = undefined; loadHealth(); }
+  /* Read again when Maintenance is opened a minute or more after the last read. */
+  if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }
   if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
   $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>

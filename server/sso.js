@@ -19,7 +19,8 @@ function sweep(now) { for (const [k, v] of pending) if (v.until < now) pending.d
    browser cannot be finished in this one. */
 export function startSso(cfg, redirectUri, now = Date.now()) {
   sweep(now);
-  if (pending.size > 1000) pending.clear();
+  /* Many unfinished sign-ins (someone calling start in a loop): the oldest make room, not all of them. */
+  while (pending.size >= 1000) pending.delete(pending.keys().next().value);
   const state = b64url(crypto.randomBytes(24)), nonce = b64url(crypto.randomBytes(24)), verifier = b64url(crypto.randomBytes(48)), bind = b64url(crypto.randomBytes(24));
   pending.set(state, { nonce, verifier, bind, redirectUri, until: now + PENDING_MS });
   const q = new URLSearchParams({ client_id: cfg.clientId, response_type: 'code', redirect_uri: redirectUri, response_mode: 'query', scope: SCOPE, state, nonce,
@@ -77,15 +78,30 @@ export async function finishSso(cfg, { state, code, bind }, fetchImpl = fetch, n
   return verifyIdToken(cfg, j.id_token, p.nonce, fetchImpl, now);
 }
 
-/* The inventory's user the claims stand for: by Entra object ID, then user principal name (an Entra user's, or a login
-   or e-mail that is it), then the directory login that is the name before the @ when only one user has it. */
+/* The inventory's user the claims stand for: by Entra object ID first. The address in the token (preferred_username,
+   upn, email) is not proof of who someone is, so it is used only when no user is linked to that object ID, never for a
+   user linked to another object ID, and never for a guest (a token from another home tenant: its address is theirs).
+   Then a user principal name (an Entra user's, or a login or e-mail that is it), then the directory login that is the
+   name before the @, when the address is in one of the organisation's own domains (those of its users' addresses) and
+   only one user has that login. */
 export function userForClaims(users, claims) {
   const low = v => String(v || '').trim().toLowerCase();
   const oid = low(claims.oid), upn = low(claims.preferred_username || claims.upn || claims.email);
   const live = users.filter(u => u.active !== false);
   const one = list => list.length === 1 ? list[0] : null;
-  return (oid && one(live.filter(u => u.entra && low(u.entra.id) === oid)))
-    || (upn && one(live.filter(u => (u.entra && low(u.entra.upn) === upn) || low(u.login) === upn || (u.profile && low(u.profile.mail) === upn))))
-    || (upn.includes('@') && one(live.filter(u => u.source === 'ldap' && low(u.login) === upn.split('@')[0])))
-    || null;
+  const byOid = oid && one(live.filter(u => u.entra && low(u.entra.id) === oid));
+  if (byOid) return byOid;
+  if (oid && users.some(u => u.entra && low(u.entra.id) === oid)) return null;
+  /* A guest's token names its home tenant in idp (a member's has none, or this tenant); acct 1 is a guest, too. */
+  const guest = (!!claims.idp && !(claims.tid && low(claims.idp).includes(low(claims.tid)))) || String(claims.acct) === '1';
+  if (!upn || guest) return null;
+  const free = live.filter(u => !(u.entra && u.entra.id) || !oid || low(u.entra.id) === oid);
+  const byUpn = one(free.filter(u => (u.entra && low(u.entra.upn) === upn) || low(u.login) === upn || (u.profile && low(u.profile.mail) === upn)));
+  if (byUpn) return byUpn;
+  const at = upn.lastIndexOf('@');
+  if (at < 1) return null;
+  const domainOf = v => { const t = low(v), i = t.lastIndexOf('@'); return i > 0 ? t.slice(i + 1) : ''; };
+  const own = new Set(users.flatMap(u => [u.entra && u.entra.upn, u.profile && u.profile.mail, u.login].map(domainOf)).filter(Boolean));
+  if (!own.has(upn.slice(at + 1))) return null;
+  return one(free.filter(u => u.source === 'ldap' && low(u.login) === upn.slice(0, at)));
 }
