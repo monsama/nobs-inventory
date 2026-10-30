@@ -47,7 +47,7 @@ try {
   await p.fill('#stkName', 'Bern autumn'); await p.click('#stkStart');
   await p.waitForSelector('#stkScan');
   assert.match(await p.textContent('.stk-prog'), /0 of 3/);
-  assert.equal(await p.evaluate(() => document.activeElement.id), 'stkScan', 'ready to scan');
+  await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'stkScan', null, { timeout: 5000 });   /* ready to scan */
   assert.equal(await p.locator('#tabsbar [data-tab=stocktake]').count(), 1, 'its tab shows while it runs');
   // by scan (serial number), by tick, and one found here that is recorded in Zürich: moved
   await p.fill('#stkScan', 'sa1'); await p.press('#stkScan', 'Enter');

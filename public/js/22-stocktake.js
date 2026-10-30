@@ -31,9 +31,12 @@ function unconfirm(o){
 
 export function renderStocktake(){
   const t = activeStocktake(), edit = canEdit();
+  /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
+  const scanning = document.activeElement && document.activeElement.id === 'stkScan';
   $('#toolbar').innerHTML = `<b>Stocktake</b><span class="muted">${t ? esc(`${t.name} · ${placeName(t.scope)}`) : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
   $('#view').innerHTML = `<div class="stk">${t ? activeHtml(t, edit) : startHtml(edit)}${historyHtml()}</div>`;
   if (t) wireActive(t, edit); else wireStart(edit);
+  if (scanning && $('#stkScan')) $('#stkScan').focus();
   document.querySelectorAll('[data-stkdel]').forEach(b => b.onclick = () => {
     const was = st.stocktakes;
     st.stocktakes = st.stocktakes.filter(x => x.id !== b.dataset.stkdel); queueServerSave(); renderStocktake();
@@ -60,7 +63,8 @@ function wireStart(edit){
     const scope = $('#stkPlace').value, name = $('#stkName').value.trim() || `Stocktake ${placeName(scope)} ${dateText(today())}`;
     st.stocktakes = [{ id: 'st' + Date.now().toString(36), name: name.slice(0, 120), scope, started: new Date().toISOString(), by: who() }, ...(st.stocktakes || [])].slice(0, 50);
     queueServerSave(); FILTER = 'open'; renderStocktake();
-    setTimeout(() => $('#stkScan') && $('#stkScan').focus(), 0);
+    /* Ready to scan at once. */
+    const sc = $('#stkScan'); if (sc) sc.focus();
   };
 }
 
