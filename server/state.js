@@ -236,6 +236,10 @@ function checkStateRules(s, size = true) {
   if (s.typeMap !== undefined && s.typeMap !== null && (typeof s.typeMap !== 'object' || Array.isArray(s.typeMap) || Object.values(s.typeMap).some(v => typeof v !== 'string'))) bad('The Lansweeper type mappings are names of types.');
   if (s.racks !== undefined && !Array.isArray(s.racks)) bad('Racks must be a list.');
   if (!s.types || typeof s.types !== 'object' || !s.history || typeof s.history !== 'object') bad('Types and history must be objects.');
+  /* A record's history is a list of { t, msg }: the syncs add to it, so anything else there would stop every sync. */
+  for (const [k, h] of Object.entries(s.history)) {
+    if (!Array.isArray(h) || h.some(e => !e || typeof e !== 'object' || Array.isArray(e) || typeof e.msg !== 'string' || e.msg.length > 5000 || (e.t !== undefined && typeof e.t !== 'string'))) bad(`The history of ${k} is a list of entries, each a time and a text.`);
+  }
   /* A type's name is shown as text everywhere; angle brackets have no place in it. */
   for (const [k, t] of Object.entries(s.types)) for (const f of ['label', 'short']) {
     if (t && t[f] !== undefined && (typeof t[f] !== 'string' || t[f].length > 60 || /[<>]/.test(t[f]))) bad(`The ${f === 'label' ? 'name' : 'short name'} of the type ${k} is text of up to 60 characters, without < or >.`);
@@ -317,7 +321,7 @@ function checkStateRules(s, size = true) {
     if (o.notTwin !== undefined && o.notTwin !== true) bad(`${o.name}: "not a duplicate" is set or left out.`);
     /* A device found by a sync and waiting in To review: which source found it, when, and when it was ignored. */
     if (o.review !== undefined && (!o.review || typeof o.review !== 'object' || Array.isArray(o.review) || !INTAKE_SOURCES.includes(o.review.src)
-      || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored', 'merged'].includes(k) || typeof v !== 'string' || v.length > 40))) bad(`${o.name}: the review mark names its source and when.`);
+      || Object.entries(o.review).some(([k, v]) => !['src', 'at', 'ignored', 'merged', 'filled', 'moved'].includes(k) || typeof v !== 'string' || v.length > (k === 'moved' ? 4000 : k === 'filled' ? 100 : 40)))) bad(`${o.name}: the review mark names its source and when.`);
     if (o.ad !== undefined && (!o.ad || typeof o.ad !== 'object' || Array.isArray(o.ad)
       || Object.values(o.ad).some(v => Array.isArray(v) ? v.length > 30 || v.some(x => typeof x !== 'string' || x.length > 60) : typeof v !== 'string' || v.length > 400))) bad(`${o.name}: the Active Directory data is an object of short texts.`);
     /* What each source says of a field ([value, as of]) and the source a person picked for it. */
@@ -332,10 +336,10 @@ function checkStateRules(s, size = true) {
         if (a.kind !== undefined && (typeof a.kind !== 'string' || a.kind.length > 60)) bad(`${o.name}: the kind of an attachment is text of up to 60 characters.`);
         if (a.serial !== undefined && (typeof a.serial !== 'string' || a.serial.length > 60)) bad(`${o.name}: the serial of an attachment is text of up to 60 characters.`);
         /* A docking station merged in: its MAC address and the record Lansweeper sees it as. */
-        for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
+        for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60], ['linksAt', 40]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
       }
     }
-    if (o.notes !== undefined && (typeof o.notes !== 'string' || o.notes.length > 5000)) bad(`${o.name}: the notes are text of up to 5000 characters.`);
+    if (o.notes !== undefined && (typeof o.notes !== 'string' || o.notes.length > 20000)) bad(`${o.name}: the notes are text of up to 20000 characters.`);
     if (o.entries !== undefined) {
       if (!Array.isArray(o.entries) || o.entries.length > 200) bad(`${o.name}: notes must be a list of up to 200 entries.`);
       else for (const e of o.entries) {

@@ -437,7 +437,7 @@ export async function boot(){
   /* Back from Microsoft: what went wrong, if anything, said on the sign-in; the address is cleaned. */
   const ssoErr = new URLSearchParams(location.search).get('sso');
   if (ssoErr) history.replaceState(null, '', location.pathname + location.hash);
-  if (!info.user){ clearInventory(); render(); loginModal(SSO_ERRORS[ssoErr] || (ssoErr ? SSO_ERRORS.failed : '')); return; }
+  if (!info.user){ clearInventory(); render(); loginModal(ssoErr ? (Object.hasOwn(SSO_ERRORS, ssoErr) ? SSO_ERRORS[ssoErr] : SSO_ERRORS.failed) : ''); return; }
   await loadFromServer(info.user);
 }
 /* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
@@ -480,6 +480,14 @@ export function loginModal(err = '', login = ''){
     </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p>
     ${SERVER.sso ? `<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>` : ''}</div>
     <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
+  /* Microsoft's sign-in leaves the page: changes not saved yet would be lost. Said first; a second click goes anyway. */
+  const ms = document.querySelector('.lg-ms');
+  if (ms) ms.addEventListener('click', e => {
+    const p = SERVER.base ? pendingChanges() : { puts: [], dels: [] }, n = p.puts.length + p.dels.length;
+    if (!n || ms.dataset.warned) return;
+    e.preventDefault(); ms.dataset.warned = '1';
+    $('#lgErr').textContent = `${n} change${n === 1 ? ' is' : 's are'} not saved yet and would be lost. Sign in with your password to keep ${n === 1 ? 'it' : 'them'}, or click Sign in with Microsoft again to go on.`;
+  });
   const go = async () => {
     const login = $('#lgUser').value;
     const r = await fetch('api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',

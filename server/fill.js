@@ -93,9 +93,10 @@ export function officeLocations(s, at) {
   for (const o of s.objs || []) {
     if (o.loc || o.status === 'retired' || o.excluded || o.detached || !o.uid) continue;
     const u = people.get(o.uid), office = u && u.profile && u.profile.office;
-    /* Noted as the source the office came from: AD, or Entra (Intune's place in the order). */
-    const src = u && u.profile && u.profile.from === 'entra' ? 'graph' : 'ad';
-    if (pickOf(o, 'loc') && pickOf(o, 'loc') !== src) continue;
+    /* The office is a directory value: it takes AD's place in the location's order (Entra people too, as the location
+       has no Intune source), and only while AD is in that order and no other source is picked for the device. */
+    const src = 'ad';
+    if (!maySet(s, o, 'loc', src)) continue;
     const room = office && mappedRoom(s, office);
     if (!room) continue;
     o.loc = room; markSource(o, 'loc', src);

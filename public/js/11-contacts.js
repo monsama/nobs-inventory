@@ -1,12 +1,12 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
+import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, esc, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { USERS, canEdit, who } from './04-settings.js';
-import { queueServerSave, render } from './07-render.js';
+import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
 
@@ -44,7 +44,7 @@ function deleteContact(c){
   });
 }
 function contactCard(c){
-  const n = devicesOf(c).length;
+  const n = devicesOf(c).length, k = (COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).length;
   return `<div class="cn-card ${c.kind}">
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${esc(initials(c.name))}</span>
       <div class="cn-who"><b>${esc(c.name)}</b><span class="muted">${esc([c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind])}</span></div>
@@ -52,7 +52,7 @@ function contactCard(c){
     ${c.area ? `<div class="cn-area" title="Ask about">${esc(c.area)}</div>` : ''}
     <div class="cn-ways">${reach(c) || '<span class="muted">No e-mail or phone yet</span>'}</div>
     ${c.note ? `<p class="cn-note">${esc(c.note)}</p>` : ''}
-    <div class="cn-foot"><button class="link" data-cndevs="${esc(c.id)}" ${n ? '' : 'disabled'} title="Show the devices ${esc(c.name)} is responsible for">${n ? `Responsible for ${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'}</button></div>
+    <div class="cn-foot">${n || !k ? `<button class="link" data-cndevs="${esc(c.id)}" ${n ? '' : 'disabled'} title="Show the devices ${esc(c.name)} is responsible for">${n ? `Responsible for ${n} ${n === 1 ? 'device' : 'devices'}` : 'No devices yet'}</button>` : ''}${k ? `<button class="link" data-cnctr="${esc(c.id)}" title="Open Contracts">Contact for ${k} ${k === 1 ? 'contract' : 'contracts'}</button>` : ''}</div>
   </div>`;
 }
 
@@ -93,6 +93,7 @@ export function renderContacts(){
   v.querySelectorAll('[data-cnedit]').forEach(b => b.onclick = () => contactModal(contactOf(b.dataset.cnedit)));
   v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });
   v.querySelectorAll('[data-cndevs]').forEach(b => b.onclick = () => showDevicesOfContact(b.dataset.cndevs));
+  v.querySelectorAll('[data-cnctr]').forEach(b => b.onclick = () => { st.tab = 'contracts'; view(); });
 }
 /* From the directory: the people AD or Entra brought in, picked one by one or by department, become internal contacts
    linked to them (userId), with their name, title, e-mail and phones. A value the contact rules refuse (a phone in a

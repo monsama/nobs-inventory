@@ -35,7 +35,7 @@ export function accessoriesHtml(o){
 }
 /* Notes: one text box per device, saved when it is left. */
 export function notesHtml(o, edit){
-  return `<textarea id="objNotes" class="notes-box" rows="${Math.min(12, Math.max(3, String(o.notes || '').split('\n').length + 1))}" maxlength="5000" placeholder="${edit ? 'Anything worth knowing about this device: where its papers are, a known quirk, a link…' : ''}" aria-label="Notes" ${edit ? '' : 'readonly'}>${esc(o.notes || '')}</textarea>`;
+  return `<textarea id="objNotes" class="notes-box" rows="${Math.min(12, Math.max(3, String(o.notes || '').split('\n').length + 1))}" maxlength="20000" placeholder="${edit ? 'Anything worth knowing about this device: where its papers are, a known quirk, a link…' : ''}" aria-label="Notes" ${edit ? '' : 'readonly'}>${esc(o.notes || '')}</textarea>`;
 }
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;

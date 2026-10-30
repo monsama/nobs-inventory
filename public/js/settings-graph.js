@@ -54,7 +54,7 @@ export async function renderSetGraph(){
     <p class="note">Reads what Microsoft Entra and Intune know of each device: join type, management, compliance, encryption, primary user and last contact, shown on the device. Devices are matched by serial number, else by name. Fields a device does not have yet are filled in; ones it has stay, except on devices added from here, which Graph keeps up to date until Lansweeper takes them over. It only reads: it changes nothing in Entra or Intune.</p>
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
-      <li><div class="gs-head"><b>Register the app in Entra</b>${done(ids)}</div>
+      <li><div class="gs-head"><b>Register the app in Entra</b>${done(ids || fromServer)}</div>
         <ol class="gs-sub">
           <li>Open the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a> → <b>Applications</b> → <b>App registrations</b> → <b>New registration</b>.</li>
           <li><b>Name:</b> <span class="mono">NOBS Inventory</span></li>
@@ -63,8 +63,8 @@ export async function renderSetGraph(){
           <li>Click <b>Register</b>. The app's <b>Overview</b> page opens: copy its two IDs into the fields below and save.</li>
         </ol>
         <div class="form" style="padding:8px 0 0">
-          <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="1b2c3d4e-5f60-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
-          <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="9a8b7c6d-…" autocomplete="off" ${fromServer ? 'disabled' : ''}>
+          <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="${fromServer ? 'Set on the server' : '1b2c3d4e-5f60-…'}" autocomplete="off" ${fromServer ? 'disabled' : ''}>
+          <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="${fromServer ? 'Set on the server' : '9a8b7c6d-…'}" autocomplete="off" ${fromServer ? 'disabled' : ''}>
         </div>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
       <li><div class="gs-head"><b>Give the app a certificate</b>${done(!!chosen || fromServer)}</div>

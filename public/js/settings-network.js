@@ -207,23 +207,25 @@ export const siteOf = l => String(l || '').split(' / ')[0];
 export function renderSetLocs(){
   if (!$('#setLocs')) return;   /* an Undo after Settings was closed: nothing here to draw */
   const siteRow = (x, i) => {
-    const n = objs.filter(o => siteOf(o.loc) === x).length + LOCS.filter(l => siteOf(l) === x).length;
+    /* The devices there, counted as in the sidebar; its rooms also keep it from being deleted. */
+    const n = objs.filter(o => siteOf(o.loc) === x).length, rooms = LOCS.filter(l => siteOf(l) === x).length;
+    const why = [n ? `${n} ${n === 1 ? 'device' : 'devices'}` : '', rooms ? `${rooms} ${rooms === 1 ? 'room' : 'rooms'}` : ''].filter(Boolean).join(' and ');
     return `<div class="lrow"><input data-si="${i}" value="${esc(x)}" aria-label="Site name"><span class="n">${n}</span>
-      <button data-sd="${i}" ${n ? `disabled title="In use by ${n} rooms, objects or racks"` : ''}>Delete</button></div>`;
+      <button data-sd="${i}" ${why ? `disabled title="It still has ${why}"` : ''}>Delete</button></div>`;
   };
   const roomRow = (l, i) => {
     const n = objs.filter(o => o.loc === l).length;
     return `<div class="lrow room"><span class="site" title="${esc(siteOf(l))}">${esc(siteOf(l))}</span><input data-lo="${i}" value="${esc(l.split(' / ').slice(1).join(' / '))}" aria-label="Room in ${esc(siteOf(l))}">
-      <span class="n">${n}</span><button data-ld="${i}" ${n ? `disabled title="In use by ${n} objects or racks"` : ''}>Delete</button></div>`;
+      <span class="n">${n}</span><button data-ld="${i}" ${n ? `disabled title="It still has ${n} ${n === 1 ? 'device' : 'devices'}"` : ''}>Delete</button></div>`;
   };
   $('#setLocs').innerHTML = `<div class="locgrid">
     <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
-      <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Used by</span><span></span></div>
+      <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Devices</span><span></span></div>
         ${SITES.length ? SITES.map(siteRow).join('') : '<p class="note lempty">No sites yet. Add the first one below.</p>'}</div>
       <div class="lpanel-add"><input id="nsName" placeholder="New site, e.g. Basel" aria-label="New site"><button id="nsAdd">Add site</button></div>
       <p class="note lnote" id="nsMsg">A site is a town or a building.</p></section>
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
-      <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Used by</span><span></span></div>
+      <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Devices</span><span></span></div>
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
       <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>

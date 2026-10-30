@@ -260,7 +260,7 @@ export function retireModal(o){
     done.forEach(([, , run]) => run());
     const why = $('#rtWhy').value.trim();
     o.status = 'retired';
-    hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => l.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
+    hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => new DOMParser().parseFromString(l, 'text/html').body.textContent.replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
     closeModal();
     toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
       restoreSnapshot(was, 'Retirement undone by ' + who());
@@ -305,8 +305,12 @@ export function purgeModal(o){
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }
 export function deleteObject(id){
-  const i = objs.findIndex(x => x.id === id); if (i < 0) return;
-  objs.splice(i, 1);
+  /* A record waiting in To review (or ignored there) is deleted from that list. */
+  const list = objs.some(x => x.id === id) ? objs : REVIEW;
+  const i = list.findIndex(x => x.id === id); if (i < 0) return;
+  list.splice(i, 1);
+  /* Records merged into a deleted device stay ignored, merged into nothing. */
+  REVIEW.forEach(x => { if (x.review && x.review.merged === id) { delete x.review.merged; delete x.review.filled; delete x.review.moved; } });
   for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
   objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
   /* A deleted rack leaves its devices unmounted; they stay in the inventory. */
@@ -373,7 +377,7 @@ export function renderObj(o){
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
-    <span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
+    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
@@ -392,7 +396,7 @@ export function renderObj(o){
       ${deviceRespPanel(o)}
       ${deviceContractsPanel(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px">` : (x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : '')}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
+        <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px"><span class="rvlan">${x.r.vlan ? `<span class="chip" title="VLAN ${esc(vlanLabel(x.r.vlan))}">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span>` : `${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
@@ -409,13 +413,14 @@ export function renderObj(o){
   bindDeviceLinks(o);
   const objView = $('#view').querySelector('.obj');
   /* A field saves when it is left; while one is being typed in, Save shows (Enter or leaving the field do the same). */
-  const dirty = () => { $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
+  /* The notes box saves itself when it is left (below), so it does not show Save. */
+  const dirty = e => { if (e && e.target && e.target.id === 'objNotes') return; $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
   objView.addEventListener('input', dirty);
   /* A field saves when it is left: the whole object is saved, without a redraw, except for a type change, which changes the fields. */
   objView.addEventListener('change', e => {
     /* "New person…": who gets the device, added to the people here and given it in one step. */
     if (e.target.dataset.k === 'user' && e.target.value === '__new'){ e.target.value = o.hotdesk ? '__hotdesk' : (o.uid || ''); newPersonModal(o); return; }
-    dirty(); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type');
+    dirty(e); if (e.target.matches('[data-k],[data-rk]')) saveObj(e.target.dataset.k === 'type');
   });
   /* A source tab shows its part of the Sources panel; the choice stays for the next device page. */
   objView.querySelectorAll('[data-srctab]').forEach(b => b.onclick = () => {
@@ -531,7 +536,7 @@ export function renderObj(o){
   /* The notes are saved when the box is left, with a line in the history. */
   const nb = $('#objNotes');
   if (nb && !nb.readOnly) nb.onchange = () => {
-    const v = nb.value.replace(/\s+$/, '').slice(0, 5000);
+    const v = nb.value.replace(/\s+$/, '').slice(0, 20000);
     if (v === (o.notes || '')) return;
     if (v) o.notes = v; else delete o.notes;
     hist(o, now(), `Notes ${v ? 'changed' : 'cleared'} by ${who()}`); queueServerSave(); toast('Notes saved');

@@ -39,12 +39,15 @@ export function verifiedProblem(v) {
 export function stocktakesProblem(list) {
   if (list === undefined) return '';
   if (!Array.isArray(list) || list.length > 50) return 'The stocktakes are a list of up to 50.';
+  if (new Set(list.map(t => t && t.id)).size !== list.length) return 'Each stocktake has its own id.';
+  const item = m => !!m && typeof m === 'object' && ['id', 'name', 'code', 'loc', 'from'].every(k => m[k] === undefined || text(m[k], 200));
   for (const t of list) {
-    if (!t || typeof t !== 'object' || !text(t.id, 40) || !t.id || !text(t.name, 120) || !text(t.scope ?? '', 200) || !text(t.started, 40) || !text(t.by ?? '', 120)) return 'A stocktake has an id, a name, a place and when it started.';
+    if (!t || typeof t !== 'object' || !text(t.id, 40) || !t.id || !text(t.name, 120) || !t.name.trim() || !text(t.scope ?? '', 200) || !text(t.started, 40) || !text(t.by ?? '', 120)) return 'A stocktake has an id, a name, a place and when it started.';
     if (t.unknown !== undefined && (!Array.isArray(t.unknown) || t.unknown.length > 1000 || t.unknown.some(u => !u || !text(u.text, 200) || !text(u.at ?? '', 40)))) return 'A stocktake keeps up to 1000 things scanned that were not known.';
     if (t.finished !== undefined && !text(t.finished, 40)) return 'A stocktake is finished on a day.';
     const r = t.result;
-    if (r !== undefined && (!r || typeof r !== 'object' || !Number.isFinite(r.total) || !Number.isFinite(r.confirmed) || !Array.isArray(r.missing) || r.missing.length > 5000 || !Array.isArray(r.moved) || r.moved.length > 5000 || !Array.isArray(r.unknown) || r.unknown.length > 1000)) return 'A finished stocktake keeps what it found.';
+    if (r !== undefined && (!r || typeof r !== 'object' || !Number.isFinite(r.total) || !Number.isFinite(r.confirmed) || !Array.isArray(r.missing) || r.missing.length > 5000 || !Array.isArray(r.moved) || r.moved.length > 5000 || !Array.isArray(r.unknown) || r.unknown.length > 1000
+      || !r.missing.every(item) || !r.moved.every(item) || !r.unknown.every(u => text(u, 200)))) return 'A finished stocktake keeps what it found.';
   }
   return '';
 }

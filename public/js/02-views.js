@@ -212,7 +212,7 @@ export function renderTabs(){
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
-  const reload = SERVER.on ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>Reload</button>` : '';
+  const reload = SERVER.on ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span class="tlbl">Reload</span></button>` : '';
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');
   $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + reload + sync
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
@@ -1017,7 +1017,8 @@ function bindMapToolbar(){
 }
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
-  const focus = st.mapFocus && byId(st.mapFocus) ? byId(st.mapFocus) : null;
+  /* Only a device in the inventory: a record in To review is not drawn, so it would leave an empty map. */
+  const focus = st.mapFocus && objs.find(o => o.id === st.mapFocus) || null;
   if (st.mapFocus && !focus) st.mapFocus = null;
   const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
   /* With a filter on (a type, a place, a search), the map shows the objects it finds and the objects linked to them, so

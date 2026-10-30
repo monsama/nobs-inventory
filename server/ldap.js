@@ -162,6 +162,22 @@ export async function ldapLogin(config, login, password) {
   } finally { close(client); }
 }
 
+/* For a sign-in that did not go through the directory's password (sign in with Microsoft): whether the login is still
+   in the directory, in the sign-in group and in the admin group, looked up with the service account. null when there is
+   no service account to look with; throws when the directory cannot be reached. */
+export async function ldapMembership(config, login) {
+  if (!config.serviceDn || !config.servicePassword || !LOGIN_OK.test(login)) return null;
+  const client = await connect(config);
+  try {
+    await bind(client, config.serviceDn, config.servicePassword);
+    const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, userAttrs(config));
+    if (!entry) return { found: false, allowed: false, admin: false };
+    const profile = profileOf(entry.attrs, config);
+    return { found: true, allowed: await isMember(client, config, login, profile, config.group),
+      admin: !!config.adminGroup && await isMember(client, config, login, profile, config.adminGroup) };
+  } finally { close(client); }
+}
+
 /* The directory server's certificate, read without trusting it, to say why it is not trusted: who it is for, who issued
    it, until when, and whether the CA added in Settings issued it. So nobody has to run openssl on the server. */
 const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];

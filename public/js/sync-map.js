@@ -51,11 +51,13 @@ export function maySet(s, o, k, src) {
   const order = fieldOrder(s, k), i = order.indexOf(src);
   if (i < 0) return false;
   if (o[k] === undefined || o[k] === null || o[k] === '') return true;
-  /* On a device linked to Lansweeper, a field it comes before src for is left to it once it has a value: its next push decides. */
-  if (src !== 'ls' && o.feed && order.indexOf('ls') >= 0 && order.indexOf('ls') < i) return false;
   const had = o.src && o.src[k];
-  if (!had) return src === 'ls' && i === 0;
+  /* On a device linked to Lansweeper, a field it comes before src for is left to it once it has a value: its next push
+     decides. A value src set itself, while Lansweeper reports none for the field, src keeps up to date. */
+  const lsHas = !!(o.vals && o.vals[k] && o.vals[k].ls);
+  if (src !== 'ls' && o.feed && order.indexOf('ls') >= 0 && order.indexOf('ls') < i && (had !== src || lsHas)) return false;
   if (had === src) return true;
+  if (!had) return src === 'ls' && i === 0;
   if (had === 'hand') return false;
   /* A source left out of an order set here gives way; without a set order, values stay as they were before orders. */
   const j = order.indexOf(had);
