@@ -227,7 +227,7 @@ export function reviewBanner(o){
   if (!o || !o.review) return '';
   const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
-    ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore">Back to review</button>` : ''}</div>`
+    ? `<div class="rv-banner"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? 'Unmerge' : 'Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
     : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
 }
 export function bindReviewBanner(o){

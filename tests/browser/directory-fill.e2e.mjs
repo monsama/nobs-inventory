@@ -154,7 +154,20 @@ try {
   await p.click('#scopeList [data-scope=ignored]');
   await p.waitForSelector('#rvRestoreAll');
   assert.match(await p.textContent('#fbar'), /1 ignored device/);
+  assert.equal((await p.textContent('#rvRestoreAll')).trim(), 'Unignore all 1');
+  // picked: Unignore, or Accept straight into the inventory; the device page offers the same
+  await p.click(pold + ' .cardtick');
+  assert.deepEqual([(await p.textContent('#rvRestore')).trim(), (await p.textContent('#rvAccept')).trim()], ['Unignore 1', 'Accept 1']);
+  await p.click(pold + ' .cardtick');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('pold'));
+  await p.waitForSelector('[data-rvpage=restore]');
+  assert.equal((await p.textContent('[data-rvpage=restore]')).trim(), 'Unignore');
+  await p.click('[data-rvpage=restore]');
+  await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review && !o.review.ignored && !o.excluded; });
+  await p.click('#tabsbar [data-tab=cards]');
   await p.click('#scopeList [data-scope=review]');
+  await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
+  await stored(st => st.objs.find(x => x.id === 'pold').review.ignored);
   // accept all: only the one seen recently, after the app's own question
   await p.click('#rvAcceptAll'); await p.click('#cfOk');
   await stored(st => !st.objs.find(o => o.id === 'n20').review);

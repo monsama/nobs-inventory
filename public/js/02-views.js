@@ -404,10 +404,14 @@ const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resol
 function scopeActs(list, allAlso){
   if (!st.scope || !canEdit()) return '';
   const n = st.bulk.size, ign = st.scope === 'ignored';
-  if (n) return ign ? `<button id="rvRestore">Back to review (${n})</button>` : `<button id="rvAccept" class="primary">Accept ${n}</button><button id="rvIgnore" class="danger-text">Ignore ${n}</button>`;
+  /* Ignored ones: Unignore puts them back in To review; Accept takes them straight into the inventory (not a record merged
+     into a device: that one is unmerged first, by Unignore). */
+  const mergedIn = ign && [...st.bulk].map(byId).some(o => o && o.review && o.review.merged);
+  if (n) return ign ? `<button id="rvRestore" title="Take ${n === 1 ? 'it' : 'them'} off the ignored list: ${n === 1 ? 'it waits' : 'they wait'} in To review again${mergedIn ? '; a merged record leaves its device' : ''}">Unignore ${n}</button>${mergedIn ? '' : `<button id="rvAccept" class="primary" title="Unignore and take ${n === 1 ? 'it' : 'them'} into the inventory">Accept ${n}</button>`}`
+    : `<button id="rvAccept" class="primary">Accept ${n}</button><button id="rvIgnore" class="danger-text">Ignore ${n}</button>`;
   if (!allAlso || !list.length) return '';
   const fresh = list.filter(o => !reviewStale(o)).length;
-  return ign ? `<button id="rvRestoreAll">Back to review (${list.length})</button>`
+  return ign ? `<button id="rvRestoreAll" title="Take every ignored device shown off the list: they wait in To review again">Unignore all ${list.length}</button>`
     : `<button id="rvIgnoreAll" class="danger-text">Ignore all ${list.length}</button><button id="rvAcceptAll" class="primary" title="${fresh === list.length || !fresh ? '' : `Devices no source has seen for ${REVIEW_STALE_DAYS} days are left out unless you tick them in the next step`}">Accept ${fresh === list.length ? `all ${fresh}` : fresh ? `${fresh} recently seen` : `all ${list.length} old`}</button>`;
 }
 /* Resolve: the picked records that are most likely a device the inventory has (a dock's DNS-named record, or one of the
