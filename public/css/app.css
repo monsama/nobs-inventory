@@ -1530,3 +1530,12 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .stk-sum b{font-size:20px}.stk-sum span{font-size:11.5px;color:var(--muted);text-align:center}.stk-sum .bad b{color:var(--danger)}
 .fieldnote.ok{color:var(--muted)}.stk-note .link{margin-left:6px}
 @media (max-width:640px){.stk{padding:8px}.stk-when{display:none}.stk-sum{grid-template-columns:repeat(2,1fr)}}
+/* Contracts: their contacts, under the supplier in the list and as a list in the dialog. */
+.ct-who{font-size:12px;margin-top:2px;white-space:normal}.ct-who .link{font-size:12px}
+.ct-people{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}.ct-people:empty{display:none}
+.ct-person{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2)}
+.ct-person > span{flex:1;min-width:0}.ct-person small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+#ctAddContact{width:100%}
+/* Card footer: the "Seen" chip takes the room up to the relations on the right, so its text shows in full. */
+.card .cf .chip.lsst.seen{flex:1 1 auto;max-width:none;justify-content:flex-start}
+.card .cf .chip.lsst.seen ~ .grow{flex:0 0 0}
