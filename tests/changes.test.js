@@ -199,7 +199,10 @@ test('the log says what a save changed: objects by name, relations, settings, an
       dels: [{ kind: 'object', id: 'o2', base: rev['object|o2'] }],
     });
     assert.equal(r2.status, 200, JSON.stringify(r2.json));
-    assert.equal(last(), 'saved: changed PC-1; removed PC-2; 1 relation added; settings: locations');
+    /* The settings one by one, each with what it changed (server/audit-diff.js). */
+    const two = srv.db.prepare('SELECT action, detail FROM audit ORDER BY id DESC LIMIT 2').all();
+    assert.deepEqual(two.map(r => r.action), ['setting changed: locations', 'saved: changed PC-1; removed PC-2; 1 relation added']);
+    assert.deepEqual(JSON.parse(two[0].detail).changes, [{ path: '', added: ['Zürich HQ / Büro'] }]);
     await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'o1', value: pc('o1', 'PC-1', 'z'), base: rev['object|o1'] }], dels: [] });
     assert.equal(last(), 'saved: changed PC-1 (1 not saved: changed by someone else first)');
   } finally { await srv.close(); }

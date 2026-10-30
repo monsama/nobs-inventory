@@ -420,6 +420,17 @@ export function lastSeenOf(o){
   const timed = /T\d{2}:\d{2}/.test(raw) && Date.parse(raw);
   return { src, day, at: timed ? stamp(new Date(timed)) : dayText(day), days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
 }
+/* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
+   click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
+const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
+export const QUALITY = {
+  noloc: ['No location', 'Where it is is not recorded', o => !o.loc],
+  noresp: ['No responsible', 'No internal responsible, though there are internal contacts', o => !o.respIn && CONTACTS.list.some(c => c.kind === 'internal')],
+  noserial: ['No serial number', 'A physical device without its serial number', o => !o.serial && o.kind !== 'vm' && !['vm', 'rack', 'patch'].includes(o.type)],
+  nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk],
+  unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
+  conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
+};
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */
 export const seenChip = o => {
   const s = lastSeenOf(o); if (!s) return '';
@@ -629,7 +640,7 @@ export const isAttached = k => k === 'attached';
 /* Whether an object has the search text in one of the fields a search looks at. */
 export const matchesQ = (o, q) => !q || [o.code,o.name,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup);
+export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup || st.quality);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
@@ -640,7 +651,7 @@ export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q &
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

@@ -22,11 +22,13 @@ export function openDb(file) {
   const cols = db.prepare('PRAGMA table_info(sessions)').all().map(c => c.name);
   if (!cols.includes('last')) db.exec('ALTER TABLE sessions ADD COLUMN last INTEGER');
   if (!cols.includes('agent')) db.exec("ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT ''");
+  /* Added in 0.9.67: what a settings change changed, before and after (JSON), shown under its log line. */
+  if (!db.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'detail')) db.exec('ALTER TABLE audit ADD COLUMN detail TEXT');
   return db;
 }
 
-export function audit(db, userId, action) {
-  db.prepare('INSERT INTO audit (at, user_id, action) VALUES (?, ?, ?)').run(new Date().toISOString(), userId ?? null, action);
+export function audit(db, userId, action, detail = null) {
+  db.prepare('INSERT INTO audit (at, user_id, action, detail) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), userId ?? null, action, detail == null ? null : JSON.stringify(detail));
   /* Keep the last 20,000 entries; older ones are removed when the log grows. */
   if (Math.random() < 0.01) db.prepare('DELETE FROM audit WHERE id <= (SELECT MAX(id) - 20000 FROM audit)').run();
 }

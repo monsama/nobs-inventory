@@ -702,3 +702,51 @@ test('a location or site that is not a name is refused, so it cannot leave the p
     assert.equal(ok.status, 200, JSON.stringify(ok.json));
   } finally { await srv.close(); }
 });
+
+test('a settings change is logged with what changed, before and after; secrets and pictures never', async () => {
+  const { loadState } = await import('../server/state.js');
+  const { settingDiff } = await import('../server/audit-diff.js');
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const revs = loadState(srv.db).revs;
+    const put = (id, value) => ({ kind: 'setting', id, value, base: revs['setting|' + id] ?? 0 });
+    const r = await srv.call('POST', '/api/changes', { cookie: a.cookie, body: { puts: [put('fieldOrder', { os: ['ad', 'graph', 'ls'] }), put('locs', ['HQ / Lager', 'HQ / EG']), put('mapPos', { a: [1, 2] })], dels: [] } });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const log = (await srv.call('GET', '/api/log', { cookie: a.cookie })).json.entries;
+    const fo = log.find(e => e.action === 'setting changed: field sources');
+    assert.ok(fo, 'one line per setting'); assert.equal(fo.who, 'Administrator');
+    assert.deepEqual(fo.detail.changes, [{ path: 'os', before: '—', after: '["ad","graph","ls"]' }]);
+    assert.deepEqual(log.find(e => e.action === 'setting changed: locations').detail.changes, [{ path: '', added: ['HQ / Lager', 'HQ / EG'] }]);
+    assert.ok(!log.some(e => /map layout/.test(e.action)), 'the map layout is a preference, not logged');
+    assert.ok(!log.some(e => /^saved: settings/.test(e.action)), 'no second line for the same save');
+  } finally { await srv.close(); }
+  // the diff: items changed in a list by name, secrets hidden, pictures named, order changes shown
+  assert.deepEqual(settingDiff([{ name: 'Anna', mail: 'a@x' }, { name: 'Beat' }], [{ name: 'Anna', mail: 'b@x' }, { name: 'Cleo' }]), [{ path: '', changed: ['Anna'], added: ['Cleo'], removed: ['Beat'] }]);
+  assert.deepEqual(settingDiff({ url: 'ldaps://a', bindPassword: 'x' }, { url: 'ldaps://b', bindPassword: 'y' }), [{ path: 'url', before: 'ldaps://a', after: 'ldaps://b' }, { path: 'bindPassword', before: '(hidden)', after: '(hidden)' }]);
+  assert.deepEqual(settingDiff({ logo: 'data:image/png;base64,AAA' }, { logo: 'data:image/png;base64,BBB' }), [{ path: 'logo', before: '(picture)', after: '(picture)' }]);
+  assert.deepEqual(settingDiff(['a', 'b'], ['b', 'a']), [{ path: '', before: '["a","b"]', after: '["b","a"]' }]);
+});
+
+test('health and reports: admins see the health of the server; everyone signed in gets reports', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const h = await srv.call('GET', '/api/health/details', { cookie: a.cookie });
+    assert.equal(h.status, 200);
+    const names = h.json.checks.map(c => `${c.area}/${c.name}/${c.state}`);
+    for (const want of ['Server/Version/ok', 'Backups/Last backup/warn', 'Syncs/Lansweeper/off', 'Syncs/Active Directory/off', 'Syncs/Entra & Intune/off', 'Log/Signed in/ok']) assert.ok(names.includes(want), `${want} in ${names.join(', ')}`);
+    assert.equal(h.json.state, 'warn', 'no backup yet');
+    assert.ok(!JSON.stringify(h.json).match(/password|token/i), 'nothing secret');
+    assert.equal((await fetch(srv.base + '/api/health/details')).status, 401);
+    const pdf = await fetch(srv.base + '/api/reports/inventory?group=type&format=pdf', { headers: { cookie: a.cookie } });
+    assert.equal(pdf.status, 200); assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+    assert.match(pdf.headers.get('content-disposition'), /attachment; filename="?nobs-inventory-\d{4}-\d{2}-\d{2}\.pdf"?/);
+    const x = await fetch(srv.base + '/api/reports/costs?year=2026&format=xlsx', { headers: { cookie: a.cookie } });
+    assert.equal(x.status, 200); assert.match(x.headers.get('content-disposition'), /nobs-costs-2026-.*\.xlsx/);
+    assert.equal((await fetch(srv.base + '/api/reports/nothing', { headers: { cookie: a.cookie } })).status, 404);
+    assert.equal((await fetch(srv.base + '/api/reports/inventory')).status, 401);
+    const log = (await srv.call('GET', '/api/log', { cookie: a.cookie })).json.entries;
+    assert.ok(log.some(e => e.action === 'report made: Inventory (PDF)'), 'a report made is in the log');
+  } finally { await srv.close(); }
+});
