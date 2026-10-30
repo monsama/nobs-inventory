@@ -175,6 +175,10 @@ try {
   assert.equal(nb.type, 'notebook'); assert.equal(nb.inAd, true);
   assert.match(loadState(db).history.n20[0].msg, /Accepted into the inventory by .* \(found by Active Directory\)/);
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).objs.some(o => o.id === 'n20')), true);
+  // accepted: saved and loaded again from the server at once; Undo still takes it back afterwards
+  await p.waitForFunction(async () => (await import('/js/01-core.js')).UNDO.epoch > 1);
+  await p.click('#toast .t-undo');
+  await stored(st => { const o = st.objs.find(x => x.id === 'n20'); return o.review && !o.review.ignored; });
 
   assert.deepEqual(errors, []);
   console.log('directory fill: all checks passed');

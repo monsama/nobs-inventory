@@ -588,14 +588,15 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
 /* A reload from the server replaces every record (applyState counts them in epoch): an Undo offered before it would write
    into records that are no longer the page's, so it is refused instead. */
 export const UNDO = { epoch: 0 };
-export function toastUndo(msg, undo){
+/* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
+export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   const t = $('#toast'), epoch = UNDO.epoch;
   t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
     t.classList.add('off'); clearTimeout(toast.h);
     if (!e.target.closest('.t-undo')) return;
-    if (UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
+    if (!anyEpoch && UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
     undo(); toast('Undone');
   };
   clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
