@@ -426,6 +426,11 @@ export function lastSeenOf(o){
 /* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
    click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
 const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
+/* The people by id, for the checks below (the user list lives in Settings, which sets it here). */
+let PEOPLE_LIST = [], PEOPLE = new Map();
+export const setPeople = list => { PEOPLE_LIST = list || []; PEOPLE = new Map(); };
+/* Made again when people were added or removed since. */
+const personOf = id => { if (PEOPLE.size !== PEOPLE_LIST.length) PEOPLE = new Map(PEOPLE_LIST.map(u => [u.id, u])); return PEOPLE.get(id); };
 export const QUALITY = {
   noloc: ['No location', 'Where it is is not recorded', o => !o.loc],
   noresp: ['No responsible', 'No internal responsible, though there are internal contacts', o => !o.respIn && CONTACTS.list.some(c => c.kind === 'internal')],
@@ -433,6 +438,15 @@ export const QUALITY = {
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
   unconfirmed: ['Not confirmed on site for 12 months', 'Not found in a stocktake, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
+  leaver: ['With someone who left', 'Assigned to a person who is deactivated: take it back (Settings → Users → Hand-back list) or give it to someone else', o => o.status !== 'retired' && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
+  addisabled: ['Disabled in AD, marked in use', 'Its computer account is disabled in Active Directory, but here it is in use', o => o.status === 'active' && !!(o.ad && o.ad.disabled)],
+  ownerdiff: ['Intune names someone else', 'The primary user in Intune is not the person it is assigned to here', o => {
+    const p = o.uid && personOf(o.uid), g = o.graph;
+    if (!p || !g || g.gone || !g.owner || o.status === 'retired') return false;
+    const low = v => String(v || '').trim().toLowerCase(), owner = low(g.owner);
+    return ![p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) && !(g.ownerName && low(g.ownerName) === low(p.name))
+      && !(p.source === 'ldap' && owner.split('@')[0] === low(p.login));
+  }],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */

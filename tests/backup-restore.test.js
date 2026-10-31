@@ -105,7 +105,8 @@ test('a backup restored into a new server gives back the whole inventory: every 
   const s = load(db);
   save(db, { ...s, currency: 'CHF', vlans: [{ vid: 10, name: 'Users' }], licences: [{ id: 'l1', name: 'Office', seats: 10 }], syncSchedule: { graph: { every: 2, at: '07:00' } } });
   db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)').run('p1', PNG);
-  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(db, 'test')).data);
+  const { loadBackup } = await import('../server/backup-store.js');
+  const data = loadBackup(db, db.prepare('SELECT data, format FROM backups WHERE id = ?').get(takeBackup(db, 'test')));
   const fresh = freshDb();
   restoreBackup(fresh, data);
   const a = load(db), b = load(fresh);

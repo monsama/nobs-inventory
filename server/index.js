@@ -14,6 +14,7 @@ import { isDue, scheduleOf } from '../public/js/schedule.js';
 import { autoBackup, takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { purgeOrphanImages } from './device-images.js';
+import { collectParts, convertOldBackups } from './backup-store.js';
 import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -28,6 +29,8 @@ export function bootstrap(db, env, log = console.log) {
   if (migrateState(s)) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
   /* Photos of devices removed some other way (a sync, an older version) go at the start. */
   purgeOrphanImages(db);
+  /* Backups from before 0.9.75 are stored as parts once (server/backup-store.js). */
+  try { if (convertOldBackups(db)) collectParts(db); } catch (e) { log(`Warning: the older backups could not be converted (${e.message}).`); }
   let admin = s.users.find(u => u.login === 'admin');
   if (!admin) {
     admin = { id: 'u-admin', login: 'admin', name: 'Administrator', dept: '', groups: [], source: 'manual', active: true, role: 'admin' };

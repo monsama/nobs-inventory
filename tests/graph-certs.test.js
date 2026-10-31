@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { backupFileText } from '../server/backup-store.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { startServer, signIn } from './helpers.js';
@@ -69,7 +70,7 @@ test('Graph is set up in Settings: IDs, a certificate kept on the server, its .c
 
     // The key is in no state, no backup, no log; only sealed in its own table.
     const state = (await srv.call('GET', '/api/state', { cookie: a.cookie })).text;
-    const backup = srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(srv.db, 'test')).data;
+    const backup = backupFileText(srv.db, takeBackup(srv.db, 'test'));
     const log = JSON.stringify(srv.db.prepare('SELECT * FROM audit').all());
     const kept = JSON.stringify(srv.db.prepare('SELECT * FROM graph_keys').all());
     for (const [where, text] of [['state', state], ['backup', backup], ['log', log], ['table', kept]]) assert.ok(!text.includes('PRIVATE KEY'), 'a readable key in the ' + where);

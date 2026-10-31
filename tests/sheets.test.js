@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { backupFileText } from '../server/backup-store.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
@@ -53,7 +54,7 @@ test('a sheet is made from the inventory, kept sealed, opened again, and its pas
     const raw = srv.db.prepare('SELECT data FROM sheets WHERE id = ?').get(id).data;
     for (const secret of [sheet.password, 'Anna Muster', 'amuster']) assert.ok(!raw.includes(secret), 'readable in the database: ' + secret);
     const backupId = takeBackup(srv.db, 'test');
-    const backup = srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(backupId).data;
+    const backup = backupFileText(srv.db, backupId);
     assert.ok(!backup.includes(sheet.password), 'the password is readable in a backup');
     assert.ok(JSON.parse(backup).sheets.some(r => r.id === id), 'the sealed sheet is in the backup');
     // not even with the key: a backup keeps the sheet without its password, so marking it changed later holds there too
@@ -136,7 +137,7 @@ test('a restore adds the sheets that are missing and keeps those that are there'
     const a = await signIn(srv, 'admin', 'adminpass123');
     const one = (await srv.call('POST', '/api/sheets', { cookie: a.cookie, body: { userId: 'u-anna', deviceIds: ['o1'], login: 'amuster' } })).json.id;
     const two = (await srv.call('POST', '/api/sheets', { cookie: a.cookie, body: { userId: 'u-anna', deviceIds: ['o2'], login: 'amuster' } })).json.id;
-    const backup = JSON.parse(srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(srv.db, 'test')).data);
+    const backup = JSON.parse(backupFileText(srv.db, takeBackup(srv.db, 'test')));
     await srv.call('POST', `/api/sheets/${one}/changed`, { cookie: a.cookie });
     await srv.call('DELETE', '/api/sheets/' + two, { cookie: a.cookie });
     restoreBackup(srv.db, backup, key);

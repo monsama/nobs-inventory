@@ -1,11 +1,12 @@
-import { purgeOrphanImages } from './device-images.js';
+import { purgeOrphanImages, imageType, stripJpeg, ensureImagesTable } from './device-images.js';
+import { storeBackup, collectParts } from './backup-store.js';
 import { openSheet, sealSheet } from './sheets.js';
 import { loadState, saveState, settingOf, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
 import { HttpError } from './errors.js';
 import { migrateState } from './migrate.js';
 
-/* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images and the users
-   (never the passwords). Taken by hand and before what changes much at once: a Lansweeper sync, push or import, an LDAP
+/* Backups of the whole inventory: the devices, relations, history, types, settings, floor-plan images, device photos and
+   the users (never the passwords). Taken by hand and before what changes much at once: a Lansweeper sync, push or import, an LDAP
    or Graph sync, adding Graph, applying type rules, and a restore. The newest are kept (Settings → Backups). */
 const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
@@ -55,9 +56,18 @@ export function takeBackup(db, reason) {
     /* Entry sheets sealed and without passwords; the key is not in the backup either. */
     sheets: sheetsForBackup(db)
   };
-  const info = db.prepare('INSERT INTO backups (at, reason, objects, data) VALUES (?, ?, ?, ?)').run(data.created, reason, s.objs.length, JSON.stringify(data));
-  db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
-  return Number(info.lastInsertRowid);
+  /* Stored as parts (server/backup-store.js): what did not change since the last backup is not stored again, the device
+     photos included. */
+  db.exec('SAVEPOINT backup');
+  let id;
+  try {
+    const { manifest, size } = storeBackup(db, data);
+    id = Number(db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, ?, ?, 2, ?)').run(data.created, reason, s.objs.length, manifest, size).lastInsertRowid);
+    db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
+    collectParts(db);
+    db.exec('RELEASE backup');
+  } catch (e) { db.exec('ROLLBACK TO backup'); db.exec('RELEASE backup'); throw e; }
+  return id;
 }
 
 /* Puts a backup back. The users are kept (a backup adds the users it has that are missing now), and the number
@@ -73,6 +83,13 @@ export function restoreBackup(db, data, sheetKey = null) {
       throw new HttpError(400, 'The backup has a plan picture that is not a PNG, JPEG, GIF or WebP image.');
   }
   if (new Set(images.map(im => im.id)).size !== images.length) throw new HttpError(400, 'The backup has two plan pictures for the same plan.');
+  /* Device photos (backups from 0.9.75 on): checked as an upload is. A backup without them leaves the photos as they are. */
+  const photos = Array.isArray(data.photos) ? data.photos.map(p => {
+    const ok = p && typeof p.id === 'string' && /^img-[0-9a-f]{24}$/.test(p.id) && typeof p.obj_id === 'string' && typeof p.data === 'string' && typeof p.thumb === 'string';
+    const bytes = ok ? Buffer.from(p.data, 'base64') : null, thumb = ok ? Buffer.from(p.thumb, 'base64') : null;
+    if (!ok || !imageType(bytes) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'The backup has a device photo that is not a picture.');
+    return { ...p, bytes: bytes.length, buf: imageType(bytes) === 'image/jpeg' ? stripJpeg(bytes) : bytes, tbuf: thumb };
+  }) : null;
   const cur = loadState(db);
   const st = b.settings || {};
   const blank = blankState();
@@ -110,8 +127,16 @@ export function restoreBackup(db, data, sheetKey = null) {
   delete s.revs; delete s.empty;
   migrateState(s);
   saveState(db, s);
-  /* Device photos are not in an app backup (the server's backup script copies the whole database, photos too): they stay
-     as they are, except those of devices the restored inventory does not have. */
+  /* The backup's device photos replace those here; one without photos (from before 0.9.75) leaves them as they are. Either
+     way photos of devices the restored inventory does not have go. */
+  if (photos) {
+    ensureImagesTable(db);
+    db.exec('DELETE FROM device_images');
+    const add = db.prepare('INSERT INTO device_images (id, obj_id, name, caption, mime, w, h, bytes, created, by, data, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const txt = (v, n) => String(v ?? '').slice(0, n);
+    for (const p of photos) add.run(p.id, p.obj_id, txt(p.name, 120) || 'Photo', txt(p.caption, 200), imageType(p.buf), Math.max(1, Math.min(10000, Number(p.w) || 1)), Math.max(1, Math.min(10000, Number(p.h) || 1)),
+      p.buf.length, txt(p.created, 40), txt(p.by, 120), p.buf, p.tbuf);
+  }
   purgeOrphanImages(db);
   db.prepare('DELETE FROM plan_images').run();
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');

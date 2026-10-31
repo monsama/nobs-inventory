@@ -15,6 +15,7 @@ import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { BEFORE_CLEAR, autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
+import { backupStorage, collectParts, loadBackup, writeBackupFile } from './backup-store.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
@@ -658,8 +659,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const opts = reportOptions({ ...req.query, kind: req.params.kind });
       if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
       const s = loadState(db), r = buildReport(s, opts);
-      const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}-${day}`;
+      const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}${opts.kind === 'handback' ? '-' + opts.id.replace(/[^\w-]/g, '_') : ''}-${day}`;
       if (opts.kind === 'stocktake' && !(s.stocktakes || []).some(t => t.id === opts.id && t.finished)) throw new HttpError(404, 'No such stocktake.');
+      if (opts.kind === 'handback' && !s.users.some(u => String(u.id) === opts.id)) throw new HttpError(404, 'No such person.');
       res.set('Cache-Control', 'no-store');
       if (req.query.format === 'xlsx') {
         res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`${base}.xlsx`).send(reportXlsx(r));
@@ -824,7 +826,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
   app.get('/api/backups', requireUser, requireAdmin, (req, res) => {
-    res.json({ backups: db.prepare('SELECT id, at, reason, objects, LENGTH(data) AS bytes FROM backups ORDER BY id DESC').all() });
+    res.json({ backups: db.prepare('SELECT id, at, reason, objects, COALESCE(size, LENGTH(data)) AS bytes FROM backups ORDER BY id DESC').all(), storage: backupStorage(db) });
   });
   app.post('/api/backups', requireUser, requireAdmin, (req, res, next) => {
     try {
@@ -838,17 +840,21 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   app.get('/api/backups/:id/download', requireUser, requireAdmin, (req, res, next) => {
     try {
-      const row = db.prepare('SELECT at, data FROM backups WHERE id = ?').get(Number(req.params.id));
+      const row = db.prepare('SELECT at, data, format FROM backups WHERE id = ?').get(Number(req.params.id));
       if (!row) throw new HttpError(404, 'No such backup.');
-      res.attachment(`nobs-backup-${row.at.slice(0, 19).replace(/[:T]/g, '-')}.json`).type('application/json').send(row.data);
+      /* The whole backup as one file, the photos in it, written part by part. */
+      res.attachment(`nobs-backup-${row.at.slice(0, 19).replace(/[:T]/g, '-')}.json`).type('application/json');
+      writeBackupFile(db, row, chunk => res.write(chunk));
+      res.end();
     } catch (e) { next(e); }
   });
   app.post('/api/backups/:id/restore', requireUser, requireAdmin, (req, res, next) => {
     try {
-      const row = db.prepare('SELECT data FROM backups WHERE id = ?').get(Number(req.params.id));
+      const row = db.prepare('SELECT data, format FROM backups WHERE id = ?').get(Number(req.params.id));
       if (!row) throw new HttpError(404, 'No such backup.');
+      const data = loadBackup(db, row);
       takeBackup(db, 'before a restore');
-      restoreBackup(db, JSON.parse(row.data), SHEET_KEY);
+      restoreBackup(db, data, SHEET_KEY);
       audit(db, req.user.id, 'restored backup ' + req.params.id);
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -864,7 +870,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
   app.delete('/api/backups/:id', requireUser, requireAdmin, (req, res, next) => {
-    try { db.prepare('DELETE FROM backups WHERE id = ?').run(Number(req.params.id)); audit(db, req.user.id, 'backup deleted'); res.json({ ok: true }); }
+    try { db.prepare('DELETE FROM backups WHERE id = ?').run(Number(req.params.id)); collectParts(db); audit(db, req.user.id, 'backup deleted'); res.json({ ok: true }); }
     catch (e) { next(e); }
   });
   /* Photos of devices (server/device-images.js). */

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { backupFileText } from '../server/backup-store.js';
 import assert from 'node:assert/strict';
 import ldap from 'ldapjs';
 import { InvalidCredentialsError } from 'ldapts';
@@ -328,7 +329,7 @@ test('the service account password can be saved in Settings: it is used, never s
     assert.equal(test.status, 200, 'the saved password is used');
     // it is nowhere to be read: not in the state, a backup, the log, nor in clear in its table
     const state = (await srv.call('GET', '/api/state', { cookie: a.cookie })).text;
-    const backup = srv.db.prepare('SELECT data FROM backups WHERE id = ?').get(takeBackup(srv.db, 'test')).data;
+    const backup = backupFileText(srv.db, takeBackup(srv.db, 'test'));
     const log = JSON.stringify(srv.db.prepare('SELECT * FROM audit').all());
     const table = JSON.stringify(srv.db.prepare('SELECT * FROM app_secrets').all());
     for (const [where, text] of [['state', state], ['backup', backup], ['log', log], ['table', table]]) assert.ok(!text.includes('svc-secret'), 'the password in the ' + where);

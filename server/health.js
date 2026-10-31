@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import { scheduleOf } from '../public/js/schedule.js';
 import { dateText, dateTimeText } from '../public/js/dates.js';
+import { backupStorage } from './backup-store.js';
 
 const DAY = 864e5;
 const mb = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -28,7 +29,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
   const docs = db.prepare("SELECT COUNT(*) AS n FROM docs WHERE kind = 'object'").get().n;
   add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} devices` : `${docs} devices (in memory)`);
   if (photos && photos.n) add('Server', 'Device photos', photos.bytes > 3.5 * 1073741824 ? 'warn' : 'ok', `${photos.n} photo${photos.n === 1 ? '' : 's'} of ${photos.devices} device${photos.devices === 1 ? '' : 's'} · ${mb(photos.bytes)}`,
-    photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database: the backup script keeps them, a backup made in the app does not.');
+    photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database, and in every backup (each photo stored once).');
   if (file) {
     try {
       const fsx = fs.statfsSync(file.replace(/[^/\\]+$/, '') || '.');
@@ -40,7 +41,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
 
   /* Backups */
   const last = db.prepare('SELECT at, reason FROM backups ORDER BY id DESC LIMIT 1').get();
-  const n = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(data)), 0) AS bytes FROM backups').get();
+  const n = { n: db.prepare('SELECT COUNT(*) AS n FROM backups').get().n, bytes: backupStorage(db) };
   const old = last ? (now - Date.parse(last.at)) / DAY : Infinity;
   add('Backups', 'Last backup', !last ? 'warn' : old > 14 ? 'bad' : old > 7 ? 'warn' : 'ok',
     last ? `${ago(last.at, now)} (${last.reason}) · ${n.n} kept, ${mb(n.bytes)}` : 'None yet',

@@ -1589,3 +1589,4 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .ph-info input{width:100%}
 @media (max-width:760px){.ph-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}.ph-view{padding:6px;gap:4px}button.ph-nav{width:32px}.ph-big img{max-height:60vh}}
 .modal .mb.ph-view{flex-direction:row;align-items:center}
+.uhand{display:block;font-size:12px;margin-top:4px}
