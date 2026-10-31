@@ -96,7 +96,7 @@ test('a sync that runs long is not overtaken: the next ones wait for it and stil
   /* LDAP at 06:00 hangs past 06:01, when Graph is due. */
   const timer = startScheduler(srv.db, {}, {
     ldapConfig: () => ({ url: 'ldaps://dc.test', serviceDn: 'cn=svc', servicePassword: 'x', searchBase: 'dc=test', loginAttr: 'sAMAccountName',
-      createClient: () => ({ on() {}, unbind() {}, bind(dn, pw, cb) { runs.push('ldap start'); slow.then(() => { runs.push('ldap end'); cb(new Error('directory gone')); }); } }) }),
+      createClient: () => ({ async unbind() {}, async bind() { runs.push('ldap start'); await slow; runs.push('ldap end'); throw new Error('directory gone'); } }) }),
     graphConfig: () => { runs.push('graph'); return null; },
   }, () => {});
   const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };

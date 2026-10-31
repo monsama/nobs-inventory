@@ -1,5 +1,5 @@
 import { dateText } from '../public/js/dates.js';
-import ldap from 'ldapjs';
+import { Client, InvalidCredentialsError } from 'ldapts';
 import fs from 'node:fs';
 import { HttpError } from './errors.js';
 import { profileFields } from './fill.js';
@@ -61,38 +61,43 @@ async function connect(config) {
   };
   const opts = { url: config.url, timeout: 8000, connectTimeout: 8000 };
   if (!plain && Object.keys(tlsOpts).length) opts.tlsOptions = tlsOpts;
-  const client = (config.createClient || ldap.createClient)(opts);
-  // Connection errors also reach the pending bind or search callback; without this listener they would crash the server.
-  client.on('error', () => {});
+  const client = (config.createClient || newClient)(opts);
   if (startTls) {
     const host = new URL(config.url).hostname.replace(/^\[|\]$/g, '');
     /* An address is no TLS server name: it is sent only for a host name (an address is still checked against the certificate). */
-    try { await new Promise((resolve, reject) => client.starttls({ ...tlsOpts, host, ...(isIP(host) ? {} : { servername: host }) }, [], e => (e ? reject(e) : resolve()))); }
-    catch (e) { close(client); throw e; }
+    try { await client.startTLS({ ...tlsOpts, host, ...(isIP(host) ? {} : { servername: host }) }); }
+    catch (e) { close(client); throw readable(e); }
   }
   return client;
 }
-function close(client) { try { client.unbind(() => {}); } catch { /* already closed */ } }
-const bind = (client, dn, password) => new Promise((resolve, reject) => client.bind(dn, password, e => (e ? reject(e) : resolve())));
+/* The directory client (ldapts): one connection per sign-in or sync, closed after it. */
+const newClient = opts => new Client(opts);
+function close(client) { Promise.resolve().then(() => client.unbind()).catch(() => { /* already closed */ }); }
+/* A directory's answer said in words the hints below know: its result name and number, and the reason the server gave
+   (Active Directory's "data 52e" and the like). */
+const readable = e => {
+  if (e && typeof e.code === 'number' && /Error$/.test(e.name || '') && e.name !== 'Error' && !e.readable) {
+    const why = String(e.message || '').replace(/\s*Code: 0x[0-9a-f]+\s*$/i, '').trim();
+    e.message = `${e.name.replace(/Error$/, '').replace(/([a-z])([A-Z])/g, '$1 $2')} (LDAP result ${e.code})${why ? `: ${why}` : ''}`;
+    e.readable = true;
+  }
+  return e;
+};
+const bind = (client, dn, password) => client.bind(dn, password).catch(e => { throw readable(e); });
 
+/* An entry as { dn, attrs }, the attribute names in lower case, each with its values as a list. */
 function normalize(entry) {
   const attrs = {};
-  for (const a of entry.pojo?.attributes ?? []) attrs[a.type.toLowerCase()] = [].concat(a.values);
-  return { dn: entry.pojo?.objectName ?? '', attrs };
+  for (const [k, v] of Object.entries(entry)) if (k !== 'dn') attrs[k.toLowerCase()] = [].concat(v).map(x => Buffer.isBuffer(x) ? x.toString() : x);
+  return { dn: String(entry.dn ?? ''), attrs };
 }
-export function ldapSearch(client, base, filter, attributes = USER_ATTRS) {
-  return new Promise((resolve, reject) => {
-    const out = [];
-    /* Paged, so a directory with more users than one answer holds is read in full. A directory that does not page
-       answers in one piece instead. */
-    client.search(base, { scope: 'sub', filter, attributes, paged: { pageSize: 500 } }, (err, res) => {
-      if (err) return reject(err);
-      res.on('searchEntry', e => out.push(normalize(e)));
-      res.on('pageError', () => {});
-      res.on('error', reject);
-      res.on('end', () => resolve(out));
-    });
-  });
+/* Paged, so a directory with more users than one answer holds is read in full. A directory that does not page answers in
+   one piece instead. */
+export async function ldapSearch(client, base, filter, attributes = USER_ATTRS) {
+  try {
+    const { searchEntries } = await client.search(base, { scope: 'sub', filter, attributes, paged: { pageSize: 500 } });
+    return searchEntries.map(normalize);
+  } catch (e) { throw readable(e); }
 }
 
 export function profileOf(attrs, config) {
@@ -157,7 +162,7 @@ export async function ldapLogin(config, login, password) {
     profile.admin = !!config.adminGroup && await isMember(client, config, login, profile, config.adminGroup);
     return profile;
   } catch (err) {
-    if (err instanceof ldap.InvalidCredentialsError) return null;
+    if (err instanceof InvalidCredentialsError) return null;
     throw err;
   } finally { close(client); }
 }
@@ -194,11 +199,12 @@ async function peerChain(config) {
     });
   }
   if (config.security !== 'starttls') return null;
-  const client = (config.createClient || ldap.createClient)({ url: config.url, timeout: 8000, connectTimeout: 8000 });
-  client.on('error', () => {});
+  /* The upgraded connection is kept here as it is made, to read the certificate the server presented on it. */
+  let secured = null;
+  const client = (config.createClient || newClient)({ url: config.url, timeout: 8000, connectTimeout: 8000, createSecureConnection: o => (secured = tls.connect(o)) });
   try {
-    await new Promise((resolve, reject) => client.starttls({ host, servername, rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=0' }, [], e => (e ? reject(e) : resolve())));
-    return client._socket && client._socket.getPeerCertificate ? client._socket.getPeerCertificate(true) : null;
+    await client.startTLS({ host, servername, rejectUnauthorized: false, ciphers: 'DEFAULT@SECLEVEL=0' });
+    return secured && secured.getPeerCertificate ? secured.getPeerCertificate(true) : null;
   } finally { close(client); }
 }
 export async function ldapCertReport(config, now = new Date()) {

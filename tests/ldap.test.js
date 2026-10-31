@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ldap from 'ldapjs';
+import { InvalidCredentialsError } from 'ldapts';
 import { startServer, signIn } from './helpers.js';
 import { syncLdapUsers } from '../server/ldap-sync.js';
 import { ldapListUsers, ldapLogin } from '../server/ldap.js';
@@ -194,27 +195,19 @@ const matchesFilter = (filter, p) => {
   if (g !== undefined && !p.chain.some(x => x.toLowerCase() === g.toLowerCase())) return false;
   return true;
 };
-const fakeDirectory = opts => {
+const fakeDirectory = () => {
   const dn = p => `cn=${p.login},ou=people,dc=test`;
   return {
-    on: () => {},
-    unbind: cb => cb && cb(),
-    bind: (name, pw, cb) => {
+    unbind: async () => {},
+    bind: async (name, pw) => {
       const p = fakePeople.find(x => dn(x) === name);
       const ok = p ? p.pw === pw : name === 'cn=svc,ou=service,dc=test' && pw === 'svc-secret';
-      setImmediate(() => cb(ok ? null : new ldap.InvalidCredentialsError()));
+      await new Promise(r => setImmediate(r));
+      if (!ok) throw new InvalidCredentialsError();
     },
-    search: (base, o, cb) => {
-      const res = new EventEmitter();
-      cb(null, res);
-      setImmediate(() => {
-        for (const p of fakePeople.filter(x => matchesFilter(o.filter, x))) {
-          res.emit('searchEntry', { pojo: { objectName: dn(p), attributes: [
-            { type: 'sAMAccountName', values: [p.login] }, { type: 'displayName', values: [p.login.toUpperCase()] },
-            { type: 'memberOf', values: p.groups }] } });
-        }
-        res.emit('end');
-      });
+    search: async (base, o) => {
+      await new Promise(r => setImmediate(r));
+      return { searchEntries: fakePeople.filter(x => matchesFilter(o.filter, x)).map(p => ({ dn: dn(p), sAMAccountName: p.login, displayName: p.login.toUpperCase(), memberOf: p.groups })), searchReferences: [] };
     },
   };
 };

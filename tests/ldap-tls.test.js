@@ -46,8 +46,8 @@ test('StartTLS: an ldap:// address is upgraded before the sign-in, checked again
   const calls = [];
   const fake = opts => {
     calls.push(['connect', opts.url, !!opts.tlsOptions]);
-    return { on() {}, unbind() {}, starttls(o, controls, cb) { calls.push(['starttls', o.servername, o.ca.length > 1]); cb(null); },
-      bind(dn, pw, cb) { calls.push(['bind']); cb(null); }, search(base, o, cb) { cb(null, { on(ev, f) { if (ev === 'end') f(); } }); } };
+    return { async unbind() {}, async startTLS(o) { calls.push(['starttls', o.servername, o.ca.length > 1]); },
+      async bind() { calls.push(['bind']); }, async search() { return { searchEntries: [], searchReferences: [] }; } };
   };
   const cfg = { url: 'ldap://dc01.example.test', searchBase: 'dc=test', serviceDn: 'cn=svc', servicePassword: 'x', group: 'G', loginAttr: 'sAMAccountName', createClient: fake };
   await assert.rejects(ldapListUsers(cfg), e => e.message === PLAIN_LDAP_ERROR);
@@ -177,7 +177,7 @@ test('"Accept old certificates" lets a 1024-bit key through at security level 1,
   } finally { server.close(); }
   /* The option reaches the connection only when it is on, for ldaps:// and StartTLS. */
   const seen = [];
-  const fake = opts => { seen.push(['connect', opts.tlsOptions && opts.tlsOptions.ciphers]); return { on() {}, unbind() {}, starttls(o, c, cb) { seen.push(['starttls', o.ciphers]); cb(null); }, bind(dn, pw, cb) { cb(null); }, search(b, o, cb) { cb(null, { on(ev, f) { if (ev === 'end') f(); } }); } }; };
+  const fake = opts => { seen.push(['connect', opts.tlsOptions && opts.tlsOptions.ciphers]); return { async unbind() {}, async startTLS(o) { seen.push(['starttls', o.ciphers]); }, async bind() {}, async search() { return { searchEntries: [], searchReferences: [] }; } }; };
   const base = { searchBase: 'dc=test', serviceDn: 'cn=svc', servicePassword: 'x', group: 'G', loginAttr: 'sAMAccountName', createClient: fake };
   await ldapListUsers({ ...base, url: 'ldaps://dc01.example.test' });
   await ldapListUsers({ ...base, url: 'ldaps://dc01.example.test', legacyTls: 'on' });
