@@ -13,6 +13,7 @@ import { graphConfigOf, syncGraph } from './graph.js';
 import { isDue, scheduleOf } from '../public/js/schedule.js';
 import { autoBackup, takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
+import { purgeOrphanImages } from './device-images.js';
 import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
@@ -25,6 +26,8 @@ export function bootstrap(db, env, log = console.log) {
   const s = loadState(db);
   /* An upgrade that changes the saved data keeps what was there first, as a backup. */
   if (migrateState(s)) { try { takeBackup(db, 'before upgrading the data'); } catch (e) { log(`Warning: no backup before the upgrade (${e.message}).`); } saveState(db, s); }
+  /* Photos of devices removed some other way (a sync, an older version) go at the start. */
+  purgeOrphanImages(db);
   let admin = s.users.find(u => u.login === 'admin');
   if (!admin) {
     admin = { id: 'u-admin', login: 'admin', name: 'Administrator', dept: '', groups: [], source: 'manual', active: true, role: 'admin' };

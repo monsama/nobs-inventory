@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ldap from 'ldapjs';

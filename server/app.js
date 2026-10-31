@@ -30,6 +30,7 @@ import { recordSync, runRecorded } from './sync-runs.js';
 import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { createThrottle } from './throttle.js';
+import { imageStats, purgeOrphanImages, registerDeviceImages } from './device-images.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -416,6 +417,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const settingIds = [...new Set(all.filter(c => c.kind === 'setting' && c.id !== 'mapPos').map(c => String(c.id)))];
       const before = removes || settingIds.length ? loadState(db) : null;
       const result = applyChanges(db, req.body, guard);
+      /* A device deleted for good takes its photos with it. */
+      if (removes) purgeOrphanImages(db);
       const conflicts = new Set(result && Array.isArray(result.conflicts) ? result.conflicts : []);
       const skipped = conflicts.size ? ` (${conflicts.size} not saved: changed by someone else first)` : '';
       const rest = { puts: (req.body.puts || []).filter(c => c && c.kind !== 'setting'), dels: (req.body.dels || []).filter(c => c && c.kind !== 'setting') };
@@ -816,7 +819,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert }));
+      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db) }));
     } catch (e) { next(e); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
@@ -864,6 +867,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try { db.prepare('DELETE FROM backups WHERE id = ?').run(Number(req.params.id)); audit(db, req.user.id, 'backup deleted'); res.json({ ok: true }); }
     catch (e) { next(e); }
   });
+  /* Photos of devices (server/device-images.js). */
+  registerDeviceImages(app, { db, requireUser, requireAdmin, audit });
   /* Floor-plan images are kept apart from the inventory, so they do not count against its size. */
   const planId = req => { if (!/^[A-Za-z0-9_-]{1,64}$/.test(req.params.id)) throw new HttpError(400, 'No such plan.'); return req.params.id; };
   app.put('/api/plans/:id/image', requireUser, requireAdmin, (req, res, next) => {

@@ -1,3 +1,4 @@
+import { purgeOrphanImages } from './device-images.js';
 import { openSheet, sealSheet } from './sheets.js';
 import { loadState, saveState, settingOf, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
 import { HttpError } from './errors.js';
@@ -109,6 +110,9 @@ export function restoreBackup(db, data, sheetKey = null) {
   delete s.revs; delete s.empty;
   migrateState(s);
   saveState(db, s);
+  /* Device photos are not in an app backup (the server's backup script copies the whole database, photos too): they stay
+     as they are, except those of devices the restored inventory does not have. */
+  purgeOrphanImages(db);
   db.prepare('DELETE FROM plan_images').run();
   const put = db.prepare('INSERT INTO plan_images (id, data) VALUES (?, ?)');
   for (const im of images) put.run(im.id, im.data);

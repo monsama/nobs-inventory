@@ -82,6 +82,7 @@ export function clearConnections(db) {
       if (db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id).changes) bumpRev(db, 'setting', id);
     }
     db.exec('DELETE FROM feed_token');
+    if (hasTable(db, 'device_images')) db.exec('DELETE FROM device_images');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
     db.exec('COMMIT');

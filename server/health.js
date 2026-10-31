@@ -17,7 +17,7 @@ const ERROR = /fail|refus|error|throttl|denied|wrong|could not|not set|not allow
 
 /* on: which connections are set up ({ lansweeper, ldap, graph }); graphCert: the expiry of the certificate the server
    signs in to Graph with, if any. */
-export function healthReport(db, s, { version, on = {}, graphCert = null, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
+export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
   const checks = [];
   const add = (area, name, state, value, note = '') => checks.push({ area, name, state, value, note });
 
@@ -27,6 +27,8 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, now = 
   let size = 0; for (const f of file ? [file, `${file}-wal`] : []) { try { size += fs.statSync(f).size; } catch { /* none */ } }
   const docs = db.prepare("SELECT COUNT(*) AS n FROM docs WHERE kind = 'object'").get().n;
   add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} devices` : `${docs} devices (in memory)`);
+  if (photos && photos.n) add('Server', 'Device photos', photos.bytes > 3.5 * 1073741824 ? 'warn' : 'ok', `${photos.n} photo${photos.n === 1 ? '' : 's'} of ${photos.devices} device${photos.devices === 1 ? '' : 's'} · ${mb(photos.bytes)}`,
+    photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database: the backup script keeps them, a backup made in the app does not.');
   if (file) {
     try {
       const fsx = fs.statfsSync(file.replace(/[^/\\]+$/, '') || '.');

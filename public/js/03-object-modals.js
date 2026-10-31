@@ -6,6 +6,7 @@ import { dateValue } from './datefield.js';
 import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } from './15-review.js';
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
+import { bindPhotos, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
@@ -392,6 +393,7 @@ export function renderObj(o){
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${deviceLinksPanel(o)}
+      ${photosPanel(o)}
       ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
       ${deviceRespPanel(o)}
       ${deviceContractsPanel(o)}
@@ -411,10 +413,11 @@ export function renderObj(o){
   bindDeviceContracts(o);
   bindDeviceResp(o);
   bindDeviceLinks(o);
+  bindPhotos(o);
   const objView = $('#view').querySelector('.obj');
   /* A field saves when it is left; while one is being typed in, Save shows (Enter or leaving the field do the same). */
   /* The notes box saves itself when it is left (below), so it does not show Save. */
-  const dirty = e => { if (e && e.target && e.target.id === 'objNotes') return; $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
+  const dirty = e => { if (e && e.target && (e.target.id === 'objNotes' || e.target.closest('#phPanel'))) return; $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
   objView.addEventListener('input', dirty);
   /* A field saves when it is left: the whole object is saved, without a redraw, except for a type change, which changes the fields. */
   objView.addEventListener('change', e => {

@@ -1572,3 +1572,20 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .nics.merged .nic-meta{white-space:normal}
 .nics.merged .nic-meta time,.nics.merged .nic-when{white-space:nowrap}
 @media (max-width:760px){.nics.merged li{grid-template-columns:minmax(0,1fr)}.nics.merged .nic-meta{grid-column:1}.nics.merged .nic-acts{grid-column:1;grid-row:auto}}
+/* Device photos: square previews in a grid; one opens large in a dialog, with the ones before and after it. */
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px 12px}
+.ph-grid .lempty{grid-column:1 / -1;margin:0}
+button.ph-thumb{padding:0;height:auto;aspect-ratio:1;border:1px solid var(--bd);border-radius:var(--r-s);overflow:hidden;background:var(--panel2);cursor:zoom-in}
+.ph-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-thumb:hover{border-color:var(--accent)}
+.ph-thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ph-panel.ph-drop{outline:2px dashed var(--accent);outline-offset:-4px;background:color-mix(in srgb,var(--accent) 6%,var(--bg))}
+.box.ph-modal{width:min(1100px,96vw);max-width:96vw}
+.ph-view{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--panel2);padding:12px;min-height:220px}
+.ph-big{display:flex;justify-content:center;min-width:0;flex:1 1 auto}
+.ph-big img{display:block;max-width:100%;max-height:68vh;width:auto;height:auto;object-fit:contain;border-radius:var(--r-s);background:var(--bg)}
+button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
+.ph-info{display:flex;flex-direction:column;gap:6px;padding:10px 16px 0}
+.ph-info input{width:100%}
+@media (max-width:760px){.ph-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}.ph-view{padding:6px;gap:4px}button.ph-nav{width:32px}.ph-big img{max-height:60vh}}
+.modal .mb.ph-view{flex-direction:row;align-items:center}
