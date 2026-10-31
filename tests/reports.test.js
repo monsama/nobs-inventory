@@ -78,3 +78,16 @@ test('a stocktake as a report: missing, moved, not in the inventory, confirmed',
   assert.equal(verifiedProblem(s.objs[1].verified), '');
   assert.ok(verifiedProblem({ at: '30.10.2026' }));
 });
+
+test('a hand-back list: the devices one person has, with what goes with them, to tick off', async () => {
+  const s = state();
+  s.objs.push({ id: 'z', code: 'INV-0009', name: 'PH-9', type: 'notebook', status: 'retired', uid: 'u1' });
+  s.objs[0].accessories = [{ name: 'Docking station' }];
+  const r = buildReport(s, reportOptions({ kind: 'handback', id: 'u1' }, TODAY), TODAY);
+  assert.equal(r.title, 'Hand-back list: Anna Muster');
+  assert.deepEqual(r.groups[0].rows.map(x => x[1]), ['NB-1'], 'only what is not retired');
+  assert.equal(r.groups[0].rows[0][5], 'Docking station');
+  assert.match(r.subtitle, /Handed back on .* Signature/);
+  assert.equal(reportOptions({ kind: 'handback', id: 'ldap-a.muster@x' }).id, 'ldap-a.muster@x');
+  assert.ok((await reportPdf(r, {})).length > 1000);
+});

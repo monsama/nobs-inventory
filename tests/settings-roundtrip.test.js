@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { backupFileText } from '../server/backup-store.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import { openDb } from '../server/db.js';
@@ -34,7 +35,7 @@ test('a backup carries those settings, and a restore into an empty database brin
   Object.assign(s, { vlans: [{ vid: 10, name: 'Users' }], models: ['ThinkPad T14'], subnets });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(id).data);
+  const data = JSON.parse(backupFileText(db, id));
   assert.deepEqual(data.state.settings.subnets, subnets);
   const fresh = freshDb();
   restoreBackup(fresh, data);
@@ -63,7 +64,7 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
   });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(id).data);
+  const data = JSON.parse(backupFileText(db, id));
   const fresh = freshDb();
   restoreBackup(fresh, data);
   const back = loadState(fresh);
@@ -89,7 +90,7 @@ test('a restore puts every setting back as it was, also those that were not ther
   Object.assign(s, { vlans: [{ vid: 10, name: 'Users' }], currency: 'CHF', graph: { tenant: 'contoso.onmicrosoft.com', client: '11111111-1111-1111-1111-111111111111' } });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(db.prepare('SELECT data FROM backups WHERE id = ?').get(id).data);
+  const data = JSON.parse(backupFileText(db, id));
   const later = loadState(db);
   Object.assign(later, {
     vlans: [{ vid: 20, name: 'Servers' }], currency: 'EUR', models: ['Added later'], subnets,

@@ -9,7 +9,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, st, toast } from './01-core.js';
+import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
@@ -113,7 +113,7 @@ export async function renderSetAbout(){
 
 /* ---------- users: people who have devices. Manual users are kept; LDAP users are kept in step with the directory. ---------- */
 export let USERS = [];
-export const setUsers = v => { USERS = v; };
+export const setUsers = v => { USERS = v; setPeople(v); };
 export const devicesOf = name => objs.filter(o => o.user === name).length;
 export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */

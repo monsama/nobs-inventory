@@ -10,6 +10,8 @@ export const REPORTS = {
   costs: ['Costs per year', 'Contracts, licences and the devices bought in one calendar year'],
   /* From the Stocktake view: one finished stocktake (opts.id). */
   stocktake: ['Stocktake', 'What a stocktake found: missing, moved, not in the inventory, confirmed', true],
+  /* From Settings → Users: the devices one person has (opts.id), to tick off as they are handed back when they leave. */
+  handback: ['Hand-back list', 'The devices a person has, to tick off when they are handed back', true],
 };
 export const GROUPS = { site: 'Site', loc: 'Location', dept: 'Department', type: 'Type', none: 'No grouping' };
 const STATUS_LABEL = { active: 'In use', stock: 'In stock', unused: 'Not in use', repair: 'In repair', retired: 'Retired' };
@@ -21,7 +23,7 @@ export function reportOptions(q = {}, today = new Date()) {
   const years = Math.min(15, Math.max(1, Math.round(Number(q.years)) || 5));
   const y = Math.round(Number(q.year));
   const year = y >= 2000 && y <= 2100 ? y : today.getFullYear();
-  const id = /^[\w-]{1,40}$/.test(String(q.id || '')) ? String(q.id) : '';
+  const id = /^[\w.@-]{1,80}$/.test(String(q.id || '')) ? String(q.id) : '';
   return { kind, group, years, year, id };
 }
 
@@ -78,6 +80,18 @@ export function buildReport(s, opts, today = new Date()) {
         { name: 'Not in the inventory', rows: r.unknown.map(u => ['', u, '', '', '', '', 'Scanned, not known']) },
         { name: 'Confirmed', rows: conf.map(d => dev(d, `Confirmed ${dateText(d.verified.at)}${d.verified.by ? ` by ${d.verified.by}` : ''}`)) },
       ].filter(g => g.rows.length),
+    };
+  }
+
+  if (o.kind === 'handback') {
+    const p = users.get(o.id);
+    const mine = live.filter(d => p && d.uid === p.id).sort((a, b) => byName(typeLabel(a.type), typeLabel(b.type)) || byName(a.name, b.name));
+    const row = d => [d.code || '', d.name || '', typeLabel(d.type), d.model || '', d.serial || '', (d.accessories || []).map(x => x.name).join(', '), '[   ]'];
+    return {
+      title: `Hand-back list: ${p ? p.name : 'unknown person'}`, count: mine.length,
+      subtitle: `${[p && p.dept, p && p.login].filter(Boolean).join(' · ')}${p && (p.dept || p.login) ? ' · ' : ''}${mine.length} device${mine.length === 1 ? '' : 's'} · ${made} · Handed back on ______________ · Checked by ______________ · Signature ______________`,
+      columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.5 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'Serial number', w: 1.3 }, { label: 'With it', w: 1.8 }, { label: 'Back', w: 0.6 }],
+      groups: mine.length ? [{ name: '', rows: mine.map(row) }] : [],
     };
   }
 

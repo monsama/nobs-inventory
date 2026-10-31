@@ -82,6 +82,7 @@ export function clearConnections(db) {
       if (db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id).changes) bumpRev(db, 'setting', id);
     }
     db.exec('DELETE FROM feed_token');
+    if (hasTable(db, 'device_images')) db.exec('DELETE FROM device_images');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
     db.exec('COMMIT');
@@ -103,7 +104,7 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
-    if (backups) db.exec('DELETE FROM backups');
+    if (backups) { db.exec('DELETE FROM backups'); if (hasTable(db, 'backup_parts')) db.exec('DELETE FROM backup_parts'); }
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);
     if (me) db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?)').run('user', String(me.id), JSON.stringify(me));

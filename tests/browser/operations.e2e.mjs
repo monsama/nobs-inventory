@@ -35,6 +35,22 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
 
+  // The directory checks: someone who left, a computer account disabled in AD, Intune naming someone else
+  const dir = await p.evaluate(async () => {
+    const core = await import('/js/01-core.js');
+    const people = [{ id: 'u1', name: 'Anna', login: 'anna', source: 'ldap', active: false }, { id: 'u2', name: 'Beat', login: 'beat', source: 'ldap', active: true, entra: { upn: 'beat@corp.example' } }];
+    core.setPeople(people);
+    const t = k => o => core.QUALITY[k][2](o);
+    const r = {
+      leaver: [t('leaver')({ uid: 'u1', status: 'active' }), t('leaver')({ uid: 'u2', status: 'active' }), t('leaver')({ uid: 'u1', status: 'retired' })],
+      ad: [t('addisabled')({ status: 'active', ad: { disabled: true } }), t('addisabled')({ status: 'stock', ad: { disabled: true } })],
+      owner: [t('ownerdiff')({ uid: 'u2', status: 'active', graph: { owner: 'beat@corp.example' } }), t('ownerdiff')({ uid: 'u2', status: 'active', graph: { owner: 'cleo@corp.example' } })],
+    };
+    core.setPeople((await import('/js/04-settings.js')).USERS);
+    return r;
+  });
+  assert.deepEqual(dir, { leaver: [true, false, false], ad: [true, false], owner: [false, true] });
+
   // Data quality: one of four complete; each line lists its devices, with a filter chip to take off
   await p.click('#tabsbar [data-tab=overview]'); await p.waitForSelector('.ov-q');
   const q = await p.textContent('.panelbox:has(.ov-q)');

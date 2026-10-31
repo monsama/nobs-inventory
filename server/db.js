@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { ensureBackupStore } from './backup-store.js';
 
 /* One SQLite file. Inventory data is stored as one JSON document per object, relation, user, type and setting,
    so the screens can keep their shape while the storage becomes a real database. Logins and sessions have their own tables. */
@@ -24,6 +25,8 @@ export function openDb(file) {
   if (!cols.includes('agent')) db.exec("ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT ''");
   /* Added in 0.9.67: what a settings change changed, before and after (JSON), shown under its log line. */
   if (!db.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'detail')) db.exec('ALTER TABLE audit ADD COLUMN detail TEXT');
+  /* Added in 0.9.75: backups kept as parts, and the device photos (server/backup-store.js, server/device-images.js). */
+  ensureBackupStore(db);
   return db;
 }
 
