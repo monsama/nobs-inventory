@@ -93,7 +93,7 @@ export function renderStatus(){
     saved: ['', 'All changes saved', 'Every change is stored on the server.'],
     saving: ['', 'Saving…', 'Changes are being sent to the server.'],
     failed: ['bad', 'Not saved', 'The last change was refused. It is kept here and sent again with the next change.'],
-    offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
+    offline: ['bad', 'No connection', 'Your changes are kept on this device and sent when the server answers again, also after the page is closed and opened again.'],
   }[SERVER.save] || ['', '', ''];
   /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
   save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
@@ -110,6 +110,30 @@ export function renderStatus(){
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
 const setSave = v => { SERVER.save = v; renderStatus(); };
+/* Without a connection (a stocktake in a basement, a phone between floors) what is not saved yet is also kept on this
+   device, so closing the page or the phone dropping it loses nothing: after the next sign-in on it, by the same person,
+   it goes back on top and is saved. Only this person's own unsaved changes; removed once saved or on sign-out. */
+const OFFLINE_KEY = 'ni-offline';
+function keepOffline(){
+  try {
+    const { puts, dels } = pendingChanges();
+    if (!puts.length && !dels.length) return;
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify({ user: st.meId, at: new Date().toISOString(),
+      puts: puts.map(({ kind, id, key, json }) => ({ kind, id, key, json })), dels: dels.map(({ kind, id, key }) => ({ kind, id, key })) }));
+  } catch { /* storage full or blocked: the changes stay in the page, as before */ }
+}
+export function dropOffline(){ try { localStorage.removeItem(OFFLINE_KEY); } catch { /* none */ } }
+export const offlineKept = () => { try { const v = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); return v && v.user === st.meId ? v : null; } catch { return null; } };
+/* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
+function restoreOffline(){
+  const kept = offlineKept(); if (!kept || !canEdit()) return;
+  /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
+  const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
+  if (stk) st.stocktakes = JSON.parse(stk.json);
+  const n = replayLocal({ puts: kept.puts.filter(c => c.kind !== 'setting'), dels: kept.dels }, []) + (stk ? 1 : 0);
+  if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
+}
+if (typeof window !== 'undefined') window.addEventListener('online', () => { if (SERVER.base && SERVER.save === 'offline') sendChanges(); });
 export function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
@@ -214,11 +238,12 @@ async function sendNow(){
     }
     ok = true;
   } catch {
-    if (SERVER.save !== 'offline') toast('Not saved: the server cannot be reached.');
+    if (SERVER.save !== 'offline') toast('No connection: your changes are kept on this device and sent when it is back.');
+    keepOffline();
     setSave('offline');
   } finally {
     SERVER.busy = false;
-    if (ok) setSave('saved');
+    if (ok){ setSave('saved'); if (!pendingChanges().puts.length) dropOffline(); }
     if (SERVER.again){ SERVER.again = false; queueServerSave(); }
   }
 }
@@ -471,6 +496,7 @@ export async function loadFromServer(user){
   st.meId = user.id;
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
+  restoreOffline();
   openLinked();
 }
 /* An address with ?o=INV-0001 (the QR code on a device's label, scanned with a phone): that device opens. */
@@ -586,6 +612,7 @@ export function accountModal(){
   $('#acFirst').focus();
 }
 export async function signOut(){
+  dropOffline();
   await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
   location.reload();
 }
