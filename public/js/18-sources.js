@@ -77,6 +77,10 @@ export function graphPanel(o){
       ${g.jailbroken === 'yes' ? row('Jailbroken', '<span class="chip warn">Yes</span> <span class="muted">· Intune reports the phone as jailbroken or rooted</span>') : ''}
       ${row('Supervised', g.supervised === 'yes' ? 'Yes <span class="muted">· an Apple device under full management</span>' : '')}
       ${row('Category', esc(g.category || ''))}
+      ${row('Enrolled', esc([g.enrollType, g.enrollProfile ? `profile ${g.enrollProfile}` : ''].filter(Boolean).join(' · ')))}
+      ${g.certExpires ? row('Intune certificate', certText(g.certExpires)) : ''}
+      ${g.patch ? row('Security patch', patchText(g.patch)) : ''}
+      ${row('Carrier', esc(g.carrier || ''))}
       ${row('Autopilot', o.autopilot ? autopilotText(o.autopilot) : g.autopilot === 'yes' ? 'Set up with Autopilot' : '')}
       ${row('Primary user', esc([g.ownerName, g.owner && g.owner !== g.ownerName ? g.owner : ''].filter(Boolean).join(' · ')))}
       ${row('Operating system', esc(g.os || ''))}
@@ -134,13 +138,22 @@ export function sourcesPanel(o){
   /* Every source is drawn, the others hidden: a tab shows its own at once, and their buttons are bound like any other. */
   return `<div class="panelbox srcpanel"><div class="hdr srctabs" data-key="Sources"><span class="srctab-list" role="tablist" aria-label="Sources">${tabs.map(x => `<button type="button" role="tab" id="srctab-${x.k}" class="srctab${x === cur ? ' sel' : ''}" aria-selected="${x === cur}" aria-controls="srcbody-${x.k}" data-srctab="${x.k}">${esc(x.title)}</button>`).join('')}</span><span class="grow"></span>${tabs.map(x => `<span class="srcmeta" data-srcmeta="${x.k}" ${x === cur ? '' : 'hidden'}>${x.meta}</span>`).join('')}</div>${tabs.map(x => `<div role="tabpanel" id="srcbody-${x.k}" aria-labelledby="srctab-${x.k}" ${x === cur ? '' : 'hidden'}>${x.body}</div>`).join('')}</div>`;
 }
+/* Intune's certificate on the device: renewed when it checks in; one that ended means the device has not for long. */
+const certText = d => { const left = Math.floor((Date.parse(d) - Date.now()) / 864e5);
+  return `Ends ${esc(dayText(d))}${left < 0 ? ' <span class="chip warn" title="The device has not checked in to renew it: enroll it again">ended</span>' : left < 30 ? ` <span class="chip warn" title="Renewed when the device checks in">in ${left} days</span>` : ''}`; };
+/* An Android phone's security patch level: over 90 days old, it is behind on updates. */
+const patchText = d => { const old = Math.floor((Date.now() - Date.parse(d)) / 864e5);
+  return `${esc(dayText(d))}${old > 90 ? ` <span class="chip warn" title="Older than 90 days: the phone is behind on security updates">${Math.floor(old / 30)} months old</span>` : ''}`; };
 /* The computer account in AD: when it last signed in to the domain (AD updates that only every week or two) and when it was made. */
 export const AD_STALE_DAYS = 90;
 function adAccountHtml(ad){
   const days = ad.logon ? Math.floor((Date.now() - Date.parse(ad.logon)) / 864e5) : null;
   const logon = ad.logon ? `Last logon ${esc(dayText(ad.logon))}${days > AD_STALE_DAYS ? ` <span class="chip warn" title="AD updates the last logon only every one to two weeks">over ${AD_STALE_DAYS} days ago</span>` : ''}` : 'Never logged on';
   /* One line, the stale mark beside the day as on Entra's Last sign-in: a bare chip in the column would stretch to its width. */
-  return `<span class="ad-line">${logon}${ad.created ? ` <span class="muted">· created ${esc(dayText(ad.created))}</span>` : ''}</span>`;
+  /* A computer in use changes its account password every 30 days by itself: one not changed for long is likely gone. */
+  const pw = ad.pwdSet ? Math.floor((Date.now() - Date.parse(ad.pwdSet)) / 864e5) : null;
+  const pwd = ad.pwdSet ? ` <span class="muted" title="pwdLastSet: a computer in use changes it every 30 days">· password changed ${esc(dayText(ad.pwdSet))}</span>${pw > AD_STALE_DAYS ? ` <span class="chip warn" title="A computer in use changes its account password every 30 days: this one may be gone">over ${AD_STALE_DAYS} days ago</span>` : ''}` : '';
+  return `<span class="ad-line">${logon}${ad.created ? ` <span class="muted">· created ${esc(dayText(ad.created))}</span>` : ''}${pwd}</span>`;
 }
 /* Who manages the account, where AD says it is and what it runs (from its service principal names). */
 function adMoreHtml(ad){

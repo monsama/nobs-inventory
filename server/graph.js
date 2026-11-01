@@ -130,7 +130,12 @@ const MANAGED_BASE = 'id,azureADDeviceId,deviceName,serialNumber,manufacturer,mo
 /* Category, jailbroken and supervised: v1.0 has them. A tenant or API version that refuses one of them (Graph answers 400
    for a property it does not know) gets the list without them, so the sync never fails over an extra. Whether a device
    was set up with Autopilot comes from the Autopilot list (Settings), as v1.0 has no autopilotEnrolled. */
-const MANAGED_SELECT = MANAGED_BASE + ',deviceCategoryDisplayName,jailBroken,isSupervised';
+/* deviceEnrollmentType in words (the common ones; others are left out). */
+const ENROLL = { userEnrollment: 'By the user', deviceEnrollmentManager: 'Device enrollment manager', appleBulkWithUser: 'Apple Business Manager, with user',
+  appleBulkWithoutUser: 'Apple Business Manager, without user', windowsAzureADJoin: 'Entra join', windowsBulkUserless: 'Provisioning package',
+  windowsAutoEnrollment: 'Automatic (MDM)', windowsBulkAzureDomainJoin: 'Provisioning package, Entra join', windowsCoManagement: 'Co-management',
+  windowsAzureADJoinUsingDeviceAuth: 'Autopilot (self-deploying or pre-provisioned)', appleUserEnrollment: 'Apple User Enrollment', appleUserEnrollmentWithServiceAccount: 'Apple User Enrollment' };
+const MANAGED_SELECT = MANAGED_BASE + ',deviceCategoryDisplayName,jailBroken,isSupervised,enrollmentProfileName,managementCertificateExpirationDate,androidSecurityPatchLevel,subscriberCarrier,deviceEnrollmentType';
 /* How a join type reads in the inventory. Graph's ServerAd is a device joined to the on-premises AD and registered in Entra
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
@@ -160,6 +165,11 @@ export function toRecords(devices, managed) {
       /* Its category in Intune, whether Autopilot set it up, a jailbroken or rooted phone, a supervised iPhone or iPad. */
       category: /^unknown$/i.test(clean(m.deviceCategoryDisplayName)) ? '' : clean(m.deviceCategoryDisplayName).slice(0, 60),
       jailbroken: /^true$/i.test(clean(m.jailBroken)) ? 'yes' : '', supervised: m.isSupervised === true ? 'yes' : '',
+      /* How it was enrolled and with which profile, when its Intune certificate ends (renewed when it checks in), the
+         security patch level of an Android phone and its carrier. */
+      enrollProfile: clean(m.enrollmentProfileName).slice(0, 120), enrollType: ENROLL[m.deviceEnrollmentType] || '',
+      certExpires: /^\d{4}-\d{2}-\d{2}/.test(clean(m.managementCertificateExpirationDate)) && !/^0001/.test(clean(m.managementCertificateExpirationDate)) ? clean(m.managementCertificateExpirationDate).slice(0, 10) : '',
+      patch: /^\d{4}-\d{2}-\d{2}$/.test(clean(m.androidSecurityPatchLevel)) ? clean(m.androidSecurityPatchLevel) : '', carrier: clean(m.subscriberCarrier).slice(0, 60),
     };
   });
   /* Devices Entra knows but Intune does not: they have no serial here, so they are matched by name. */
@@ -275,7 +285,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
 const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, ...(r.entraId ? { entraId: r.entraId } : {}), ...(r.intuneId ? { intuneId: r.intuneId } : {}), join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
-  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised'].map(k => [k, r[k]]).filter(([, v]) => v)) });
+  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised', 'enrollProfile', 'enrollType', 'certExpires', 'patch', 'carrier'].map(k => [k, r[k]]).filter(([, v]) => v)) });
 /* The fields Graph can give a device, with their names for the history. */
 /* The fields Intune fills in: one list with Settings → Data sources (public/js/sync-map.js). */
 const FILL = GRAPH_FILL;

@@ -22,8 +22,8 @@ test('AD times and operating systems read the way the page shows them', () => {
   assert.equal(adOs('Windows 10 Enterprise', ''), 'Windows 10 Enterprise');
   assert.equal(adOs('', '10.0 (19045)'), '');
   const c = computerOf({ cn: ['SRV-01'], dnshostname: ['srv-01.Corp.Example.ch'], operatingsystem: ['Windows Server 2022 Datacenter'], operatingsystemversion: ['10.0 (20348)'],
-    lastlogontimestamp: ['133430688000000000'], whencreated: ['20211005123456.0Z'], memberof: [] });
-  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05', ou: '', disabled: false,
+    lastlogontimestamp: ['133430688000000000'], whencreated: ['20211005123456.0Z'], pwdlastset: ['133430688000000000'], memberof: [] });
+  assert.deepEqual(c, { name: 'SRV-01', dns: 'srv-01.Corp.Example.ch', groups: [], os: 'Windows Server 2022 Datacenter (10.0.20348)', domain: 'corp.example.ch', logon: '2023-10-29', created: '2021-10-05', pwdSet: '2023-10-29', ou: '', disabled: false,
     description: '', managedBy: '', location: '', services: [] });
   const d = computerOf({ cn: ['NB-7'], useraccountcontrol: ['4098'] }, 'CN=NB-7,OU=Notebooks,OU=Clients,DC=corp,DC=ch');
   assert.equal(d.disabled, true, 'userAccountControl 4098 has ACCOUNTDISABLE (2)');
@@ -109,6 +109,15 @@ test('Graph: a value typed that matches it stays the page\'s, phone details are 
   applyGraph(s2, records, NOW);
   const g = s2.objs[0].graph;
   assert.deepEqual([g.imei, g.phone, g.ownership, g.free], ['351234567890123', '+41 79 123 45 67', 'Company', '32 GB']);
+  // how it was enrolled, its Intune certificate, an Android phone's patch level and its carrier
+  const [r2] = toRecords([{ id: 'e2', deviceId: 'a8', displayName: 'Pixel Ben', trustType: 'Workplace' }],
+    [{ id: 'm8', azureADDeviceId: 'a8', deviceName: 'Pixel Ben', serialNumber: 'G1', operatingSystem: 'Android', deviceEnrollmentType: 'windowsAzureADJoinUsingDeviceAuth', enrollmentProfileName: 'Kiosk',
+      managementCertificateExpirationDate: '2027-03-01T10:00:00Z', androidSecurityPatchLevel: '2026-06-01', subscriberCarrier: 'Swisscom' },
+     { id: 'm7', azureADDeviceId: 'a7', deviceName: 'Odd', serialNumber: 'G2', managementCertificateExpirationDate: '0001-01-01T00:00:00Z', androidSecurityPatchLevel: 'unknown', deviceEnrollmentType: 'somethingNew' }]);
+  assert.deepEqual([r2.enrollType, r2.enrollProfile, r2.certExpires, r2.patch, r2.carrier], ['Autopilot (self-deploying or pre-provisioned)', 'Kiosk', '2027-03-01', '2026-06-01', 'Swisscom']);
+  const s4 = state([{ id: 'x', name: 'Pixel Ben', serial: 'G1', status: 'active' }]);
+  applyGraph(s4, [r2], NOW);
+  assert.equal(s4.objs[0].graph.patch, '2026-06-01');
   const s3 = { ...state([{ id: 'q', name: 'PC-1', serial: 'S1', status: 'active' }]), fillGraph: false };
   applyGraph(s3, [rec()], NOW);
   assert.equal(s3.objs[0].os, undefined); assert.equal(s3.objs[0].graph.compliance, 'compliant', 'what Graph reports is still kept');
