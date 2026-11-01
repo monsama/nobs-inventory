@@ -43,7 +43,7 @@ try {
 
   // data quality: no location → Location next to Name, Select all, then Move to location has the focus
   await go({ tab: 'table', quality: 'noloc', live: true });
-  await p.waitForSelector('.pickrow.qfix');
+  await p.waitForSelector('#fbar .fb-qfix');
   const heads = await p.$$eval('#view table.grid[data-data] thead th', ths => ths.map(t => t.textContent.trim()));
   assert.equal(heads[heads.indexOf('Name') + 1], 'Location', 'the column of the check comes next to Name: ' + heads.join(', '));
   if (shots) await p.screenshot({ path: path.join(shots, 'quality.png') });
@@ -52,6 +52,12 @@ try {
   assert.match(await p.textContent('.pick-n'), /2 selected/);
   await p.selectOption('#bkLoc', 'Bern / OG');
   await until(() => p.evaluate(async () => (await import('/js/01-core.js')).objs.filter(o => o.loc === 'Bern / OG').length === 2));
+
+  // the check taken off: the Table's own layout is back, Location not next to Name any more
+  await go({ tab: 'table' });
+  const back = await p.$$eval('#view table.grid[data-data] thead th', ths => ths.map(t => t.textContent.trim()));
+  assert.notEqual(back[back.indexOf('Name') + 1], 'Location', 'the moved column does not stay: ' + back.join(', '));
+  assert.equal(await p.locator('#fbar .fb-qfix').count(), 0);
 
   // the Report… button of a filtered Table: only the listed devices
   await go({ tab: 'table', q: 'NB-ANNA' });

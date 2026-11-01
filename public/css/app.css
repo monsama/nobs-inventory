@@ -1616,3 +1616,17 @@ table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font
 table.stack>tbody>tr>th{display:block;border:0}}
 body.noside #side,body.noside #sideBtn{display:none!important}
 @media (max-width:760px){table.stack>tbody>tr>td>input[type=checkbox],table.stack>tbody>tr>td>label>input[type=checkbox]{justify-self:start;width:auto;height:auto}table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.icon{justify-self:start}}
+
+/* GUI check: entry sheet on a phone, stocktake scan row and width, review card buttons, person bar and cards on a phone. */
+.sheet-pwopt{display:flex;flex-direction:column;gap:2px}.sheet-pwopt .note{margin:0}
+@media (max-width:760px){.form.sheet-form{grid-template-columns:minmax(0,1fr)}}
+.stk{max-width:1400px}
+.stk-scanrow{align-items:center;flex-wrap:wrap}.stk-scanrow button{height:40px}
+@media (max-width:760px){.stk-scanrow input{flex:1 1 100%}}
+.card .rv-act{height:28px;padding:0 10px}
+@media (pointer:coarse){.card .rv-act{min-height:40px}}
+@media (max-width:760px){.fbar .fb-person .grow{flex-basis:100%}}
+@media (max-width:760px){table.stack>tbody{display:block;padding:10px}
+table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.sheet-acts{justify-self:start}
+table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
+table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}

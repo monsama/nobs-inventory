@@ -169,10 +169,13 @@ export function renderFilterBar(){
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
     <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && canEdit() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() && mine.some(o => o.status !== 'stock') ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
-  bar.hidden = !chips.length && !scope && !who;
-  bar.innerHTML = who + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
+  const qf = st.tab === 'table' && QFIX && QUALITY_FIX[st.quality] && QUALITY[st.quality];
+  const qbar = !qf ? '' : `<div class="fb-person fb-qfix"><b>${esc(QUALITY[st.quality][0])}</b><span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && canEdit() ? `<button type="button" data-qfix="1" id="qfixSel">Select all ${QFIX.n}</button>` : ''}</div>`;
+  bar.hidden = !chips.length && !scope && !who && !qbar;
+  bar.innerHTML = who + qbar + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
 }
 $('#fbar').addEventListener('click', e => {
+  if (e.target.closest('[data-qfix]')){ if (QFIX) QFIX.select(); return; }
   const pa = e.target.closest('[data-pact]');
   if (pa){
     const person = USERS.find(u => u.id === st.person); if (!person) return;
@@ -685,14 +688,15 @@ const QUALITY_FIX = {
   ownerdiff: ['user', null, 'open each and give it to the right person'],
   conflict: [null, null, 'open each and pick the value to keep'],
 };
+/* The bar of a data-quality check over the Table (drawn with the filters, like a person's bar): set by renderTable. */
+let QFIX = null;
 export function renderTable(){
   let list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk = pickedInPool();
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${!n && !st.scope && st.quality && QUALITY_FIX[st.quality] && list.length ? `<div class="pickrow qfix"><b>${esc(QUALITY[st.quality][0])}:</b> <span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span>${QUALITY_FIX[st.quality][1] && canEdit() ? `<button id="qfixSel">Select all ${list.length}</button>` : ''}</div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}<option value="__back">Take back into stock (no user)</option></select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
@@ -736,7 +740,6 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   /* All the listed devices (those past the first rows drawn too), then the control that fixes them has the focus. */
-  const qs = $('#qfixSel'); if (qs) qs.onclick = () => { list.forEach(o => st.bulk.add(o.id)); renderTable(); const c = $('#' + QUALITY_FIX[st.quality][1]); if (c) c.focus(); };
   const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
   const idx = relIndex();   /* one index of the relations for all rows */
   let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
@@ -747,6 +750,11 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   }
   /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
      the table showed it. Column 0 is the tick box; column k is shown[k - 1]. */
+  /* The Table listed by a data-quality check is laid out for it for a while: the layout from before (order, widths,
+     filters) is kept aside and comes back once the check is no longer listed, so the moved column does not stay. */
+  const KEEP = 'view:table:0:keep';
+  if (fix && !TBL[KEEP]) TBL[KEEP] = TBL['view:table:0'] ? JSON.parse(JSON.stringify(TBL['view:table:0'])) : { none: true };
+  else if (!fix && TBL[KEEP]) { if (TBL[KEEP].none) delete TBL['view:table:0']; else TBL['view:table:0'] = TBL[KEEP]; delete TBL[KEEP]; saveTBL(); }
   const tv = TBL['view:table:0'] || {};
   /* The filters, sort, widths and order are kept by column position. When a column is shown or hidden the positions
      move, so each is carried to where its column is now (by the column's key), and one whose column is gone is dropped. */
@@ -773,7 +781,7 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   const sc = tv.sort && colOf(tv.sort.ci);
   if (sc) { const key = new Map(list.map(o => [o, textOf(sc.cell(o, idx))])); list = [...list].sort((a, b) => tv.sort.dir * cmpCells(key.get(a), key.get(b))); }
   /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. */
-  $('#tblCount').textContent = list.length + ' rows';
+  $('#tblCount').textContent = `${list.length} ${list.length === 1 ? 'row' : 'rows'}`;
   const cut = !st.tableAll && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
   $('#view').innerHTML = `<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
@@ -792,6 +800,8 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   all.checked = rowIds().length > 0 && rowIds().every(id => st.bulk.has(id));
   /* Ticking it selects every row shown; ticking it again, when they are all selected, clears them. */
   all.onchange = () => { const ids = rowIds(), on = ids.every(id => st.bulk.has(id)); ids.forEach(id => on ? st.bulk.delete(id) : st.bulk.add(id)); renderTable(); };
+  QFIX = !n && fix && list.length ? { n: list.length, select: () => { list.forEach(o => st.bulk.add(o.id)); renderTable(); const c = $('#' + fix[1]); if (c) c.focus(); } } : null;
+  renderFilterBar();
 }
 
 /* CSV: a plain comma or semicolon file, first row is the header (public/js/csv.js decides which). */
@@ -804,7 +814,7 @@ export function exportCsv(list){
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'inventory.csv'});
   document.body.appendChild(a); a.click(); a.remove();
-  toast('Exported ' + list.length + ' rows');
+  toast(`Exported ${list.length} ${list.length === 1 ? 'row' : 'rows'}`);
 }
 /* The columns a CSV row can update on a device already here, with their names for the preview and the history. */
 const CSV_FIELDS = ['loc', 'model', 'serial', 'ip', 'mac', 'user'];

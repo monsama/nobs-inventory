@@ -107,7 +107,7 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
         <p class="note">The sheet lists the devices handed out and a new initial password for the person's Windows account. Set that password in Active Directory with "User must change password at next logon". The app does not change anything in AD.</p>
         <div class="form sheet-form" style="padding:10px 12px">
           <label for="sheetLogin">Windows sign-in name</label><input id="sheetLogin" class="mono" autocomplete="off" value="${esc(u.login || '')}">
-          <label for="sheetPwOn">Password</label><label class="pchk"><input type="checkbox" id="sheetPwOn"${only ? '' : ' checked'}> A new initial password for the Windows account <span class="note">Leave it off when the person already has their account.</span></label>
+          <label for="sheetPwOn">Password</label><div class="sheet-pwopt"><label class="pchk"><input type="checkbox" id="sheetPwOn"${only ? '' : ' checked'}> <span>A new initial password for the Windows account</span></label><p class="note">Leave it off when the person already has their account.</p></div>
           <label>Devices</label><div class="sheet-devs">${devs}</div>
           <label for="sheetNote">Note</label><textarea id="sheetNote" rows="2" maxlength="500" placeholder="First day, desk, anything else to write on the sheet"></textarea>
         </div>

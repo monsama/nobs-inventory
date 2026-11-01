@@ -36,6 +36,9 @@ export function openSettings(){
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();
+  /* Opened on a tab: that tab has the focus and is in view (on a phone the row of tabs scrolls). */
+  const at = $('#setTabs .tab.active');
+  if (at){ at.scrollIntoView({ inline: 'nearest', block: 'nearest' }); requestAnimationFrame(() => { if (document.contains(at)) at.focus({ preventScroll: true }); }); }
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
    The sections draw themselves again often, so the state is put back on each new title as it appears. */

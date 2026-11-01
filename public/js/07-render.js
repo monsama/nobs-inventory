@@ -22,6 +22,7 @@ export function render({ save = true } = {}){
   if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }
   /* The sidebar filters lists: the views that are no list of devices (Overview, Contracts, …) are shown without it. */
   document.body.classList.toggle('noside', NO_SIDE.includes(st.tab));
+  if (NO_SIDE.includes(st.tab)) document.body.classList.remove('side-open');
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
