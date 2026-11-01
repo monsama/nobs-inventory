@@ -6,6 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { scopeKey, scopeOf, scopeState } from './scope.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
+import { mergePeople } from '../public/js/people-match.js';
+import { stamp } from '../public/js/dates.js';
+import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
+import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
@@ -43,7 +49,7 @@ export const publicDir = path.join(here, '..', 'public');
 const cookieName = secure => secure ? '__Host-ni_session' : 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, mailTransport = null, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   setBackupSheetKey(SHEET_KEY);
@@ -375,10 +381,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.get('/api/state', requireUser, (req, res) => {
     /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
-    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}"`;
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
-    const s = loadState(db); delete s.empty;
+    const s = scopeState(loadState(db), scopeOf(req.user)); delete s.empty;
     if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
@@ -686,7 +692,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const opts = reportOptions({ ...req.query, ...(req.method === 'POST' ? { ids: (req.body || {}).ids } : {}), kind: req.params.kind });
       if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
-      const s = loadState(db), r = buildReport(s, opts);
+      const s = scopeState(loadState(db), scopeOf(req.user)), r = buildReport(s, opts);
       const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}${opts.kind === 'handback' ? '-' + opts.id.replace(/[^\w-]/g, '_') : ''}-${day}`;
       if (opts.kind === 'stocktake' && !(s.stocktakes || []).some(t => t.id === opts.id && t.finished)) throw new HttpError(404, 'No such stocktake.');
       if (opts.kind === 'handback' && !s.users.some(u => String(u.id) === opts.id)) throw new HttpError(404, 'No such person.');
@@ -705,7 +711,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const b = req.body || {}, ids = Array.isArray(b.ids) ? b.ids.slice(0, 5000).map(String) : [];
       if (!ids.length) throw new HttpError(400, 'Pick the devices to make labels for.');
-      const s = loadState(db), byId = new Map(s.objs.filter(o => !o.review).map(o => [String(o.id), o]));
+      const s = scopeState(loadState(db), scopeOf(req.user)), byId = new Map(s.objs.filter(o => !o.review).map(o => [String(o.id), o]));
       const devices = ids.map(id => byId.get(id)).filter(Boolean).map(o => ({ id: o.id, code: o.code || '', name: o.name || '', serial: o.serial || '' }));
       if (!devices.length) throw new HttpError(400, 'None of these devices is in the inventory.');
       const format = LABEL_FORMATS[b.format] ? b.format : 'a4-24';
@@ -860,14 +866,41 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
   /* Health (Settings → Maintenance): the server, backups, syncs, certificates and the log, each ok, warn, bad or off. */
-  app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
-    try {
+  const healthNow = () => {
       const s = loadState(db), g = cfgGraph();
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), ...(diskSpace ? { diskSpace } : {}) }));
-    } catch (e) { next(e); }
+      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) });
+  };
+  app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
+    try { res.set('Cache-Control', 'no-store').json(healthNow()); } catch (e) { next(e); }
+  });
+  /* The weekly e-mail to the admins (server/digest.js): only when the server names a mail server. */
+  const digestNow = () => {
+    const s = loadState(db), h = healthNow(), set = digestSettings(db);
+    const last = h.checks.find(c => c.name === 'Last backup'), copy = h.checks.find(c => c.name === 'Copy outside the server');
+    return buildDigest(s, { link: set.link || process.env.NI_PUBLIC_URL || '', backups: last ? last.value : '', copy: copy && copy.state !== 'off' ? copy.value : '', health: h.checks });
+  };
+  app.locals.sendDigest = async (now = new Date()) => { const m = digestNow(); await sendDigest(db, m, process.env, now, mailTransport); audit(db, null, `weekly e-mail sent (${m.count} item${m.count === 1 ? '' : 's'})`); return m; };
+  const digestInfo = () => ({ smtp: !!smtpConfig(), ...digestSettings(db), last: lastDigest(db) });
+  app.get('/api/digest', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(digestInfo()));
+  app.put('/api/digest', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const b = req.body || {}, cur = digestSettings(db);
+      if (b.on && !smtpConfig()) throw new HttpError(400, 'No mail server is set on the server: set NI_SMTP_HOST first.');
+      saveDigestSettings(db, { ...cur, ...b });
+      const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
+      if (link) db.prepare("UPDATE docs SET data = json_set(data, '$.link', ?) WHERE kind = 'setting' AND id = 'digest'").run(link);
+      const d = digestSettings(db);
+      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
+      res.json(digestInfo());
+    } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
+  });
+  app.get('/api/digest/preview', requireUser, requireAdmin, (req, res) => { const m = digestNow(); res.set('Cache-Control', 'no-store').json({ subject: m.subject, text: m.text }); });
+  app.post('/api/digest/send', requireUser, requireAdmin, async (req, res, next) => {
+    try { await app.locals.sendDigest(); res.json(digestInfo()); }
+    catch (e) { audit(db, req.user.id, 'weekly e-mail failed: ' + e.message); next(new HttpError(400, e.message)); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
   app.get('/api/backups', requireUser, requireAdmin, (req, res) => {
@@ -915,6 +948,142 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       takeBackup(db, 'before a restore from file');
       restoreBackup(db, data, SHEET_KEY);
       audit(db, req.user.id, 'restored a backup from a file');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* Two records of one person merged (public/js/people-match.js): devices, entry sheets and the sign-in go to the one
+     kept, the other's login and name stay as aliases so a sync finds the person again. A backup is taken first. */
+  app.post('/api/users/merge', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const { keep, drop } = req.body || {};
+      const s = loadState(db), k = s.users.find(u => u.id === keep), d = s.users.find(u => u.id === drop);
+      if (!k || !d) throw new HttpError(404, 'No such person.');
+      if (d.id === req.user.id) throw new HttpError(400, 'Your own account cannot be merged away: keep it.');
+      const hadLogin = !!k.login;
+      autoBackup(db, 'before merging two people');
+      let r;
+      try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
+      saveState(db, s);
+      db.prepare('UPDATE sheets SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
+      /* The sign-in: the dropped one's password goes with its login when the kept one had none, else it is removed. */
+      const kc = db.prepare('SELECT 1 FROM credentials WHERE user_id = ?').get(k.id);
+      if (!hadLogin && !kc) db.prepare('UPDATE credentials SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
+      db.prepare('DELETE FROM credentials WHERE user_id = ?').run(d.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(d.id);
+      audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
+      res.json({ ok: true, moved: r.moved });
+    } catch (e) { next(e); }
+  });
+  /* My devices: anyone signed in confirms they have a device they are the user of, or reports a problem with it (an
+     admin sees it on the device and in Data quality). Nothing else of the device can be changed this way. */
+  const myDevice = req => {
+    const s = loadState(db), o = s.objs.find(x => x.id === String(req.params.id) && !x.review);
+    if (!o || o.uid !== req.user.id) throw new HttpError(404, 'This is not one of your devices.');
+    return { s, o };
+  };
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  app.post('/api/my/devices/:id/confirm', requireUser, (req, res, next) => {
+    try {
+      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
+      const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
+      o.verified = { at: today(), by, ...(prev ? { prev } : {}) };
+      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Confirmed by its user ${by}` });
+      saveState(db, s); audit(db, req.user.id, `device confirmed by its user: ${o.name}`);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  app.post('/api/my/devices/:id/report', requireUser, (req, res, next) => {
+    try {
+      const text = String((req.body || {}).text || '').trim().slice(0, 500);
+      if (!text) throw new HttpError(400, 'Say what is wrong.');
+      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
+      o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
+      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
+      saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */
+  app.get('/api/tokens', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json({ tokens: listApiTokens(db) }));
+  app.post('/api/tokens', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const made = createApiToken(db, req.body || {}, req.user.name || req.user.login);
+      audit(db, req.user.id, `API token made: ${made.info.name}${made.info.people ? ' (with people)' : ''}`);
+      res.set('Cache-Control', 'no-store').json(made);
+    } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
+  });
+  app.delete('/api/tokens/:id', requireUser, requireAdmin, (req, res) => {
+    const t = listApiTokens(db).find(x => x.id === req.params.id);
+    if (revokeApiToken(db, req.params.id)) audit(db, req.user.id, `API token revoked: ${t ? t.name : req.params.id}`);
+    res.json({ tokens: listApiTokens(db) });
+  });
+  /* The API itself: Authorization: Bearer nobs_…; wrong tokens count against the address like wrong sign-ins. */
+  const apiAuth = (req, res, next) => {
+    const keys = ['api:' + (req.ip || '')];
+    if (throttle.blocked(keys)) return res.status(429).json({ error: 'Too many wrong tokens. Try again in 15 minutes.' });
+    const t = checkApiToken(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1]);
+    if (!t) { throttle.recordFailure(keys); return res.status(401).set('WWW-Authenticate', 'Bearer').json({ error: 'A valid API token is needed (Authorization: Bearer nobs_…).' }); }
+    req.apiToken = t; res.set('Cache-Control', 'no-store'); next();
+  };
+  /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To review. */
+  app.get('/api/v1/devices', apiAuth, (req, res) => {
+    const s = loadState(db), q = String(req.query.q || '').trim().toLowerCase();
+    let list = s.objs.filter(o => !o.review);
+    if (req.query.status) list = list.filter(o => o.status === String(req.query.status));
+    if (req.query.type) list = list.filter(o => o.type === String(req.query.type));
+    if (q) list = list.filter(o => [o.code, o.name, o.serial, o.model, o.ip, o.mac].some(v => v && String(v).toLowerCase().includes(q)));
+    const out = list.map(o => apiDevice(o, s, { people: req.apiToken.people }));
+    if (req.query.format === 'csv') {
+      const cols = ['id', 'code', 'name', 'typeLabel', 'model', 'serial', 'status', 'location', 'ip', 'mac', 'os', 'purchased', 'warranty', ...(req.apiToken.people ? ['user', 'department'] : [])];
+      return res.type('text/csv').send('\ufeff' + [cols.join(','), ...out.map(d => cols.map(c => csvCellApi(d[c])).join(','))].join('\r\n'));
+    }
+    res.json({ count: out.length, devices: out });
+  });
+  /* GET /api/v1/devices/INV-0001: one device by inventory number, id or serial number. */
+  app.get('/api/v1/devices/:code', apiAuth, (req, res) => {
+    const s = loadState(db), k = String(req.params.code);
+    const o = s.objs.find(x => !x.review && (x.code === k || x.id === k)) || s.objs.find(x => !x.review && x.serial && x.serial === k);
+    if (!o) return res.status(404).json({ error: 'No such device.' });
+    res.json(apiDevice(o, s, { people: req.apiToken.people }));
+  });
+  /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
+  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN });
+  app.get('/api/backup-export', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(exportInfo()));
+  app.put('/api/backup-export', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const b = req.body || {};
+      if (b.on && !exportDir()) throw new HttpError(400, 'No folder is set on the server: set NI_BACKUP_EXPORT_DIR first.');
+      const before = exportSettings(db);
+      saveExportSettings(db, { ...before, ...('on' in b ? { on: !!b.on } : {}), ...('keep' in b ? { keep: b.keep } : {}) });
+      const after = exportSettings(db);
+      audit(db, req.user.id, `copy of the backups outside the server: ${after.on ? 'on' : 'off'}, keep ${after.keep}`);
+      res.json(exportInfo());
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backup-export/password', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const pw = req.body && typeof req.body.password === 'string' ? req.body.password : '';
+      if (pw.length < PASSWORD_MIN) throw new HttpError(400, `The password needs at least ${PASSWORD_MIN} characters.`);
+      if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
+      setAppSecret(db, SECRET_KEY, 'backupExportPassword', pw);
+      audit(db, req.user.id, 'password of the backup copies set');
+      res.json(exportInfo());
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backup-export/run', requireUser, requireAdmin, async (req, res, next) => {
+    try { const r = await runExport(db, SECRET_KEY); audit(db, req.user.id, `backup copied outside the server: ${r.file}`); res.json(exportInfo()); }
+    catch (e) { audit(db, req.user.id, 'copy of the backups outside the server failed: ' + (lastExport(db) || {}).error); next(new HttpError(400, (lastExport(db) || {}).error || e.message)); }
+  });
+  /* An encrypted copy restored: its password typed in, or the one set here. */
+  app.post('/api/backups/restore-encrypted', requireUser, requireAdmin, express.raw({ type: 'application/octet-stream', limit: '200mb', inflate: false }), (req, res, next) => {
+    try {
+      const pw = String(req.get('x-backup-password') || '') || getAppSecret(db, SECRET_KEY, 'backupExportPassword');
+      if (!isEncryptedBackup(req.body)) throw new HttpError(400, 'This is not an encrypted backup of NOBS Inventory.');
+      let data;
+      try { data = JSON.parse(decryptBackup(req.body, pw)); } catch (e) { throw new HttpError(400, e.message); }
+      takeBackup(db, 'before a restore from file');
+      restoreBackup(db, data, SHEET_KEY);
+      audit(db, req.user.id, 'restored an encrypted backup from a file');
       res.json({ ok: true });
     } catch (e) { next(e); }
   });

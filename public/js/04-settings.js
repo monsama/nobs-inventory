@@ -59,7 +59,7 @@ export function collapsibleSections(root, prefix){
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">Feed may overwrite</div>${policyGrid()}<p class="note" style="padding:10px 12px">Default for every object. Each object can override it on its own page. Name and serial number are match keys and are never overwritten.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
+  const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
     directory: '<div id="setLdap"></div>',
@@ -126,7 +126,7 @@ export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ? 'No access' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = '.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
+export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
 export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|cardJoin|cnQ|cnKind|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
@@ -147,7 +147,7 @@ export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
    name is looked for first, so a typed "Anna" stays Anna; then the login. */
 export function ensureUser(name, source = 'manual'){
   const low = String(name).toLowerCase();
-  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low);
+  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low) || USERS.find(x => (x.aliases || []).some(a => a.toLowerCase() === low));
   if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }

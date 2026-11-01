@@ -6,6 +6,7 @@ import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderStocktake } from './22-stocktake.js';
+import { linkedCode } from './25-scan.js';
 import { openObjs, FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
@@ -49,7 +50,7 @@ export function render({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids', 'handField'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){
@@ -92,7 +93,7 @@ export function renderStatus(){
     saved: ['', 'All changes saved', 'Every change is stored on the server.'],
     saving: ['', 'Saving…', 'Changes are being sent to the server.'],
     failed: ['bad', 'Not saved', 'The last change was refused. It is kept here and sent again with the next change.'],
-    offline: ['bad', 'Server not reachable', 'Changes are kept in this browser and sent when the server answers again.'],
+    offline: ['bad', 'No connection', 'Your changes are kept on this device and sent when the server answers again, also after the page is closed and opened again.'],
   }[SERVER.save] || ['', '', ''];
   /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
   save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
@@ -109,6 +110,30 @@ export function renderStatus(){
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
 const setSave = v => { SERVER.save = v; renderStatus(); };
+/* Without a connection (a stocktake in a basement, a phone between floors) what is not saved yet is also kept on this
+   device, so closing the page or the phone dropping it loses nothing: after the next sign-in on it, by the same person,
+   it goes back on top and is saved. Only this person's own unsaved changes; removed once saved or on sign-out. */
+const OFFLINE_KEY = 'ni-offline';
+function keepOffline(){
+  try {
+    const { puts, dels } = pendingChanges();
+    if (!puts.length && !dels.length) return;
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify({ user: st.meId, at: new Date().toISOString(),
+      puts: puts.map(({ kind, id, key, json }) => ({ kind, id, key, json })), dels: dels.map(({ kind, id, key }) => ({ kind, id, key })) }));
+  } catch { /* storage full or blocked: the changes stay in the page, as before */ }
+}
+export function dropOffline(){ try { localStorage.removeItem(OFFLINE_KEY); } catch { /* none */ } }
+export const offlineKept = () => { try { const v = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); return v && v.user === st.meId ? v : null; } catch { return null; } };
+/* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
+function restoreOffline(){
+  const kept = offlineKept(); if (!kept || !canEdit()) return;
+  /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
+  const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
+  if (stk) st.stocktakes = JSON.parse(stk.json);
+  const n = replayLocal({ puts: kept.puts.filter(c => c.kind !== 'setting'), dels: kept.dels }, []) + (stk ? 1 : 0);
+  if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
+}
+if (typeof window !== 'undefined') window.addEventListener('online', () => { if (SERVER.base && SERVER.save === 'offline') sendChanges(); });
 export function saveData(){ queueServerSave(); }
 /* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
@@ -122,7 +147,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, fieldOrder: st.fieldOrder || {}, stocktakes: st.stocktakes || [], fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, fieldOrder: st.fieldOrder || {}, fieldMode: st.fieldMode || {}, stocktakes: st.stocktakes || [], peopleNotSame: st.peopleNotSame || [], fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -213,11 +238,12 @@ async function sendNow(){
     }
     ok = true;
   } catch {
-    if (SERVER.save !== 'offline') toast('Not saved: the server cannot be reached.');
+    if (SERVER.save !== 'offline') toast('No connection: your changes are kept on this device and sent when it is back.');
+    keepOffline();
     setSave('offline');
   } finally {
     SERVER.busy = false;
-    if (ok) setSave('saved');
+    if (ok){ setSave('saved'); if (!pendingChanges().puts.length) dropOffline(); }
     if (SERVER.again){ SERVER.again = false; queueServerSave(); }
   }
 }
@@ -325,7 +351,7 @@ export function applyState(d){
   CONTACTS.list = Array.isArray(d.contacts) ? d.contacts : [];
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
-  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
+  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : []; st.graphFields = d.graphFields && typeof d.graphFields === 'object' ? d.graphFields : null;
   st.graphAmbiguous = Array.isArray(d.graphAmbiguous) ? d.graphAmbiguous : [];
   st.adUnmatched = Array.isArray(d.adUnmatched) ? d.adUnmatched : [];
   st.ldapCa = d.ldapCa && Array.isArray(d.ldapCa.certs) ? d.ldapCa : null;
@@ -339,7 +365,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.fieldOrder = d.fieldOrder || null; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
@@ -470,10 +496,10 @@ export async function loadFromServer(user){
   st.meId = user.id;
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
+  restoreOffline();
   openLinked();
 }
 /* An address with ?o=INV-0001 (the QR code on a device's label, scanned with a phone): that device opens. */
-export const linkedCode = v => { const m = /[?&]o=([^&#\s]+)/.exec(String(v || '')); if (!m) return ''; try { return decodeURIComponent(m[1]); } catch { return ''; } };
 function openLinked(){
   const code = linkedCode(location.search); if (!code) return;
   history.replaceState(history.state, '', location.pathname + location.hash);
@@ -586,6 +612,7 @@ export function accountModal(){
   $('#acFirst').focus();
 }
 export async function signOut(){
+  dropOffline();
   await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
   location.reload();
 }

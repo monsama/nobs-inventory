@@ -1151,8 +1151,8 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .item.sel .cnt{color:var(--linktext);opacity:1}
 .tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;background:transparent;border-color:transparent;color:var(--muted)}
 .tab:hover{background:var(--hover);color:var(--fg)}
-.tab.active{background:var(--panel2);color:var(--fg)}
-.tab.active::after{content:"";position:absolute;height:2px;border-radius:1px;background:var(--accent);pointer-events:none;opacity:1;left:12px;right:12px;bottom:2px}
+/* The tab shown: a box of its own, no line under it. */
+.tab.active{background:var(--panel2);color:var(--fg);border-color:var(--bd)}
 .tab.objtab{padding-left:8px;border-radius:4px;background:transparent;border-color:var(--bd2)}
 .tab.objtab.active{background:var(--panel2);border-color:var(--bd);color:var(--fg)}
 .tsw{width:9px;height:9px;border-radius:2px;display:inline-block;flex:none;opacity:.75}
@@ -1631,3 +1631,15 @@ table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tb
 table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
 table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}
+.bk-export{margin:0 12px 10px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Settings → Users: the search and filters, and the possible duplicates. */
+.ufilters{flex-wrap:wrap}.ufilters #uQ{flex:1 1 220px;min-width:0}
+.udupes{margin:0 12px 10px;border:1px solid var(--bd2);border-radius:var(--r-s)}
+.udupes>summary{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.udupe{padding:8px 12px;border-top:1px solid var(--bd2);display:flex;flex-direction:column;gap:4px}
+.udupe-why{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.udupe-p{display:flex;align-items:center;gap:6px;flex-wrap:wrap;cursor:pointer}
+.udupe-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px}
+.dg-pre{white-space:pre-wrap;font:13px/1.5 var(--mono);margin:0;max-height:60vh;overflow:auto}
+.usees{display:block;font-size:12px;margin-top:2px;text-align:left}.usees-sites{display:flex;flex-wrap:wrap;gap:4px 12px;padding:2px 0 6px 24px}
+.ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-changes{font-size:12px;margin:2px 0 4px}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}

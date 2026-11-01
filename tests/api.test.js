@@ -780,3 +780,13 @@ test('health: free disk space from the file system, judged by how much is left',
     assert.equal(disk(12 * 2 ** 30, 252 * 2 ** 30).state, 'bad', 'under 5 % left');
   } finally { db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('people deactivated before their leaving was recorded get today, marked as at the latest', async () => {
+  const { migrateState } = await import('../server/migrate.js');
+  const s = { objs: [], rels: [], users: [{ id: 'a', name: 'Old', active: false }, { id: 'b', name: 'Here', active: true }, { id: 'c', name: 'Known', active: false, leftAt: '2026-01-01T00:00:00Z' }] };
+  assert.equal(migrateState(s), true);
+  assert.ok(Date.parse(s.users[0].leftAt)); assert.equal(s.users[0].leftBy, true);
+  assert.equal(s.users[1].leftAt, undefined);
+  assert.equal(s.users[2].leftAt, '2026-01-01T00:00:00Z'); assert.equal(s.users[2].leftBy, undefined);
+  assert.equal(migrateState(s), false, 'once');
+});

@@ -8,19 +8,19 @@ import { SVG_ATTRS, SVG_ELEMENTS } from '../public/js/svg-rules.js';
 import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
-import { fieldOrderProblem } from '../public/js/sync-map.js';
+import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { liftOvr } from './fill.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'stocktakes', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'digest', 'digestRun', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
 /* The syncs that bring in devices of their own: their new devices wait in To review unless Settings says otherwise. */
 export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
 export const intakeOf = (s, src) => ((s.intake || {})[src] === 'direct' ? 'direct' : 'review');
-export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'stocktakes', 'intake'];
+export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. */
@@ -73,7 +73,7 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
    certificates with their sealed private keys, the Lansweeper API settings and push token. What the server's
    environment sets (NI_LDAP_*, NI_GRAPH_*, the service passwords) is outside the app and stays. */
-export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'lansweeper'];
+export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'lansweeper'];
 export function clearConnections(db) {
   db.exec('BEGIN');
   try {
@@ -186,8 +186,10 @@ function checkStateRules(s, size = true) {
     || Object.entries(s[m]).some(([k, v]) => !k || k.length > 200 || typeof v !== 'string' || !v || v.length > 200))) bad('Location texts map to rooms.');
   /* The sources of each field, in their order (Settings → Data sources). */
   { const p = fieldOrderProblem(s.fieldOrder); if (p) bad(p); }
+  { const p = fieldModeProblem(s.fieldMode); if (p) bad(p); }
   /* Stocktakes (the Stocktake view): started, finished, what they found. */
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
+  if (s.peopleNotSame !== undefined && (!Array.isArray(s.peopleNotSame) || s.peopleNotSame.length > 5000 || s.peopleNotSame.some(x => typeof x !== 'string' || x.length > 200))) bad('The people marked as not the same are a list of pairs.');
   for (const k of ['fillGraph', 'fillAd', 'mergeTwins', 'locFromOffice']) if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(`${k} is on or off.`);
   /* Where each source's new devices go: To review (the default) or straight into the inventory. */
   if (s.intake !== undefined && s.intake !== null && (typeof s.intake !== 'object' || Array.isArray(s.intake)
@@ -264,6 +266,10 @@ function checkStateRules(s, size = true) {
     if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
+    if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
+    if (u.own !== undefined && typeof u.own !== 'boolean') bad('Own devices only is yes or no.');
+    if (u.sites !== undefined && (!Array.isArray(u.sites) || u.sites.length > 50 || u.sites.some(x => typeof x !== 'string' || x.length > 120))) bad('The sites a person may see are a list of site names.');
+    if (u.aliases !== undefined && (!Array.isArray(u.aliases) || u.aliases.length > 20 || u.aliases.some(a => typeof a !== 'string' || a.length > 120))) bad('Other names of a person are a short list of text.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
     /* Title, phones, office, manager and e-mail, from the directory or Entra (from says which). */
     if (u.profile !== undefined && (!u.profile || typeof u.profile !== 'object' || Array.isArray(u.profile) || Object.values(u.profile).some(v => typeof v !== 'string' || v.length > 200))) bad('What the directory says of a person is an object of short texts.');
@@ -316,6 +322,7 @@ function checkStateRules(s, size = true) {
       }
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
+    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at))) bad(`${o.name}: a reported problem has its text, who and when.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     { const p = verifiedProblem(o.verified); if (p) bad(`${o.name}: ${p}`); }
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);

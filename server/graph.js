@@ -1,5 +1,6 @@
 /* Microsoft Graph as a second source: the join status, Intune enrolment and compliance of each device, and the values
    the inventory does not have yet. It signs in with a certificate, so no password is kept, and it only reads. */
+import { historyLens, noteChanges } from './sync-changes.js';
 import { GRAPH_FILL } from '../public/js/sync-map.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
@@ -187,8 +188,9 @@ export function toRecords(devices, managed) {
 export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
   const token = await graphToken(cfg, now, fetchImpl);
   const devices = await graphAll(token, `${GRAPH}/devices?$select=${DEVICE_SELECT}`, fetchImpl);
+  let fallback = false;
   const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl)
-    .catch(e => (e.upstream === 400 ? graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_BASE}`, fetchImpl) : Promise.reject(e)));
+    .catch(e => { if (e.upstream !== 400) throw e; fallback = true; return graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_BASE}`, fetchImpl); });
   let users = null, peopleError = '';
   if (cfg.people && cfg.people !== 'off') {
     try {
@@ -216,7 +218,7 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
     try { autopilot = await graphAll(token, `${GRAPH}/deviceManagement/windowsAutopilotDeviceIdentities`, fetchImpl, GRAPH_ORIGIN, 'Windows Autopilot'); }
     catch (e) { autopilotError = [401, 403].includes(e.upstream) ? `Autopilot was not read: the app needs the permission ${AUTOPILOT_PERMISSION}, type Application, with admin consent.` : 'Autopilot was not read: ' + e.message; }
   }
-  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError };
+  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError, fallback };
 }
 
 /* ---------- people from Entra ----------
@@ -240,13 +242,14 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const ref = u => ({ id: u.id, upn: clean(u.userPrincipalName), enabled: u.accountEnabled !== false, synced: u.onPremisesSyncEnabled === true, seen: at });
   const taken = new Set();
   for (const p of s.users) {
-    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login)))) || null;
+    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login))))
+      || (p.aliases || []).map(a => bySam.get(low(a)) || byUpn.get(low(a))).find(Boolean) || null;
     if (u && !taken.has(u.id)) {
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
       if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
-      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) p.leftAt = new Date().toISOString(); else if (on) delete p.leftAt; p.active = on; }
+      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) { p.leftAt = new Date().toISOString(); delete p.leftBy; } else if (on) { delete p.leftAt; delete p.leftBy; } p.active = on; }
       else {
         if (p.source === 'lansweeper' && name && low(p.name) === low(p.login)) p.name = name;
         /* Anyone else without a department (from the directory, Lansweeper or typed) gets Entra's, noted as Entra's, so it
@@ -260,7 +263,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     for (const upn of owners) {
       const u = byUpn.get(upn); if (!u || taken.has(u.id)) continue;
       const login = clean(u.onPremisesSamAccountName) || clean(u.userPrincipalName);
-      if (!login || s.users.some(x => low(x.login) === low(login))) continue;
+      if (!login || s.users.some(x => low(x.login) === low(login) || (x.aliases || []).some(a => low(a) === low(login) || low(a) === upn))) continue;
       s.users.push({ id: freeUserId(s.users, 'entra-' + low(login).replace(/[^a-z0-9._-]+/g, '-').slice(0, 40)), login, name: clean(u.displayName).slice(0, 120) || login,
         ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'none', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u),
         ...(profileOfEntra(u) ? { profile: profileOfEntra(u) } : {}) });
@@ -521,9 +524,19 @@ export function applyDefender(s, machines, now = new Date()) {
   }
   return n;
 }
+/* Which of Intune's fields the last sync brought, and for how many of the devices Intune manages: so it shows what this
+   tenant gives (some fields only exist for some platforms), and when Graph refused the extra fields (fallback). */
+export const FIELD_REPORT = { category: 'Category', enrollType: 'How enrolled', enrollProfile: 'Enrollment profile', certExpires: 'Intune certificate end',
+  patch: 'Android security patch', carrier: 'Carrier', imei: 'IMEI', phone: 'Phone number', ownership: 'Ownership', free: 'Free storage', jailbroken: 'Jailbroken', supervised: 'Supervised' };
+export function graphFieldReport(records, fallback = false, now = new Date()) {
+  const managed = (records || []).filter(r => r.intune);
+  return { at: now.toISOString(), managed: managed.length, fallback: !!fallback, fields: Object.fromEntries(Object.keys(FIELD_REPORT).map(k => [k, managed.filter(r => r[k]).length])) };
+}
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError } = await fetchGraphAll(cfg, now, fetchImpl);
+  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
+  s.graphFields = graphFieldReport(records, fallback, now);
+  const lens = historyLens(s);
   const counts = applyGraph(s, records, now);
   const added = intakeFromGraph(s, now);
   if (added.review) counts.review = added.review;
@@ -536,6 +549,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (defenderError) counts.defenderError = defenderError;
   if (autopilot) Object.assign(counts, applyAutopilot(s, autopilot, now));
   if (autopilotError) counts.autopilotError = autopilotError;
+  noteChanges(s, 'graph', lens, now);
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

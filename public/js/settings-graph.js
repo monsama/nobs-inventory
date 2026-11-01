@@ -3,6 +3,8 @@
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { SERVER, reloadFromServer, queueServerSave } from './07-render.js';
+const FIELD_NAMES = { category: 'Category', enrollType: 'How enrolled', enrollProfile: 'Enrollment profile', certExpires: 'Intune certificate end',
+  patch: 'Android security patch', carrier: 'Carrier', imei: 'IMEI', phone: 'Phone number', ownership: 'Ownership', free: 'Free storage', jailbroken: 'Jailbroken', supervised: 'Supervised' };
 import { canEdit, applyRole } from './04-settings.js';
 import { st, esc, byId, $, dayText, toast, SYNC } from './01-core.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
@@ -120,6 +122,12 @@ export async function renderSetGraph(){
   const msg = $('#graphMsg');
   const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
+  /* What the last sync brought from Intune: each field and for how many managed devices (some exist only for some platforms). */
+  const fr = st.graphFields;
+  if (fr && fr.managed) root.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Fields from Intune <span class="cnt">last sync ${esc(String(fr.at || '').slice(0, 10).split('-').reverse().join('.'))}</span></div>
+    ${fr.fallback ? '<p class="note warn" style="padding:10px 12px 0">Graph refused the extra fields at the last sync, so only the basic ones came: category, enrollment, certificate end, patch level and carrier are missing. Check the API version and permissions of the app.</p>' : ''}
+    <p class="note" style="padding:10px 12px">Of ${fr.managed} devices Intune manages, how many came with each field. A field only some platforms have (patch level: Android; supervised: Apple) is expected to be partial.</p>
+    <dl class="lsbox">${Object.entries(FIELD_NAMES).map(([k, l]) => `<dt>${esc(l)}</dt><dd>${fr.fields && fr.fields[k] ? `${fr.fields[k]} <span class="muted">of ${fr.managed}</span>` : '<span class="muted">none</span>'}</dd>`).join('')}</dl></div>`);
   $('#gSave').onclick = async () => {
     const x = await post('api/graph/settings', {tenant: $('#gTenant').value, clientId: $('#gClient').value});
     if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }

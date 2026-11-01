@@ -61,6 +61,12 @@ try {
   assert.equal(await p.isVisible('#lbSkip'), false, 'a label printer has no sheet to start on');
   await p.click('#lbCancel');
 
+  // the scan button beside the search: the label's device opens
+  assert.equal(await p.isVisible('#scanBtn'), true);
+  await p.click('#scanBtn');
+  await until(() => p.evaluate(async () => (await import('/js/01-core.js')).st.tab === 'o2'), 20000);
+  assert.equal(await p.evaluate(() => [...document.querySelectorAll('video')].some(v => v.srcObject && v.srcObject.active)), false, 'the camera is off once it opened');
+
   // the stocktake reads the label from the camera
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'stocktake'; (await import('/js/07-render.js')).render(); });
   await p.click('#stkCam');

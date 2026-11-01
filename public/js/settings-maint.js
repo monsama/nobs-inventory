@@ -63,7 +63,35 @@ export let BACKUPS = null;
 let BACKUP_STORAGE = null;
 export async function loadBackups(){
   const r = await fetch('api/backups', {credentials: 'same-origin'});
+  const x = await fetch('api/backup-export', {credentials: 'same-origin'}).catch(() => null);
+  EXPORT = x && x.ok ? await x.json() : null;
   if (r.ok){ const j = await r.json(); BACKUPS = j.backups; BACKUP_STORAGE = j.storage ?? null; if ($('#setMaint')) renderSetMaint(); }
+}
+/* The copy outside the server (server/backup-export.js), as the server says: set up, on, password set, last copy. */
+let EXPORT = null;
+function exportHtml(edit){
+  const x = EXPORT; if (!x) return '';
+  if (!x.dir) return `<div class="bk-export"><b>Copy outside the server</b> <span class="chip kept">Not set up</span><p class="note">Optional. To keep a nightly encrypted copy on another machine, mount a share on the server and set <span class="mono">NI_BACKUP_EXPORT_DIR</span> (see the README). It can then be turned on here.</p></div>`;
+  const l = x.last;
+  const lastText = !l ? 'No copy yet.' : l.ok ? `Last copy ${esc(pushDate(l.at))}: <span class="mono">${esc(l.file)}</span>, ${(l.bytes / 1048576).toFixed(1)} MB.` : `<span class="warn">The last copy failed ${esc(pushDate(l.at))}: ${esc(l.error || '')}</span>`;
+  return `<div class="bk-export"><b>Copy outside the server</b> ${x.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}
+    <p class="note">Each night at 02:30 the inventory is written as one encrypted file to the folder the server names. Restore it here with Restore from file…, or on any computer with <span class="mono">scripts/decrypt-backup.mjs</span>. Keep the password apart from the server: without it a copy cannot be read.</p>
+    <div class="bk-exrow"><label class="pchk" style="width:auto"><input type="checkbox" id="bxOn" ${x.on ? 'checked' : ''} ${edit && x.passwordSet ? '' : 'disabled'}> Copy each night</label>
+      <label for="bxKeep" class="note">Keep the last</label><input id="bxKeep" type="number" min="1" max="365" value="${x.keep}" style="width:70px" ${edit ? '' : 'disabled'}><span class="note">copies</span></div>
+    <div class="bk-exrow"><label for="bxPw" class="note">Password</label><input id="bxPw" type="password" autocomplete="new-password" placeholder="${x.passwordSet ? 'Set ' + esc(pushDate(x.passwordSet)) + ': type to replace' : `At least ${x.passwordMin} characters`}" ${edit ? '' : 'disabled'} style="flex:1;min-width:160px"><button id="bxPwSave" ${edit ? '' : 'disabled'}>Save password</button></div>
+    <div class="bk-exrow"><span class="note" style="flex:1" id="bxLast">${lastText}</span><button id="bxRun" ${edit && x.passwordSet ? '' : 'disabled'}>Copy now</button></div></div>`;
+}
+function wireExport(){
+  const call = async (method, url, body) => {
+    const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'That did not work.');
+    EXPORT = j; renderSetMaint(); return j;
+  };
+  const on = $('#bxOn'); if (on) on.onchange = () => call('PUT', 'api/backup-export', { on: on.checked }).then(() => toast(on.checked ? 'A copy is made each night' : 'No more copies outside the server'), e => toast(e.message));
+  const keep = $('#bxKeep'); if (keep) keep.onchange = () => call('PUT', 'api/backup-export', { keep: Number(keep.value) }).then(j => toast(`Keeping the last ${j.keep} copies`), e => toast(e.message));
+  const ps = $('#bxPwSave'); if (ps) ps.onclick = () => { const pw = $('#bxPw').value; call('POST', 'api/backup-export/password', { password: pw }).then(() => toast('Password saved: keep it apart from the server'), e => toast(e.message)); };
+  const run = $('#bxRun'); if (run) run.onclick = async () => { run.disabled = true; $('#bxLast').textContent = 'Copying…'; try { await call('POST', 'api/backup-export/run'); toast('Copied outside the server'); loadBackups(); } catch (e) { toast(e.message); loadBackups(); } };
 }
 export function backupPanel(edit){
   const list = BACKUPS || [];
@@ -74,7 +102,8 @@ export function backupPanel(edit){
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}${BACKUP_STORAGE != null ? `, ${(BACKUP_STORAGE / 1048576).toFixed(1)} MB on disk for all of them` : ''}. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n" title="In the inventory, without those waiting in To review">Objects</th><th class="n hide-n" title="The size of the backup downloaded as a file">File size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
-    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
+    ${edit ? exportHtml(edit) : ''}
+    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
 export function wireBackups(edit){
   const msg = t => toast(t);
@@ -94,24 +123,32 @@ export function wireBackups(edit){
   const file = $('#bkFile');
   if ($('#bkAuto')) $('#bkAuto').onchange = () => { st.autoBackups = $('#bkAuto').checked; queueServerSave(); toast(st.autoBackups ? 'Automatic backups are on' : 'Automatic backups are off'); renderSetMaint(); };
   if ($('#bkKeep')) $('#bkKeep').onchange = () => { const v = Math.max(1, Math.min(100, Math.floor(+$('#bkKeep').value) || 10)); st.backupKeep = v; queueServerSave(); toast('Keeping the last ' + v + ' backups'); renderSetMaint(); };
+  wireExport();
   if (file) file.onchange = async () => {
     const f = file.files[0]; if (!f) return;
-    const text = await f.text();
-    restoreModal(f.name, () => fetch('api/backups/restore-file', {method: 'POST', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: text}));
+    /* An encrypted copy (from outside the server) goes as it is, with its password; a downloaded backup as text. */
+    const head = new Uint8Array(await f.slice(0, 8).arrayBuffer());
+    if (String.fromCharCode(...head) === 'NOBSENC1'){
+      const bytes = await f.arrayBuffer();
+      restoreModal(f.name, pw => fetch('api/backups/restore-encrypted', {method: 'POST', headers: {'Content-Type': 'application/octet-stream', ...(pw ? {'X-Backup-Password': pw} : {})}, credentials: 'same-origin', body: bytes}), { encrypted: true });
+    } else {
+      const text = await f.text();
+      restoreModal(f.name, () => fetch('api/backups/restore-file', {method: 'POST', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: text}));
+    }
     file.value = '';
   };
 }
 /* A restore replaces the inventory, so it asks for the word RESTORE. */
-export function restoreModal(label, run){
+export function restoreModal(label, run, { encrypted = false } = {}){
   modal(`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${esc(label)}. The current state is backed up first, so the restore can be undone from the list.</p>
-    <div class="form" style="padding:0"><label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
+    <div class="form" style="padding:0">${encrypted ? `<label for="rsPw">Password of the copy</label><input id="rsPw" type="password" autocomplete="off" placeholder="${EXPORT && EXPORT.passwordSet ? 'Empty: the one set on this server' : 'The password it was made with'}">` : ''}<label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
     <div class="mf"><button id="rsCancel">Cancel</button><button id="rsOk" class="danger-text" disabled>Restore</button></div>`, 'sm');
   $('#rsCancel').onclick = closeModal;
   $('#rsWord').oninput = () => { $('#rsOk').disabled = $('#rsWord').value !== 'RESTORE'; };
   $('#rsOk').onclick = async () => {
     /* Changes not saved yet are saved first, so the backup taken before the restore has them. */
     await flushSave();
-    const r = await run();
+    const r = await run(encrypted ? $('#rsPw').value : undefined);
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The backup could not be restored.'); return; }
     closeModal(); toast('Restored'); await reloadFromServer({ discard: true }); loadBackups();
@@ -142,20 +179,77 @@ function healthPanel(){
     <div class="hl-tools"><span class="muted">Checked ${esc(HEALTH.at ? dateTimeText(HEALTH.at) : '')}</span><button id="hlAgain" class="mini">Check again</button></div>
     ${areas.map(a => `<div class="side-sub hl-area">${esc(a)}</div><div class="hl-list">${checks.filter(c => c.area === a).map(c => `<div class="hl-row"><span class="chip ${HEALTH_CHIP[c.state][0]}">${HEALTH_CHIP[c.state][1]}</span><b>${esc(c.name)}</b><span class="hl-val">${esc(c.value)}${c.note ? `<small>${esc(c.note)}</small>` : ''}</span></div>`).join('')}</div>`).join('')}</div>`;
 }
+/* Read-only API tokens for other tools (server/api-tokens.js). A new token is shown once, with how to use it. */
+let TOKENS = null, NEW_TOKEN = null;
+function tokensPanel(){
+  const list = TOKENS || [];
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  return `<div class="panelbox"><div class="hdr">API access <span class="cnt">${list.length}</span></div>
+    <p class="note" style="padding:10px 12px">Tokens for other tools (monitoring, helpdesk, Excel Power Query) to read the device list: <span class="mono">GET ${esc(base)}api/v1/devices</span> (JSON, or <span class="mono">?format=csv</span>), one device with <span class="mono">api/v1/devices/INV-0001</span>. Read only; people's names only for a token made with them. Each is shown once: copy it into the tool.</p>
+    ${NEW_TOKEN ? `<div class="sheet-pw" style="margin:0 12px 10px"><code class="mono" id="tkNew">${esc(NEW_TOKEN)}</code><button id="tkCopy">Copy</button></div>
+      <p class="note" style="padding:0 12px 10px">Example: <span class="mono">curl -H "Authorization: Bearer ${esc(NEW_TOKEN.slice(0, 9))}…" ${esc(base)}api/v1/devices?format=csv</span></p>` : ''}
+    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini stack" style="min-width:0"><thead><tr><th>Name</th><th>People</th><th>Made</th><th>Last used</th><th></th></tr></thead><tbody>${list.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${t.people ? 'With names' : 'No names'}</td><td>${esc(pushDate(t.created))} · ${esc(t.by)}</td><td>${t.used ? esc(pushDate(t.used)) : '<span class="muted">Never</span>'}</td><td class="act"><button data-tkdel="${esc(t.id)}" class="danger-text">Revoke</button></td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="addrel" style="padding:10px 12px"><input id="tkName" placeholder="What uses it, e.g. Monitoring" maxlength="80" aria-label="Name of the token" style="min-width:220px"><label class="pchk" style="width:auto"><input type="checkbox" id="tkPeople"> With people's names</label><button id="tkMake">Make a token</button></div></div>`;
+}
+function wireTokens(){
+  const mk = $('#tkMake'); if (!mk) return;
+  mk.onclick = async () => {
+    const r = await fetch('api/tokens', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('#tkName').value, people: $('#tkPeople').checked }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ toast(j.error || 'The token was not made.'); return; }
+    NEW_TOKEN = j.token; TOKENS = null; renderSetMaint();
+  };
+  const cp = $('#tkCopy'); if (cp) cp.onclick = () => navigator.clipboard.writeText(NEW_TOKEN).then(() => toast('Token copied'), () => toast('Copy it by hand: the browser does not allow it.'));
+  document.querySelectorAll('[data-tkdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Revoke this token? The tool using it can no longer read the inventory.')) return;
+    const r = await fetch('api/tokens/' + encodeURIComponent(b.dataset.tkdel), { method: 'DELETE', credentials: 'same-origin' });
+    if (r.ok){ TOKENS = (await r.json()).tokens; NEW_TOKEN = null; renderSetMaint(); toast('Token revoked'); }
+  });
+}
+/* The weekly e-mail to the admins (server/digest.js): set up on the server (NI_SMTP_*), turned on and addressed here. */
+let DIGEST = null;
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function digestPanel(){
+  const d = DIGEST; if (!d) return '';
+  const l = d.last;
+  return `<div class="panelbox"><div class="hdr">Weekly e-mail ${!d.smtp ? '<span class="chip kept">Not set up</span>' : d.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}</div>
+    <p class="note" style="padding:10px 12px">Once a week, a short list of what needs doing: warranties ending, contract notices due, people who left with devices, devices waiting in To review, the last backup, and what Health marks bad.${d.smtp ? '' : ' Optional: set the mail server on the server first (<span class="mono">NI_SMTP_HOST</span>, <span class="mono">NI_SMTP_PORT</span>, <span class="mono">NI_SMTP_USER</span>, <span class="mono">NI_SMTP_PASSWORD_FILE</span>, <span class="mono">NI_SMTP_FROM</span>; see the README).'}</p>
+    ${d.smtp ? `<div class="form" style="padding:0 12px 10px">
+      <label for="dgTo">Send to</label><input id="dgTo" placeholder="it@example.com, lead@example.com" value="${esc((d.to || []).join(', '))}">
+      <label for="dgDay">When</label><div class="bk-exrow"><select id="dgDay">${DAYS.map((n, i) => `<option value="${i}" ${i === d.day ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="dgHour" aria-label="Hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === d.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select>
+        <label class="pchk" style="width:auto"><input type="checkbox" id="dgOn" ${d.on ? 'checked' : ''}> Send each week</label></div>
+      </div>
+      <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
+        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}</div>`;
+}
+function wireDigest(){
+  const sv = $('#dgSave'); if (!sv) return;
+  const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
+  const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
+  sv.onclick = () => call('PUT', 'api/digest', body()).then(j => { DIGEST = j; renderSetMaint(); toast(j.on ? 'The weekly e-mail is on' : 'Saved'); }, e => toast(e.message));
+  $('#dgSend').onclick = async () => { try { await call('PUT', 'api/digest', body()); DIGEST = await call('POST', 'api/digest/send'); toast('Sent'); } catch (e) { toast(e.message); DIGEST = null; } renderSetMaint(); };
+  $('#dgPreview').onclick = async () => {
+    try { const j = await call('GET', 'api/digest/preview');
+      modal(`<div class="mh">${esc(j.subject)}</div><div class="mb"><pre class="dg-pre">${esc(j.text)}</pre></div><div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
+      $('#dgClose').onclick = () => { closeModal(); }; } catch (e) { toast(e.message); }
+  };
+}
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   /* Read again when Maintenance is opened a minute or more after the last read. */
   if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }
   if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
-  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+  if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
+  if (edit && TOKENS === null){ TOKENS = undefined; fetch('api/tokens', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { tokens: [] }).then(j => { TOKENS = j.tokens; if ($('#setMaint')) renderSetMaint(); }, () => { TOKENS = []; }); }
+  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? tokensPanel() : ''}${edit ? digestPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
-  if (edit) wireBackups(edit);
+  if (edit) wireBackups(edit); wireTokens(); wireDigest();
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
   if (edit) $('#frReset').onclick = factoryResetModal;
   if (edit) $('#setReset').onclick = () => clearConfirm();

@@ -11,7 +11,7 @@ import { migrateState } from './migrate.js';
 const KEEP_DEFAULT = 10;
 const COUNTERS = ['seq', 'codeN', 'rseq'];
 /* How backups are taken is not part of the inventory: a restore of an old backup never switches them off or keeps fewer. */
-const BACKUP_SETTINGS = ['autoBackups', 'backupKeep'];
+const BACKUP_SETTINGS = ['autoBackups', 'backupKeep', 'backupExport', 'backupExportRun', 'digest', 'digestRun'];
 
 /* Backups taken by hand are never pushed out by automatic ones; only automatic ones count against the number kept. */
 const BY_HAND = 'by hand';

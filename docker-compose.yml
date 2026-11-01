@@ -6,7 +6,7 @@ services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.78}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.79}
     build: .
     restart: unless-stopped
     # No extra rights inside the container: it needs none to serve the inventory.
@@ -40,6 +40,15 @@ services:
       NI_LS_AUTH_SCHEME: ${NI_LS_AUTH_SCHEME:-}
       NI_LS_SITE: ${NI_LS_SITE:-}
       NI_FEED_CSV: ${NI_FEED_CSV:-}
+      # Optional: a nightly encrypted copy of the backups in this folder (in the container), e.g. /offsite below.
+      NI_BACKUP_EXPORT_DIR: ${NI_BACKUP_EXPORT_DIR:-}
+      # Optional: the mail server for the weekly e-mail to the admins (Settings → Maintenance).
+      NI_SMTP_HOST: ${NI_SMTP_HOST:-}
+      NI_SMTP_PORT: ${NI_SMTP_PORT:-}
+      NI_SMTP_USER: ${NI_SMTP_USER:-}
+      NI_SMTP_PASSWORD: ${NI_SMTP_PASSWORD:-}
+      NI_SMTP_FROM: ${NI_SMTP_FROM:-}
+      NI_PUBLIC_URL: ${NI_PUBLIC_URL:-}
     secrets:
       - admin_password
       - ldap_service_password
@@ -49,6 +58,8 @@ services:
     volumes:
       - ni-data:/data
       - ./feed:/feed:ro
+      # The folder on the host for the copies outside the server: mount a share there (see the README).
+      - ${NI_BACKUP_EXPORT_HOST:-./offsite}:/offsite
     # The shared proxy (proxy/, its own Compose project) reaches the app as nobs-inventory:8080 on this network.
     networks:
       - default

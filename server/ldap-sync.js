@@ -1,3 +1,4 @@
+import { historyLens, noteChanges } from './sync-changes.js';
 import { AD_FILL } from '../public/js/sync-map.js';
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
@@ -20,7 +21,7 @@ export async function syncLdapUsers(db, config) {
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
   const linked = [];
   for (const p of people) {
-    const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase());
+    const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase()) || s.users.find(x => ['lansweeper', 'entra'].includes(x.source) && (x.aliases || []).some(a => a.toLowerCase() === p.login.toLowerCase()));
     /* The admin group makes admins. Anyone else has no access (none) until an admin gives them the viewer role, which
        the sync keeps; an admin who left the admin group has none again. */
     const role = p.admin ? 'admin' : u && u.role === 'viewer' ? 'viewer' : 'none';
@@ -45,18 +46,20 @@ export async function syncLdapUsers(db, config) {
       Object.assign(u, next);
       if (!u.profile) delete u.profile;
       /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
-      if (u.syncOff) { u.active = true; delete u.syncOff; delete u.leftAt; }
+      if (u.syncOff) { u.active = true; delete u.syncOff; delete u.leftAt; delete u.leftBy; }
       if (changed) counts.updated++;
     }
     // A local account with the same login is left alone; it is not taken over by the directory.
   }
   for (const u of s.users) {
-    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); counts.deactivated++; }
+    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); delete u.leftBy; counts.deactivated++; }
   }
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;
   else if (computers && computers.length) {
+    const lens = historyLens(s);
     counts.computers = applyComputers(s, computers);
+    noteChanges(s, 'ad', lens);
     /* Devices without a location take their user's office, when Settings → Locations says so. */
     const office = officeLocations(s, stamp(new Date()));
     if (office) { counts.office = office; counts.computers += office; }

@@ -41,10 +41,10 @@ try {
   const chain = label => row(label).locator('.ds-chain').evaluate(td => td.textContent.replace(/\s*›\s*/g, ' › ').replace(/\s+/g, ' ').trim());
   const how = label => row(label).locator('.ds-how').textContent();
   assert.equal(await chain('IP address'), '1Lansweeper');
-  assert.equal(await how('IP address'), 'Lansweeper sets it at every scan.');
+  assert.equal(await how('IP address'), 'Lansweeper keeps it up to date at every scan.');
   assert.equal(await chain('Disks'), '1Entra & Intune shown only: Lansweeper', 'Intune comes first where Lansweeper only shows its value');
   assert.equal(await chain('Operating system'), '1Lansweeper › 2Entra & Intune › 3AD');
-  assert.equal(await how('Operating system'), 'Lansweeper sets it at every scan; if it stays empty, Entra & Intune and AD fill it, in this order.');
+  assert.equal(await how('Operating system'), 'Lansweeper keeps it up to date at every scan; Entra & Intune keeps it up to date where Lansweeper has no value; AD keeps it up to date where Lansweeper and Entra & Intune have no value.');
   assert.equal(await chain('Description'), '1AD', 'only AD knows it');
   assert.deepEqual(await p.locator('.ds-grp').allTextContents(), ['Network', 'Hardware', 'System', 'Place and description', 'Purchase and warranty']);
   assert.match(await p.textContent('.ds-cards'), /Lansweeper[\s\S]*New devices go straight into the inventory/);
@@ -60,7 +60,7 @@ try {
     await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
     await p.click('[data-dsup=ad]'); await p.click('[data-dsup=ad]'); await p.click('[data-dsup=graph]');
     assert.match(await p.textContent('#dsList'), /1\s*Active Directory[\s\S]*2\s*Entra & Intune[\s\S]*3\s*Lansweeper/);
-    assert.equal(await p.textContent('#dsSays'), 'AD fills it and replaces what the others filled; if it stays empty, Entra & Intune and Lansweeper fill it, in this order.');
+    assert.equal(await p.textContent('#dsSays'), 'AD keeps it up to date; Entra & Intune keeps it up to date where AD has no value; Lansweeper keeps it up to date where AD and Entra & Intune have no value.');
     await p.click('#dsSave');
   };
   await reorderOs();
@@ -98,6 +98,30 @@ try {
   await p.click('#dsReset');
   await stored(st => !Object.keys(st.fieldOrder || {}).length);
   assert.equal(await p.locator('#dsReset').count(), 0);
+  // Only if empty: AD then fills the field only while it is empty; the row says so, Back to the default clears it
+  await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
+  await p.selectOption('[data-dsmode=ad]', 'fill');
+  assert.match(await p.textContent('#dsSays'), /AD writes it only while it is empty\.$/);
+  await p.click('#dsSave');
+  if (await p.locator('#dpOk').count()) await p.click('#dpOk');
+  await stored(st => ((st.fieldMode || {}).os || {}).ad === 'fill');
+  await p.waitForSelector('.ds-matrix');
+  assert.match(await row('Operating system').locator('.ds-chain').textContent(), /only if empty/);
+  await row('Operating system').locator('[data-dsedit]').click(); await p.click('#dsDefault');
+  if (await p.locator('#dpOk').count()) await p.click('#dpOk');
+  await stored(st => !(st.fieldMode || {}).os);
+  // a value set by hand: counted on its row, opened as a list, given back to the sources (with Undo)
+  saveState(db, { ...loadState(db), objs: loadState(db).objs.map(o => o.id === 'e' ? { ...o, os: 'Typed', src: { os: 'hand' } } : o) });
+  await p.reload(); await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await p.click('[data-dshand=os]');
+  await p.waitForSelector('[data-handback]');
+  assert.match(await p.textContent('body'), /Set by hand: Operating system/);
+  await p.click('[data-handback]');
+  await stored(st => st.objs.find(o => o.id === 'e').src?.os !== 'hand');
+  await p.click('#toast .t-undo');
+  await stored(st => st.objs.find(o => o.id === 'e').src?.os === 'hand');
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
   // Settings → Locations lists the location texts of the sources; one used as a new room places its devices there, Undo takes it back
   await p.click('#setTabs [data-st=locations]'); await p.waitForSelector('#adLocs');
   assert.match(await p.textContent('#adLocs'), /Raum 3\.12\s*AD\s*2/);

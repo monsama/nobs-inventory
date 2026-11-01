@@ -187,6 +187,20 @@ Use `sudo ./scripts/backup.sh` (see Operations): it copies the database with `VA
 
 The backups in Settings → Maintenance hold the inventory (devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, settings and the sealed entry sheets). They do not hold passwords, the push token, the Graph private keys, the saved LDAP password or the log: for a move to a new server, use `scripts/backup.sh` and restore with `RESTORE_SECRETS=yes`.
 
+### A copy outside the server (optional)
+
+The app can write one encrypted file of the inventory each night (02:30) to a share, so a copy survives the server:
+
+1. Mount the share on the host (SMB or NFS), writable for user 1000, e.g. at `/mnt/backup-share/nobs`.
+2. In `.env`: `NI_BACKUP_EXPORT_HOST=/mnt/backup-share/nobs` and `NI_BACKUP_EXPORT_DIR=/offsite`, then `docker compose up -d`.
+3. In Settings → Maintenance → Backups: set the password (at least 12 characters), turn on *Copy each night*, and use *Copy now* once. Health shows when the last copy was made.
+
+The files (`nobs-backup-YYYY-MM-DD-HHMM.nobsbak`) are AES-256-GCM encrypted with a key made from that password; the last 14 are kept (changeable). The password is kept encrypted on the server and is not in any backup: **keep it apart**, a copy cannot be read without it. Restore one in Settings → Maintenance → *Restore from file…*, or turn it back into a backup file on any computer: `node scripts/decrypt-backup.mjs nobs-backup-….nobsbak > backup.json`. Only the server decides the folder; the page cannot point it anywhere else.
+
+### Weekly e-mail (optional)
+
+Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), then in Settings → Maintenance → Weekly e-mail give the addresses, the day and hour, and use Preview and Send now once.
+
 ## Development
 
     npm install
