@@ -21,7 +21,7 @@ saveState(db, { ...loadState(db), useLansweeper: false, sites: ['Bern'], locs: [
     { id: 'd', code: 'INV-0004', type: 'pc', name: 'PC-D', status: 'active', loc: 'Bern / EG', serial: 'S4', user: 'Cleo', feed: null, os: 'Windows 11',
       vals: { os: { ad: ['Windows 10', '2026-10-01'], graph: ['Windows 11', '2026-10-02'] } } },
   ] });
-const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
+const server = await new Promise(r => { const x = createApp({ db, diskSpace: () => ({ free: 200 * 2 ** 30, total: 500 * 2 ** 30 }) }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 /* Waits here, in the test, until check() holds: up to 8 seconds. */

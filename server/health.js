@@ -18,7 +18,10 @@ const ERROR = /fail|refus|error|throttl|denied|wrong|could not|not set|not allow
 
 /* on: which connections are set up ({ lansweeper, ldap, graph }); graphCert: the expiry of the certificate the server
    signs in to Graph with, if any. */
-export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
+/* diskSpace(dir) → { free, total } in bytes: the file system's own numbers, or given (tests, so they do not depend on
+   the disk of the machine they run on). */
+export const statDisk = dir => { const f = fs.statfsSync(dir); return { free: f.bavail * f.bsize, total: f.blocks * f.bsize }; };
+export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
   const checks = [];
   const add = (area, name, state, value, note = '') => checks.push({ area, name, state, value, note });
 
@@ -33,8 +36,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
     photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database, and in every backup (each photo stored once).');
   if (file) {
     try {
-      const fsx = fs.statfsSync(file.replace(/[^/\\]+$/, '') || '.');
-      const free = fsx.bavail * fsx.bsize, total = fsx.blocks * fsx.bsize, share = total ? free / total : 1;
+      const { free, total } = diskSpace(file.replace(/[^/\\]+$/, '') || '.'), share = total ? free / total : 1;
       add('Server', 'Free disk space', free < 1073741824 || share < 0.05 ? 'bad' : free < 5368709120 || share < 0.15 ? 'warn' : 'ok', `${mb(free)} free of ${mb(total)}`,
         free < 5368709120 ? 'The database, its backups and the log need room: free some space on the server.' : '');
     } catch { /* not every file system says */ }

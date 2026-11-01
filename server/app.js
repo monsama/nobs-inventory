@@ -40,7 +40,7 @@ export const publicDir = path.join(here, '..', 'public');
 const cookieName = secure => secure ? '__Host-ni_session' : 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   setBackupSheetKey(SHEET_KEY);
@@ -849,7 +849,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db) }));
+      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), ...(diskSpace ? { diskSpace } : {}) }));
     } catch (e) { next(e); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */

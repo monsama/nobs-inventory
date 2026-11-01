@@ -764,3 +764,19 @@ test('a Lansweeper push set up on the server is told to the signed-in page, befo
     assert.equal((await off.call('GET', '/api/me', { cookie: a.cookie })).json.lansweeperFeed, false);
   } finally { await off.close(); }
 });
+
+test('health: free disk space from the file system, judged by how much is left', async () => {
+  const { healthReport } = await import('../server/health.js');
+  const { openDb } = await import('../server/db.js');
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-disk-'));
+  const db = openDb(path.join(dir, 'inventory.db'));
+  try {
+    const disk = (free, total) => healthReport(db, { users: [] }, { version: 't', diskSpace: () => ({ free, total }) }).checks.find(c => c.name === 'Free disk space');
+    assert.equal(disk(200 * 2 ** 30, 500 * 2 ** 30).state, 'ok');
+    assert.equal(disk(4 * 2 ** 30, 20 * 2 ** 30).state, 'warn', 'under 5 GB');
+    assert.equal(disk(50 * 2 ** 30, 500 * 2 ** 30).state, 'warn', 'under 15 %');
+    assert.equal(disk(0.5 * 2 ** 30, 500 * 2 ** 30).state, 'bad');
+    assert.equal(disk(12 * 2 ** 30, 252 * 2 ** 30).state, 'bad', 'under 5 % left');
+  } finally { db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
