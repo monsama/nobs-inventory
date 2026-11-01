@@ -1,7 +1,7 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
 import { $, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
-import { RACKABLE, TYPE_U, canEdit, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
+import { RACKABLE, TYPE_U, canEdit, isAdmin, mySites, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
@@ -254,7 +254,7 @@ export function renderPlans(){
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
-    if (e.button !== 0 || !canEdit() || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
+    if (e.button !== 0 || !isAdmin() || planPlace || planMode !== 'view' || e.target.closest('[data-area]')) return;
     const area = plan.areas.find(a => a.id === el.dataset.areaDrag); if (!area) return;
     e.stopPropagation();
     const r = c.getBoundingClientRect(), rects = areaRects(area).map(q => ({...q}));
@@ -307,7 +307,7 @@ export function planCanvas(plan){
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${esc(a.id)}"`) + areaTag(a, planMode !== 'area', layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
+    ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${esc(a.id)}"`) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
     ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${esc(o.id)}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${esc(o.id)}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
   </div>`;
@@ -325,6 +325,9 @@ export function renderPlanList(plan){
 export function placeDevice(plan, o, x, y, sure = false){
   /* A device at another site would move there: that is asked first, not done quietly. */
   const a = areaAt(plan, x, y), to = a && plan.site ? areaLocName(plan, a) : '', fromSite = String(o.loc || '').split(' / ')[0];
+  /* An editor limited to sites places devices only in their sites (the server would refuse the move). */
+  const limit = mySites();
+  if (limit && plan.site && !limit.includes(plan.site)){ toast(`${plan.site} is not one of your sites: an admin places devices there.`); return; }
   if (!sure && to && fromSite && plan.site && fromSite !== plan.site){
     modal(`<div class="mh">Move ${esc(o.name)} to ${esc(plan.site)}?</div><div class="mb"><p class="note">${esc(o.name)} is in <b>${esc(o.loc)}</b>. Placing it in the area ${esc(a.name)} of this plan sets its location to <b>${esc(to)}</b>.</p></div>
       <div class="mf"><button id="pmCancel">Cancel</button><button id="pmOk" class="primary">Move to ${esc(plan.site)}</button></div>`, 'sm');

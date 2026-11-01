@@ -58,6 +58,8 @@ function detailHtml(d){
   };
   return `<details class="lg-detail"><summary>${list.length} change${list.length === 1 ? '' : 's'}</summary><table class="lg-diff"><tbody>${list.map(row).join('')}</tbody></table></details>`;
 }
+/* A size as people read it: kB below a megabyte, so a small backup does not show as 0.0 MB. */
+const sizeText = n => n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} kB` : `${(n / 1048576).toFixed(1)} MB`;
 /* Backups of the inventory: taken before each Lansweeper sync, push and import, and by hand. */
 export let BACKUPS = null;
 /* What all backups take on disk together (each part stored once), as the server says. */
@@ -75,7 +77,7 @@ function restoreTestHtml(edit){
   const x = EXPORT; if (!x) return '';
   const t = x.restoreTest;
   const text = !t ? 'Not tested yet: the first test runs on Sunday at 03:30.' : t.ok
-    ? `Last test ${esc(pushDate(t.at))}: ${esc(t.from === 'copy' ? 'the copy' : 'the backup')} <span class="mono">${esc(t.name)}</span> came back whole, ${t.objects} device${t.objects === 1 ? '' : 's'}${t.photos ? `, ${t.photos} photo${t.photos === 1 ? '' : 's'}` : ''}.`
+    ? `Last test ${esc(pushDate(t.at))}: ${t.from === 'copy' ? `the copy <span class="mono">${esc(t.name)}</span>` : `the backup of ${esc(Date.parse(String(t.name).split(' ')[0]) ? pushDate(String(t.name).split(' ')[0]) : t.name)}`} came back whole, ${t.objects} device${t.objects === 1 ? '' : 's'}${t.photos ? `, ${t.photos} photo${t.photos === 1 ? '' : 's'}` : ''}.`
     : `<span class="warn">The last test ${esc(pushDate(t.at))} failed: ${esc(t.error || '')}</span>`;
   return `<div class="bk-export"><div class="bk-head"><b>Restore test</b> ${!t ? '<span class="chip kept">Not yet</span>' : t.ok ? '<span class="chip ok">Works</span>' : '<span class="chip bad">Failed</span>'}</div>
     <p class="note">Each Sunday the newest ${(x.where || []).includes('folder') && x.on ? 'copy outside the server' : 'backup'} is restored into memory, apart from the inventory, and what comes back is counted. So you know a restore works before you need one.</p>
@@ -108,8 +110,8 @@ function wireExport(){
 }
 export function backupPanel(edit){
   const list = BACKUPS || [];
-  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${(b.bytes / 1048576).toFixed(1)} MB</td>
-    <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${esc(b.id)}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="icon ghost" data-bdel="${esc(b.id)}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">×</button></td></tr>`).join('');
+  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${sizeText(b.bytes)}</td>
+    <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${esc(b.id)}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="mini" data-bdel="${esc(b.id)}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">Delete</button></td></tr>`).join('');
   return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
     <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken once a day before the first change, and before every Lansweeper sync, push and import, before an LDAP or Microsoft Graph sync (once a day for Graph), before devices are added from Graph and before the type rules are applied.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, device photos, contracts, licences, the settings and the entry sheets (still sealed). Each part is stored once: what did not change since the last backup, a photo above all, takes no room again. Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>

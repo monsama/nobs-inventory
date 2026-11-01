@@ -71,7 +71,9 @@ export function newObjModal(pre={}){
   };
   fitType();
   if (pre.sw){ $('#nUp').value = pre.sw; $('#nPort').value = pre.port; }
-  else if (!c && ctx && [...$('#nUp').options].some(x => x.value === ctx.id)) $('#nUp').value = ctx.id;
+  /* The open device is offered only when plugging into it is likely: one with ports, a patch panel, or the computer a
+     new monitor goes on. A notebook open while a new PC is made is not where that PC is plugged in. */
+  else if (!c && ctx && [...$('#nUp').options].some(x => x.value === ctx.id) && (LINK_OF($('#nType').value)?.kind !== 'connected' || hasPorts(ctx) || ctx.type === 'patch')) $('#nUp').value = ctx.id;
   $('#nUp').addEventListener('change', () => portNote('nPort', ''));
   $('#nPort').addEventListener('input', () => portNote('nPort', ''));
   /* The status follows the user until it is chosen here: a computer or phone nobody has yet is in stock, one given to

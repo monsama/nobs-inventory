@@ -29,7 +29,7 @@ export function photosPanel(o){
       ? list.map((p, i) => `<button type="button" class="ph-thumb" data-ph="${i}" title="${esc(label(p))}" aria-label="Open photo ${i + 1} of ${list.length}: ${esc(label(p))}"><img src="${thumbUrl(p)}" alt="" loading="lazy" decoding="async"></button>`).join('')
       : `<p class="note lempty">${empty}</p>`}</div>
     ${edit && list && !c.failed ? `<div class="addrel ph-add"><button type="button" id="phAdd" ${list.length >= c.max ? `disabled title="A device keeps up to ${c.max} photos"` : ''}>Add photos…</button>
-      <input id="phFile" type="file" accept="image/*" multiple hidden><span class="muted" id="phMsg" role="status" aria-live="polite">${list.length ? `${list.length} of ${c.max}` : ''}</span></div>` : ''}</div>`;
+      <input id="phFile" type="file" accept="image/*" multiple hidden><span class="muted" id="phMsg" role="status" aria-live="polite">${list.length ? `${list.length} photo${list.length === 1 ? '' : 's'} (max. ${c.max})` : ''}</span></div>` : ''}</div>`;
 }
 
 /* Called after the device page is drawn: reads the list the first time, and wires the panel. */

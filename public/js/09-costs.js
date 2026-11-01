@@ -80,7 +80,7 @@ export function renderContracts(){
   const due = contractsDue().length, late = contractsLate().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost">${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
+    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost" ${isAdmin() ? '' : 'disabled'}>${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
@@ -163,6 +163,8 @@ export function contractModal(c, preset = []){
   /* Enter in the device search takes what it found (not Save): the one match, or all of them. */
   $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all) all.click(); });
   $('#ctCancel').onclick = closeModal;
+  /* Contracts are an admin's: anyone else sees one, read only (an editor's page would not save it). */
+  if (!isAdmin()) { $('#mdl').querySelectorAll('input, select, textarea, button').forEach(el => { if (el.id !== 'ctCancel' && !el.closest('.mh')) el.disabled = true; }); const ok = $('#ctOk'); if (ok) ok.hidden = true; const del = $('#ctDel'); if (del) del.hidden = true; $('#ctCancel').textContent = 'Close'; }
   if (!isNew) $('#ctDel').onclick = () => deleteContract(cur);
   $('#ctOk').onclick = () => {
     const err = m => { $('#ctErr').textContent = m; $('#ctErr').classList.add('err'); };
@@ -191,7 +193,7 @@ export function deviceContractsPanel(o){
   return `<div class="panelbox"><div class="hdr">Contracts <span class="cnt">${list.length || 'none'}</span></div>
     <div class="relist">${list.map(c => `<div class="relrow"><span class="k">${esc(CONTRACT_KINDS[c.kind])}</span><span class="t"><button class="link" data-contract="${esc(c.id)}">${esc(c.name)}</button>${c.supplier ? ` <span class="muted">${esc(c.supplier)}</span>` : ''}</span>${contractChip(c)}</div>`).join('')
       || '<div class="chain"><span class="muted">No contract covers this device.</span></div>'}</div>
-    <div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><button id="ctAddDev">Add</button></div></div>`;
+    ${isAdmin() ? `<div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><button id="ctAddDev">Add</button></div>` : ''}</div>`;
 }
 export function bindDeviceContracts(o){
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
