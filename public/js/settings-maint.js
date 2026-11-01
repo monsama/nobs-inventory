@@ -206,21 +206,50 @@ function wireTokens(){
     if (r.ok){ TOKENS = (await r.json()).tokens; NEW_TOKEN = null; renderSetMaint(); toast('Token revoked'); }
   });
 }
+/* The weekly e-mail to the admins (server/digest.js): set up on the server (NI_SMTP_*), turned on and addressed here. */
+let DIGEST = null;
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function digestPanel(){
+  const d = DIGEST; if (!d) return '';
+  const l = d.last;
+  return `<div class="panelbox"><div class="hdr">Weekly e-mail ${!d.smtp ? '<span class="chip kept">Not set up</span>' : d.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}</div>
+    <p class="note" style="padding:10px 12px">Once a week, a short list of what needs doing: warranties ending, contract notices due, people who left with devices, devices waiting in To review, the last backup, and what Health marks bad.${d.smtp ? '' : ' Optional: set the mail server on the server first (<span class="mono">NI_SMTP_HOST</span>, <span class="mono">NI_SMTP_PORT</span>, <span class="mono">NI_SMTP_USER</span>, <span class="mono">NI_SMTP_PASSWORD_FILE</span>, <span class="mono">NI_SMTP_FROM</span>; see the README).'}</p>
+    ${d.smtp ? `<div class="form" style="padding:0 12px 10px">
+      <label for="dgTo">Send to</label><input id="dgTo" placeholder="it@example.com, lead@example.com" value="${esc((d.to || []).join(', '))}">
+      <label for="dgDay">When</label><div class="bk-exrow"><select id="dgDay">${DAYS.map((n, i) => `<option value="${i}" ${i === d.day ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="dgHour" aria-label="Hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === d.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select>
+        <label class="pchk" style="width:auto"><input type="checkbox" id="dgOn" ${d.on ? 'checked' : ''}> Send each week</label></div>
+      </div>
+      <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
+        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}</div>`;
+}
+function wireDigest(){
+  const sv = $('#dgSave'); if (!sv) return;
+  const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
+  const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
+  sv.onclick = () => call('PUT', 'api/digest', body()).then(j => { DIGEST = j; renderSetMaint(); toast(j.on ? 'The weekly e-mail is on' : 'Saved'); }, e => toast(e.message));
+  $('#dgSend').onclick = async () => { try { await call('PUT', 'api/digest', body()); DIGEST = await call('POST', 'api/digest/send'); toast('Sent'); } catch (e) { toast(e.message); DIGEST = null; } renderSetMaint(); };
+  $('#dgPreview').onclick = async () => {
+    try { const j = await call('GET', 'api/digest/preview');
+      modal(`<div class="mh">${esc(j.subject)}</div><div class="mb"><pre class="dg-pre">${esc(j.text)}</pre></div><div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
+      $('#dgClose').onclick = () => { closeModal(); }; } catch (e) { toast(e.message); }
+  };
+}
 export function renderSetMaint(){
   const edit = canEdit();
   if (edit && BACKUPS === null) loadBackups();
   /* Read again when Maintenance is opened a minute or more after the last read. */
   if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }
   if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
+  if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
   if (edit && TOKENS === null){ TOKENS = undefined; fetch('api/tokens', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { tokens: [] }).then(j => { TOKENS = j.tokens; if ($('#setMaint')) renderSetMaint(); }, () => { TOKENS = []; }); }
-  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? tokensPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? tokensPanel() : ''}${edit ? digestPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
-  if (edit) wireBackups(edit); wireTokens();
+  if (edit) wireBackups(edit); wireTokens(); wireDigest();
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
   if (edit) $('#frReset').onclick = factoryResetModal;
   if (edit) $('#setReset').onclick = () => clearConfirm();

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
@@ -47,7 +48,7 @@ export const publicDir = path.join(here, '..', 'public');
 const cookieName = secure => secure ? '__Host-ni_session' : 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
-export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
+export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, mailTransport = null, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;
   setBackupSheetKey(SHEET_KEY);
@@ -864,14 +865,41 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   });
   /* Health (Settings → Maintenance): the server, backups, syncs, certificates and the log, each ok, warn, bad or off. */
-  app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
-    try {
+  const healthNow = () => {
       const s = loadState(db), g = cfgGraph();
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) }));
-    } catch (e) { next(e); }
+      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) });
+  };
+  app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
+    try { res.set('Cache-Control', 'no-store').json(healthNow()); } catch (e) { next(e); }
+  });
+  /* The weekly e-mail to the admins (server/digest.js): only when the server names a mail server. */
+  const digestNow = () => {
+    const s = loadState(db), h = healthNow(), set = digestSettings(db);
+    const last = h.checks.find(c => c.name === 'Last backup'), copy = h.checks.find(c => c.name === 'Copy outside the server');
+    return buildDigest(s, { link: set.link || process.env.NI_PUBLIC_URL || '', backups: last ? last.value : '', copy: copy && copy.state !== 'off' ? copy.value : '', health: h.checks });
+  };
+  app.locals.sendDigest = async (now = new Date()) => { const m = digestNow(); await sendDigest(db, m, process.env, now, mailTransport); audit(db, null, `weekly e-mail sent (${m.count} item${m.count === 1 ? '' : 's'})`); return m; };
+  const digestInfo = () => ({ smtp: !!smtpConfig(), ...digestSettings(db), last: lastDigest(db) });
+  app.get('/api/digest', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(digestInfo()));
+  app.put('/api/digest', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const b = req.body || {}, cur = digestSettings(db);
+      if (b.on && !smtpConfig()) throw new HttpError(400, 'No mail server is set on the server: set NI_SMTP_HOST first.');
+      saveDigestSettings(db, { ...cur, ...b });
+      const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
+      if (link) db.prepare("UPDATE docs SET data = json_set(data, '$.link', ?) WHERE kind = 'setting' AND id = 'digest'").run(link);
+      const d = digestSettings(db);
+      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
+      res.json(digestInfo());
+    } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
+  });
+  app.get('/api/digest/preview', requireUser, requireAdmin, (req, res) => { const m = digestNow(); res.set('Cache-Control', 'no-store').json({ subject: m.subject, text: m.text }); });
+  app.post('/api/digest/send', requireUser, requireAdmin, async (req, res, next) => {
+    try { await app.locals.sendDigest(); res.json(digestInfo()); }
+    catch (e) { audit(db, req.user.id, 'weekly e-mail failed: ' + e.message); next(new HttpError(400, e.message)); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
   app.get('/api/backups', requireUser, requireAdmin, (req, res) => {
