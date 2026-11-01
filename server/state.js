@@ -61,8 +61,9 @@ export function revsOf(db) {
 
 /* What a new server starts with; a setting that is not stored has this value. */
 export const blankState = () => ({ objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 });
-export function loadState(db) {
-  const rows = db.prepare('SELECT kind, id, data FROM docs').all();
+/* history: false leaves the devices' history out (most of the inventory's bulk), for a job that does not need it. */
+export function loadState(db, { history = true } = {}) {
+  const rows = db.prepare(history ? 'SELECT kind, id, data FROM docs' : "SELECT kind, id, data FROM docs WHERE kind != 'history'").all();
   const s = blankState();
   for (const r of rows) {
     const v = JSON.parse(r.data);
@@ -576,7 +577,10 @@ export function applyChanges(db, body, guard = () => {}) {
   /* A page from before the source picker may still send o.ovr: it becomes picks (fill.js). */
   { const policy = settingOf(db, 'policy') || {}; for (const c of puts) if (c.kind === 'object') liftOvr(c.value, typeof policy === 'object' ? policy : {}); }
 
-  const revs = revsOf(db);
+  /* The revisions of the records this save names, read one by one: not every record's. */
+  const revOf = db.prepare('SELECT rev FROM revs WHERE kind = ? AND id = ?');
+  const revs = {};
+  for (const c of [...puts, ...dels]) { const r = revOf.get(c.kind, c.id); if (r) revs[docKey(c.kind, c.id)] = r.rev; }
   const conflicts = [];
   const usable = c => {
     if (c.base === null || c.base === undefined){ if (c.kind === 'setting' && LAST_WINS.includes(c.id)) return true; bad('A change needs the revision it was based on.'); }   /* a preference: the last save wins */
@@ -587,7 +591,9 @@ export function applyChanges(db, body, guard = () => {}) {
   };
   const okPuts = puts.filter(usable), okDels = dels.filter(usable);
 
-  const s = loadState(db);
+  /* The history of the devices is checked entry by entry, never against the rest: only the records this save sends are
+     loaded, so a save to a large inventory does not read every device's history. */
+  const s = loadState(db, { history: false });
   delete s.revs; delete s.empty;
   for (const c of okDels) {
     if (c.kind === 'object') s.objs = s.objs.filter(o => o.id !== c.id);
@@ -639,8 +645,7 @@ export function applyChanges(db, body, guard = () => {}) {
   const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
   if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
   writeDocs(db, s, touched);
-  const after = revsOf(db);
   const applied = {};
-  for (const c of [...okPuts, ...okDels]) { const key = docKey(c.kind, c.id); applied[key] = after[key] ?? 0; }
+  for (const c of [...okPuts, ...okDels]) { const r = revOf.get(c.kind, c.id); applied[docKey(c.kind, c.id)] = r ? r.rev : 0; }
   return { revs: applied, codes, conflicts };
 }

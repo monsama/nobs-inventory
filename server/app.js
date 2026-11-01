@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
+import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { applyGroupRole } from '../public/js/group-roles.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
@@ -401,18 +401,45 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
        long gap get everything, as without since. */
     const since = req.query.since !== undefined ? Number(req.query.since) : NaN;
     const sc = scopeOf(req.user), admin = req.user.role === 'admin';
-    if (Number.isInteger(since) && since >= 0 && !sc) {
+    if (Number.isInteger(since) && since >= 0 && !(sc && sc.own)) {
       try {
         const cseq = stateSeq(db);
-        const rows = since > cseq ? null : changesSince(db, since);
+        let rows = since > cseq ? null : changesSince(db, since);
+        /* Someone limited to sites: what changed, as they see it (scope.js). A device that moved out of their sites is
+           named as deleted, with its connections and history; one that moved in comes with them. A change to their own
+           account (their sites) gets everything again. */
+        if (rows && sc && rows.some(r => r.kind === 'user' && r.id === String(req.user.id))) rows = null;
         if (rows) {
           res.set('Cache-Control', 'no-store');
-          const puts = [], dels = [], revs = {};
+          const puts = [], dels = [], revs = {}, seen = new Set();
+          const rev = db.prepare('SELECT rev FROM revs WHERE kind = ? AND id = ?'), doc = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+          const objOf = id => { const d = doc.get('object', String(id)); return d ? JSON.parse(d.data) : null; };
+          let allRels = null;
+          const relsOf = id => { allRels ||= db.prepare("SELECT data FROM docs WHERE kind = 'rel'").all().map(x => JSON.parse(x.data)); return allRels.filter(x => x.from === id || x.to === id); };
+          const send = (kind, id, data) => {
+            const key = kind + '|' + id; if (seen.has(key)) return; seen.add(key);
+            const r = rev.get(kind, id); if (r) revs[key] = r.rev;
+            if (data === null) dels.push([kind, id]); else puts.push([kind, id, admin ? data : kind === 'object' ? redactObj(data) : kind === 'user' ? redactUser(data) : data]);
+          };
           for (const r of rows) {
             if (!admin && r.kind === 'setting' && CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') continue;
-            revs[r.kind + '|' + r.id] = r.rev;
-            if (r.data === null) { dels.push([r.kind, r.id]); continue; }
-            puts.push([r.kind, r.id, admin ? r.data : r.kind === 'object' ? redactObj(r.data) : r.kind === 'user' ? redactUser(r.data) : r.data]);
+            if (!sc) { send(r.kind, r.id, r.data); continue; }
+            if (r.kind === 'object') {
+              if (r.data && inScope(r.data, sc)) {
+                send('object', r.id, r.data);
+                const h = doc.get('history', r.id); send('history', r.id, h ? JSON.parse(h.data) : null);
+                for (const x of relsOf(r.id)) if (inScope(objOf(x.from), sc) && inScope(objOf(x.to), sc)) send('rel', String(x.id), x);
+              } else {
+                send('object', r.id, null); send('history', r.id, null);
+                for (const x of relsOf(r.id)) send('rel', String(x.id), null);
+              }
+            } else if (r.kind === 'rel') {
+              send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
+            } else if (r.kind === 'history') {
+              if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
+            } else if (r.kind === 'setting' && r.id === 'stocktakes' && Array.isArray(r.data)) {
+              send('setting', r.id, scopeState({ stocktakes: r.data }, sc).stocktakes);
+            } else send(r.kind, r.id, r.data);
           }
           return res.json({ delta: true, cseq, puts, dels, revs });
         }
@@ -481,7 +508,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/changes', requireUser, requireEditor, (req, res, next) => {
     try {
       if (req.user.role === 'editor') {
-        const cur = loadState(db), sc = scopeOf(req.user);
+        const cur = loadState(db, { history: false }), sc = scopeOf(req.user);
         /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
         if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
           if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
@@ -502,7 +529,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       /* Settings are logged one by one with what changed (before → after); the map layout is a preference, not logged. */
       const all = [...(Array.isArray(req.body?.puts) ? req.body.puts : []), ...(Array.isArray(req.body?.dels) ? req.body.dels : [])].filter(c => c && typeof c === 'object');
       const settingIds = [...new Set(all.filter(c => c.kind === 'setting' && c.id !== 'mapPos').map(c => String(c.id)))];
-      const before = removes || settingIds.length ? loadState(db) : null;
+      const before = removes || settingIds.length ? loadState(db, { history: false }) : null;
       /* Once a day, before the first change made on the page: an inventory kept by hand, without syncs, is backed up too
          (parts that did not change take no room again). */
       autoBackup(db, 'daily, before the first change', { daily: true });
