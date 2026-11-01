@@ -1,7 +1,7 @@
 /* Settings → Locations and Network: sites and rooms, subnets with their ranges, VLANs and domains. */
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
-import { USERS, isAdmin, who } from './04-settings.js';
+import { USERS, canEdit, isAdmin, mySites, who } from './04-settings.js';
 import { REVIEW, esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -227,8 +227,8 @@ export function renderSetLocs(){
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Devices</span><span></span></div>
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
-      <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
-      <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
+      <div class="lpanel-add" data-editor-ok><select id="nlSite" aria-label="Site for the new room">${roomSites().map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${roomSites().length ? '' : 'disabled'}>Add room</button></div>
+      <p class="note lnote" id="nlMsg">${!roomSites().length ? 'Add a site first.' : isAdmin() ? 'Each room belongs to one site.' : `You can add rooms in ${roomSites().length === 1 ? 'your site' : 'your sites'}; only an admin renames or deletes them.`}</p></section>
   </div>${adLocsHtml()}`;
   const root = $('#setLocs');
   root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
@@ -318,7 +318,10 @@ export function addSite(){
   if (SITES.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
   SITES.push(name); toast('Added site ' + name); renderSetLocs(); render();
 }
+/* The sites a new room can go in: all for an admin, for an editor the sites they change (the server checks the same). */
+const roomSites = () => { const mine = mySites(); return isAdmin() || !mine ? SITES : SITES.filter(x => mine.includes(x)); };
 export function addRoom(){
+  if (!canEdit()) return;
   const site = $('#nlSite') ? $('#nlSite').value : '', room = $('#nlRoom').value.trim(), msg = $('#nlMsg');
   if (!site){ msg.innerHTML = warn('Add a site first.'); return; }
   if (!room || room.includes(' / ')){ msg.innerHTML = warn('Write the room name, without a slash.'); $('#nlRoom').focus(); return; }

@@ -90,11 +90,15 @@ try {
   await p.selectOption('#nLoc', 'Bern / OG');
   await p.click('#nOk');
   await eventually(() => stored().objs.some(o => o.name === 'NB-NEW' && o.loc === 'Bern / OG'));
-  // Settings: read only, as for a viewer
+  // Settings: read only, but for adding a room in her own site
   await p.click('#setBtn'); await p.click('#setTabs [data-st=locations]');
   await p.waitForSelector('#setPane input, #setPane button');
-  const enabled = await p.locator('#setPane input:not([type=search]):enabled, #setPane select:enabled').count();
-  assert.equal(enabled, 0, 'nothing in Settings can be changed');
+  assert.match(await p.textContent('.ro-banner'), /Read only\.[\s\S]*add rooms in your sites/);
+  const open = await p.$$eval('#setPane input:not([type=search]):enabled, #setPane select:enabled', l => l.map(e => e.id));
+  assert.deepEqual(open.sort(), ['nlRoom', 'nlSite'], 'only the new room can be given');
+  assert.deepEqual(await p.locator('#nlSite option').allTextContents(), ['Bern'], 'only her sites');
+  await p.fill('#nlRoom', 'Lager'); await p.click('#nlAdd');
+  await eventually(() => stored().locs.includes('Bern / Lager'));
   await p.keyboard.press('Escape');
   // floor plans: no plan editing
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render.js')).view(); });
