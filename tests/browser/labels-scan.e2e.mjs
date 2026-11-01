@@ -9,6 +9,7 @@ import { loadState, saveState } from '../../server/state.js';
 import qrcode from 'qrcode-generator';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-labels-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -34,7 +35,7 @@ fs.writeFileSync(y4m, Buffer.concat([Buffer.from(`YUV4MPEG2 W${W} H${H} F10:1 Ip
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined,
   args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${y4m}`] });
 const errors = [];
-const until = async (check, ms = 10000) => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > ms) throw new Error('not in time: ' + check); await new Promise(r => setTimeout(r, 100)); } };
+const until = (check, ms = 10000) => eventually(check, ms);
 try {
   const ctx = await browser.newContext({ viewport: { width: 1300, height: 900 }, permissions: ['camera'] });
   await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-start-hidden', '1'); } catch { /* none */ } });

@@ -8,6 +8,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-mine-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -18,7 +19,7 @@ saveState(db, { ...s0, history: {}, locs: ['Bern / EG'],
   users: [...s0.users, { id: 'u-own', login: 'anna', name: 'Anna Muster', role: 'viewer', own: true, source: 'manual', active: true, groups: [] }],
   objs: [dev('a1', 'u-own'), dev('x9', null)] });
 setPassword(db, 'u-own', 'annapass12345');
-const until = async (check, ms = 8000) => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > ms) throw new Error('not in time: ' + check); await new Promise(r => setTimeout(r, 100)); } };
+const until = (check, ms = 8000) => eventually(check, ms);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];

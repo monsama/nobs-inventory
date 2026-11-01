@@ -6,7 +6,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import { AD_FILL, GRAPH_FILL, LS_FIELDS, LS_FILL } from '../../public/js/sync-map.js';
-import { until } from './until.mjs';
+import { until, storedBy } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -49,7 +49,7 @@ try {
   assert.deepEqual(await p.locator('.ds-grp').allTextContents(), ['Network', 'Hardware', 'System', 'Place and description', 'Purchase and warranty']);
   assert.match(await p.textContent('.ds-cards'), /Lansweeper[\s\S]*New devices go straight into the inventory/);
   assert.match(await p.textContent('#setSources'), /LAPS passwords and BitLocker recovery keys are never read/);
-  const stored = async check => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > 8000) throw new Error('not saved'); await new Promise(r => setTimeout(r, 100)); } };
+  const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
   // a setting changed on the Lansweeper tab shows here at once
   await p.click('#setTabs [data-st=feed]'); await p.waitForSelector('[data-pol=disk]');
   await p.check('[data-pol=disk]');

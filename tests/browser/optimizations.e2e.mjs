@@ -9,6 +9,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-opt-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -20,7 +21,7 @@ saveState(db, { ...s0, history: {}, locs: ['Bern / EG', 'Bern / OG'],
   objs: [dev('a1', 'NB-ANNA', { uid: 'u-anna' }), dev('n1', 'NB-NOLOC-1', { loc: '' }), dev('n2', 'NB-NOLOC-2', { loc: '' }), dev('m1', 'NB-GONE')],
   stocktakes: [{ id: 'st1', name: 'Stocktake test', scope: 'Bern', started: '2026-10-01T08:00:00Z', by: 'admin', finished: '2026-10-01T09:00:00Z', finishedBy: 'admin',
     result: { total: 2, confirmed: 1, missing: [{ id: 'm1', name: 'NB-GONE', code: 'INV-m1', loc: 'Bern / EG' }], moved: [], unknown: [] } }] });
-const until = async (check, ms = 8000) => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > ms) throw new Error('not in time: ' + check); await new Promise(r => setTimeout(r, 100)); } };
+const until = (check, ms = 8000) => eventually(check, ms);
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });

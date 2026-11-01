@@ -6,13 +6,14 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import { storedBy } from './until.mjs';
 import assert from 'node:assert/strict';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-links-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'storage', name: 'NAS-01', status: 'active', ip: '10.0.0.5', ovr: {}, feed: null }], rels: [], history: {} });
-const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
+const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;

@@ -7,6 +7,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import { storedBy } from './until.mjs';
 import assert from 'node:assert/strict';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-contacts-'));
@@ -37,7 +38,7 @@ const page = await ctx.newPage();
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const shots = process.env.NI_SHOTS;
 /* Waits until the server has what the page saved. */
-const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
+const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
 try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
