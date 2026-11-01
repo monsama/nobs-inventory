@@ -1643,3 +1643,5 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .dg-pre{white-space:pre-wrap;font:13px/1.5 var(--mono);margin:0;max-height:60vh;overflow:auto}
 .usees{display:block;font-size:12px;margin-top:2px;text-align:left}.usees-sites{display:flex;flex-wrap:wrap;gap:4px 12px;padding:2px 0 6px 24px}
 .ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-changes{font-size:12px;margin:2px 0 4px}.ds-earlier{margin-top:4px}.ds-earlier summary{cursor:pointer;color:var(--muted)}.ds-earlier ul{margin:4px 0 0;padding-left:16px}.ds-earlier li{margin:2px 0}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}
+.ugrp{margin-left:4px;font-size:10px;padding:0 5px}
+#groupRoles table{width:100%;min-width:0}#groupRoles td.act{overflow:visible;text-align:right;width:1%}

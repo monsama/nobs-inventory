@@ -7,6 +7,7 @@ import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
+import { applyGroupRole } from '../public/js/group-roles.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
@@ -17,7 +18,7 @@ import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, stateSeq, changesSince, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, settingOf, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -211,6 +212,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let user = userForClaims(loadState(db).users, claims);
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
+      /* Entra groups in the token (when the app registration sends the groups claim): kept, and with the directory's
+         groups they give a role and sites (Settings → Users → Roles from groups). */
+      if (Array.isArray(claims.groups)) {
+        const ids = claims.groups.filter(g => typeof g === 'string' && g.length <= 64).slice(0, 500);
+        const before = user.role, changed = JSON.stringify(user.entraGroups || []) !== JSON.stringify(ids);
+        user.entraGroups = ids;
+        if (applyGroupRole(user, settingOf(db, 'groupRoles'), [...(user.groups || []), ...ids]) || changed) {
+          saveUserDoc(user); bumpUser(user.id);
+          if (user.role !== before) audit(db, user.id, `role from groups: ${user.role}${user.sites ? ' (' + user.sites.join(', ') + ')' : ''}`);
+        }
+      }
       if (user.role === 'none') { audit(db, user.id, 'sign in with Microsoft refused: no role'); return back('norole'); }
       /* A directory user is checked as at a password sign-in: still in the directory and in its sign-in group, and admin
          only while in the admin group (the last active admin stays one). Without a service account the role the last
@@ -300,6 +312,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
           Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
           if (d.dept) delete user.deptFrom;
+          if (!isAdmin) applyGroupRole(user, settingOf(db, 'groupRoles'), [...(d.groups || []), ...(user.entraGroups || [])]);
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
             if (wasLansweeper) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(user.id);   /* the directory checks the password now */
@@ -381,7 +394,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
   const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
-  const redactUser = ({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  const redactUser = ({ login, groups, entraGroups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
   app.get('/api/state', requireUser, (req, res, next) => {
     /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
        with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a

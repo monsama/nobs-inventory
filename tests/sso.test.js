@@ -77,7 +77,21 @@ test('sign in with Microsoft: the round trip, and what is refused', async () => 
     assert.equal((await round(() => ({ preferred_username: 'amuster@corp.example', aud: 'another-app' }))).where, '../../?sso=failed', 'another app');
     assert.equal((await round(() => ({ preferred_username: 'amuster@corp.example' }), { key: crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey })).where, '../../?sso=failed', 'a forged signature');
     assert.equal((await round(() => ({ preferred_username: 'amuster@corp.example' }), { cookie: false })).where, '../../?sso=failed', 'started in another browser');
+    // Entra groups in the token give a role and sites (Roles from groups); without the group again, No access
+    saveState(srv.db, { ...loadState(srv.db), sites: ['Bern'], groupRoles: [{ group: 'gid-bern-it', role: 'editor', sites: ['Bern'] }] });
+    let g = await round(() => ({ preferred_username: 'bfrei@corp.example', oid: 'oid-b', groups: ['gid-other', 'gid-bern-it'] }));
+    assert.ok(g.session, 'let in by the group');
+    let beat = loadState(srv.db).users.find(u => u.id === 'e-none');
+    assert.deepEqual([beat.role, beat.sites, beat.roleBy, beat.entraGroups], ['editor', ['Bern'], 'gid-bern-it', ['gid-other', 'gid-bern-it']]);
+    g = await round(() => ({ preferred_username: 'bfrei@corp.example', oid: 'oid-b', groups: ['gid-other'] }));
+    assert.equal(g.where, '../../?sso=norole');
+    beat = loadState(srv.db).users.find(u => u.id === 'e-none');
+    assert.deepEqual([beat.role, beat.sites, beat.roleBy], ['none', undefined, undefined]);
+    // a viewer's page never gets the groups
+    const v = (await srv.call('GET', '/api/state', { cookie: ok.session })).json.users.find(u => u.id === 'e-none');
+    assert.equal(v.entraGroups, undefined);
     const log = (await srv.call('GET', '/api/log', { cookie: a.cookie })).json.entries.map(e => e.action);
+    assert.ok(log.includes('role from groups: editor (Bern)'));
     assert.ok(log.includes('sign in with Microsoft (amuster@corp.example)'));
     assert.ok(log.some(l => /refused: nobody@corp\.example is not a user/.test(l)));
     assert.ok(log.some(l => /failed: the token is from another tenant/.test(l)));

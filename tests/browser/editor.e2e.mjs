@@ -44,6 +44,16 @@ try {
   await a.click('#seOk');
   await eventually(() => { const u = stored().users.find(x => x.id === 'u-ed'); return u.role === 'editor' && JSON.stringify(u.sites) === '["Bern"]'; });
   assert.match(await a.locator(`[data-sees="${i}"]`).textContent(), /Changes: Bern/);
+  // roles from groups: a rule added, changed and removed (with Undo)
+  await a.click('#grAdd'); await a.fill('#grGroup', 'IT-Bern'); await a.selectOption('#grRole', 'editor'); await a.check('[data-grsite="Bern"]'); await a.click('#grOk');
+  await eventually(() => JSON.stringify(stored().groupRoles) === '[{"group":"IT-Bern","role":"editor","sites":["Bern"]}]');
+  assert.match(await a.textContent('#groupRoles'), /IT-Bern\s*Editor\s*Bern/);
+  await a.click('[data-gredit="0"]'); await a.selectOption('#grRole', 'viewer'); await a.uncheck('[data-grsite="Bern"]'); await a.click('#grOk');
+  await eventually(() => JSON.stringify(stored().groupRoles) === '[{"group":"IT-Bern","role":"viewer"}]');
+  await a.click('[data-grdel="0"]');
+  await eventually(() => (stored().groupRoles || []).length === 0);
+  await a.click('#toast .t-undo');
+  await eventually(() => (stored().groupRoles || []).length === 1);
 
   const p = await page('eva', 'evapass123456');
   assert.match(await p.textContent('#whoBtn'), /Eva Editor · Editor/);
