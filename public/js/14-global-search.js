@@ -41,7 +41,7 @@ function results(q){
   if (people.length) out.push(['People', people.length, people.slice(0, MAX.other).map(u => ({
     icon: ICON.person, main: u.name,
     sub: [u.dept, `${owned.get(u.name) || 0} device${owned.get(u.name) === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
-    go: () => showDevicesOf(u.name) }))]);
+    go: () => showDevicesOf(u.id) }))]);
   const contacts = (CONTACTS.list || []).filter(c => has(q, c.name, c.company, c.email, c.phone, c.mobile, c.area));
   if (contacts.length) out.push(['Contacts', contacts.length, contacts.slice(0, MAX.other).map(c => ({
     icon: ICON.contact, main: c.name, sub: [c.company, c.area || c.role].filter(Boolean).join(' · '),

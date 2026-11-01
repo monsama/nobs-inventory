@@ -1591,3 +1591,20 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .modal .mb.ph-view{flex-direction:row;align-items:center}
 .uhand{display:block;font-size:12px;margin-top:4px}
 .ph-thumb img{object-fit:contain;background:var(--panel2)}
+/* A person's devices: their bar over the list, with what is done when they come or go. */
+.fbar .fb-person{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 100%;padding:2px 0 6px;border-bottom:1px solid var(--bd2);margin-bottom:4px}
+.fbar .fb-person .grow{flex:1}
+/* To review: Accept, Merge and Ignore on the card itself. */
+.card .rv-acts{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 6px}
+.card .rv-act{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
+.card .rv-act:hover,.card .rv-act:focus-visible{border-color:var(--accent);outline:none}
+.card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 50%,var(--bd))}
+.card .rv-act.no{color:var(--muted)}
+/* Overview: getting started, for a new inventory. */
+.start-list{list-style:none;margin:0;padding:6px 12px 10px;display:flex;flex-direction:column;gap:6px}
+.start-step{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd2)}
+.start-step:last-child{border-bottom:none}
+.start-n{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);font-size:12px;font-weight:600}
+.start-step.done .start-n{background:var(--accent);border-color:var(--accent);color:#fff}
+.start-t{flex:1;display:flex;flex-direction:column;min-width:0}
+.start-t .muted{font-size:12px}

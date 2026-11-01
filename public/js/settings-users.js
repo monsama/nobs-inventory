@@ -57,7 +57,7 @@ export function renderSetUsers(){
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
-  root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
+  root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].id));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => {
@@ -187,10 +187,15 @@ export function userLoginModal(u){
     st.setTab = 'users'; openSettings();
   };
 }
-/* Shows one user's devices in Cards, by searching for the name. */
-export function showDevicesOf(name){
+/* Shows one person's devices: the Table filtered by that person (by id, not by a search for the name), with the person's
+   own bar on top: hand-back list, entry sheet, take all back. A name no person has is searched for instead. */
+export function showDevicesOf(nameOrId){
   closeModal();
-  st.q = name; st.tab = 'cards'; st.cardsGroup = 'none';   /* the cards' own filter holds the name */
+  const u = USERS.find(x => x.id === nameOrId) || USERS.find(x => x.name === nameOrId);
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.quality = null;
+  st.scanOld = st.twins = false; st.scope = null;
+  if (u){ st.person = u.id; st.q = ''; st.live = true; st.tab = 'table'; }
+  else { st.person = null; st.q = String(nameOrId || ''); st.tab = 'cards'; st.cardsGroup = 'none'; }
   render();
 }
 export function passwordModal(u){

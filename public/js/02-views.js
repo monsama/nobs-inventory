@@ -4,12 +4,13 @@ import { parseCsv } from './csv.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
+import { sheetModal } from './08-sheets.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
@@ -35,7 +36,7 @@ export function renderSide(){
     + (st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? `<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : '')
     + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
     + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
-    + (st.scope ? '<button class="item" data-scope="" title="Back to the devices in the inventory"><span class="lbl">Back to inventory</span></button>' : '');
+    ;
   /* The sidebar counts what the list shows: in To review only while Cards, Table or the map show it. */
   const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
@@ -56,9 +57,9 @@ export function renderSide(){
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
   $('#wtyList').innerHTML = [['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => `<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`).join('');
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
-  const nOld = LS_ON() ? cnt(o => scanOld(o)) : 0;
-  $('#chkHdr').hidden = $('#chkList').hidden = !LS_ON();
-  $('#chkList').innerHTML = LS_ON() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;
+  $('#chkHdr').hidden = $('#chkList').hidden = !LS_USED();
+  $('#chkList').innerHTML = LS_USED() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
   /* Duplicates, whatever found them: a second record by DNS name (Lansweeper, e.g. a docking station), more than one record
      in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
      one is. */
@@ -127,7 +128,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.quality = null; st.scanOld = st.twins = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = null; st.scanOld = st.twins = st.live = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -136,7 +137,7 @@ $('#clearF').onclick = () => { resetFilters(); view(); };
 export function renderFilterBar(){
   const bar = $('#fbar'); if (!bar) return;
   const list = ['cards', 'table', 'map'].includes(st.tab);
-  const rc = contactOf(st.resp);
+  const rc = contactOf(st.resp), person = st.person ? USERS.find(u => u.id === st.person) : null;
   const chips = !list ? [] : [
     st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
     st.loc && ['loc', 'Location', st.loc],
@@ -150,6 +151,7 @@ export function renderFilterBar(){
     st.intune && GRAPH_FILTERS[st.intune] && ['intune', 'Entra / Intune', GRAPH_FILTERS[st.intune][0]],
     st.osFam && ['osFam', 'OS', st.osFam],
     rc && ['resp', 'Responsible', rc.name],
+    person && ['person', 'Person', person.name],
     st.adGroup && ['adGroup', 'AD group', st.adGroup],
     st.quality && QUALITY[st.quality] && ['quality', 'Data quality', QUALITY[st.quality][0]],
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
@@ -157,10 +159,26 @@ export function renderFilterBar(){
   const pool = list && st.scope ? scopePool().length : 0;
   const scope = !list || !st.scope ? '' : `<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
     : `${pool} ${pool === 1 ? 'device' : 'devices'} waiting for review${st.rvSrc ? ` (found by ${esc(REVIEW_SRC[st.rvSrc] || st.rvSrc)})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
-  bar.hidden = !chips.length && !scope;
-  bar.innerHTML = scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
+  /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
+  const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
+  const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
+    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && canEdit() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() && mine.some(o => o.status !== 'stock') ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+  bar.hidden = !chips.length && !scope && !who;
+  bar.innerHTML = who + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
 }
 $('#fbar').addEventListener('click', e => {
+  const pa = e.target.closest('[data-pact]');
+  if (pa){
+    const person = USERS.find(u => u.id === st.person); if (!person) return;
+    if (pa.dataset.pact === 'sheet'){ sheetModal(person); return; }
+    /* Everything the person has goes back into stock, with nobody assigned: one Undo takes it all back. */
+    const list = objs.filter(o => o.uid === person.id && o.status !== 'retired');
+    const snap = snapshot(list);
+    for (const o of list){ o.status = 'stock'; o.uid = null; delete o.hotdesk; hist(o, now(), `Taken back into stock from ${person.name}`); }
+    queueServerSave();
+    toastUndo(`${list.length} ${list.length === 1 ? 'device' : 'devices'} of ${person.name} back in stock`, () => { restoreSnapshot(snap, 'Taking back undone'); queueServerSave(); view(); });
+    view(); return;
+  }
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;
   if (k === 'all') resetFilters();
@@ -387,6 +405,7 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
+    ${o.review && !o.review.ignored && canEdit() ? `<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${esc(o.id)}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? `<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${esc(o.id)}" title="Fold it into ${esc(mergeTarget(o).name)}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${esc(o.id)}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? `<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
@@ -540,6 +559,15 @@ document.addEventListener('click', e => {
   lastPick = id;
   keepScroll(renderCards);
 }, true);
+/* Accept, Merge and Ignore on a card in To review act on it straight away, without opening it. */
+const rvAct = e => {
+  const c = e.target.closest && e.target.closest('#view [data-rvc]'); if (!c) return false;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const o = byId(c.dataset.rvid); if (o) reviewDo(c.dataset.rvc, [o]);
+  return true;
+};
+document.addEventListener('click', rvAct, true);
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('#view [data-rvc]')) rvAct(e); }, true);
 /* The "Probably …" chip on a card opens Resolve instead of the card. */
 document.addEventListener('click', e => {
   const c = e.target.closest && e.target.closest('#view [data-resolve]'); if (!c) return;

@@ -1,4 +1,4 @@
-import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, SYNC, daysSince } from './01-core.js';
+import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings.js';
@@ -97,6 +97,8 @@ export function renderStatus(){
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
   updateSync();
   const last = SYNC.run ? {at: SYNC.run, days: daysSince(SYNC.run)} : null;
+  /* Never set up and nothing sent yet: nothing to say about Lansweeper. */
+  if (!last && !LS_USED()){ sync.innerHTML = ''; sync.title = ''; return; }
   if (!last){ sync.innerHTML = '<span class="dot off"></span>Lansweeper: no sync yet'; sync.title = 'No data has come from Lansweeper yet.'; return; }
   const late = last.days >= SYNC_LATE_DAYS;
   sync.innerHTML = `<span class="dot ${late ? 'warn' : ''}"></span>Lansweeper ${esc(last.at)}`;
