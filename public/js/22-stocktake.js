@@ -3,7 +3,7 @@
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
 import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } from './01-core.js';
-import { USERS, canEdit, who } from './04-settings.js';
+import { USERS, canEdit, who, mySites, myLocs } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, reloadFromServer, render } from './07-render.js';
@@ -50,10 +50,10 @@ export function renderStocktake(){
 function startHtml(edit){
   const live = objs.filter(o => o.status !== 'retired');
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
-  const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
+  const limit = mySites(), places = [...SITES.filter(s => !limit || limit.includes(s)).map(s => [s, `${s} (site)`]), ...myLocs().map(l => [l, l])];
   return `<div class="panelbox"><div class="hdr">New stocktake</div>
     <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} A stocktake lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
-    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
+    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace">${limit ? '' : '<option value="">Everywhere</option>'}${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Stocktake ${esc(dateText(today()))}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the stocktake</button><span class="muted" id="stkCount"></span></div>` : '<p class="note stk-pad">An admin starts a stocktake.</p>'}</div>`;
 }
@@ -217,15 +217,19 @@ export function verifiedNote(o){
   /* The device's own user (not an admin) confirms they have it and can report a problem; an admin sees the report and
      marks it done. */
   const mine = !canEdit() && o.uid && o.uid === st.meId;
-  const rep = o.reported ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
+  const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
   return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">Report a problem…</button>` : ''}</p>${rep}</div>`;
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {
   const t = e.target.closest && e.target.closest('[data-mine], [data-myreport], [data-repdone]'); if (!t) return;
   if (t.dataset.repdone){
-    const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported) return;
-    hist(o, now(), `Reported problem done: ${o.reported.text}`); delete o.reported; queueServerSave(); render(); toast('Marked as done'); return;
+    const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported || o.reported.done) return;
+    /* Kept, marked done, so the list of reported problems can show what was handled; Undo opens it again. */
+    const before = { ...o.reported };
+    o.reported = { ...o.reported, done: { at: new Date().toISOString(), by: String(who()).slice(0, 120) } };
+    hist(o, now(), `Reported problem done: ${o.reported.text}`); queueServerSave(); render();
+    toastUndo('Marked as done', () => { o.reported = before; queueServerSave(); render(); }); return;
   }
   const id = t.dataset.mine || t.dataset.myreport;
   const post = async (path, body) => { const r = await fetch(`api/my/devices/${encodeURIComponent(id)}/${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); };

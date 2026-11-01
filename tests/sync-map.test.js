@@ -159,3 +159,18 @@ test('a sync notes what it changed and filled, per field, with the devices', asy
   noteChanges(s, 'graph', lens2, new Date('2026-11-02T10:03:00Z'));
   assert.equal(s.syncChanges.graph.n, 3); assert.equal(s.syncChanges.graph.filled.OS, 1);
 });
+
+test('earlier sync runs are kept, newest first, up to nine; a run that changed nothing is not one of them', async () => {
+  const { historyLens, noteChanges } = await import('../server/sync-changes.js');
+  const s = { history: {} };
+  const run = (i, msgs) => { const lens = historyLens(s); s.history['d' + i] = msgs.map(msg => ({ t: 'x', msg })); noteChanges(s, 'ls', lens, new Date(Date.UTC(2026, 10, 1, i))); };
+  for (let i = 0; i < 12; i++) run(i, [`Lansweeper: IP address changed from ${i} to ${i + 1}`]);
+  const c = s.syncChanges.ls;
+  assert.deepEqual(c.ids, ['d11']);
+  assert.equal(c.earlier.length, 9);
+  assert.deepEqual(c.earlier.map(r => r.ids[0]), ['d10', 'd9', 'd8', 'd7', 'd6', 'd5', 'd4', 'd3', 'd2']);
+  run(20, []);   // nothing changed: the last run says so, the one before becomes an earlier one
+  assert.equal(s.syncChanges.ls.n, 0); assert.equal(s.syncChanges.ls.earlier[0].ids[0], 'd11');
+  run(21, []);
+  assert.equal(s.syncChanges.ls.earlier[0].ids[0], 'd11', 'empty runs are not kept');
+});

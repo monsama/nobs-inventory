@@ -5,7 +5,7 @@ import { resetFilters } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
 import { duplicateGroups, keepOf, pairKey } from './people-match.js';
-import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
+import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
 import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, SITES } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
@@ -24,7 +24,7 @@ export function sourceChips(u){
   const tip = [from[1], !own || e && (e.gone || e.enabled === false) ? entraTip : ''].filter(Boolean).join(' · ');
   return `<span class="chip kept usrc" title="${esc(tip)}"><span class="usrc-part"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}</span>`;
 }
-const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
+const ROLE_TIPS = { admin: 'Admin: can change everything', editor: 'Editor: changes devices (in their sites, when limited to some), not the settings or the people', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
 /* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
 const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
 /* Possible duplicates: the same person found twice (public/js/people-match.js). Each group says why, keeps the record
@@ -33,7 +33,7 @@ const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'en
 const WHY = { login: 'Same login, e-mail or UPN', name: 'Same name' };
 let DUPES = [];
 function dupesHtml(devicesOfUser){
-  if (!canEdit()) return '';
+  if (!isAdmin()) return '';
   DUPES = duplicateGroups(USERS, st.peopleNotSame || []).map(g => ({ ...g, people: g.ids.map(id => USERS.find(u => u.id === id)).filter(Boolean) })).filter(g => g.people.length > 1);
   if (!DUPES.length) return '';
   const who = u => [u.login, u.profile && u.profile.mail, u.entra && u.entra.upn].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
@@ -73,16 +73,18 @@ function wireDupes(){
 }
 /* What a viewer sees (server/scope.js): everything, the devices of some sites, or only their own devices. The server
    sends them nothing else. */
-const seesText = u => u.own ? 'Sees: own devices' : Array.isArray(u.sites) && u.sites.length ? `Sees: ${u.sites.length === 1 ? u.sites[0] : u.sites.length + ' sites'}` : 'Sees: everything';
+const seesText = u => { const verb = u.role === 'editor' ? 'Changes' : 'Sees';
+  return u.own && u.role !== 'editor' ? 'Sees: own devices' : Array.isArray(u.sites) && u.sites.length ? `${verb}: ${u.sites.length === 1 ? u.sites[0] : u.sites.length + ' sites'}` : `${verb}: everything`; };
 function seesModal(u){
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
-  const cur = u.own ? 'own' : Array.isArray(u.sites) && u.sites.length ? 'sites' : 'all';
-  modal(`<div class="mh">What ${esc(u.name)} sees</div><div class="mb">
+  const editor = u.role === 'editor';
+  const cur = u.own && !editor ? 'own' : Array.isArray(u.sites) && u.sites.length ? 'sites' : 'all';
+  modal(`<div class="mh">What ${esc(u.name)} ${editor ? 'sees and changes' : 'sees'}</div><div class="mb">
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="all" ${cur === 'all' ? 'checked' : ''}> Everything</label>
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="sites" ${cur === 'sites' ? 'checked' : ''} ${sites.length ? '' : 'disabled'}> Only the devices of these sites${sites.length ? '' : ' (add sites in Settings → Locations first)'}</label>
     <div class="usees-sites">${sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-site="${esc(n)}" ${(u.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('')}</div>
-    <label class="pchk" style="width:auto"><input type="radio" name="sees" value="own" ${cur === 'own' ? 'checked' : ''}> Only their own devices: they can confirm they have them and report a problem</label>
-    <p class="note">The server sends them nothing else: no other devices, their history, photos, reports or labels.</p></div>
+    ${editor ? '' : `<label class="pchk" style="width:auto"><input type="radio" name="sees" value="own" ${cur === 'own' ? 'checked' : ''}> Only their own devices: they can confirm they have them and report a problem</label>`}
+    <p class="note">The server sends them nothing else: no other devices, their history, photos, reports or labels.${editor ? ' They change those devices, their connections and stocktakes, and add rooms in those sites; never the settings or the people.' : ''}</p></div>
     <div class="mf"><button id="seCancel">Cancel</button><button id="seOk" class="primary">Save</button></div>`, 'sm');
   $('#seCancel').onclick = closeModal;
   $('#seOk').onclick = () => {
@@ -121,7 +123,7 @@ export function renderSetUsers(){
   const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
-    ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
+    ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['editor', 'Editor'], ['viewer', 'Viewer'], ['none', 'No access']])}
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
     <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? '<button type="button" class="link" id="uClear">Clear</button>' : ''}</div>`;
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => `<tr>
@@ -129,7 +131,7 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
-      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.role === 'viewer' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="What this viewer sees">${esc(seesText(u))}</button>` : ''}</td>
+      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="editor" ${u.role === 'editor' ? 'selected' : ''}>Editor</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>${devicesOfUser(u.name) ? `<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${esc(u.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}` : ''}</td>
@@ -232,7 +234,7 @@ export function renderSetUsers(){
    scaled to fit 600 × 200 and kept as a PNG, so an SVG, WebP or GIF works as well. */
 export function renderSetCompany(){
   const el = $('#setCompany'); if (!el) return;
-  const edit = canEdit();
+  const edit = isAdmin();
   el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
     <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
     <div class="form" style="padding:10px 12px;grid-template-columns:170px minmax(0,1fr)">

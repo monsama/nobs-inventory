@@ -2,7 +2,7 @@
    says when each last ran and how it went. Admins only; a source not set up is not offered. Lansweeper is run from
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
 import { $, esc, st, toast } from './01-core.js';
-import { canEdit } from './04-settings.js';
+import { isAdmin } from './04-settings.js';
 import { SERVER, reloadFromServer, render, flushSave } from './07-render.js';
 
 export const SOURCES = {
@@ -42,7 +42,7 @@ export function summary(src, c){
 }
 export function syncButtonHtml(){
   const list = sources();
-  if (!canEdit() || !list.length) return '';
+  if (!isAdmin() || !list.length) return '';
   const failed = list.some(([src]) => runOf(src) && !runOf(src).ok);
   return `<button type="button" id="syncBtn" class="tab sync-btn${running ? ' spinning' : ''}${failed ? ' failed' : ''}" aria-haspopup="dialog" title="${failed ? 'A sync failed: open for details' : 'Sync now, and when each sync last ran'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg><span class="tlbl">Sync</span></button>`;
 }

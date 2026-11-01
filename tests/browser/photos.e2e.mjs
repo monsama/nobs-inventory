@@ -9,6 +9,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-photos-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -17,7 +18,7 @@ const s0 = loadState(db);
 saveState(db, { ...s0, users: [...s0.users, { id: 'u-v', login: 'viewer', name: 'Vera Viewer', source: 'manual', role: 'viewer', active: true }],
   objs: [{ id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-01', status: 'active', ports: 8, ovr: {}, feed: null }], rels: [], history: {} });
 setPassword(db, 'u-v', 'viewerpass123');
-const until = async (check, ms = 8000) => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > ms) throw new Error('not in time'); await new Promise(r => setTimeout(r, 100)); } };
+const until = (check, ms = 8000) => eventually(check, ms);
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;

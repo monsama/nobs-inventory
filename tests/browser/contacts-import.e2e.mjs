@@ -7,13 +7,14 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import { storedBy } from './until.mjs';
 import assert from 'node:assert/strict';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-cimport-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 saveState(db, { ...loadState(db), contacts: [{ id: 'k1', kind: 'external', name: 'Erika Beispiel', company: 'Muster IT AG', email: 'erika@muster-it.ch', note: 'stays' }], history: {} });
-const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
+const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
 
 /* Excel "CSV (Trennzeichen-getrennt)": semicolons, Windows-1252 (ü and ö as one byte each), SharePoint's headings. */
 const csv = ['Firma;Phonetischer Firmenname;Vorname;Nachname;Position;Telefon (geschäftlich);Mobiltelefonnummer;E-Mail-Adresse;Notizen',

@@ -1,7 +1,8 @@
+import { applyDelta } from './delta.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings.js';
+import { USERS, applyRole, bindUser, canEdit, isAdmin, me, pushDate } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
@@ -157,16 +158,22 @@ export function setBaseline(){
   SERVER.base = new Map();
   for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
 }
+/* What an editor may save (the server checks the same, server/scope.js): devices, their connections and history, new
+   rooms and stocktakes. Other changes made on their page (a box moved on the map) are not sent, and go with the next
+   reload. */
+const EDITOR_SAVES = k => /^(object|rel|history)\|/.test(k) || k === 'setting|locs' || k === 'setting|stocktakes';
 export function pendingChanges(){
   const now = documents(), puts = [], dels = [];
+  const may = isAdmin() ? () => true : EDITOR_SAVES;
   for (const [k, d] of now){
+    if (!may(k)) continue;
     const json = JSON.stringify(d.value);
     if (SERVER.base.get(k) === json) continue;
     const pref = d.kind === 'setting' && PREFERENCES.includes(d.id);
     puts.push({key:k, kind:d.kind, id:d.id, value:d.value, json, base: pref ? null : (SERVER.revs[k] ?? 0)});
   }
   for (const k of SERVER.base.keys()){
-    if (now.has(k)) continue;
+    if (now.has(k) || !may(k)) continue;
     const i = k.indexOf('|');
     dels.push({key:k, kind:k.slice(0, i), id:k.slice(i + 1), base: SERVER.revs[k] ?? 0});
   }
@@ -270,12 +277,16 @@ export function refusedModal(items){
    yet are saved first; what still cannot be saved (offline, signed out) is put back on top and saved later, so a
    reload never drops an edit. Records in skip are the ones someone else changed: their newer version is kept. After a restore (discard), the
    restored inventory replaces everything here. */
-export async function reloadFromServer({ flush = true, skip = [], discard = false } = {}){
+export async function reloadFromServer({ flush = true, skip = [], discard = false, data = null } = {}){
   if (flush && !discard && SERVER.base && canEdit()){ if (SERVER.busy) await SERVER.inflight; await flushSave(); }
-  const r = await fetch('api/state', {credentials: 'same-origin'});
-  if (r.status === 401){ loginModal(); return false; }
-  if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
-  const d = await r.json();
+  let d = data;
+  if (!d){
+    const r = await fetch('api/state', {credentials: 'same-origin'});
+    if (r.status === 401){ loginModal(); return false; }
+    if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
+    d = await r.json();
+    keepServerCopy(d);
+  }
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
   const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
   applyState(d);
@@ -320,6 +331,12 @@ export function dropMissingTabs(){
 /* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
    (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
+/* The inventory as the server last sent it, untouched by the page, with its running number (cseq): the next check asks
+   only for what changed since (api/state?since=) and applies that to this copy. */
+function keepServerCopy(d){
+  SERVER.copy = Number.isInteger(d.cseq) ? structuredClone(d) : null;
+  SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
+}
 export async function checkForChanges(){
   if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
@@ -327,13 +344,22 @@ export async function checkForChanges(){
   /* Changes that could not be sent while the server was away are sent again here. */
   if ((puts.length || dels.length) && canEdit()){ if (SERVER.save === 'offline') sendChanges(); return; }
   let r;
-  try { r = await fetch('api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
+  const delta = SERVER.copy && SERVER.cseq !== null;
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
   if (!r.ok) return;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
+  if (d.delta){
+    /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
+    const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
+    applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
+    if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
+    return;
+  }
+  keepServerCopy(d);
   const revs = d.revs || {};
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
-  if (changed) await reloadFromServer();
+  if (changed) await reloadFromServer({ data: structuredClone(d) });
 }
 export function applyState(d){
   UNDO.epoch++;
@@ -394,7 +420,7 @@ export function clearConfirm(){
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */
 export async function clearAll(){
-  if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
+  if (!isAdmin()){ toast('Only an admin can clear the inventory.'); return; }
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (!r.ok){ toast('The inventory could not be loaded.'); return; }
   const d = await r.json();

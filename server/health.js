@@ -21,7 +21,7 @@ const ERROR = /fail|refus|error|throttl|denied|wrong|could not|not set|not allow
 /* diskSpace(dir) → { free, total } in bytes: the file system's own numbers, or given (tests, so they do not depend on
    the disk of the machine they run on). */
 export const statDisk = dir => { const f = fs.statfsSync(dir); return { free: f.bavail * f.bsize, total: f.blocks * f.bsize }; };
-export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, copy = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
+export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, copy = null, restore = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
   const checks = [];
   const add = (area, name, state, value, note = '') => checks.push({ area, name, state, value, note });
 
@@ -56,6 +56,13 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
       !c ? 'None yet' : lastOk ? `${ago(c.at, now)} · ${c.file} · ${mb(c.bytes || 0)}` : `Failed ${ago(c.at, now)}: ${c.error || 'unknown'}`,
       !c ? 'The first copy is made tonight at 02:30, or with Copy now in Backups below.' : !lastOk || age > 1.5 ? 'Check the folder on the server (NI_BACKUP_EXPORT_DIR) and the password, then use Copy now.' : '');
   } else add('Backups', 'Copy outside the server', 'off', copy && copy.dir ? 'Off' : 'Not set up', 'Optional: a nightly encrypted copy to a share, set up with NI_BACKUP_EXPORT_DIR on the server and turned on in Backups below.');
+  /* The weekly restore test: a backup that cannot be restored is worse than none, because it is trusted. */
+  {
+    const age = restore ? (now - Date.parse(restore.at)) / DAY : Infinity;
+    add('Backups', 'Restore test', !restore ? 'warn' : !restore.ok ? 'bad' : age > 8 ? 'warn' : 'ok',
+      !restore ? 'Not tested yet' : restore.ok ? `${ago(restore.at, now)} · ${restore.objects} devices came back` : `Failed ${ago(restore.at, now)}: ${restore.error || 'unknown'}`,
+      !restore ? 'The newest backup is restored into memory each Sunday at 03:30, or with Test now in Backups below.' : !restore.ok ? 'Look at the error; then take a new backup and use Test now.' : age > 8 ? 'The weekly test did not run: use Test now in Backups below.' : '');
+  }
   add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before every sync, push and import, and once a day before the first change',
     s.autoBackups === false ? 'Without them a sync that goes wrong cannot be undone.' : '');
 

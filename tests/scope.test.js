@@ -38,3 +38,64 @@ test('a viewer limited to sites or to own devices gets nothing else', async () =
     assert.equal((await srv.call('POST', '/api/changes', { cookie: own.a.cookie, body: { puts: [] } })).status, 403, 'still no editing');
   } finally { await srv.close(); }
 });
+
+test('an editor limited to sites changes the devices of those sites, and nothing else', async () => {
+  const srv = await startServer();
+  try {
+    const s = loadState(srv.db);
+    saveState(srv.db, { ...s, sites: ['Bern', 'Zürich'], locs: ['Bern / EG', 'Zürich / EG'],
+      users: [...s.users, { id: 'e-bern', login: 'ebern', name: 'Eva Editor', role: 'editor', source: 'manual', active: true, groups: [], sites: ['Bern'] },
+        { id: 'e-all', login: 'eall', name: 'Ed All', role: 'editor', source: 'manual', active: true, groups: [] }],
+      objs: [dev('b1', 'Bern / EG', null), dev('z1', 'Zürich / EG', null)], rels: [], history: {},
+      stocktakes: [{ id: 'stB', name: 'Bern', scope: 'Bern', started: '2026-10-01T00:00:00Z', by: 'x' }, { id: 'stZ', name: 'Zürich', scope: 'Zürich', started: '2026-10-02T00:00:00Z', by: 'x' }] });
+    setPassword(srv.db, 'e-bern', 'ebernpass12345'); setPassword(srv.db, 'e-all', 'eallpass12345');
+    const a = await signIn(srv, 'ebern', 'ebernpass12345');
+    const me = (await srv.call('GET', '/api/me', { cookie: a.cookie })).json.user;
+    assert.equal(me.role, 'editor');
+    let st = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json;
+    assert.deepEqual(st.objs.map(o => o.id), ['b1']); assert.deepEqual(st.stocktakes.map(t => t.id), ['stB']);
+    const rev = k => st.revs[k] ?? 0;
+    const save = body => srv.call('POST', '/api/changes', { cookie: a.cookie, body: { dels: [], ...body } });
+    const b1 = st.objs[0];
+    // a device of Bern: changed; moved to Zürich, or a device of Zürich: refused
+    let r = await save({ puts: [{ kind: 'object', id: 'b1', value: { ...b1, model: 'X1' }, base: rev('object|b1') }] });
+    assert.equal(r.status, 200, r.text); assert.equal(loadState(srv.db).objs.find(o => o.id === 'b1').model, 'X1');
+    st = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json;
+    r = await save({ puts: [{ kind: 'object', id: 'b1', value: { ...b1, loc: 'Zürich / EG' }, base: rev('object|b1') }] });
+    assert.equal(r.status, 403); assert.match(r.json.error, /not in a site you may change/);
+    r = await save({ puts: [{ kind: 'object', id: 'z1', value: { ...dev('z1', 'Bern / EG', null) }, base: 1 }] });
+    assert.equal(r.status, 403, 'not even moving it into Bern');
+    r = await save({ puts: [], dels: [{ kind: 'object', id: 'z1', base: 1 }] });
+    assert.equal(r.status, 403);
+    // a new device in Bern with its history; a new room in Bern, not in Zürich
+    r = await save({ puts: [{ kind: 'object', id: 'n1', value: dev('n1', 'Bern / OG', null), base: 0 }, { kind: 'history', id: 'n1', value: [{ t: 'x', msg: 'added' }], base: 0 },
+      { kind: 'setting', id: 'locs', value: ['Bern / EG', 'Zürich / EG', 'Bern / OG'], base: rev('setting|locs') }] });
+    assert.equal(r.status, 200, r.text);
+    st = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json;
+    r = await save({ puts: [{ kind: 'setting', id: 'locs', value: ['Bern / EG', 'Zürich / EG', 'Bern / OG', 'Zürich / OG'], base: rev('setting|locs') }] });
+    assert.equal(r.status, 403);
+    r = await save({ puts: [{ kind: 'setting', id: 'locs', value: ['Bern / EG'], base: rev('setting|locs') }] });
+    assert.equal(r.status, 403, 'no rooms removed');
+    // a stocktake of Bern: saved, Zürich's kept although the editor does not see it; Zürich's refused
+    r = await save({ puts: [{ kind: 'setting', id: 'stocktakes', value: [{ ...st.stocktakes[0], done: '2026-10-05T00:00:00Z' }], base: rev('setting|stocktakes') }] });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(loadState(srv.db).stocktakes.map(t => [t.id, !!t.done]).sort(), [['stB', true], ['stZ', false]]);
+    st = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json;
+    r = await save({ puts: [{ kind: 'setting', id: 'stocktakes', value: [...st.stocktakes, { id: 'stN', name: 'Zürich again', scope: 'Zürich / EG', started: '2026-10-06T00:00:00Z', by: 'Eva' }], base: rev('setting|stocktakes') }] });
+    assert.equal(r.status, 403);
+    // never people, types or other settings
+    for (const c of [{ kind: 'user', id: 'e-bern', value: { ...st.users.find(u => u.id === 'e-bern'), role: 'admin' } }, { kind: 'type', id: 'pc', value: { label: 'X' } }, { kind: 'setting', id: 'contracts', value: [] }]) {
+      r = await save({ puts: [{ ...c, base: rev(`${c.kind}|${c.id}`) }] });
+      assert.equal(r.status, 403, c.kind + ' ' + c.id);
+    }
+    assert.equal((await srv.call('PUT', '/api/state', { cookie: a.cookie, body: st })).status, 403, 'no full save');
+    // an editor without sites changes every device, still no settings
+    const e = await signIn(srv, 'eall', 'eallpass12345');
+    const all = (await srv.call('GET', '/api/state', { cookie: e.cookie })).json;
+    r = await srv.call('POST', '/api/changes', { cookie: e.cookie, body: { puts: [{ kind: 'object', id: 'z1', value: { ...all.objs.find(o => o.id === 'z1'), model: 'Z9' }, base: all.revs['object|z1'] }], dels: [] } });
+    assert.equal(r.status, 200, r.text);
+    r = await srv.call('POST', '/api/changes', { cookie: e.cookie, body: { puts: [{ kind: 'setting', id: 'sites', value: ['Bern'], base: all.revs['setting|sites'] }], dels: [] } });
+    assert.equal(r.status, 403);
+  } finally { await srv.close(); }
+});
+

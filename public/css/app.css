@@ -1630,7 +1630,7 @@ body.noside #side,body.noside #sideBtn{display:none!important}
 table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.sheet-acts{justify-self:start}
 table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
 table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
-.ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}
+.ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-done summary{cursor:pointer;padding:8px 12px;color:var(--muted);font-size:12px}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}
 .bk-export{margin:0 12px 10px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-s);display:flex;flex-direction:column;gap:8px}.bk-export .note{margin:0}.bk-exrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* Settings → Users: the search and filters, and the possible duplicates. */
 .ufilters{flex-wrap:wrap}.ufilters #uQ{flex:1 1 220px;min-width:0}
@@ -1642,4 +1642,4 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .udupe-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px}
 .dg-pre{white-space:pre-wrap;font:13px/1.5 var(--mono);margin:0;max-height:60vh;overflow:auto}
 .usees{display:block;font-size:12px;margin-top:2px;text-align:left}.usees-sites{display:flex;flex-wrap:wrap;gap:4px 12px;padding:2px 0 6px 24px}
-.ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-changes{font-size:12px;margin:2px 0 4px}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}
+.ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-changes{font-size:12px;margin:2px 0 4px}.ds-earlier{margin-top:4px}.ds-earlier summary{cursor:pointer;color:var(--muted)}.ds-earlier ul{margin:4px 0 0;padding-left:16px}.ds-earlier li{margin:2px 0}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}

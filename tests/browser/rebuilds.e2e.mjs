@@ -8,6 +8,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-rebuild-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -18,7 +19,7 @@ saveState(db, { ...s0, history: {},
   users: [...s0.users, { id: 'u-dino', login: '', name: 'Dino Brunner', dept: 'Sales', source: 'manual', role: 'none', active: false }, { id: 'u-anna', login: '', name: 'Anna Muster', source: 'manual', role: 'none', active: true }],
   objs: [dev('d1', 'NB-DINO', { uid: 'u-dino' }), dev('d2', 'PH-DINO', { type: 'ios', uid: 'u-dino' }), dev('a1', 'NB-ANNA', { uid: 'u-anna' }),
     dev('r1', 'NB-NEW-1', { review: { src: 'lansweeper', at: '01.11.2026 08:00' } }), dev('r2', 'NB-NEW-2', { review: { src: 'lansweeper', at: '01.11.2026 08:00' } })] });
-const until = async (check, ms = 8000) => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > ms) throw new Error('not in time: ' + check); await new Promise(r => setTimeout(r, 100)); } };
+const until = (check, ms = 8000) => eventually(check, ms);
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });

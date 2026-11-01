@@ -5,9 +5,9 @@ import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { dateText } from './dates.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { SERVER, view } from './07-render.js';
-import { resetFilters } from './02-views.js';
+import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, canEdit, openSettings, showDevicesOf } from './04-settings.js';
+import { USERS, canEdit, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
 /* Devices still out this many days after their person left are marked red. */
 const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
@@ -27,7 +27,7 @@ const bars = (rows, attr) => {
 const GS_HIDE = 'ni-start-hidden';
 function startHtml(){
   /* Only for a new inventory: one in use for a while (many devices) does not need it. */
-  if (!canEdit() || objs.length >= 50) return '';
+  if (!isAdmin() || objs.length >= 50) return '';
   try { if (localStorage.getItem(GS_HIDE)) return ''; } catch { /* no storage: shown */ }
   const steps = [
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
@@ -87,6 +87,12 @@ export function renderOverview(){
   const handbacks = USERS.filter(u => u.active === false && held.get(u.id)).map(u => ({ u, n: held.get(u.id),
     days: u.leftAt && Date.parse(u.leftAt) ? Math.max(0, Math.floor((Date.now() - Date.parse(u.leftAt)) / 864e5)) : null }))
     .sort((a, b) => (b.days ?? -1) - (a.days ?? -1) || a.u.name.localeCompare(b.u.name));
+  /* Problems the devices' users reported (Report a problem… on My devices): the open ones, newest first, and how many were
+     done in the last 30 days. */
+  const reports = objs.filter(o => o.reported && o.status !== 'retired');
+  const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
+  const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
+  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
@@ -126,6 +132,9 @@ export function renderOverview(){
       ${handbacks.length ? `<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
         <p class="note" style="padding:8px 12px 2px;margin:0">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
         <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.u.leftBy ? `left before ${dateText(h.u.leftAt.slice(0, 10))}` : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
+      ${openRep.length || doneRep.length ? `<div class="panelbox" id="ovReported"><div class="hdr">Reported problems <span class="cnt">${openRep.length ? `${openRep.length} open` : 'none open'}</span></div>
+        <div class="ov-att">${openRep.map(repRow).join('')}</div>
+        ${doneRep.length ? `<details class="ov-done"><summary>Done in the last 30 days (${doneRep.length})</summary><div class="ov-att">${doneRep.map(repRow).join('')}</div></details>` : ''}</div>` : ''}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
@@ -152,6 +161,7 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));
   v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos, live: true }));
   v.querySelectorAll('[data-ovrv]').forEach(b => b.onclick = () => go('cards', { scope: 'review' }));
+  v.querySelectorAll('[data-ovopen]').forEach(b => b.onclick = () => openObjs([b.dataset.ovopen]));
   v.querySelectorAll('[data-ovhb]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.ovhb));
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));

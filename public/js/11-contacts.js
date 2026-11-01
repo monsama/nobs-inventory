@@ -5,7 +5,7 @@ import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, conta
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
-import { USERS, canEdit, who } from './04-settings.js';
+import { USERS, isAdmin, who } from './04-settings.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
@@ -48,7 +48,7 @@ function contactCard(c){
   return `<div class="cn-card ${c.kind}">
     <div class="cn-head"><span class="cn-avatar" aria-hidden="true">${esc(initials(c.name))}</span>
       <div class="cn-who"><b>${esc(c.name)}</b><span class="muted">${esc([c.role, c.kind === 'external' ? '' : c.company].filter(Boolean).join(' · ') || CONTACT_KINDS[c.kind])}</span></div>
-      <span class="rowacts">${editButton(`data-cnedit="${esc(c.id)}"`, c.name, canEdit())}${canEdit() ? deleteButton(`data-cndel="${esc(c.id)}"`, c.name) : ''}</span></div>
+      <span class="rowacts">${editButton(`data-cnedit="${esc(c.id)}"`, c.name, isAdmin())}${isAdmin() ? deleteButton(`data-cndel="${esc(c.id)}"`, c.name) : ''}</span></div>
     ${c.area ? `<div class="cn-area" title="Ask about">${esc(c.area)}</div>` : ''}
     <div class="cn-ways">${reach(c) || '<span class="muted">No e-mail or phone yet</span>'}</div>
     ${c.note ? `<p class="cn-note">${esc(c.note)}</p>` : ''}
@@ -65,7 +65,7 @@ export function renderContacts(){
     <select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><div class="grow"></div>
     ${all.length ? '<button id="cnExport" title="All contacts as a CSV file for Excel">Export CSV</button>' : ''}
-    ${canEdit() ? `${dirPeople().length ? '<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>' : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
+    ${isAdmin() ? `${dirPeople().length ? '<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>' : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
   const nb = $('#cnNew'); if (nb) nb.onclick = () => contactModal(null);
   const ib = $('#cnImport'); if (ib) ib.onclick = () => importModal();
   const db = $('#cnDir'); if (db) db.onclick = () => directoryModal();
@@ -150,7 +150,7 @@ export function showDevicesOfContact(id){ resetFilters(); st.resp = id; st.live 
 
 /* Making or changing a contact. assignTo: a device that gets the new contact as its responsible of that kind. */
 export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
-  const isNew = !c, edit = canEdit();
+  const isNew = !c, edit = isAdmin();
   const cur = c || { id: newId(), kind, name: '' };
   const users = USERS.filter(u => u.active !== false).sort((a, b) => a.name.localeCompare(b.name));
   const ro = edit ? '' : 'disabled';
@@ -205,7 +205,7 @@ export function setResponsible(o, kind, id){
 
 /* On a device page: who is responsible for it, internally and externally, with how to reach them. */
 export function deviceRespPanel(o){
-  const edit = canEdit();
+  const edit = isAdmin();
   const row = kind => {
     const c = contactOf(o[RESP_KEYS[kind]]), list = CONTACTS.list.filter(x => x.kind === kind).sort((a, b) => contactLabel(a).localeCompare(contactLabel(b)));
     return `<div class="resp-row"><span class="k">${CONTACT_KINDS[kind]}</span>

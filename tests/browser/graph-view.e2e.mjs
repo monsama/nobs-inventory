@@ -10,6 +10,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { until } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-graph-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -136,7 +137,7 @@ try {
   const added = await p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana'); return [o.type, o.serial, o.code, o.review]; });
   assert.deepEqual(added, ['ios', 'F2LX', 'INV-0901', undefined]);
   await until(p, () => !document.querySelector('#view .card[data-open="m9o"]'));
-  const savedAccept = async () => { const t0 = Date.now(); while (loadState(db).objs.find(o => o.id === 'm9o').review) { if (Date.now() - t0 > 8000) throw new Error('accept not saved'); await new Promise(r => setTimeout(r, 100)); } };
+  const savedAccept = () => eventually(() => !loadState(db).objs.find(o => o.id === 'm9o').review);
   await savedAccept();
   // a model corrected by hand on a device added from Graph is kept from the next sync
   const id = await p.evaluate(async () => (await import('/js/01-core.js')).objs.find(x => x.name === 'iPhone Ana').id);

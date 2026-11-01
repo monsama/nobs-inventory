@@ -6,7 +6,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import { AD_FILL, GRAPH_FILL, LS_FIELDS, LS_FILL } from '../../public/js/sync-map.js';
-import { until } from './until.mjs';
+import { until, storedBy } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -15,6 +15,8 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 saveState(db, { ...loadState(db), policy: { ...(loadState(db).policy || {}), ip: true, disk: false }, intake: { lansweeper: 'direct' },
   sites: ['Bern'], locs: ['Bern / EG'], history: {},
+  syncChanges: { ls: { at: '2026-10-30T10:00:00.000Z', changed: { 'IP address': 1 }, filled: {}, ids: ['d'], n: 1,
+    earlier: [{ at: '2026-10-20T10:00:00.000Z', changed: { Model: 2 }, filled: {}, ids: ['a', 'b'], n: 2 }] } },
   objs: [{ id: 'a', code: 'INV-0001', type: 'pc', name: 'PC-A', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
     { id: 'b', code: 'INV-0002', type: 'pc', name: 'PC-B', status: 'active', feed: null, inAd: true, ad: { location: 'Raum 3.12' } },
     { id: 'c', code: 'INV-0003', type: 'pc', name: 'PC-C', status: 'active', feed: null, inAd: true, ad: { location: 'bern / eg' } },
@@ -49,7 +51,14 @@ try {
   assert.deepEqual(await p.locator('.ds-grp').allTextContents(), ['Network', 'Hardware', 'System', 'Place and description', 'Purchase and warranty']);
   assert.match(await p.textContent('.ds-cards'), /Lansweeper[\s\S]*New devices go straight into the inventory/);
   assert.match(await p.textContent('#setSources'), /LAPS passwords and BitLocker recovery keys are never read/);
-  const stored = async check => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > 8000) throw new Error('not saved'); await new Promise(r => setTimeout(r, 100)); } };
+  const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
+  // what the last sync changed, and the runs before it, each opening its devices
+  assert.match(await p.textContent('.ds-cards'), /Changed IP address on 1\s*Show the device[\s\S]*Earlier runs \(1\)/);
+  await p.click('.ds-earlier summary'); await p.click('.ds-earlier [data-dsrun="0"]');
+  await p.waitForSelector('#fbar');
+  assert.match(await p.textContent('#fbar'), /Changed by Lansweeper on/);
+  assert.equal(await p.locator('table.grid tbody tr').count(), 2);
+  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
   // a setting changed on the Lansweeper tab shows here at once
   await p.click('#setTabs [data-st=feed]'); await p.waitForSelector('[data-pol=disk]');
   await p.check('[data-pol=disk]');

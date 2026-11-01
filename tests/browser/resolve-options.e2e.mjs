@@ -7,7 +7,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import { mergeRecords } from '../../server/feed.js';
-import { until } from './until.mjs';
+import { until, storedBy } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -30,7 +30,7 @@ saveState(db, { ...loadState(db), feedOn: true,
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
-const stored = async (check, ms = 8000) => { const t0 = Date.now(); while (!check(loadState(db))) { if (Date.now() - t0 > ms) throw new Error('not saved in time'); await new Promise(r => setTimeout(r, 100)); } };
+const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
 const obj = (st, id) => st.objs.find(o => o.id === id);
 try {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });

@@ -13,7 +13,7 @@ import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { liftOvr } from './fill.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'digest', 'digestRun', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
@@ -38,6 +38,20 @@ export const docKey = (kind, id) => kind + '|' + id;
 /* One setting, read from its own row: for a job that needs one value, not the whole inventory. */
 export const settingOf = (db, id) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); return r ? JSON.parse(r.data) : undefined; };
 export const stateTag = db => { const r = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(rev), 0) AS s FROM revs').get(); return `${r.n}.${r.s}`; };
+/* The running number of the last write (see db.js), and the records written after since: [{ kind, id, rev, data }]
+   with data null for a record deleted. null when there are more than max (the page then loads everything). */
+export const stateSeq = db => db.prepare('SELECT COALESCE(MAX(seq), 0) AS n FROM revs').get().n;
+export function changesSince(db, since, max = 2000) {
+  const rows = db.prepare('SELECT kind, id, rev FROM revs WHERE seq > ? ORDER BY seq LIMIT ?').all(since, max + 1);
+  if (rows.length > max) return null;
+  const get = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+  return rows.filter(r => r.kind !== 'setting' || SETTING_KEYS.includes(r.id)).map(r => {
+    const d = get.get(r.kind, r.id);
+    let data = d ? JSON.parse(d.data) : null;
+    if (data && r.kind === 'setting' && r.id === 'policy') data = { ...DEFAULT_POLICY, ...data };   /* as loadState gives it */
+    return { kind: r.kind, id: r.id, rev: r.rev, data };
+  });
+}
 export function revsOf(db) {
   const m = {};
   for (const r of db.prepare('SELECT kind, id, rev FROM revs').all()) m[docKey(r.kind, r.id)] = r.rev;
@@ -263,7 +277,8 @@ function checkStateRules(s, size = true) {
     /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
     if (u.role === undefined) u.role = 'viewer';
     /* none: known to the inventory (it names their devices) but no access to it, until an admin gives a role. */
-    if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
+    /* editor: changes devices (in their sites, when limited to some), not the settings or the people. */
+    if (!['admin', 'editor', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, editor, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
@@ -322,7 +337,8 @@ function checkStateRules(s, size = true) {
       }
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
-    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at))) bad(`${o.name}: a reported problem has its text, who and when.`);
+    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at)
+      || (o.reported.done !== undefined && (!o.reported.done || typeof o.reported.done !== 'object' || !Date.parse(o.reported.done.at) || typeof o.reported.done.by !== 'string' || o.reported.done.by.length > 120)))) bad(`${o.name}: a reported problem has its text, who and when.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     { const p = verifiedProblem(o.verified); if (p) bad(`${o.name}: ${p}`); }
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);

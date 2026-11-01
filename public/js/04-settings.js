@@ -9,7 +9,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $, LOCS, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
@@ -59,7 +59,7 @@ export function collapsibleSections(root, prefix){
 export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
+  const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
   const html = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
     directory: '<div id="setLdap"></div>',
@@ -122,8 +122,14 @@ export const devicesOf = name => objs.filter(o => o.user === name).length;
 export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */
 export const who = () => (me() && me().name) || 'someone';
-export const canEdit = () => !USERS.length || (!!me() && me().role === 'admin');
-export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ? 'No access' : 'Viewer';
+/* An admin changes everything; an editor the devices (in their sites, when limited to some: the server sends only
+   those, and refuses anything else), never the settings or the people. */
+export const isAdmin = () => !USERS.length || (!!me() && me().role === 'admin');
+export const canEdit = () => isAdmin() || (!!me() && me().role === 'editor');
+/* The sites an editor is limited to (null: no limit), and the rooms they may put a device in. */
+export const mySites = () => { const u = me(); return u && u.role === 'editor' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
+export const myLocs = () => { const s = mySites(); return s ? LOCS.filter(l => s.includes(l.split(' / ')[0])) : LOCS; };
+export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : u.role === 'none' ? 'No access' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
@@ -135,8 +141,10 @@ export function applyRole(){
   $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
+  /* An editor changes devices, not the settings: Settings stays read only for them, as for a viewer. */
+  const roSet = !isAdmin();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
-    if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
+    if (!ro && !(roSet && el.closest('#setPane'))){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
     if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   }));

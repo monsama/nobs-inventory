@@ -6,12 +6,12 @@ import { scheduleOf, SCHEDULE_JOBS, EVERY_HOURS, nextRun, scheduleText } from '.
 import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
-import { canEdit, renderSetPane, who } from './04-settings.js';
+import { isAdmin, renderSetPane, who } from './04-settings.js';
 import { $, LS_ON, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
 /* The switch that turns Lansweeper on or off for this inventory. */
 export function renderLsToggle(){
   const host = $('#setLsToggle'); if (!host) return;
-  const ro = canEdit() ? '' : 'disabled';
+  const ro = isAdmin() ? '' : 'disabled';
   const on = LS_ON(), api = st.lsSource === 'api';
   host.innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
@@ -24,9 +24,9 @@ export function renderLsToggle(){
         <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
     </div></div>`;
   const c = $('#useLs');
-  if (c && canEdit()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
+  if (c && isAdmin()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
   const src = $('#lsSource');
-  if (src && canEdit()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
+  if (src && isAdmin()) src.onchange = () => { st.lsSource = src.value; queueServerSave(); renderSetPane(); };
 }
 /* ---------- Lansweeper type names -> object types, and skipping devices named only by an IP address ---------- */
 /* Applies the mapping of one Lansweeper name (lower case) to the synced devices that carry it. Only that row is applied, so a type
@@ -49,7 +49,7 @@ export function applyTypeMap(only){
 export function renderSetModels(){
   const root = $('#setModels');
   if (!root) return;
-  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const edit = isAdmin(), ro = edit ? '' : 'disabled';
   const count = {};
   for (const o of objs) if (o.model) count[o.model] = (count[o.model] || 0) + 1;
   const names = modelNames();
@@ -93,7 +93,7 @@ export function renameModel(old, value){
 export function renderTypeMap(){
   if (!$('#setTypeMap')) return;
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
-  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const edit = isAdmin(), ro = edit ? '' : 'disabled';
   const entries = Object.entries(st.typeMap || {});
   const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
   const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
@@ -126,7 +126,7 @@ export function renderTypeMap(){
 export function renderTypeRules(){
   const el = $('#setTypeRules'); if (!el) return;
   if (!LS_ON()){ el.innerHTML = ''; return; }
-  const edit = canEdit(), ro = edit ? '' : 'disabled';
+  const edit = isAdmin(), ro = edit ? '' : 'disabled';
   const own = Array.isArray(st.typeRules);
   const rules = own ? st.typeRules : DEFAULT_TYPE_RULES;
   const opt = (map, sel) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(typeof v === 'string' ? v : v.label)}</option>`).join('');
@@ -243,7 +243,7 @@ export function pushStatus(){
 export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
-  const L = st.lansweeper, edit = canEdit(), ro = edit ? '' : 'disabled';
+  const L = st.lansweeper, edit = isAdmin(), ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = SERVER.lansweeper && edit;
   if (edit && pushInfo === undefined) loadPushInfo();

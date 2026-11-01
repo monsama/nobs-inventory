@@ -6,17 +6,18 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { scopeKey, scopeOf, scopeState } from './scope.js';
+import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
 import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
+import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -158,7 +159,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* A deactivated user loses access at once, even with a session that is still open. */
   /* A user with the role none has no access either: a session they hold ends at the next request. */
   const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false && u.role !== 'none' ? u : null; };
-  const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
+  const me = u => ({ id: u.id, login: u.login, name: u.name, role: ['admin', 'editor'].includes(u.role) ? u.role : 'viewer' });
   const COOKIE = cookieName(secureCookie);
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
@@ -297,7 +298,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           /* The directory's department; with none there, one Entra or Lansweeper gave stays (deptFrom says whose). */
           const keepDept = !d.dept && user.dept && (['entra', 'lansweeper'].includes(user.deptFrom) || user.source === 'lansweeper');
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
-          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
+          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
           if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
@@ -378,19 +379,46 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.json({ ok: true });
   });
 
-  app.get('/api/state', requireUser, (req, res) => {
+  /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
+  const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
+  const redactUser = ({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  app.get('/api/state', requireUser, (req, res, next) => {
+    /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
+       with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a
+       long gap get everything, as without since. */
+    const since = req.query.since !== undefined ? Number(req.query.since) : NaN;
+    const sc = scopeOf(req.user), admin = req.user.role === 'admin';
+    if (Number.isInteger(since) && since >= 0 && !sc) {
+      try {
+        const cseq = stateSeq(db);
+        const rows = since > cseq ? null : changesSince(db, since);
+        if (rows) {
+          res.set('Cache-Control', 'no-store');
+          const puts = [], dels = [], revs = {};
+          for (const r of rows) {
+            if (!admin && r.kind === 'setting' && CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') continue;
+            revs[r.kind + '|' + r.id] = r.rev;
+            if (r.data === null) { dels.push([r.kind, r.id]); continue; }
+            puts.push([r.kind, r.id, admin ? r.data : r.kind === 'object' ? redactObj(r.data) : r.kind === 'user' ? redactUser(r.data) : r.data]);
+          }
+          return res.json({ delta: true, cseq, puts, dels, revs });
+        }
+      } catch (e) { return next(e); }
+    }
     /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
     const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
-    const s = scopeState(loadState(db), scopeOf(req.user)); delete s.empty;
-    if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
+    const cseq = stateSeq(db);
+    const s = scopeState(loadState(db), sc); delete s.empty;
+    if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
-      s.objs = s.objs.map(o => o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
-      s.users = s.users.map(({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u));
+      s.objs = s.objs.map(redactObj);
+      s.users = s.users.map(redactUser);
     }
+    s.cseq = cseq;
     res.json(s);
   });
 
@@ -435,8 +463,23 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   /* The page saves only what changed. See applyChanges for how a conflict is handled. */
-  app.post('/api/changes', requireUser, requireAdmin, (req, res, next) => {
+  /* Admins save anything; an editor devices, in their sites when limited to some (scope.js, editorProblem). */
+  const requireEditor = (req, res, next) => (['admin', 'editor'].includes(req.user.role) ? next() : next(new HttpError(403, 'Only an admin or an editor can change this.')));
+  app.post('/api/changes', requireUser, requireEditor, (req, res, next) => {
     try {
+      if (req.user.role === 'editor') {
+        const cur = loadState(db), sc = scopeOf(req.user);
+        /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
+        if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
+          if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
+            const ids = new Set(c.value.map(x => x && x.id));
+            c.value = [...c.value, ...(cur.stocktakes || []).filter(x => !ids.has(x.id) && !(x.scope && sc.sites.includes(siteOf({ loc: x.scope }))))]
+              .sort((a, b) => String(b.started || '').localeCompare(String(a.started || '')));
+          }
+        }
+        const why = editorProblem(req.body, cur, sc);
+        if (why) throw new HttpError(403, why);
+      }
       const guard = s => {
         if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
         if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');
@@ -871,7 +914,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) });
+      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, restore: lastRestoreTest(db), ...(diskSpace ? { diskSpace } : {}) });
   };
   app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
     try { res.set('Cache-Control', 'no-store').json(healthNow()); } catch (e) { next(e); }
@@ -1047,7 +1090,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.json(apiDevice(o, s, { people: req.apiToken.people }));
   });
   /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
-  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN });
+  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
+  /* The restore test (server/restore-test.js): weekly from the scheduler, and on request here. */
+  app.locals.restoreTest = now => runRestoreTest(db, SECRET_KEY, process.env, now);
+  app.post('/api/restore-test', requireUser, requireAdmin, async (req, res, next) => {
+    try { const r = await runRestoreTest(db, SECRET_KEY); audit(db, req.user.id, `restore test: ${r.objects} devices came back`); res.json(exportInfo()); }
+    catch (e) { audit(db, req.user.id, 'restore test failed: ' + e.message); next(e); }
+  });
   app.get('/api/backup-export', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(exportInfo()));
   app.put('/api/backup-export', requireUser, requireAdmin, (req, res, next) => {
     try {

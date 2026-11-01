@@ -8,6 +8,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { until } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { eventually } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-ops-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -25,7 +26,7 @@ const server = await new Promise(r => { const x = createApp({ db, diskSpace: () 
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 /* Waits here, in the test, until check() holds: up to 8 seconds. */
-const wait = async check => { const t0 = Date.now(); while (!(await check())) { if (Date.now() - t0 > 8000) throw new Error('timed out: ' + check); await new Promise(r => setTimeout(r, 100)); } };
+const wait = (check, ms = 8000) => eventually(check, ms);
 try {
   const ctx = await browser.newContext({ viewport: { width: 1300, height: 900 }, acceptDownloads: true });
   await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none */ } });

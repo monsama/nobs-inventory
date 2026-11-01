@@ -1,7 +1,7 @@
 /* Settings → Locations and Network: sites and rooms, subnets with their ranges, VLANs and domains. */
 import { subnetSpan, ipInt, subnetProblem, overlapProblem } from './net.js';
 import { queueServerSave, render } from './07-render.js';
-import { USERS, canEdit, who } from './04-settings.js';
+import { USERS, isAdmin, who } from './04-settings.js';
 import { REVIEW, esc, VLANS, TYPES, tico, $, st, SUBNETS, objs, hist, now, toast, toastUndo, rels, DOMAINS, LOCS, SITES, PLANS } from './01-core.js';
 /* Locations are 'Site / Room'. Renaming one moves the objects and racks that use it. */
 export const cleanLoc = v => { const t = v.trim().split(/\s*\/\s*/).map(x => x.trim()); return t.length === 2 && t[0] && t[1] ? t.join(' / ') : ''; };
@@ -59,7 +59,7 @@ export const resetSubnetEdit = () => { snEdit = null; snDraft = null; };
 export function renderSetSubnets(){
   const root = $('#setSubnets');
   if (!root) return;
-  const edit = canEdit();
+  const edit = isAdmin();
   if (!edit) snEdit = null;
   /* Subnets the devices' adapters are in that the list does not have yet. Use opens the editor filled in; nothing is added by itself. */
   const suggested = (st.lsNets || []).filter(n => !SUBNETS.some(x => x.cidr === n.cidr));
@@ -174,7 +174,7 @@ export function renderSetDomains(){
   $('#setDomains').innerHTML = `<div class="hdr">Domains <span class="cnt">${DOMAINS.length}</span></div>
     <div class="lrows">${DOMAINS.length ? DOMAINS.map((d, i) => { const n = usedBy(d); return `<div class="lrow dm"><input data-dname="${i}" class="mono" maxlength="60" value="${esc(d.name)}" aria-label="Domain ${esc(d.name)}"><input data-ddesc="${i}" maxlength="120" value="${esc(d.desc || '')}" placeholder="Description" aria-label="Description of ${esc(d.name)}"><span class="n">${n}</span><button data-dd="${i}" ${n ? `disabled title="Used by ${n} objects"` : ''}>Delete</button></div>`; }).join('') : '<p class="note lempty">No domains yet. Add the domains your devices join.</p>'}</div>
     <div class="lpanel-add"><input id="dmName" maxlength="60" placeholder="Domain, e.g. corp.example.ch" aria-label="New domain"><input id="dmDesc" maxlength="120" placeholder="Description (optional)" aria-label="Domain description"><button id="dmAdd">Add domain</button></div>
-    ${seen.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen on devices, not listed yet</p>${canEdit() && seen.length > 1 ? `<button id="dmUseAll">Add all ${seen.length}</button>` : ''}</div>${seen.map(([d, n], i) => `<div class="snrow"><span class="mono">${esc(d)}</span><span class="grow">${n} ${n === 1 ? 'device' : 'devices'}</span>${canEdit() ? `<button data-dmuse="${i}">Add</button>` : ''}</div>`).join('')}</div>` : ''}`;
+    ${seen.length ? `<div class="sn-suggest"><div class="sn-sughead"><p class="note" style="padding:0">Seen on devices, not listed yet</p>${isAdmin() && seen.length > 1 ? `<button id="dmUseAll">Add all ${seen.length}</button>` : ''}</div>${seen.map(([d, n], i) => `<div class="snrow"><span class="mono">${esc(d)}</span><span class="grow">${n} ${n === 1 ? 'device' : 'devices'}</span>${isAdmin() ? `<button data-dmuse="${i}">Add</button>` : ''}</div>`).join('')}</div>` : ''}`;
   const root = $('#setDomains');
   /* Domains the devices are in (from Lansweeper, or typed on a device) that the list does not have yet. */
   const addSeen = list => { for (const [d] of list) if (!DOMAINS.some(x => x.name.toLowerCase() === d.toLowerCase())) DOMAINS.push({name: d}); DOMAINS.sort((a, b) => a.name.localeCompare(b.name)); queueServerSave(); renderSetDomains(); render(); };
@@ -263,13 +263,13 @@ const locMap = () => ({ ...(st.adLocMap || {}), ...(st.locMap || {}) });
 const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap()).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
 function adLocsHtml(){
   const list = locTexts();
-  const office = `<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${canEdit() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
+  const office = `<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
   if (!list.length) return `<section class="panelbox" id="adLocs"><div class="hdr">Location texts from the sources</div><p class="note lnote">No source has sent a location text yet. Active Directory's location, Lansweeper's building and location, and the office of a device's user show here, to use as rooms.</p><div class="lnote">${office}</div></section>`;
   const row = (e, i) => {
     const direct = LOCS.find(l => lc(l) === lc(e.text)), to = locTarget(e.text);
     const ctl = direct ? '<span class="muted">Is a room here</span>'
-      : to ? `<span class="adloc-to">→ <b>${esc(to)}</b></span>${canEdit() ? `<button type="button" class="link" data-adunmap="${i}">Remove</button>` : ''}`
-      : canEdit() ? `<select data-admap="${i}" aria-label="Use ${esc(e.text)} as"><option value="">Use as…</option>${LOCS.length ? `<optgroup label="An existing room">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>` : ''}${SITES.length ? `<optgroup label="A new room, in the site">${SITES.map(x => `<option value="site:${esc(x)}">${esc(x)} / ${esc(e.text.includes(' / ') ? e.text.split(' / ').slice(1).join(' - ') : e.text)}</option>`).join('')}</optgroup>` : ''}</select>` : '<span class="muted">Not used</span>';
+      : to ? `<span class="adloc-to">→ <b>${esc(to)}</b></span>${isAdmin() ? `<button type="button" class="link" data-adunmap="${i}">Remove</button>` : ''}`
+      : isAdmin() ? `<select data-admap="${i}" aria-label="Use ${esc(e.text)} as"><option value="">Use as…</option>${LOCS.length ? `<optgroup label="An existing room">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>` : ''}${SITES.length ? `<optgroup label="A new room, in the site">${SITES.map(x => `<option value="site:${esc(x)}">${esc(x)} / ${esc(e.text.includes(' / ') ? e.text.split(' / ').slice(1).join(' - ') : e.text)}</option>`).join('')}</optgroup>` : ''}</select>` : '<span class="muted">Not used</span>';
     const tags = [...e.src].map(x => `<span class="chip adloc-src">${SRC_TAG[x]}</span>`).join('');
     return `<div class="lrow adloc"><span class="adloc-text" title="${esc(e.text)}">${esc(e.text)}</span><span class="adloc-tags">${tags}</span><span class="n" title="Devices with this location text">${e.n}</span><span class="adloc-ctl">${ctl}</span></div>`;
   };
