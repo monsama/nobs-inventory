@@ -11,6 +11,7 @@ import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
 import { renderPlans } from './20-plans.js';
+import { forgetPhotos } from './23-photos.js';
 /* ---------- render, saving and signing in ---------- */
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
@@ -304,6 +305,8 @@ export async function checkForChanges(){
 }
 export function applyState(d){
   UNDO.epoch++;
+  /* The photos are read again when a device page opens: the server may have others now (a restore, another admin). */
+  forgetPhotos();
   objs.splice(0, objs.length, ...d.objs.filter(o => !o.review));
   REVIEW.splice(0, REVIEW.length, ...d.objs.filter(o => o.review));
   rels.splice(0, rels.length, ...d.rels);

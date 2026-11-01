@@ -438,7 +438,7 @@ export const QUALITY = {
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
   unconfirmed: ['Not confirmed on site for 12 months', 'Not found in a stocktake, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
-  leaver: ['With someone who left', 'Assigned to a person who is deactivated: take it back (Settings → Users → Hand-back list) or give it to someone else', o => o.status !== 'retired' && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
+  leaver: ['With someone who left', 'Assigned to a person who is deactivated: select them in the Table and use Set status → Take back into stock, or give them to someone else', o => !['retired', 'stock'].includes(o.status) && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
   addisabled: ['Disabled in AD, marked in use', 'Its computer account is disabled in Active Directory, but here it is in use', o => o.status === 'active' && !!(o.ad && o.ad.disabled)],
   ownerdiff: ['Intune names someone else', 'The primary user in Intune is not the person it is assigned to here', o => {
     const p = o.uid && personOf(o.uid), g = o.graph;

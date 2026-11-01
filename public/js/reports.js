@@ -89,7 +89,7 @@ export function buildReport(s, opts, today = new Date()) {
     const row = d => [d.code || '', d.name || '', typeLabel(d.type), d.model || '', d.serial || '', (d.accessories || []).map(x => x.name).join(', '), '[   ]'];
     return {
       title: `Hand-back list: ${p ? p.name : 'unknown person'}`, count: mine.length,
-      subtitle: `${[p && p.dept, p && p.login].filter(Boolean).join(' · ')}${p && (p.dept || p.login) ? ' · ' : ''}${mine.length} device${mine.length === 1 ? '' : 's'} · ${made} · Handed back on ______________ · Checked by ______________ · Signature ______________`,
+      subtitle: `${p && p.dept ? `${p.dept} · ` : ''}${mine.length} device${mine.length === 1 ? '' : 's'} · ${made} · Handed back on ______________ · Checked by ______________ · Signature ______________`,
       columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.5 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'Serial number', w: 1.3 }, { label: 'With it', w: 1.8 }, { label: 'Back', w: 0.6 }],
       groups: mine.length ? [{ name: '', rows: mine.map(row) }] : [],
     };

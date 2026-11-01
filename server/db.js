@@ -32,6 +32,6 @@ export function openDb(file) {
 
 export function audit(db, userId, action, detail = null) {
   db.prepare('INSERT INTO audit (at, user_id, action, detail) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), userId ?? null, action, detail == null ? null : JSON.stringify(detail));
-  /* Keep the last 20,000 entries; older ones are removed when the log grows. */
-  if (Math.random() < 0.01) db.prepare('DELETE FROM audit WHERE id <= (SELECT MAX(id) - 20000 FROM audit)').run();
+  /* Keep the last 20,000 entries; older ones are removed when the log grows, but never one of the last 90 days. */
+  if (Math.random() < 0.01) db.prepare('DELETE FROM audit WHERE id <= (SELECT MAX(id) - 20000 FROM audit) AND at < ?').run(new Date(Date.now() - 90 * 864e5).toISOString());
 }

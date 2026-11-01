@@ -72,3 +72,15 @@ test('photos of a device: add, list, view, caption, remove; viewers only look; t
     assert.equal((await fetch(`${srv.base}/api/images/${img.id}`, { headers: { cookie: a.cookie } })).status, 404);
   } finally { await srv.close(); }
 });
+
+test('metadata goes wherever it hides: after the end of a JPEG, in a PNG chunk, in the preview', async () => {
+  const { stripPng, cleanImage } = await import('../server/device-images.js');
+  const withTail = Buffer.concat([jpeg(), Buffer.from('MPF GPS 47.37N trailing picture')]);
+  assert.ok(!stripJpeg(withTail).includes('GPS'), 'data after the end marker is cut');
+  const chunk = (type, body) => { const b = Buffer.from(body); const h = Buffer.alloc(8); h.writeUInt32BE(b.length, 0); h.write(type, 4, 'latin1'); return Buffer.concat([h, b, Buffer.alloc(4)]); };
+  const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', 'x'.repeat(13)), chunk('eXIf', 'GPS 47.37N'), chunk('tEXt', 'Comment\0secret'), chunk('IDAT', 'pixels'), chunk('IEND', '')]);
+  const clean = stripPng(png);
+  assert.ok(!clean.includes('GPS') && !clean.includes('secret'), 'EXIF and text chunks are gone');
+  assert.ok(clean.includes('pixels') && clean.includes('IEND'), 'the picture stays');
+  assert.ok(!cleanImage(withTail).includes('GPS'));
+});

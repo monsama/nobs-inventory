@@ -50,3 +50,33 @@ test('a body outside /api is never read, and a malformed session cookie is no se
     assert.notEqual(me.status, 500, 'a broken cookie is not a server error');
   } finally { await srv.close(); }
 });
+
+test('a compressed body is refused before it is read, and refused pushes do not flood the log', async () => {
+  const { startServer } = await import('./helpers.js');
+  const zlib = await import('node:zlib');
+  const srv = await startServer();
+  try {
+    const body = zlib.gzipSync(Buffer.from(JSON.stringify({ login: 'x'.repeat(5_000_000), password: 'y' })));
+    const r = await fetch(srv.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', Origin: srv.base }, body });
+    assert.equal(r.status, 415);
+    const before = srv.db.prepare('SELECT COUNT(*) AS n FROM audit').get().n;
+    for (let i = 0; i < 30; i++) await fetch(srv.base + '/api/feed/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong' }, body: '{"records":[]}' });
+    assert.ok(srv.db.prepare('SELECT COUNT(*) AS n FROM audit').get().n - before <= 2, 'one line a minute for an address');
+  } finally { await srv.close(); }
+});
+
+test('a backup file cannot bring in a person with a role whom Microsoft sign-in would find', async () => {
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const { openDb } = await import('../server/db.js');
+  const { bootstrap } = await import('../server/index.js');
+  const { restoreBackup } = await import('../server/backup.js');
+  const { loadState } = await import('../server/state.js');
+  const db = openDb(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ni-rs-')), 'i.db'));
+  bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
+  const users = [{ id: 'u-x', login: '', name: 'X', role: 'admin', active: true, entra: { id: 'oid-x' } }, { id: 'u-y', login: '', name: 'Y', role: 'viewer', active: true, source: 'lansweeper' }];
+  restoreBackup(db, { version: 1, state: { objs: [], rels: [], users, types: {}, history: {}, settings: {} } });
+  const s = loadState(db);
+  assert.equal(s.users.find(u => u.id === 'u-x').role, 'none');
+  assert.equal(s.users.find(u => u.id === 'u-y').role, 'viewer', 'a device owner without any way to sign in comes back as it was');
+  db.close();
+});
