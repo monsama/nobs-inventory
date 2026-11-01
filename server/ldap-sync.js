@@ -45,13 +45,13 @@ export async function syncLdapUsers(db, config) {
       Object.assign(u, next);
       if (!u.profile) delete u.profile;
       /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
-      if (u.syncOff) { u.active = true; delete u.syncOff; }
+      if (u.syncOff) { u.active = true; delete u.syncOff; delete u.leftAt; }
       if (changed) counts.updated++;
     }
     // A local account with the same login is left alone; it is not taken over by the directory.
   }
   for (const u of s.users) {
-    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; counts.deactivated++; }
+    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); counts.deactivated++; }
   }
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;
@@ -145,7 +145,7 @@ const low = v => String(v || '').trim().toLowerCase();
    A text that names no room here gives none: free text never makes a location. */
 export const adLocation = (s, text) => mappedRoom(s, text);
 function adOf(c) {
-  const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
+  const ad = { ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.pwdSet ? { pwdSet: c.pwdSet } : {}), ...(c.managedBy ? { managedBy: c.managedBy } : {}),
     ...(c.location ? { location: c.location } : {}), ...(c.description ? { description: c.description } : {}), ...(c.services && c.services.length ? { services: c.services } : {}) };
   return Object.keys(ad).length ? ad : null;
 }
@@ -163,7 +163,7 @@ export function listAdUnmatched(s, computers) {
     if (c.disabled) { disabled++; continue; }
     seen.add(low(c.name));
     list.push({ id: low(c.name), name: c.name, ...(c.dns ? { dns: c.dns } : {}), ...(c.os ? { os: c.os } : {}), ...(c.domain ? { domain: c.domain } : {}),
-      ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.ou ? { ou: c.ou } : {}), ...(c.groups && c.groups.length ? { groups: c.groups } : {}),
+      ...(c.logon ? { logon: c.logon } : {}), ...(c.created ? { created: c.created } : {}), ...(c.pwdSet ? { pwdSet: c.pwdSet } : {}), ...(c.ou ? { ou: c.ou } : {}), ...(c.groups && c.groups.length ? { groups: c.groups } : {}),
       ...Object.fromEntries(['description', 'managedBy', 'location'].filter(k => c[k]).map(k => [k, c[k]])), ...(c.services && c.services.length ? { services: c.services } : {}) });
   }
   s.adUnmatched = list.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 2000);

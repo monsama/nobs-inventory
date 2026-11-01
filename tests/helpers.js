@@ -11,10 +11,12 @@ export function tempDataDir() {
 }
 
 /* Starts the app on a random port with its own database file. */
-export async function startServer({ dir = tempDataDir(), ldap = null, ldapConfig = undefined, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined, certProbe = undefined, loginFailMs = 0 } = {}) {
+/* The tests' server sees a disk with room, whatever the disk of the machine they run on. */
+export const ROOMY = () => ({ free: 200 * 2 ** 30, total: 500 * 2 ** 30 });
+export async function startServer({ dir = tempDataDir(), ldap = null, ldapConfig = undefined, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined, certProbe = undefined, loginFailMs = 0, diskSpace = ROOMY } = {}) {
   const db = openDb(path.join(dir, 'inventory.db'));
   bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
-  const app = createApp({ db, ldap, ldapConfig, feedToken, graphConfig, sheetKey, graphFetch, certProbe, loginFailMs });
+  const app = createApp({ db, ldap, ldapConfig, feedToken, graphConfig, sheetKey, graphFetch, certProbe, loginFailMs, diskSpace });
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   return {

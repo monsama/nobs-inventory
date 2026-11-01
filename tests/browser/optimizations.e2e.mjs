@@ -101,7 +101,7 @@ try {
   await p.waitForSelector('#sheetPwOn');
   assert.equal(await p.isChecked('#sheetPwOn'), false, 'from a device: no new password unless wanted');
   assert.equal(await p.isChecked('[data-sdev="a1"]'), true);
-  assert.equal(await p.isChecked('[data-sdev="NB-NEW-77"]').catch(() => false), false);
+  assert.equal(await p.locator('[data-sdev]:checked').count(), 1, 'only the device it was opened from');
   await p.click('#sheetMake');
   await p.waitForSelector('.sheet-acts');
   assert.equal(await p.textContent('#sheetErr'), '', 'no error after making it');

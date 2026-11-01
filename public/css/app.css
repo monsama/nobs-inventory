@@ -1630,3 +1630,4 @@ body.noside #side,body.noside #sideBtn{display:none!important}
 table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.sheet-acts{justify-self:start}
 table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
 table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
+.ov-hb{display:flex;align-items:center;gap:8px;padding-right:12px;border-bottom:1px solid var(--bd2)}.ov-hb .ov-row{flex:1;min-width:0;border-bottom:0}

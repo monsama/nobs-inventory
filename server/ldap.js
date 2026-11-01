@@ -262,7 +262,7 @@ export const computerBaseOf = config => {
    is not sent the LAPS password (ms-Mcs-AdmPwd, msLAPS-Password) or BitLocker recovery keys, which live on or under it.
    Written in lower case: AD does not mind, and a directory stand-in that compares names as written still answers. */
 export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem', 'operatingsystemversion', 'lastlogontimestamp', 'whencreated', 'useraccountcontrol',
-  'description', 'managedby', 'location', 'serviceprincipalname'];
+  'description', 'managedby', 'location', 'serviceprincipalname', 'pwdlastset'];
 /* What a computer runs, as its service principal names tell: MSSQLSvc/db1.corp:1433 is SQL Server. Only the kinds
    known here are named; the rest (HOST, RestrictedKrbHost and the like every computer has) are left out. */
 const SERVICES = [[/^MSSQLSvc$/i, 'SQL Server'], [/^HTTP$/i, 'Web'], [/^TERMSRV$/i, 'Remote Desktop'], [/^Microsoft Virtual (System Migration Service|Console Service)$/i, 'Hyper-V'],
@@ -301,7 +301,7 @@ export function computerOf(a, dn = '') {
   const dns = a.dnshostname?.[0] || '';
   return { name: a.cn?.[0] || '', dns, groups: [...new Set((a.memberof ?? []).map(cnOf))].sort((x, y) => x.localeCompare(y)),
     os: adOs(a.operatingsystem?.[0], a.operatingsystemversion?.[0]), domain: dns.includes('.') ? dns.slice(dns.indexOf('.') + 1).toLowerCase() : '',
-    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]), ou: ouOf(dn), disabled: (Number(a.useraccountcontrol?.[0]) & 2) === 2,
+    logon: adDay(a.lastlogontimestamp?.[0]), created: adDay(a.whencreated?.[0]), pwdSet: adDay(a.pwdlastset?.[0]), ou: ouOf(dn), disabled: (Number(a.useraccountcontrol?.[0]) & 2) === 2,
     description: String(a.description?.[0] || '').trim().slice(0, 400), managedBy: a.managedby?.[0] ? cnOf(a.managedby[0]).slice(0, 200) : '',
     location: String(a.location?.[0] || '').trim().slice(0, 200), services: servicesOf(a.serviceprincipalname) };
 }
