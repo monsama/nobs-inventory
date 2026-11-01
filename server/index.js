@@ -62,8 +62,8 @@ export function runFeedFile(db, file, now = new Date()) {
 /* The syncs the server runs by itself, each on its schedule from Settings (scheduleOf): the Lansweeper API when a token
    is set, otherwise the report file; the directory users; Microsoft Graph. Due in the same minute, they run in that order,
    so the devices Lansweeper adds are there for Graph to match. Kept passwords on entry sheets are cleared daily at 06:00. */
-export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null, digest = null } = {}, log = console.log) {
-  if (!lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportDir(env) && !smtpConfig(env)) return null;
+export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null, digest = null, restoreTest = null } = {}, log = console.log) {
+  if (!restoreTest && !lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportDir(env) && !smtpConfig(env)) return null;
   const done = {};
   const once = (key, t) => { const k = `${t.toDateString()} ${t.getHours()}:${t.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
   /* One run at a time: a tick while a sync is still going is skipped, and the next one also looks at the minutes it
@@ -86,6 +86,11 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
       if (exportDir(env) && exportSettings(db).on && mins.some(t => t.getHours() === 2 && t.getMinutes() === 30 && once('export', t))) {
         try { const r = await runExport(db, sheetKey, env, now); log('backup copied outside the server:', r.file); audit(db, null, `backup copied outside the server: ${r.file}`); }
         catch (e) { log('copy of the backups outside the server failed:', e.message); audit(db, null, 'copy of the backups outside the server failed: ' + ((lastExport(db) || {}).error || e.message)); }
+      }
+      /* The restore test: the newest backup restored into memory, each Sunday at 03:30 (server/restore-test.js). */
+      if (restoreTest && mins.some(t => t.getDay() === 0 && t.getHours() === 3 && t.getMinutes() === 30 && once('restoreTest', t))) {
+        try { const r = await restoreTest(now); log('restore test: the backup came back whole,', r.objects, 'devices'); }
+        catch (e) { log('restore test failed:', e.message); audit(db, null, 'restore test failed: ' + e.message); }
       }
       /* The weekly e-mail to the admins, on its day and hour (Settings → Maintenance). */
       const dg = digestSettings(db);
@@ -142,7 +147,7 @@ export function start(env = process.env) {
   const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey, trustedProxy, loginFailMs: 1000 });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig(), digest: now => app.locals.sendDigest(now) });
+  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig(), digest: now => app.locals.sendDigest(now), restoreTest: now => app.locals.restoreTest(now) });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }

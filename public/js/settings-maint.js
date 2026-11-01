@@ -69,6 +69,17 @@ export async function loadBackups(){
 }
 /* The copy outside the server (server/backup-export.js), as the server says: set up, on, password set, last copy. */
 let EXPORT = null;
+/* The weekly restore test (server/restore-test.js): the newest backup restored into memory and counted. */
+function restoreTestHtml(edit){
+  const x = EXPORT; if (!x) return '';
+  const t = x.restoreTest;
+  const text = !t ? 'Not tested yet: the first test runs on Sunday at 03:30.' : t.ok
+    ? `Last test ${esc(pushDate(t.at))}: ${esc(t.from === 'copy' ? 'the copy' : 'the backup')} <span class="mono">${esc(t.name)}</span> came back whole, ${t.objects} device${t.objects === 1 ? '' : 's'}${t.photos ? `, ${t.photos} photo${t.photos === 1 ? '' : 's'}` : ''}.`
+    : `<span class="warn">The last test ${esc(pushDate(t.at))} failed: ${esc(t.error || '')}</span>`;
+  return `<div class="bk-export"><b>Restore test</b> ${!t ? '<span class="chip kept">Not yet</span>' : t.ok ? '<span class="chip ok">Works</span>' : '<span class="chip bad">Failed</span>'}
+    <p class="note">Each Sunday the newest ${x.dir && x.on ? 'copy outside the server' : 'backup'} is restored into memory, apart from the inventory, and what comes back is counted. So you know a restore works before you need one.</p>
+    <div class="bk-exrow"><span class="note" style="flex:1" id="rtLast">${text}</span><button id="rtRun" ${edit ? '' : 'disabled'}>Test now</button></div></div>`;
+}
 function exportHtml(edit){
   const x = EXPORT; if (!x) return '';
   if (!x.dir) return `<div class="bk-export"><b>Copy outside the server</b> <span class="chip kept">Not set up</span><p class="note">Optional. To keep a nightly encrypted copy on another machine, mount a share on the server and set <span class="mono">NI_BACKUP_EXPORT_DIR</span> (see the README). It can then be turned on here.</p></div>`;
@@ -91,6 +102,7 @@ function wireExport(){
   const on = $('#bxOn'); if (on) on.onchange = () => call('PUT', 'api/backup-export', { on: on.checked }).then(() => toast(on.checked ? 'A copy is made each night' : 'No more copies outside the server'), e => toast(e.message));
   const keep = $('#bxKeep'); if (keep) keep.onchange = () => call('PUT', 'api/backup-export', { keep: Number(keep.value) }).then(j => toast(`Keeping the last ${j.keep} copies`), e => toast(e.message));
   const ps = $('#bxPwSave'); if (ps) ps.onclick = () => { const pw = $('#bxPw').value; call('POST', 'api/backup-export/password', { password: pw }).then(() => toast('Password saved: keep it apart from the server'), e => toast(e.message)); };
+  const rt = $('#rtRun'); if (rt) rt.onclick = async () => { rt.disabled = true; $('#rtLast').textContent = 'Testing…'; try { await call('POST', 'api/restore-test'); toast('The backup came back whole'); } catch (e) { toast(e.message); loadBackups(); } };
   const run = $('#bxRun'); if (run) run.onclick = async () => { run.disabled = true; $('#bxLast').textContent = 'Copying…'; try { await call('POST', 'api/backup-export/run'); toast('Copied outside the server'); loadBackups(); } catch (e) { toast(e.message); loadBackups(); } };
 }
 export function backupPanel(edit){
@@ -102,7 +114,7 @@ export function backupPanel(edit){
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}${BACKUP_STORAGE != null ? `, ${(BACKUP_STORAGE / 1048576).toFixed(1)} MB on disk for all of them` : ''}. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n" title="In the inventory, without those waiting in To review">Objects</th><th class="n hide-n" title="The size of the backup downloaded as a file">File size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
-    ${edit ? exportHtml(edit) : ''}
+    ${edit ? exportHtml(edit) + restoreTestHtml(edit) : ''}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
 export function wireBackups(edit){

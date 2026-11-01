@@ -12,6 +12,7 @@ import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
 import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
+import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
@@ -898,7 +899,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) });
+      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, restore: lastRestoreTest(db), ...(diskSpace ? { diskSpace } : {}) });
   };
   app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
     try { res.set('Cache-Control', 'no-store').json(healthNow()); } catch (e) { next(e); }
@@ -1074,7 +1075,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.json(apiDevice(o, s, { people: req.apiToken.people }));
   });
   /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
-  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN });
+  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
+  /* The restore test (server/restore-test.js): weekly from the scheduler, and on request here. */
+  app.locals.restoreTest = now => runRestoreTest(db, SECRET_KEY, process.env, now);
+  app.post('/api/restore-test', requireUser, requireAdmin, async (req, res, next) => {
+    try { const r = await runRestoreTest(db, SECRET_KEY); audit(db, req.user.id, `restore test: ${r.objects} devices came back`); res.json(exportInfo()); }
+    catch (e) { audit(db, req.user.id, 'restore test failed: ' + e.message); next(e); }
+  });
   app.get('/api/backup-export', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(exportInfo()));
   app.put('/api/backup-export', requireUser, requireAdmin, (req, res, next) => {
     try {

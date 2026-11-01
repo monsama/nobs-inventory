@@ -85,3 +85,48 @@ test('the copy from Settings: off without a folder, a password first, then copie
     await srv.close(); fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the restore test: the newest copy (or backup) restored into memory and counted, never into the inventory', async () => {
+  const { runRestoreTest, lastRestoreTest } = await import('../server/restore-test.js');
+  const { takeBackup } = await import('../server/backup.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-rt-'));
+  const before = process.env.NI_BACKUP_EXPORT_DIR;
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    delete process.env.NI_BACKUP_EXPORT_DIR;
+    // nothing to test yet: said, and kept as failed
+    srv.db.exec('DELETE FROM backups');
+    assert.equal((await srv.call('POST', '/api/restore-test', { cookie: a.cookie })).status, 400);
+    assert.match(lastRestoreTest(srv.db).error, /no backup to test/);
+    // a backup here: restored in memory, the inventory untouched
+    saveState(srv.db, { ...loadState(srv.db), objs: [{ id: 'o1', code: 'INV-1', type: 'pc', name: 'PC-ONE', status: 'active', loc: '' }, { id: 'o2', code: 'INV-2', type: 'pc', name: 'PC-TWO', status: 'active', loc: '' }] });
+    takeBackup(srv.db, 'by hand');
+    const revsBefore = JSON.stringify(srv.db.prepare('SELECT * FROM revs ORDER BY kind, id').all());
+    const x = (await srv.call('POST', '/api/restore-test', { cookie: a.cookie })).json;
+    assert.equal(x.restoreTest.ok, true, JSON.stringify(x.restoreTest)); assert.equal(x.restoreTest.from, 'backup'); assert.equal(x.restoreTest.objects, 2);
+    assert.equal(JSON.stringify(srv.db.prepare('SELECT * FROM revs ORDER BY kind, id').all()), revsBefore, 'nothing written to the inventory');
+    let h = (await srv.call('GET', '/api/health/details', { cookie: a.cookie })).json.checks.find(c => c.name === 'Restore test');
+    assert.equal(h.state, 'ok'); assert.match(h.value, /2 devices came back/);
+    // with the copy outside on, the newest copy is the one tested
+    process.env.NI_BACKUP_EXPORT_DIR = dir;
+    await srv.call('POST', '/api/backup-export/password', { cookie: a.cookie, body: { password: 'a long enough secret' } });
+    await srv.call('PUT', '/api/backup-export', { cookie: a.cookie, body: { on: true } });
+    await srv.call('POST', '/api/backup-export/run', { cookie: a.cookie });
+    const r = await runRestoreTest(srv.db, null, process.env).catch(e => e);
+    assert.ok(r instanceof Error, 'the wrong key cannot read the password');
+    const ok = (await srv.call('POST', '/api/restore-test', { cookie: a.cookie })).json.restoreTest;
+    assert.equal(ok.from, 'copy'); assert.match(ok.name, /\.nobsbak$/); assert.equal(ok.objects, 2);
+    // a copy that was changed fails the test, and Health says so
+    const f = fs.readdirSync(dir).find(n => n.endsWith('.nobsbak')), buf = fs.readFileSync(path.join(dir, f)); buf[60] ^= 1; fs.writeFileSync(path.join(dir, f), buf);
+    assert.equal((await srv.call('POST', '/api/restore-test', { cookie: a.cookie })).status, 400);
+    h = (await srv.call('GET', '/api/health/details', { cookie: a.cookie })).json.checks.find(c => c.name === 'Restore test');
+    assert.equal(h.state, 'bad'); assert.ok(!h.value.includes(dir), 'no server path');
+    // kept through a full save of the page
+    saveState(srv.db, loadState(srv.db));
+    assert.ok(lastRestoreTest(srv.db));
+  } finally {
+    if (before === undefined) delete process.env.NI_BACKUP_EXPORT_DIR; else process.env.NI_BACKUP_EXPORT_DIR = before;
+    await srv.close(); fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
