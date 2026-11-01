@@ -87,9 +87,10 @@ try {
   await gs('Lease', 'Contracts', 'Lease NB');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contracts' && c.st.ctQ === 'Lease NB'; });
   await gs('Jane', 'People', 'Jane Doe');
-  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'cards' && c.st.q === 'Jane Doe'; });
-  assert.equal(await p.inputValue('#listQ'), 'Jane Doe', 'a person opens their devices, in the cards\' own filter');
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; (await import('/js/07-render.js')).render(); });
+  /* A person opens their devices: the Table filtered by that person, with their bar on top. */
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'table' && !!c.st.person && c.st.q === ''; });
+  await p.waitForSelector('#fbar .fb-person:has-text("Jane Doe")');
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; c.st.person = null; c.st.live = false; (await import('/js/07-render.js')).render(); });
   await p.fill('#search', 'zzz-nothing');
   await p.waitForSelector('#gsList .gs-none');
   await p.keyboard.press('Escape');
