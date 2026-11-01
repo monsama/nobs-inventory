@@ -11,7 +11,7 @@ import { applyGroupRole } from '../public/js/group-roles.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
-import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
+import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
 import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
@@ -1113,7 +1113,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   };
   /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To review. */
   app.get('/api/v1/devices', apiAuth, (req, res) => {
-    const s = loadState(db), q = String(req.query.q || '').trim().toLowerCase();
+    const s = loadState(db, { history: false }), q = String(req.query.q || '').trim().toLowerCase();
     let list = s.objs.filter(o => !o.review);
     if (req.query.status) list = list.filter(o => o.status === String(req.query.status));
     if (req.query.type) list = list.filter(o => o.type === String(req.query.type));
@@ -1125,9 +1125,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     }
     res.json({ count: out.length, devices: out });
   });
+  /* GET /api/v1/contracts, /api/v1/licences[?format=csv]; /api/v1/people only for a token made with people. */
+  const apiList = (req, res, key, list, cols) => {
+    if (req.query.format === 'csv') return res.type('text/csv').send('\ufeff' + [cols.join(','), ...list.map(d => cols.map(c => csvCellApi(Array.isArray(d[c]) ? d[c].join(' ') : d[c])).join(','))].join('\r\n'));
+    res.json({ count: list.length, [key]: list });
+  };
+  app.get('/api/v1/contracts', apiAuth, (req, res) => {
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'contracts', (s.contracts || []).map(c => apiContract(c, s)), ['id', 'name', 'kind', 'supplier', 'ref', 'start', 'end', 'renewMonths', 'noticeMonths', 'noticeBy', 'state', 'cost', 'per', 'devices']);
+  });
+  app.get('/api/v1/licences', apiAuth, (req, res) => {
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'licences', (s.licences || []).map(l => apiLicence(l, s)), ['id', 'name', 'seats', 'used', 'free', 'over', 'cost', 'per', 'end']);
+  });
+  app.get('/api/v1/people', apiAuth, (req, res) => {
+    if (!req.apiToken.people) return res.status(403).json({ error: 'This token was made without people.' });
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'people', (s.users || []).filter(u => u.source !== 'manual' || u.login !== 'admin').map(u => apiPerson(u, s)), ['id', 'name', 'department', 'active', 'left', 'devices']);
+  });
   /* GET /api/v1/devices/INV-0001: one device by inventory number, id or serial number. */
   app.get('/api/v1/devices/:code', apiAuth, (req, res) => {
-    const s = loadState(db), k = String(req.params.code);
+    const s = loadState(db, { history: false }), k = String(req.params.code);
     const o = s.objs.find(x => !x.review && (x.code === k || x.id === k)) || s.objs.find(x => !x.review && x.serial && x.serial === k);
     if (!o) return res.status(404).json({ error: 'No such device.' });
     res.json(apiDevice(o, s, { people: req.apiToken.people }));

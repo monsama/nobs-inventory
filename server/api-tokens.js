@@ -3,6 +3,7 @@
    settings, no secrets; people's names only when the token was made with them. Each use is noted (at most once a
    minute), and a token can be revoked at any time. */
 import crypto from 'node:crypto';
+import { CONTRACT_KINDS, contractStatus, licenceUse } from '../public/js/costs.js';
 
 const digest = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 export const TOKEN_PREFIX = 'nobs_';
@@ -47,3 +48,22 @@ export function apiDevice(o, s, { people = false } = {}) {
   };
 }
 export const csvCellApi = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+
+/* A contract as the API gives it: its terms, the next end and notice date, and the devices it covers (by code). No note,
+   no contacts. */
+export function apiContract(c, s, today = new Date()) {
+  const st = contractStatus(c, today), codes = new Map((s.objs || []).map(o => [o.id, o.code || o.id]));
+  return { id: c.id, name: c.name, kind: CONTRACT_KINDS[c.kind] || c.kind, supplier: c.supplier || '', ref: c.ref || '', start: c.start || '', end: st.end || c.end || '',
+    renewMonths: c.renew || 0, noticeMonths: c.notice || 0, noticeBy: st.noticeBy || '', state: st.state, cost: c.cost || 0, per: c.per || 'year',
+    devices: (c.devices || []).map(id => codes.get(id)).filter(Boolean) };
+}
+/* A licence: seats, how many devices have the software, cost and end. */
+export function apiLicence(l, s) {
+  const u = licenceUse(l, (s.objs || []).filter(o => !o.review));
+  return { id: l.id, name: l.name, seats: l.seats, used: u.used, free: u.free, over: u.over, cost: l.cost || 0, per: l.per || 'year', end: l.end || '' };
+}
+/* A person, for a token made with people: name, department, whether active, and how many devices they have. */
+export function apiPerson(u, s) {
+  const n = (s.objs || []).filter(o => !o.review && o.status !== 'retired' && o.uid === u.id).length;
+  return { id: u.id, name: u.name || '', department: u.dept || '', active: u.active !== false, ...(u.leftAt ? { left: String(u.leftAt).slice(0, 10) } : {}), devices: n };
+}
