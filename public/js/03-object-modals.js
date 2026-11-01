@@ -10,7 +10,7 @@ import { bindPhotos, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, hiddenForType, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
@@ -361,7 +361,7 @@ export function renderObj(o){
   fields = fields.filter(f => lsLive() || !SCAN_ONLY.includes(f[0]));
   /* A field hidden on this device, or on every device of the type (from the ⋯ menu or Settings). Its value is kept,
      and "Show hidden fields" brings the hidden ones back for a moment, each with its own way to show it again. */
-  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : hiddenForType(o, f[0]) ? 'type' : '';
+  const hiddenBy = f => (o.hide || []).includes(f[0]) ? 'device' : hiddenOf(o.type).includes(f[0]) ? 'type' : '';
   const nHidden = fields.filter(hiddenBy).length;
   if (!nHidden && st.showHidden === o.id) st.showHidden = null;
   const reveal = nHidden > 0 && st.showHidden === o.id;
@@ -379,7 +379,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}

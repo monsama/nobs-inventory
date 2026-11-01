@@ -98,15 +98,8 @@ export const DOMAINS = [];
 export const FIELD_LAYOUT = {};
 /* Fields a type starts with hidden, until its layout is changed in Settings: a phone's address changes with every Wi-Fi
    it joins, so of the network fields only its MAC address is shown. */
-export const DEFAULT_HIDDEN = {
-  ...Object.fromEntries(['android', 'ios', 'mobile'].map(t => [t, ['ip', 'subnet', 'dhcp', 'gateway', 'dns', 'ip6']])),
-  /* A notebook or PC takes its address from DHCP: the rest of the network setup is rarely worth a row. */
-  ...Object.fromEntries(['notebook', 'pc'].map(t => [t, ['subnet', 'dhcp', 'gateway', 'dns', 'ip6']])),
-};
+export const DEFAULT_HIDDEN = Object.fromEntries(['android', 'ios', 'mobile'].map(t => [t, ['ip', 'subnet', 'dhcp', 'gateway', 'dns', 'ip6']]));
 export const hiddenOf = type => { const lay = FIELD_LAYOUT[type] || {}; return Array.isArray(lay.hidden) ? lay.hidden : (DEFAULT_HIDDEN[type] || []); };
-/* Hidden for every device of its type: as set in Settings, or, while nothing is set there, the defaults above for a field
-   that is empty (one a sync or a person filled in shows). */
-export const hiddenForType = (o, k) => { const lay = FIELD_LAYOUT[o.type] || {}; return Array.isArray(lay.hidden) ? lay.hidden.includes(k) : (DEFAULT_HIDDEN[o.type] || []).includes(k) && (o[k] == null || o[k] === ''); };
 /* "8 · Users"; a VLAN named only after its number ("VLAN 8") is just "8", so it never reads "VLAN 8 · VLAN 8". */
 export const vlanLabel = vid => { if (vid == null || vid === '') return ''; const v = VLANS.find(x => x.vid === vid); return !v ? String(vid) : new RegExp(`^(vlan\\s*)?${v.vid}$`, 'i').test(String(v.name).trim()) ? String(v.vid) : `${v.vid} · ${v.name}`; };
 /* Sites are kept as their own list, so a site can exist before it has any rooms. A location is a room within a site. */
