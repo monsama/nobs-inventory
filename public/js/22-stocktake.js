@@ -9,6 +9,7 @@ import { closeModal, modal } from './19-modal.js';
 import { linkedCode, queueServerSave, render } from './07-render.js';
 import { STOCKTAKE_DAYS, confirmedIn, daysSinceVerified, inScope, stocktakeDevices, stocktakeResult } from './stocktake.js';
 import { dateText } from './dates.js';
+import { canScan, codeReader } from './25-scan.js';
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export const activeStocktake = () => (st.stocktakes || []).find(t => !t.finished) || null;
@@ -93,31 +94,30 @@ function activeHtml(t, edit){
 /* Scanning with the camera, where the browser reads barcodes itself (BarcodeDetector: Chrome and Edge on Android,
    Windows and macOS). Each code read counts as typed into the scan field; the same code again only after a pause. The
    picture stays in the browser: nothing of it is sent or kept. */
-const CAN_CAM = typeof window !== 'undefined' && 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const CAN_CAM = canScan();
 let CAM = null;
 async function cameraModal(t){
   modal(`<div class="mh">Scan with the camera</div><div class="mb"><video id="camVideo" class="stk-cam" playsinline muted aria-label="Camera picture"></video>
-    <p class="stk-last" id="camLast" role="status" aria-live="polite">Hold a barcode or QR code in the frame.</p></div>
+    <p class="stk-last" id="camLast" role="status" aria-live="polite">Starting the camera…</p></div>
     <div class="mf"><button id="camDone" class="primary">Done</button></div>`, 'sm');
   let stream = null, timer = 0, last = '', lastAt = 0, stopped = false;
   const stop = () => { stopped = true; clearTimeout(timer); if (stream) stream.getTracks().forEach(x => x.stop()); CAM = null; };
   CAM = { said: html => { const p = $('#camLast'); if (p) p.innerHTML = html; } };
   $('#camDone').onclick = () => { stop(); closeModal(); if ($('#stkScan')) $('#stkScan').focus(); };
   try {
-    const formats = await window.BarcodeDetector.getSupportedFormats();
-    const det = new window.BarcodeDetector(formats.length ? { formats } : undefined);
+    const reader = await codeReader();
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
     const v = $('#camVideo');
     if (stopped || !v){ stop(); return; }
     v.srcObject = stream; await v.play();
+    CAM.said(reader.kind === 'native' ? 'Hold a barcode or QR code in the frame.' : 'Hold a QR code in the frame (this browser reads QR codes, such as the labels made here).');
     const tick = async () => {
       /* Only while the dialog is open over this stocktake: minimized, another view, or the stocktake finished or
          cancelled (by someone else too) ends the scanning; each code goes to the stocktake as it is now. */
       const cur = activeStocktake();
       if (stopped || !document.body.contains(v) || document.querySelector('#mdl.minimized') || st.tab !== 'stocktake' || !cur || cur.id !== t.id){ stop(); return; }
       try {
-        const codes = await det.detect(v);
-        const val = codes.length ? String(codes[0].rawValue || '').trim() : '';
+        const val = await reader.read(v);
         if (val && (val !== last || Date.now() - lastAt > 3000)){ last = val; lastAt = Date.now(); found(cur, val.slice(0, 200)); }
       } catch { /* a frame that cannot be read */ }
       timer = setTimeout(tick, 250);

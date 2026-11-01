@@ -7,6 +7,8 @@ import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
+import { createRequire } from 'node:module';
+const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
@@ -968,6 +970,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   /* The page itself is never cached, so an update is seen at once; scripts and styles are cached and revalidated. */
+  /* The QR reader for browsers without their own barcode detection (Firefox, Safari): from the package, same origin. */
+  app.get('/vendor/jsqr.js', (req, res) => res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(JSQR));
   app.use(express.static(publicDir, { index: 'index.html', maxAge: 0, setHeaders: (res, file) => { if (!file.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); } }));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
