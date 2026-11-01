@@ -34,6 +34,13 @@ try {
   // getting started: no sites and no company name yet, devices there
   await p.click('#tabsbar [data-tab=overview]'); await p.waitForSelector('.panelbox.start');
   assert.match(await p.textContent('.panelbox.start'), /2 of 4 done/);
+  // hand-backs open: Dino left with two devices; a click opens his devices
+  await p.waitForSelector('[data-ovhb="u-dino"]');
+  assert.match(await p.textContent('[data-ovhb="u-dino"]'), /Dino Brunner.*2 devices/);
+  assert.equal(await p.locator('[data-ovhb="u-anna"]').count(), 0, 'someone still there is not listed');
+  await p.click('[data-ovhb="u-dino"]');
+  await until(() => p.evaluate(async () => (await import('/js/01-core.js')).st.person === 'u-dino'));
+  await p.click('#tabsbar [data-tab=overview]'); await p.waitForSelector('.panelbox.start');
   assert.equal(await p.locator('.start-step.done').count(), 2, 'people and devices are there');
 
   // Settings opens on Locations

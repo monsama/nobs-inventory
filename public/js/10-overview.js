@@ -3,10 +3,13 @@
 import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
-import { view } from './07-render.js';
+import { SERVER, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, canEdit, openSettings } from './04-settings.js';
+import { USERS, canEdit, openSettings, showDevicesOf } from './04-settings.js';
+/* Devices still out this many days after their person left are marked red. */
+const HANDBACK_DAYS = 14;
+const SERVER_ON = () => !!SERVER.on;
 import { newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 
@@ -77,6 +80,12 @@ export function renderOverview(){
   const complete = live.filter(o => !Object.values(QUALITY).some(q => q[2](o))).length;
   const qPct = live.length ? Math.round(complete / live.length * 100) : 100;
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
+  /* People who left (deactivated) and still have devices that are not in stock or retired: the oldest first. */
+  const held = new Map();
+  for (const o of objs) if (o.uid && !['retired', 'stock'].includes(o.status)) held.set(o.uid, (held.get(o.uid) || 0) + 1);
+  const handbacks = USERS.filter(u => u.active === false && held.get(u.id)).map(u => ({ u, n: held.get(u.id),
+    days: u.leftAt && Date.parse(u.leftAt) ? Math.max(0, Math.floor((Date.now() - Date.parse(u.leftAt)) / 864e5)) : null }))
+    .sort((a, b) => (b.days ?? -1) - (a.days ?? -1) || a.u.name.localeCompare(b.u.name));
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
@@ -113,6 +122,9 @@ export function renderOverview(){
         ${attention.length ? `<div class="ov-att">${attention.map(([n, cls, label, sub, attr]) => `<button class="ov-row" ${attr}><span class="chip ${cls}">${compact(n)}</span><span><b>${esc(label)}</b><small>${esc(sub)}</small></span></button>`).join('')}</div>`
           : '<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>'}
       </div>
+      ${handbacks.length ? `<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
+        <p class="note">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
+        <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
@@ -139,6 +151,7 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));
   v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos, live: true }));
   v.querySelectorAll('[data-ovrv]').forEach(b => b.onclick = () => go('cards', { scope: 'review' }));
+  v.querySelectorAll('[data-ovhb]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.ovhb));
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
   v.querySelectorAll('[data-ovscan]').forEach(b => b.onclick = () => go('table', { scanOld: true, live: true }));
   v.querySelectorAll('[data-ovs]').forEach(b => b.onclick = () => go('table', { status: b.dataset.ovs }));

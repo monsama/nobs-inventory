@@ -98,6 +98,7 @@ test('directory sync: adds people, follows role changes, deactivates people who 
     assert.equal(second.deactivated, 1);
     st = loadState(srv.db);
     assert.equal(st.users.find(u => u.login === 'ben').active, false, 'a user who left is deactivated, not deleted');
+    assert.ok(Date.parse(st.users.find(u => u.login === 'ben').leftAt), 'with when: the Overview lists the hand-backs open, the oldest first');
     assert.equal(st.objs[0].uid, 'ldap-ben', 'their device still points at them');
     assert.equal(st.users.find(u => u.login === 'anna').role, 'none', 'out of the admin group: no access, until given a role');
     assert.equal(st.users.find(u => u.login === 'cla').role, 'admin');
