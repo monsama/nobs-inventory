@@ -47,11 +47,23 @@ try {
   await signIn(q, 'admin', 'adminpass123');
   await q.click('#tabsbar [data-tab=overview]');
   await q.waitForSelector('[data-ovq="reported"]');
+  // the list of reported problems on the Overview: open, done there (with Undo), then under Done
+  assert.match(await q.textContent('#ovReported'), /Reported problems\s*1 open[\s\S]*battery is swollen[\s\S]*Anna/);
+  await q.click('#ovReported [data-repdone="a1"]');
+  const stored = () => loadState(db).objs.find(o => o.id === 'a1').reported;
+  await until(() => stored()?.done?.by === 'Admin' || !!stored()?.done);
+  await q.waitForSelector('#ovReported .ov-done');
+  assert.match(await q.textContent('#ovReported'), /none open[\s\S]*Done in the last 30 days \(1\)/);
+  assert.equal(await q.locator('[data-ovq="reported"]').count(), 0, 'done: not a data quality problem any more');
+  await q.click('#toast .t-undo');
+  await until(() => stored() && !stored().done);
+  // and on the device page
   await q.evaluate(async () => (await import('/js/02-views.js')).openObjs(['a1']));
-  await q.waitForSelector('[data-repdone]');
+  await q.waitForSelector('.stk-note [data-repdone]');
   assert.match(await q.textContent('.stk-note.warn'), /battery is swollen/);
-  await q.click('[data-repdone]');
-  await until(() => q.evaluate(async () => !(await import('/js/01-core.js')).objs.find(o => o.id === 'a1').reported));
+  await q.click('.stk-note [data-repdone]');
+  await until(() => !!stored()?.done);
+  assert.equal(await q.locator('.stk-note [data-repdone]').count(), 0);
   assert.deepEqual(errors, []);
   console.log('my devices: all checks passed');
 } finally { await browser.close(); server.close(); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

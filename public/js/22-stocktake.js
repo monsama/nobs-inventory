@@ -217,15 +217,19 @@ export function verifiedNote(o){
   /* The device's own user (not an admin) confirms they have it and can report a problem; an admin sees the report and
      marks it done. */
   const mine = !canEdit() && o.uid && o.uid === st.meId;
-  const rep = o.reported ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
+  const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
   return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">Report a problem…</button>` : ''}</p>${rep}</div>`;
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {
   const t = e.target.closest && e.target.closest('[data-mine], [data-myreport], [data-repdone]'); if (!t) return;
   if (t.dataset.repdone){
-    const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported) return;
-    hist(o, now(), `Reported problem done: ${o.reported.text}`); delete o.reported; queueServerSave(); render(); toast('Marked as done'); return;
+    const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported || o.reported.done) return;
+    /* Kept, marked done, so the list of reported problems can show what was handled; Undo opens it again. */
+    const before = { ...o.reported };
+    o.reported = { ...o.reported, done: { at: new Date().toISOString(), by: String(who()).slice(0, 120) } };
+    hist(o, now(), `Reported problem done: ${o.reported.text}`); queueServerSave(); render();
+    toastUndo('Marked as done', () => { o.reported = before; queueServerSave(); render(); }); return;
   }
   const id = t.dataset.mine || t.dataset.myreport;
   const post = async (path, body) => { const r = await fetch(`api/my/devices/${encodeURIComponent(id)}/${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); };

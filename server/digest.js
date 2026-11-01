@@ -1,5 +1,5 @@
 /* The weekly e-mail to the admins: what needs doing, in one short list, with a link to the inventory. Warranties that
-   end soon or ended on devices in use, contract notices due, people who left with devices out, devices waiting in To
+   end soon or ended on devices in use, contract notices due, people who left with devices out, problems users reported, devices waiting in To
    review, the last backup and the copy outside the server, and what Health marks bad. Optional: only when the server
    names a mail server (NI_SMTP_*), and turned on in Settings → Maintenance with the addresses to send to. Nothing secret
    goes in it; the mail server's password stays on the server. */
@@ -44,12 +44,14 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   for (const o of live) if (o.uid && o.status !== 'stock') held.set(o.uid, (held.get(o.uid) || 0) + 1);
   const leavers = (s.users || []).filter(u => u.active === false && held.get(u.id));
   const review = (s.objs || []).filter(o => o.review && !o.review.ignored).length;
+  const reported = live.filter(o => o.reported && !o.reported.done).sort((a, b) => String(a.reported.at).localeCompare(String(b.reported.at)));
   const sections = [];
   const list = (items, fmt, max = 10) => [...items.slice(0, max).map(fmt), ...(items.length > max ? [`… and ${items.length - max} more`] : [])];
   if (wEnded.length) sections.push([`Warranty ended on ${wEnded.length} device${wEnded.length === 1 ? '' : 's'} in use`, list(wEnded, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ended ${dateText(o.warranty)}`)]);
   if (wSoon.length) sections.push([`Warranty ends within ${WARRANTY_SOON} days on ${wSoon.length} device${wSoon.length === 1 ? '' : 's'}`, list(wSoon, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ${dateText(o.warranty)}`)]);
   if (due.length) sections.push([`Contract notice due on ${due.length} contract${due.length === 1 ? '' : 's'}`, list(due, x => `${x.c.name}: ${x.st.state === 'late' ? 'notice date passed' : 'give notice by'} ${dateText(x.st.noticeBy || x.st.end)}`)]);
   if (leavers.length) sections.push([`${leavers.length} ${leavers.length === 1 ? 'person' : 'people'} left with devices still out`, list(leavers, u => `${u.name}: ${held.get(u.id)} device${held.get(u.id) === 1 ? '' : 's'}${u.leftAt ? `, left ${u.leftBy ? 'before ' : ''}${dateText(u.leftAt.slice(0, 10))}` : ''}`)]);
+  if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);
   if (review) sections.push([`${review} device${review === 1 ? '' : 's'} waiting in To review`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
   const bad = health.filter(c => c.state === 'bad');
   if (bad.length) sections.push(['Health', bad.map(c => `${c.area} · ${c.name}: ${c.value}`)]);

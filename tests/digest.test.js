@@ -18,6 +18,10 @@ test('the e-mail lists what needs doing, and says so when nothing does', () => {
   assert.ok(!m.text.includes('GONE'));
   assert.ok(!/<script/i.test(buildDigest({ objs: [{ id: 'x', name: '<script>', status: 'active', warranty: '2026-10-01' }] }, {}, TODAY).html));
   assert.match(buildDigest({ objs: [] }, {}, TODAY).subject, /nothing needs attention/);
+  const rep = buildDigest({ objs: [{ id: 'r', name: 'NB-ANNA', status: 'active', reported: { at: '2026-10-30T08:00:00Z', by: 'Anna', text: 'Battery swollen' } },
+    { id: 's', name: 'NB-DONE', status: 'active', reported: { at: '2026-10-29T08:00:00Z', by: 'Ben', text: 'Fixed already', done: { at: '2026-10-30T09:00:00Z', by: 'IT' } } }] }, {}, TODAY);
+  assert.match(rep.text, /1 problem reported by users, not done yet\s+- NB-ANNA: Battery swollen \(Anna/);
+  assert.ok(!rep.text.includes('Fixed already'), 'done ones are left out');
 });
 
 test('the mail server only from the server; TLS on 465, STARTTLS otherwise', () => {

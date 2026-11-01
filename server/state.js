@@ -336,7 +336,8 @@ function checkStateRules(s, size = true) {
       }
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
-    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at))) bad(`${o.name}: a reported problem has its text, who and when.`);
+    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at)
+      || (o.reported.done !== undefined && (!o.reported.done || typeof o.reported.done !== 'object' || !Date.parse(o.reported.done.at) || typeof o.reported.done.by !== 'string' || o.reported.done.by.length > 120)))) bad(`${o.name}: a reported problem has its text, who and when.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     { const p = verifiedProblem(o.verified); if (p) bad(`${o.name}: ${p}`); }
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);
