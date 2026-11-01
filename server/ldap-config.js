@@ -43,6 +43,19 @@ export function parseCaCerts(base64) {
   };
 }
 export const ldapHostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
+/* Whether the service password would travel encrypted: ldaps://, or ldap:// with STARTTLS. */
+export const ldapEncrypted = c => /^ldaps:/i.test(String((c && c.url) || '')) || (c && c.security === 'starttls');
+/* What a service password is tied to: the directory server, and that it is reached encrypted ("dc1.example.com|tls").
+   A password saved for a server reached with TLS does not go to it once the connection is set to no encryption. */
+export const ldapPinOf = c => { const h = ldapHostOf((c && c.url) || ''); return h ? `${h}|${ldapEncrypted(c) ? 'tls' : 'plain'}` : ''; };
+/* Whether a password tied to pin may be used with the connection c. A pin kept before 0.9.77 names only the host. */
+export function ldapPinProblem(pin, c) {
+  const [host, sec] = String(pin || '').split('|'), now = ldapHostOf((c && c.url) || '');
+  if (!host || !now) return '';
+  if (host !== now) return `was saved for ${host}; the directory server is now ${now}`;
+  if (sec === 'tls' && !ldapEncrypted(c)) return `was saved for an encrypted connection to ${host}; the connection is now set to no encryption`;
+  return '';
+}
 /* The ports a directory address saved in Settings may use: LDAP's own (389 and 636, 3268 and 3269 for the global
    catalog), and any the server allows with NI_LDAP_PORTS (comma separated). So the connection test cannot be used to
    probe other services on the network. An address the server names (NI_LDAP_URL) is the server's choice. */
@@ -88,9 +101,12 @@ export function ldapConfigOf(db, env) {
   /* The server's service password goes only to the directory the server names (NI_LDAP_URL), when it names one: an
      address changed in Settings does not get it. */
   const envPw = readSecret(env, 'NI_LDAP_SERVICE_PASSWORD'), envHost = ldapHostOf(env.NI_LDAP_URL || '');
-  const pwHere = !envPw || !envHost || envHost === ldapHostOf(cfg.url);
+  /* … and only encrypted, when the server's own setting is: Settings cannot turn the encryption off for it. */
+  const envCfg = configFromEnv(env);
+  const pwHere = !envPw || !envHost || (envHost === ldapHostOf(cfg.url) && (!ldapEncrypted(envCfg) || ldapEncrypted(cfg)));
   return { ...cfg, searchBase: cfg.searchBase, caFile: env.NI_LDAP_CA || '', allowPlain: env.NI_LDAP_ALLOW_PLAIN === '1' || cfg.security === 'plain',
     servicePassword: pwHere ? envPw : '', caPem: savedCa(db), ...(envPw && !envHost ? { envPasswordUnpinned: true } : {}),
     ...(ldapPortProblem(cfg.url, env) ? { portProblem: ldapPortProblem(cfg.url, env) } : {}),
-    ...(pwHere ? {} : { passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is for ${envHost}, not ${ldapHostOf(cfg.url)}. Set NI_LDAP_URL to the new server, or change the address back.` }) };
+    ...(pwHere ? {} : { passwordProblem: envHost !== ldapHostOf(cfg.url) ? `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is for ${envHost}, not ${ldapHostOf(cfg.url)}. Set NI_LDAP_URL to the new server, or change the address back.`
+      : `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is used only encrypted with ${envHost}. Use ldaps:// or STARTTLS again.` }) };
 }

@@ -8,6 +8,7 @@ import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_D
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
+import { reportsModal } from './21-reports.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
@@ -130,7 +131,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = null; st.scanOld = st.twins = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = null; st.scanOld = st.twins = st.live = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -158,6 +159,7 @@ export function renderFilterBar(){
     person && ['person', 'Person', person.name],
     st.adGroup && ['adGroup', 'AD group', st.adGroup],
     st.quality && QUALITY[st.quality] && ['quality', 'Data quality', QUALITY[st.quality][0]],
+    st.ids && ['ids', 'List', st.ids.label],
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   const pool = list && st.scope ? scopePool().length : 0;
@@ -669,13 +671,28 @@ const withSource = (o, c, html) => {
   const t = sourceText(o, c.k);
   return t ? html.replace(/^<td/, `<td title="${esc(t)}"`) : html;
 };
+/* Listed by a data-quality check, the Table helps fix it: the column the check is about comes next to Name (shown even
+   when hidden), and a bar offers to select them all for the bulk action that fixes it. [column, bulk control, what to do] */
+const QUALITY_FIX = {
+  noloc: ['loc', 'bkLoc', 'select them and move them to their location'],
+  noresp: ['resp', 'bkResp', 'select them and set their responsible'],
+  noserial: ['serial', null, 'open each and add its serial number'],
+  nouser: ['user', 'bkStatus', 'give each its user, or select them and set them to In stock'],
+  unseen: ['seen', 'bkStatus', 'check where they are; select the ones gone and set them to Retired'],
+  unconfirmed: ['loc', null, 'find them in the next stocktake, or confirm each on its page'],
+  leaver: ['user', 'bkStatus', 'select them and take them back into stock, or give them to someone else'],
+  addisabled: ['status', 'bkStatus', 'select the ones no longer used and set their status'],
+  ownerdiff: ['user', null, 'open each and give it to the right person'],
+  conflict: [null, null, 'open each and pick the value to keep'],
+};
 export function renderTable(){
   let list = filtered();
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+${!n && !st.scope && st.quality && QUALITY_FIX[st.quality] && list.length ? `<div class="pickrow qfix"><b>${esc(QUALITY[st.quality][0])}:</b> <span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span>${QUALITY_FIX[st.quality][1] && canEdit() ? `<button id="qfixSel">Select all ${list.length}</button>` : ''}</div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}<option value="__back">Take back into stock (no user)</option></select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
@@ -686,6 +703,7 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   });
   $('#csvBtn').onclick = () => exportCsv(list);
   $('#csvImp').onclick = importCsvModal;
+  const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
     if (!bk.value) return;
@@ -717,9 +735,16 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
     toastUndo(`${CONTACT_KINDS[kind]} responsible ${id ? 'set' : 'removed'} on ${changed} ${changed === 1 ? 'device' : 'devices'}`, () => { restoreSnapshot(snap, 'Responsible change undone'); render(); }); renderTable(); render();
   };
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
+  /* All the listed devices (those past the first rows drawn too), then the control that fixes them has the focus. */
+  const qs = $('#qfixSel'); if (qs) qs.onclick = () => { list.forEach(o => st.bulk.add(o.id)); renderTable(); const c = $('#' + QUALITY_FIX[st.quality][1]); if (c) c.focus(); };
   const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
   const idx = relIndex();   /* one index of the relations for all rows */
-  const shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
+  let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
+  const fix = !st.scope && st.quality && QUALITY_FIX[st.quality];
+  if (fix && fix[0]){
+    const c = tableCols().find(x => x.k === fix[0]), at = shown.findIndex(x => x.k === 'name') + 1;
+    if (c) shown = [...shown.slice(0, at).filter(x => x !== c), c, ...shown.slice(at).filter(x => x !== c)];
+  }
   /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
      the table showed it. Column 0 is the tick box; column k is shown[k - 1]. */
   const tv = TBL['view:table:0'] || {};

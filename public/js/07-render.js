@@ -16,9 +16,12 @@ import { forgetPhotos } from './23-photos.js';
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
+const NO_SIDE = ['overview', 'contracts', 'contacts', 'stocktake', 'sw'];
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }
+  /* The sidebar filters lists: the views that are no list of devices (Overview, Contracts, …) are shown without it. */
+  document.body.classList.toggle('noside', NO_SIDE.includes(st.tab));
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -45,7 +48,7 @@ export function render({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality', 'ids'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){

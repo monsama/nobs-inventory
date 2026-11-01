@@ -21,7 +21,7 @@ const state = () => ({
 });
 
 test('the reports: inventory by group, replacement by purchase date, costs of a year', () => {
-  assert.deepEqual(reportOptions({ kind: 'nope', group: 'x', years: '99', year: '1900' }, TODAY), { kind: 'inventory', group: 'site', years: 15, year: 2026, id: '' });
+  assert.deepEqual(reportOptions({ kind: 'nope', group: 'x', years: '99', year: '1900' }, TODAY), { kind: 'inventory', group: 'site', years: 15, year: 2026, id: '', ids: null });
   const inv = buildReport(state(), { kind: 'inventory', group: 'dept' }, TODAY);
   assert.equal(inv.count, 2, 'retired and waiting devices are not in the inventory');
   assert.deepEqual(inv.groups.map(g => [g.name, g.rows.map(r => r[1])]), [['IT', ['NB-1']], ['No department', ['PC-2']]]);
@@ -90,4 +90,18 @@ test('a hand-back list: the devices one person has, with what goes with them, to
   assert.match(r.subtitle, /Handed back on .* Signature/);
   assert.equal(reportOptions({ kind: 'handback', id: 'ldap-a.muster@x' }).id, 'ldap-a.muster@x');
   assert.ok((await reportPdf(r, {})).length > 1000);
+});
+
+test('a report of only the listed devices, and letters beyond Western Europe in a PDF', async () => {
+  const s = { objs: [{ id: 'a', name: 'PC-A', type: 'pc', status: 'active', loc: 'Kraków', uid: 'u1' }, { id: 'b', name: 'PC-B', type: 'pc', status: 'active', loc: 'Bern' }],
+    users: [{ id: 'u1', name: 'Łukasz Dvořák' }], types: {} };
+  const all = buildReport(s, { kind: 'inventory' }), one = buildReport(s, { kind: 'inventory', ids: ['a'] });
+  assert.equal(all.count, 2);
+  assert.equal(one.count, 1);
+  assert.match(one.subtitle, /Filtered list/);
+  assert.equal(reportOptions({ kind: 'costs', ids: ['a'] }).ids, null, 'only the device lists take a list of ids');
+  const pdf = (await reportPdf(one, {})).toString('latin1');
+  assert.match(pdf, /DejaVuSans/, 'a name with Polish or Czech letters is written with the bundled Unicode font');
+  const plain = (await reportPdf(buildReport({ ...s, users: [{ id: 'u1', name: 'Anna' }] }, { kind: 'inventory', ids: ['a'] }), {})).toString('latin1');
+  assert.doesNotMatch(plain.replace(/Kraków/g, ''), /DejaVuSans/, 'Western text keeps the standard font');
 });

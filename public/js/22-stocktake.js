@@ -83,11 +83,45 @@ function activeHtml(t, edit){
   return `<div class="panelbox"><div class="hdr">${esc(t.name)} <span class="cnt">${esc(placeName(t.scope))} · started ${esc(dateText(t.started.slice(0, 10)))} by ${esc(t.by || '')}</span></div>
     <div class="stk-prog stk-pad"><div class="ov-qbar" role="img" aria-label="${done} of ${list.length} confirmed"><span style="width:${pct}%"></span></div><b>${done} of ${list.length}</b>${moved ? `<span class="muted">${moved} moved here</span>` : ''}${(t.unknown || []).length ? `<span class="muted">${t.unknown.length} not in the inventory</span>` : ''}</div>
     ${edit ? `<div class="stk-scanrow stk-pad"><input id="stkScan" type="search" autocomplete="off" enterkeyhint="done" placeholder="Scan or type serial number, code or name" aria-label="Scan or type a serial number, code or name">
-      <button id="stkFinish" class="primary">Finish…</button></div><p class="stk-last stk-pad" id="stkLast" role="status" aria-live="polite">${LAST}</p>` : ''}
+      ${CAN_CAM ? '<button id="stkCam" title="Scan barcodes and QR codes with the camera">Camera…</button>' : ''}<button id="stkFinish" class="primary">Finish…</button></div><p class="stk-last stk-pad" id="stkLast" role="status" aria-live="polite">${LAST}</p>` : ''}
     <div class="stk-tabs stk-pad">${[['open', 'Still open', list.length - done], ['done', 'Confirmed', done], ['all', 'All', list.length]].map(([k, l, n]) => `<button class="tab ${FILTER === k ? 'active' : ''}" data-stkf="${k}">${l} <span class="tab-cnt">${n}</span></button>`).join('')}</div>
     <div class="stk-list">${rooms.length ? rooms.map(r => `<div class="side-sub stk-room">${esc(r || 'No location')}</div>${shown.filter(o => (o.loc || '') === r).sort((a, b) => a.name.localeCompare(b.name)).map(row).join('')}`).join('')
       : `<p class="note stk-pad">${FILTER === 'open' ? 'Every device here is confirmed.' : 'Nothing here yet.'}</p>`}</div>
     ${edit ? `<div class="addrel stk-pad"><span class="grow"></span><button id="stkCancel" class="danger-text">Cancel the stocktake…</button></div>` : ''}</div>`;
+}
+/* Scanning with the camera, where the browser reads barcodes itself (BarcodeDetector: Chrome and Edge on Android,
+   Windows and macOS). Each code read counts as typed into the scan field; the same code again only after a pause. The
+   picture stays in the browser: nothing of it is sent or kept. */
+const CAN_CAM = typeof window !== 'undefined' && 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+let CAM = null;
+async function cameraModal(t){
+  modal(`<div class="mh">Scan with the camera</div><div class="mb"><video id="camVideo" class="stk-cam" playsinline muted aria-label="Camera picture"></video>
+    <p class="stk-last" id="camLast" role="status" aria-live="polite">Hold a barcode or QR code in the frame.</p></div>
+    <div class="mf"><button id="camDone" class="primary">Done</button></div>`, 'sm');
+  let stream = null, timer = 0, last = '', lastAt = 0, stopped = false;
+  const stop = () => { stopped = true; clearTimeout(timer); if (stream) stream.getTracks().forEach(x => x.stop()); CAM = null; };
+  CAM = { said: html => { const p = $('#camLast'); if (p) p.innerHTML = html; } };
+  $('#camDone').onclick = () => { stop(); closeModal(); if ($('#stkScan')) $('#stkScan').focus(); };
+  try {
+    const formats = await window.BarcodeDetector.getSupportedFormats();
+    const det = new window.BarcodeDetector(formats.length ? { formats } : undefined);
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    const v = $('#camVideo');
+    if (stopped || !v){ stop(); return; }
+    v.srcObject = stream; await v.play();
+    const tick = async () => {
+      if (stopped || !document.body.contains(v)){ stop(); return; }
+      try {
+        const codes = await det.detect(v);
+        const val = codes.length ? String(codes[0].rawValue || '').trim() : '';
+        if (val && (val !== last || Date.now() - lastAt > 3000)){ last = val; lastAt = Date.now(); found(t, val.slice(0, 200)); }
+      } catch { /* a frame that cannot be read */ }
+      timer = setTimeout(tick, 250);
+    };
+    tick();
+  } catch (e) {
+    CAM && CAM.said(esc(e && e.name === 'NotAllowedError' ? 'The camera is not allowed: allow it for this page in the browser.' : 'The camera cannot be used here: ' + (e.message || e)));
+  }
 }
 function wireActive(t, edit){
   document.querySelectorAll('[data-stkf]').forEach(b => b.onclick = () => { FILTER = b.dataset.stkf; renderStocktake(); });
@@ -100,6 +134,7 @@ function wireActive(t, edit){
   const scan = $('#stkScan');
   scan.onkeydown = e => { if (e.key !== 'Enter') return; e.preventDefault(); const v = scan.value.trim(); scan.value = ''; if (v) found(t, v); };
   $('#stkFinish').onclick = () => finishModal(t);
+  const cb = $('#stkCam'); if (cb) cb.onclick = () => cameraModal(t);
   $('#stkCancel').onclick = () => {
     modal(`<div class="mh">Cancel the stocktake?</div><div class="mb"><p class="note">${esc(t.name)} is removed, and so are the confirmations made in it. Devices moved in it stay where they are now.</p></div>
       <div class="mf"><button id="stcNo">Keep it</button><button id="stcYes" class="danger-text">Cancel the stocktake</button></div>`, 'sm');
@@ -118,7 +153,7 @@ function found(t, v){
   const live = objs.filter(o => o.status !== 'retired');
   const hits = live.filter(o => [o.code, o.serial, o.name].some(x => x && String(x).toLowerCase() === q))
     .concat(live.filter(o => o.mac && norm(o.mac) === norm(v) && norm(v).length === 12));
-  const say = (html, cls = '') => { LAST = `<span class="${cls}">${html}</span>`; renderStocktake(); $('#stkScan').focus(); };
+  const say = (html, cls = '') => { LAST = `<span class="${cls}">${html}</span>`; renderStocktake(); if (CAM) CAM.said(LAST); else if ($('#stkScan')) $('#stkScan').focus(); };
   const uniq = [...new Set(hits)];
   if (uniq.length > 1) return say(`${esc(v)} names ${uniq.length} devices: scan the serial number or the code instead.`, 'warn');
   if (!uniq.length) {
@@ -165,7 +200,7 @@ function historyHtml(){
   if (!done.length) return '';
   return `<div class="panelbox"><div class="hdr">Done <span class="cnt">${done.length}</span></div><div style="overflow-x:auto"><table class="grid mini" style="min-width:640px"><thead><tr><th>Stocktake</th><th>Place</th><th>Finished</th><th class="n">Confirmed</th><th class="n">Missing</th><th class="n">Moved</th><th></th></tr></thead><tbody>
     ${done.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(placeName(t.scope))}</td><td>${esc(dateText(t.finished.slice(0, 10)))} · ${esc(t.finishedBy || '')}</td><td class="n">${t.result.confirmed} of ${t.result.total}</td><td class="n">${t.result.missing.length}</td><td class="n">${t.result.moved.length}</td>
-      <td class="act"><a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${canEdit() ? ` <button class="icon ghost" data-stkdel="${esc(t.id)}" aria-label="Remove ${esc(t.name)} from the list">×</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <td class="act">${t.result.missing.length ? `<button type="button" class="link" data-stkmiss="${esc(t.id)}" title="The devices not found, in the Table, to look for or set their status">Show missing</button> ` : ''}<a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${canEdit() ? ` <button class="icon ghost" data-stkdel="${esc(t.id)}" aria-label="Remove ${esc(t.name)} from the list">×</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
 /* On a device's page, under its location: when it was last confirmed on site, and Confirm now. */
@@ -175,6 +210,13 @@ export function verifiedNote(o){
   const text = d === null ? 'Not confirmed on site yet.' : `Confirmed on site ${dateText(v.at)}${v.by ? ` by ${v.by}` : ''}${t ? ` (${t.name})` : ''}.`;
   return `<span></span><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}</p>`;
 }
+/* Missing in a finished stocktake: those devices in the Table (the ones still in the inventory), as one filter. */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-stkmiss]'); if (!b) return;
+  const t = (st.stocktakes || []).find(x => x.id === b.dataset.stkmiss); if (!t || !t.result) return;
+  st.ids = { label: `Missing in ${t.name}`, ids: t.result.missing.map(m => m.id) };
+  st.scope = null; st.tab = 'table'; render();
+});
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-verify]'); if (!b) return;
   const o = objs.find(x => x.id === b.dataset.verify); if (!o) return;

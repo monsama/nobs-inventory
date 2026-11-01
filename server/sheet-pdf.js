@@ -2,6 +2,7 @@
    password while the kept sheet has it, the devices handed out, a note and the signature lines. */
 import { dateText } from '../public/js/dates.js';
 import PDFDocument from 'pdfkit';
+import { unicodeFonts } from './pdf-fonts.js';
 
 const M = 50, W = 595.28 - 2 * M;   /* A4 width, margins */
 const day = dateText;
@@ -20,7 +21,7 @@ function nobsMark(doc, x, y, s) {
 
 export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: M, compress, info: { Title: `Entry sheet ${sheet.person.name}`, Author: company.name || 'NOBS Inventory' } });
+    const doc = unicodeFonts(new PDFDocument({ size: 'A4', margin: M, compress, info: { Title: `Entry sheet ${sheet.person.name}`, Author: company.name || 'NOBS Inventory' } }));
     const parts = [];
     doc.on('data', b => parts.push(b)); doc.on('end', () => resolve(Buffer.concat(parts))); doc.on('error', reject);
     const bottom = () => doc.page.height - M;

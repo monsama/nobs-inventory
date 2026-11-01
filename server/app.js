@@ -10,7 +10,7 @@ import { finishSso, startSso, userForClaims } from './sso.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
-import { parseCaCerts, ldapHostOf } from './ldap-config.js';
+import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
 import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
@@ -56,18 +56,19 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     /* The server's password with no NI_LDAP_URL naming its directory: tied to the directory it is first used with, like
        one saved here, so an address changed in Settings later (or by someone with a stolen session) does not get it. */
     if (c && c.envPasswordUnpinned && c.servicePassword) {
-      const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost');
-      if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost', host);
-      else if (pinned && pinned !== host) return { ...c, servicePassword: '', passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) is used with ${pinned}; the directory server is now ${host}. Set NI_LDAP_URL to the new server, or change the address back.` };
+      const pin = ldapPinOf(c), pinned = getAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost'), problem = ldapPinProblem(pinned, c);
+      if (problem) return { ...c, servicePassword: '', passwordProblem: `The service password on the server (NI_LDAP_SERVICE_PASSWORD) ${problem}. Set NI_LDAP_URL to the server, or change the settings back.` };
+      if (pin && pinned !== pin && (!pinned || !pinned.includes('|') || pin.endsWith('|tls'))) setAppSecret(db, SECRET_KEY, 'ldapEnvPasswordHost', pin);
     }
     if (!c || c.servicePassword || c.passwordProblem) return c;
     const saved = getAppSecret(db, SECRET_KEY, 'ldapServicePassword');
     if (!saved) return c;
     /* The password saved here goes only to the directory server it was saved for. One saved before this was kept is
        tied to the server it is first used with: the first read of the settings (any caller, also /api/me) pins it. */
-    const host = ldapHostOf(c.url), pinned = getAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost');
-    if (!pinned && host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host);
-    else if (pinned && pinned !== host) return { ...c, passwordProblem: `The service password was saved for ${pinned}; the directory server is now ${host}. Save the password again for it.` };
+    const pin = ldapPinOf(c), pinned = getAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost'), problem = ldapPinProblem(pinned, c);
+    if (problem) return { ...c, passwordProblem: `The service password ${problem}. Save the password again for it.` };
+    /* Pinned at first use; a pin from before (the host only) gets the encryption now in use, and turning it on tightens it. */
+    if (pin && pinned !== pin && (!pinned || !pinned.includes('|') || pin.endsWith('|tls'))) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', pin);
     return { ...c, servicePassword: saved };
   };
   const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
@@ -103,7 +104,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
     next();
   });
   /* Requests from another site are refused before anything is done: a browser names where a request comes from (Origin,
@@ -481,7 +482,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
       setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
       /* Tied to the directory server it is saved for. */
-      const host = ldapHostOf(((ldapConfig ? ldapConfig() : ldap) || {}).url || '');
+      const host = ldapPinOf((ldapConfig ? ldapConfig() : ldap) || {});
       if (host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host); else dropAppSecret(db, 'ldapServicePasswordHost');
       audit(db, req.user.id, 'directory service account password saved');
       res.json({ ok: true, setAt: appSecretSetAt(db, 'ldapServicePassword') });
@@ -675,9 +676,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try { purgePasswords(db, SHEET_KEY); res.json({ sheets: listSheets(db, String(req.query.user || '')), passwordDays: PASSWORD_DAYS }); } catch (e) { next(e); }
   });
   /* Reports (public/js/reports.js) as a PDF or an Excel workbook, for everyone signed in: what the pages show anyway. */
-  app.get('/api/reports/:kind', requireUser, async (req, res, next) => {
+  /* POST: the same, for the devices the page lists filtered (their ids in the body, too many for an address). */
+  const report = async (req, res, next) => {
     try {
-      const opts = reportOptions({ ...req.query, kind: req.params.kind });
+      const opts = reportOptions({ ...req.query, ...(req.method === 'POST' ? { ids: (req.body || {}).ids } : {}), kind: req.params.kind });
       if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
       const s = loadState(db), r = buildReport(s, opts);
       const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}${opts.kind === 'handback' ? '-' + opts.id.replace(/[^\w-]/g, '_') : ''}-${day}`;
@@ -689,9 +691,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       } else {
         res.type('application/pdf').attachment(`${base}.pdf`).send(await reportPdf(r, s.company || {}));
       }
-      audit(db, req.user.id, `report made: ${r.title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'})`);
+      audit(db, req.user.id, `report made: ${r.title} (${req.query.format === 'xlsx' ? 'Excel' : 'PDF'}${opts.ids ? ', filtered list' : ''})`);
     } catch (e) { next(e); }
-  });
+  };
+  app.get('/api/reports/:kind', requireUser, report);
+  app.post('/api/reports/:kind', requireUser, report);
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
     try {
       const made = createSheet(db, SHEET_KEY, loadState(db), req.body || {}, req.user.name || req.user.login || '');
