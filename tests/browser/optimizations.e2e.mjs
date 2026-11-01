@@ -89,6 +89,20 @@ try {
   await p.click('#nOk');
   await until(() => p.evaluate(async () => { const o = (await import('/js/01-core.js')).objs.find(x => x.name === 'NB-NEW-77'); return !!o && o.uid === 'u-anna' && o.user === 'Anna Muster' && o.status === 'active'; }));
 
+  // an entry sheet from a device: only that device ticked, no password; made and printed without one
+  await p.evaluate(() => { window.print = () => {}; });
+  await p.evaluate(async () => { const s = await import('/js/04-settings.js'); (await import('/js/08-sheets.js')).sheetModal(s.USERS.find(u => u.id === 'u-anna'), null, { only: 'a1' }); });
+  await p.waitForSelector('#sheetPwOn');
+  assert.equal(await p.isChecked('#sheetPwOn'), false, 'from a device: no new password unless wanted');
+  assert.equal(await p.isChecked('[data-sdev="a1"]'), true);
+  assert.equal(await p.isChecked('[data-sdev="NB-NEW-77"]').catch(() => false), false);
+  await p.click('#sheetMake');
+  await p.waitForSelector('.sheet-acts');
+  assert.equal(await p.textContent('#sheetErr'), '', 'no error after making it');
+  assert.match(await p.textContent('#mdl'), /No password/);
+  assert.equal(await p.isChecked('#sheetPwOn'), false, 'the dialog drawn again keeps the choice');
+  await p.click('#sheetClose');
+
   // on a phone: Settings → Users as cards, each cell named
   await p.setViewportSize({ width: 390, height: 800 });
   await go({ tab: 'table' });

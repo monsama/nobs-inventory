@@ -118,14 +118,14 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
     </div>
     <div class="mf"><button id="sheetClose">Close</button></div>`, 'wide');
   $('#sheetClose').onclick = closeModal;
-  if (fresh) $('#sheetCopy').onclick = () => navigator.clipboard.writeText(fresh.sheet.password).then(() => toast('Password copied'), () => toast('Copy it by hand: the browser does not allow it.'));
+  if (fresh && $('#sheetCopy')) $('#sheetCopy').onclick = () => navigator.clipboard.writeText(fresh.sheet.password).then(() => toast('Password copied'), () => toast('Copy it by hand: the browser does not allow it.'));
   $('#sheetMake').onclick = async () => {
     const login = $('#sheetLogin').value.trim();
     if (!login && $('#sheetPwOn').checked){ $('#sheetErr').textContent = 'Give the Windows sign-in name.'; $('#sheetLogin').focus(); return; }
     const deviceIds = [...document.querySelectorAll('[data-sdev]:checked')].map(c => c.dataset.sdev);
     try {
       const r = await call('POST', 'api/sheets', { userId: u.id, deviceIds, login, note: $('#sheetNote').value, password: $('#sheetPwOn').checked });
-      await sheetModal(u, r);
+      await sheetModal(u, r, { only });
       printSheet(r.sheet);
     } catch (e) { $('#sheetErr').textContent = e.message; }
   };

@@ -4,6 +4,7 @@
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
 import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } from './01-core.js';
 import { USERS, canEdit, who } from './04-settings.js';
+import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, render } from './07-render.js';
 import { STOCKTAKE_DAYS, confirmedIn, daysSinceVerified, inScope, stocktakeDevices, stocktakeResult } from './stocktake.js';
@@ -110,11 +111,14 @@ async function cameraModal(t){
     if (stopped || !v){ stop(); return; }
     v.srcObject = stream; await v.play();
     const tick = async () => {
-      if (stopped || !document.body.contains(v)){ stop(); return; }
+      /* Only while the dialog is open over this stocktake: minimized, another view, or the stocktake finished or
+         cancelled (by someone else too) ends the scanning; each code goes to the stocktake as it is now. */
+      const cur = activeStocktake();
+      if (stopped || !document.body.contains(v) || document.querySelector('#mdl.minimized') || st.tab !== 'stocktake' || !cur || cur.id !== t.id){ stop(); return; }
       try {
         const codes = await det.detect(v);
         const val = codes.length ? String(codes[0].rawValue || '').trim() : '';
-        if (val && (val !== last || Date.now() - lastAt > 3000)){ last = val; lastAt = Date.now(); found(t, val.slice(0, 200)); }
+        if (val && (val !== last || Date.now() - lastAt > 3000)){ last = val; lastAt = Date.now(); found(cur, val.slice(0, 200)); }
       } catch { /* a frame that cannot be read */ }
       timer = setTimeout(tick, 250);
     };
@@ -153,7 +157,7 @@ function found(t, v){
   const live = objs.filter(o => o.status !== 'retired');
   const hits = live.filter(o => [o.code, o.serial, o.name].some(x => x && String(x).toLowerCase() === q))
     .concat(live.filter(o => o.mac && norm(o.mac) === norm(v) && norm(v).length === 12));
-  const say = (html, cls = '') => { LAST = `<span class="${cls}">${html}</span>`; renderStocktake(); if (CAM) CAM.said(LAST); else if ($('#stkScan')) $('#stkScan').focus(); };
+  const say = (html, cls = '') => { LAST = `<span class="${cls}">${html}</span>`; if (st.tab === 'stocktake') renderStocktake(); if (CAM) CAM.said(LAST); else if ($('#stkScan')) $('#stkScan').focus(); };
   const uniq = [...new Set(hits)];
   if (uniq.length > 1) return say(`${esc(v)} names ${uniq.length} devices: scan the serial number or the code instead.`, 'warn');
   if (!uniq.length) {
@@ -214,6 +218,7 @@ export function verifiedNote(o){
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-stkmiss]'); if (!b) return;
   const t = (st.stocktakes || []).find(x => x.id === b.dataset.stkmiss); if (!t || !t.result) return;
+  resetFilters();
   st.ids = { label: `Missing in ${t.name}`, ids: t.result.missing.map(m => m.id) };
   st.scope = null; st.tab = 'table'; render();
 });

@@ -759,6 +759,11 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
     if (Array.isArray(tv.order)){ const kept = tv.order.map(to).filter(ci => ci !== null); tv.order = [...kept, ...keys.map((_, i) => i + 1).filter(ci => !kept.includes(ci))]; }
   }
   if (TBL['view:table:0']) tv.keys = keys;
+  /* A column order of one's own: the column of the data-quality check still goes right after Name. */
+  if (fix && fix[0] && Array.isArray(tv.order) && keys.includes(fix[0])){
+    const ci = keys.indexOf(fix[0]) + 1, ni = keys.indexOf('name') + 1;
+    tv.order = tv.order.filter(x => x !== ci); tv.order.splice(tv.order.indexOf(ni) + 1, 0, ci);
+  }
   const textOf = html => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
   const colOf = ci => shown[ci - 1];
   for (const [ci, q] of Object.entries(tv.filters || {})) {
