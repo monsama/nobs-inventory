@@ -3,6 +3,8 @@
 import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, toast, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
+import { MAINT_SOON_DAYS, dueTasks, everyText, todayDay } from './maintenance.js';
+import { dueChip, maintDoneModal } from './26-maintenance.js';
 import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
@@ -95,8 +97,12 @@ export function renderOverview(){
   const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
   const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
   const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
+  /* Recurring maintenance due within 30 days (overdue first), on devices in use. */
+  const mtToday = todayDay(), mtDue = dueTasks(objs, mtToday), mtLate = mtDue.filter(x => x.days < 0);
+  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${canEdit() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
+    [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
     [wSoon, 'warn', 'Warranty ends soon', `within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
     [due.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${due.slice(0, 3).map(c => c.name).join(', ')}${due.length > 3 ? '…' : ''}`, 'data-ovtab="contracts"'],
@@ -137,6 +143,9 @@ export function renderOverview(){
       ${openRep.length || doneRep.length ? `<div class="panelbox" id="ovReported"><div class="hdr">Reported problems <span class="cnt">${openRep.length ? `${openRep.length} open` : 'none open'}</span></div>
         <div class="ov-att">${openRep.map(repRow).join('')}</div>
         ${doneRep.length ? `<details class="ov-done"><summary>Done in the last 30 days (${doneRep.length})</summary><div class="ov-att">${doneRep.map(repRow).join('')}</div></details>` : ''}</div>` : ''}
+      ${mtDue.length ? `<div class="panelbox" id="ovMaint"><div class="hdr">Maintenance due <span class="cnt">${mtLate.length ? `${mtLate.length} overdue · ` : ''}${mtDue.length - mtLate.length} within ${MAINT_SOON_DAYS} days</span></div>
+        <div class="ov-att">${mtDue.slice(0, 8).map(mtRow).join('')}</div>
+        ${mtDue.length > 8 ? `<div class="chain"><button type="button" class="link" data-ovmt="all">Show all ${mtDue.length} in the Table</button></div>` : ''}</div>` : ''}
       ${planHtml(live)}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
@@ -169,6 +178,11 @@ export function renderOverview(){
     if (row) go('table', { ids: { label: row.key === 'overdue' ? 'Due for replacement: overdue' : `Due for replacement in ${row.key}`, ids: row.ids, cols: ['purchased', 'due', 'replPrice'] } });
   });
   const pl = $('#ovLife'); if (pl) pl.onclick = () => lifeModal();
+  v.querySelectorAll('[data-ovmtdone]').forEach(b => b.onclick = () => { const [oid, mid] = b.dataset.ovmtdone.split('|'); const o = objs.find(x => x.id === oid); if (o) maintDoneModal(o, mid, renderOverview); });
+  v.querySelectorAll('[data-ovmt]').forEach(b => b.onclick = () => {
+    const late = b.dataset.ovmt === 'late', list = dueTasks(objs, todayDay()).filter(x => !late || x.days < 0);
+    go('table', { ids: { label: late ? 'Maintenance overdue' : `Maintenance due within ${MAINT_SOON_DAYS} days`, ids: [...new Set(list.map(x => x.o.id))], cols: ['maint'] } });
+  });
   v.querySelectorAll('[data-ovopen]').forEach(b => b.onclick = () => openObjs([b.dataset.ovopen]));
   v.querySelectorAll('[data-ovhb]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.ovhb));
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
