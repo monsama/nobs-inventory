@@ -1151,8 +1151,8 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .item.sel .cnt{color:var(--linktext);opacity:1}
 .tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--bd);border-radius:var(--r-s);cursor:pointer;white-space:nowrap;background:transparent;border-color:transparent;color:var(--muted)}
 .tab:hover{background:var(--hover);color:var(--fg)}
-.tab.active{background:var(--panel2);color:var(--fg)}
-.tab.active::after{content:"";position:absolute;height:2px;border-radius:1px;background:var(--accent);pointer-events:none;opacity:1;left:12px;right:12px;bottom:2px}
+/* The tab shown: a box of its own, no line under it. */
+.tab.active{background:var(--panel2);color:var(--fg);border-color:var(--bd)}
 .tab.objtab{padding-left:8px;border-radius:4px;background:transparent;border-color:var(--bd2)}
 .tab.objtab.active{background:var(--panel2);border-color:var(--bd);color:var(--fg)}
 .tsw{width:9px;height:9px;border-radius:2px;display:inline-block;flex:none;opacity:.75}
