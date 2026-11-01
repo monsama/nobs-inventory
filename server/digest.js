@@ -8,6 +8,7 @@ import { readSecret } from './secrets.js';
 import { writeDoc } from './db.js';
 import { contractStatus } from '../public/js/costs.js';
 import { dateText } from '../public/js/dates.js';
+import { dueTasks, todayDay } from '../public/js/maintenance.js';
 
 const WARRANTY_SOON = 90;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
@@ -52,6 +53,10 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   if (wSoon.length) sections.push([`Warranty ends within ${WARRANTY_SOON} days on ${wSoon.length} device${wSoon.length === 1 ? '' : 's'}`, list(wSoon, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ${dateText(o.warranty)}`)]);
   if (due.length) sections.push([`Contract notice due on ${due.length} contract${due.length === 1 ? '' : 's'}`, list(due, x => `${x.c.name}: ${x.st.state === 'late' ? 'notice date passed' : 'give notice by'} ${dateText(x.st.noticeBy || x.st.end)}`)]);
   if (leavers.length) sections.push([`${leavers.length} ${leavers.length === 1 ? 'person' : 'people'} left with devices still out`, list(leavers, u => `${u.name}: ${held.get(u.id)} device${held.get(u.id) === 1 ? '' : 's'}${u.leftAt ? `, left ${u.leftBy ? 'before ' : ''}${dateText(u.leftAt.slice(0, 10))}` : ''}`)]);
+  /* Recurring maintenance overdue or due in the next two weeks (the mail comes weekly). */
+  const maint = dueTasks(s.objs, todayDay(today), 14), mLate = maint.filter(x => x.days < 0).length;
+  if (maint.length) sections.push([`Maintenance: ${mLate ? `${mLate} overdue${maint.length > mLate ? `, ${maint.length - mLate} due within 14 days` : ''}` : `${maint.length} due within 14 days`}`,
+    list(maint, x => `${x.o.name}${x.o.code ? ` (${x.o.code})` : ''}: ${x.m.what}, ${x.days < 0 ? 'overdue since' : 'due'} ${dateText(x.m.due)}`)]);
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);
   if (review) sections.push([`${review} device${review === 1 ? '' : 's'} waiting in To review`, ['Found by a sync, not in the inventory yet: accept or ignore them.']]);
   const bad = health.filter(c => c.state === 'bad');

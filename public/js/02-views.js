@@ -2,6 +2,7 @@ import { syncButtonHtml } from './16-sync.js';
 import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
 import { dueOf, lifeOf } from './lifecycle.js';
+import { nextTask } from './maintenance.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
@@ -648,6 +649,8 @@ export const TABLE_COLS = [
   {k:'purchased', w:130, label:'Purchased', cell: o => `<td>${o.purchased ? esc(dayText(o.purchased)) : ''}</td>`},
   {k:'due', w:200, label:'Due for replacement', cell: o => { const d = dueOf(o, st.lifecycle); return `<td>${d ? `${d.year} <span class="muted">· ${d.from === 'purchase' ? 'by purchase' : 'warranty ends'}</span>` : ''}</td>`; }},
   {k:'replPrice', w:150, label:'Replacement price', cell: o => { const p = lifeOf(st.lifecycle, o.type).price; return `<td class="n">${p ? money(p) : ''}</td>`; }},
+  /* The maintenance due next: its date first, so the column sorts by it. */
+  {k:'maint', w:240, label:'Next maintenance', cell: o => { const m = nextTask(o); return `<td>${m ? `${esc(dayText(m.due))} <span class="muted">· ${esc(m.what)}</span>` : ''}</td>`; }},
   {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
   {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
   {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
@@ -666,16 +669,16 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice'], 6: ['maint']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '5');
+      localStorage.setItem('ni-cols-v', '6');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;

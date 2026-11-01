@@ -1675,3 +1675,15 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .mine-state,.mine-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .mine-note{grid-column:1 / -1;margin:0}
 @media (max-width:640px){.mine{padding:10px}.mine-row{grid-template-columns:1fr}.mine-acts button{flex:1}}
+
+/* A small form in a dialog: labels left, fields right; one column on a phone. */
+.form2{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 12px;align-items:center;margin:8px 0}
+.form2 textarea,.form2>input{width:100%}
+@media (max-width:640px){.form2{grid-template-columns:1fr}}
+/* Maintenance on a device: what and how often, when last done, when due, Done…. */
+.relrow.mt-row{display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap}
+.mt-row .t{flex:1 1 100%;min-width:0;white-space:normal;overflow:visible;display:block}
+.mt-row .chip{margin-right:auto}
+.relrow.mt-row button[data-mtdone]{width:auto;height:24px;padding:0 10px;white-space:nowrap}
+.mt-last{display:block;margin-top:2px}
+.mt-log ul{margin:6px 0 0;padding-left:18px;font-size:13px}
