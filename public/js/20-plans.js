@@ -1,7 +1,7 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
 import { $, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
-import { RACKABLE, TYPE_U, canEdit, rackCheck, siteOf, who } from './04-settings.js';
+import { RACKABLE, TYPE_U, canEdit, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
@@ -144,14 +144,14 @@ export function renderPlans(){
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = `<div class="pl-bar">
       ${PLANS.length ? `<select id="plSel" aria-label="Floor plan">${PLANS.map(p => `<option value="${esc(p.id)}" ${plan && p.id === plan.id ? 'selected' : ''}>${esc(p.name)}${p.site ? ' · ' + esc(p.site) : ''}</option>`).join('')}</select>` : '<span class="muted">No floor plans yet.</span>'}
-      <button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>
-      ${plan ? `<span class="pl-sep"></span>
+      ${isAdmin() ? `<button id="plNew" ${PLANS.length ? 'class="primary"' : ''}>New plan</button>` : ''}
+      ${plan ? `${isAdmin() ? `<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         ${editArea && planMode === 'view' ? `<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${esc(editArea.name)}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
         ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
         <button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
-        <button id="plDel" class="danger-text">Delete plan</button>
+        <button id="plDel" class="danger-text">Delete plan</button>` : ''}
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
@@ -164,7 +164,7 @@ export function renderPlans(){
         <div class="pl-list" id="plList"></div>
         <p class="note pl-tip">${planPlace ? `Click the plan to place ${esc(planPlace.name)}. Press Esc to cancel.` : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${planCanvas(plan)}</div></div>`
-    : `<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p><button class="primary" id="plNew2">New plan</button></div>`;
+    : `<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? '<button class="primary" id="plNew2">New plan</button>' : ''}</div>`;
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));

@@ -11,10 +11,10 @@ import { bindPhotos, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LOCS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { canEdit, ensureUser, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
+import { canEdit, ensureUser, myLocs, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -26,7 +26,7 @@ export function rackNewModal(){
   modal(`<div class="mh">New rack</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
-      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
+      <label for="rnLoc">Room</label><select id="rnLoc">${myLocs().length ? myLocs().map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
       <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
       <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
       <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">

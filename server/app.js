@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { scopeKey, scopeOf, scopeState } from './scope.js';
+import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
@@ -159,7 +159,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* A deactivated user loses access at once, even with a session that is still open. */
   /* A user with the role none has no access either: a session they hold ends at the next request. */
   const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false && u.role !== 'none' ? u : null; };
-  const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
+  const me = u => ({ id: u.id, login: u.login, name: u.name, role: ['admin', 'editor'].includes(u.role) ? u.role : 'viewer' });
   const COOKIE = cookieName(secureCookie);
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
@@ -298,7 +298,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           /* The directory's department; with none there, one Entra or Lansweeper gave stays (deptFrom says whose). */
           const keepDept = !d.dept && user.dept && (['entra', 'lansweeper'].includes(user.deptFrom) || user.source === 'lansweeper');
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
-          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
+          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
           if (d.dept) delete user.deptFrom;
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
@@ -463,8 +463,23 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   /* The page saves only what changed. See applyChanges for how a conflict is handled. */
-  app.post('/api/changes', requireUser, requireAdmin, (req, res, next) => {
+  /* Admins save anything; an editor devices, in their sites when limited to some (scope.js, editorProblem). */
+  const requireEditor = (req, res, next) => (['admin', 'editor'].includes(req.user.role) ? next() : next(new HttpError(403, 'Only an admin or an editor can change this.')));
+  app.post('/api/changes', requireUser, requireEditor, (req, res, next) => {
     try {
+      if (req.user.role === 'editor') {
+        const cur = loadState(db), sc = scopeOf(req.user);
+        /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
+        if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
+          if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
+            const ids = new Set(c.value.map(x => x && x.id));
+            c.value = [...c.value, ...(cur.stocktakes || []).filter(x => !ids.has(x.id) && !(x.scope && sc.sites.includes(siteOf({ loc: x.scope }))))]
+              .sort((a, b) => String(b.started || '').localeCompare(String(a.started || '')));
+          }
+        }
+        const why = editorProblem(req.body, cur, sc);
+        if (why) throw new HttpError(403, why);
+      }
       const guard = s => {
         if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
         if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');

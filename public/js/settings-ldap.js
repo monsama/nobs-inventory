@@ -1,7 +1,7 @@
 /* Settings → Active Directory: the LDAP connection, its security and CA, the service password,
    test and sync. */
 import { scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
-import { canEdit } from './04-settings.js';
+import { isAdmin } from './04-settings.js';
 import { flushSave, reloadFromServer, queueServerSave } from './07-render.js';
 import { dateText } from './dates.js';
 import { st, esc, $, toast } from './01-core.js';
@@ -62,7 +62,7 @@ function bindCa(){
    test and a sync. */
 export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
-  const L = st.ldap, edit = canEdit();
+  const L = st.ldap, edit = isAdmin();
   const ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = !!L.url && edit;

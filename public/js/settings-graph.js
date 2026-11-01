@@ -5,7 +5,7 @@ import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { SERVER, reloadFromServer, queueServerSave } from './07-render.js';
 const FIELD_NAMES = { category: 'Category', enrollType: 'How enrolled', enrollProfile: 'Enrollment profile', certExpires: 'Intune certificate end',
   patch: 'Android security patch', carrier: 'Carrier', imei: 'IMEI', phone: 'Phone number', ownership: 'Ownership', free: 'Free storage', jailbroken: 'Jailbroken', supervised: 'Supervised' };
-import { canEdit, applyRole } from './04-settings.js';
+import { isAdmin, applyRole } from './04-settings.js';
 import { st, esc, byId, $, dayText, toast, SYNC } from './01-core.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
@@ -36,7 +36,7 @@ function ambiguousHtml(){
 export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
-  const edit = canEdit();
+  const edit = isAdmin();
   const r = edit ? await fetch('api/graph/status', {credentials: 'same-origin'}).catch(() => null) : null;
   const j = r && r.ok ? await r.json().catch(() => null) : null;
   if (!$('#setGraph')) return;

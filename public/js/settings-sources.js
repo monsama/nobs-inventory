@@ -5,7 +5,7 @@ import { $, DEFAULT_POLICY, LS_ON, SYNC, esc, objs, st, toastUndo } from './01-c
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
-import { canEdit } from './04-settings.js';
+import { isAdmin } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { runOf, summary, when } from './16-sync.js';
 
@@ -137,7 +137,7 @@ export function renderSetSources(){
 
   /* Every field a sync knows, by topic: the sources that set it in their order (the first one wins), what that means in
      a sentence, and Change… for an admin. The order is kept per field (st.fieldOrder); the syncs read it (sync-map.js). */
-  const edit = canEdit();
+  const edit = isAdmin();
   const chain = k => {
     const order = fieldOrder(st, k), used = order.filter(x => !globalOff(x));
     const off = order.filter(globalOff), shown = SOURCES_OF(k).filter(x => !order.includes(x));

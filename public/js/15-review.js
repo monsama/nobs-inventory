@@ -4,7 +4,7 @@
 import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
-import { canEdit, me } from './04-settings.js';
+import { canEdit, isAdmin, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
 import { movePhotos } from './23-photos.js';
 
@@ -288,7 +288,7 @@ function openNext(id){
    them straight in (a device not seen for long still waits). */
 export function intakeRowHtml(src){
   const v = (st.intake || {})[src] === 'direct' ? 'direct' : 'review';
-  return `<div class="lpanel-add intake-row"><label for="intake_${src}">New devices from ${esc(REVIEW_SRC[src])}</label><select id="intake_${src}" data-intake="${src}" ${canEdit() ? '' : 'disabled'}>
+  return `<div class="lpanel-add intake-row"><label for="intake_${src}">New devices from ${esc(REVIEW_SRC[src])}</label><select id="intake_${src}" data-intake="${src}" ${isAdmin() ? '' : 'disabled'}>
     <option value="review" ${v === 'review' ? 'selected' : ''}>Wait in To review</option><option value="direct" ${v === 'direct' ? 'selected' : ''}>Go straight into the inventory</option></select></div>`;
 }
 export function bindIntakeRows(root){

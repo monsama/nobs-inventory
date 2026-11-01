@@ -7,7 +7,7 @@ import { contractsDue, licencesOver, money } from './09-costs.js';
 import { SERVER, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, canEdit, openSettings, showDevicesOf } from './04-settings.js';
+import { USERS, canEdit, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
 /* Devices still out this many days after their person left are marked red. */
 const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
@@ -27,7 +27,7 @@ const bars = (rows, attr) => {
 const GS_HIDE = 'ni-start-hidden';
 function startHtml(){
   /* Only for a new inventory: one in use for a while (many devices) does not need it. */
-  if (!canEdit() || objs.length >= 50) return '';
+  if (!isAdmin() || objs.length >= 50) return '';
   try { if (localStorage.getItem(GS_HIDE)) return ''; } catch { /* no storage: shown */ }
   const steps = [
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],

@@ -10,7 +10,7 @@ import { closeModal, confirmModal, modal } from './19-modal.js';
 /* The supplier field offers the companies of the contacts and the suppliers already on contracts. */
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render.js';
-import { canEdit } from './04-settings.js';
+import { isAdmin } from './04-settings.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
@@ -80,7 +80,7 @@ export function renderContracts(){
   const due = contractsDue().length, late = contractsLate().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost">${canEdit() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
+    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost">${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
@@ -93,7 +93,7 @@ export function renderContracts(){
     ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
-      <td class="num"><span class="rowacts">${editButton(`data-contract="${esc(c.id)}"`, c.name, canEdit())}${canEdit() ? deleteButton(`data-ctdel="${esc(c.id)}"`, c.name) : ''}</span></td></tr>`).join('')
+      <td class="num"><span class="rowacts">${editButton(`data-contract="${esc(c.id)}"`, c.name, isAdmin())}${isAdmin() ? deleteButton(`data-ctdel="${esc(c.id)}"`, c.name) : ''}</span></td></tr>`).join('')
       || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.ctQ)}”.`}</td></tr>`}
     </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
@@ -242,13 +242,13 @@ export function licencesPanel(){
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
     return `<tr><td><button class="link" data-lic="${esc(l.id)}"><b>${esc(l.name)}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
-      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num"><span class="rowacts">${editButton(`data-lic="${esc(l.id)}"`, l.name, canEdit())}${canEdit() ? deleteButton(`data-licdel="${esc(l.id)}"`, l.name) : ''}</span></td></tr>`;
+      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num"><span class="rowacts">${editButton(`data-lic="${esc(l.id)}"`, l.name, isAdmin())}${isAdmin() ? deleteButton(`data-licdel="${esc(l.id)}"`, l.name) : ''}</span></td></tr>`;
   }).join('');
   const over = licencesOver().length;
   return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
     ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-    ${canEdit() ? '<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>' : ''}</div>`;
+    ${isAdmin() ? '<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>' : ''}</div>`;
 }
 export function bindLicences(){
   const nb = $('#licNew'); if (nb) nb.onclick = () => licenceModal(null);

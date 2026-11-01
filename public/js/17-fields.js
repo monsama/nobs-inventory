@@ -1,8 +1,8 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
-import { REVIEW, $, COSTS, DOMAINS, FIELD_LABEL, LOCS, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
-import { USERS, canEdit } from './04-settings.js';
+import { REVIEW, $, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { USERS, canEdit, isAdmin, mySites, myLocs } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
@@ -41,9 +41,9 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
   /* No location is a choice of its own, and a location no longer in the list is kept: saving any other field must not move the device. */
-  if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}"><option value="" ${o.loc ? '' : 'selected'}>No location</option>${(o.loc && !LOCS.includes(o.loc) ? [o.loc, ...LOCS] : LOCS).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  if (kind === 'loc') ctl = `<select id="${id}" data-k="${k}">${mySites() ? '' : `<option value="" ${o.loc ? '' : 'selected'}>No location</option>`}${(o.loc && !myLocs().includes(o.loc) ? [o.loc, ...myLocs()] : myLocs()).map(l => `<option ${l===o.loc?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if (kind === 'kind') ctl = `<select id="${id}" data-k="${k}"><option value="physical" ${o.kind!=='vm'?'selected':''}>Physical</option><option value="vm" ${o.kind==='vm'?'selected':''}>Virtual machine</option></select>`;
-  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.filter(u => u.id === o.uid || (u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin'))).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}${u.active === false ? ' (left)' : ''}</option>`).join('')}${canEdit() ? '<option value="__new">New person…</option>' : ''}</select>`;
+  else if (kind === 'user') ctl = `<select id="${id}" data-k="user"><option value="">Unassigned</option><option value="__hotdesk" ${o.hotdesk?'selected':''}>Hot desk (shared)</option>${USERS.filter(u => u.id === o.uid || (u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin'))).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}" ${!o.hotdesk && u.id===o.uid?'selected':''}>${esc(u.name)}${u.active === false ? ' (left)' : ''}</option>`).join('')}${isAdmin() ? '<option value="__new">New person…</option>' : ''}</select>`;
   else if (kind === 'type') ctl = `<select id="${id}" data-k="type">${Object.entries(TYPES).map(([t, v]) => `<option value="${t}" ${t === o.type ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>`;
   else if (kind === 'subnet'){
     /* A subnet is picked from those whose device types include this device. The address is then taken from its ranges. */

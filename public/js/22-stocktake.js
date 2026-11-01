@@ -3,7 +3,7 @@
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
 import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } from './01-core.js';
-import { USERS, canEdit, who } from './04-settings.js';
+import { USERS, canEdit, who, mySites, myLocs } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, reloadFromServer, render } from './07-render.js';
@@ -50,10 +50,10 @@ export function renderStocktake(){
 function startHtml(edit){
   const live = objs.filter(o => o.status !== 'retired');
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
-  const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
+  const limit = mySites(), places = [...SITES.filter(s => !limit || limit.includes(s)).map(s => [s, `${s} (site)`]), ...myLocs().map(l => [l, l])];
   return `<div class="panelbox"><div class="hdr">New stocktake</div>
     <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} A stocktake lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
-    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
+    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace">${limit ? '' : '<option value="">Everywhere</option>'}${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Stocktake ${esc(dateText(today()))}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the stocktake</button><span class="muted" id="stkCount"></span></div>` : '<p class="note stk-pad">An admin starts a stocktake.</p>'}</div>`;
 }

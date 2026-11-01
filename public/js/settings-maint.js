@@ -2,7 +2,7 @@
 import { modal, closeModal } from './19-modal.js';
 import { clearConfirm, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { pushDate } from './settings-feed.js';
-import { canEdit } from './04-settings.js';
+import { isAdmin } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';
 import { dateTimeText } from './dates.js';
 import { CERT, certAttention, certPanel, loadCert, wireCertPanel } from './certificate.js';
@@ -19,7 +19,7 @@ let LOG_DATA = null;
 export async function renderSetLog(){
   const pane = $('#setLog');
   if (!pane) return;
-  if (!canEdit()){ pane.innerHTML = '<div class="panelbox"><div class="hdr">Log</div><p class="note" style="padding:12px">Only administrators can see the log.</p></div>'; return; }
+  if (!isAdmin()){ pane.innerHTML = '<div class="panelbox"><div class="hdr">Log</div><p class="note" style="padding:12px">Only administrators can see the log.</p></div>'; return; }
   const r = await fetch('api/log?limit=500', {credentials: 'same-origin'});
   LOG_DATA = r.ok ? await r.json() : {entries: []};
   drawLog();
@@ -247,7 +247,7 @@ function wireDigest(){
   };
 }
 export function renderSetMaint(){
-  const edit = canEdit();
+  const edit = isAdmin();
   if (edit && BACKUPS === null) loadBackups();
   /* Read again when Maintenance is opened a minute or more after the last read. */
   if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }

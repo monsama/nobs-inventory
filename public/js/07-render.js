@@ -2,7 +2,7 @@ import { applyDelta } from './delta.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, me, pushDate } from './04-settings.js';
+import { USERS, applyRole, bindUser, canEdit, isAdmin, me, pushDate } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
@@ -158,16 +158,22 @@ export function setBaseline(){
   SERVER.base = new Map();
   for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
 }
+/* What an editor may save (the server checks the same, server/scope.js): devices, their connections and history, new
+   rooms and stocktakes. Other changes made on their page (a box moved on the map) are not sent, and go with the next
+   reload. */
+const EDITOR_SAVES = k => /^(object|rel|history)\|/.test(k) || k === 'setting|locs' || k === 'setting|stocktakes';
 export function pendingChanges(){
   const now = documents(), puts = [], dels = [];
+  const may = isAdmin() ? () => true : EDITOR_SAVES;
   for (const [k, d] of now){
+    if (!may(k)) continue;
     const json = JSON.stringify(d.value);
     if (SERVER.base.get(k) === json) continue;
     const pref = d.kind === 'setting' && PREFERENCES.includes(d.id);
     puts.push({key:k, kind:d.kind, id:d.id, value:d.value, json, base: pref ? null : (SERVER.revs[k] ?? 0)});
   }
   for (const k of SERVER.base.keys()){
-    if (now.has(k)) continue;
+    if (now.has(k) || !may(k)) continue;
     const i = k.indexOf('|');
     dels.push({key:k, kind:k.slice(0, i), id:k.slice(i + 1), base: SERVER.revs[k] ?? 0});
   }
@@ -414,7 +420,7 @@ export function clearConfirm(){
 /* Clears the devices, relations and history on the server, all of them, including any another person added since
    this page loaded. Users, locations, types and settings stay. */
 export async function clearAll(){
-  if (!canEdit()){ toast('Only an admin can clear the inventory.'); return; }
+  if (!isAdmin()){ toast('Only an admin can clear the inventory.'); return; }
   const r = await fetch('api/state', {credentials: 'same-origin'});
   if (!r.ok){ toast('The inventory could not be loaded.'); return; }
   const d = await r.json();
