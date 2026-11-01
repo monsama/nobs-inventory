@@ -106,7 +106,7 @@ export function renderOverview(){
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
   /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
+  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'object' : 'objects'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
   $('#view').innerHTML = `<div class="ov">${startHtml()}
@@ -123,7 +123,7 @@ export function renderOverview(){
           : '<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>'}
       </div>
       ${handbacks.length ? `<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
-        <p class="note">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
+        <p class="note" style="padding:8px 12px 2px;margin:0">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
         <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>

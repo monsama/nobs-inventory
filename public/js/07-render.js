@@ -39,7 +39,7 @@ export function render({ save = true } = {}){
   renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();
-  $('#stObjs').textContent = objs.length + ' objects';
+  $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'object' : 'objects'}`;
   $('#stRels').textContent = rels.length + ' relations';
   renderStatus();
   applyRole();
