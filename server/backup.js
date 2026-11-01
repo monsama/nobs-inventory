@@ -63,7 +63,7 @@ export function takeBackup(db, reason, { gc = true } = {}) {
   let id;
   try {
     const { manifest, size } = storeBackup(db, data);
-    id = Number(db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, ?, ?, 2, ?)').run(data.created, reason, s.objs.length, manifest, size).lastInsertRowid);
+    id = Number(db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, ?, ?, 2, ?)').run(data.created, reason, s.objs.filter(o => !o.review).length, manifest, size).lastInsertRowid);
     db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
     if (gc) collectParts(db);
     db.exec('RELEASE backup');
