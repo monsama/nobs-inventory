@@ -5,7 +5,7 @@ import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, conta
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
-import { USERS, isAdmin, who } from './04-settings.js';
+import { USERS, canEdit, isAdmin, who } from './04-settings.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { applyImport, contactsCsv, decodeText, IMPORT_FIELDS, planImport, readContactFile } from './contacts-import.js';
@@ -205,7 +205,7 @@ export function setResponsible(o, kind, id){
 
 /* On a device page: who is responsible for it, internally and externally, with how to reach them. */
 export function deviceRespPanel(o){
-  const edit = isAdmin();
+  const edit = canEdit();   /* who is responsible is a device's field: an editor sets it too, as in the bulk action */
   const row = kind => {
     const c = contactOf(o[RESP_KEYS[kind]]), list = CONTACTS.list.filter(x => x.kind === kind).sort((a, b) => contactLabel(a).localeCompare(contactLabel(b)));
     return `<div class="resp-row"><span class="k">${CONTACT_KINDS[kind]}</span>

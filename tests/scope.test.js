@@ -16,12 +16,20 @@ test('a viewer limited to sites or to own devices gets nothing else', async () =
         { id: 'v-bern', login: 'vbern', name: 'Bern Only', role: 'viewer', source: 'manual', active: true, groups: [], sites: ['Bern'] },
         { id: 'v-own', login: 'vown', name: 'Own Only', role: 'viewer', source: 'manual', active: true, groups: [], own: true }],
       objs: [dev('b1', 'Bern / EG', 'v-own'), dev('b2', 'Bern / OG', null), dev('z1', 'Zürich / EG', null)],
-      rels: [{ id: 'r1', from: 'b1', to: 'z1', kind: 'connected' }], history: { z1: [{ t: 'x', msg: 'secret move' }] } });
+      rels: [{ id: 'r1', from: 'b1', to: 'z1', kind: 'connected' }], history: { z1: [{ t: 'x', msg: 'secret move' }] },
+      graphAmbiguous: [{ name: 'ZH-CEO-LAPTOP', serial: 'SECRETSER', devices: ['z1'] }, { name: 'NB-b2', devices: ['b2'] }],
+      syncChanges: { ad: { at: '2026-11-01T00:00:00Z', changed: { Model: 2 }, filled: {}, ids: ['z1', 'b2'], n: 2 } },
+      digest: { on: true, to: ['it-admin@corp.ch'], day: 1, hour: 7 }, groupRoles: [{ group: 'IT', role: 'viewer' }] });
     for (const [id, l] of [['v-all', 'vall'], ['v-bern', 'vbern'], ['v-own', 'vown']]) setPassword(srv.db, id, l + 'pass12345');
     const ids = async login => { const a = await signIn(srv, login, login + 'pass12345'); const j = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json; return { a, j, ids: j.objs.map(o => o.id).sort() }; };
     assert.deepEqual((await ids('vall')).ids, ['b1', 'b2', 'z1']);
     const bern = await ids('vbern');
     assert.deepEqual(bern.ids, ['b1', 'b2']); assert.equal(bern.j.rels.length, 0, 'no link to the other site'); assert.equal(bern.j.history.z1, undefined);
+    // nothing about the other site's devices, and no admin settings
+    assert.ok(!JSON.stringify(bern.j).includes('SECRETSER') && !JSON.stringify(bern.j).includes('it-admin@corp.ch'));
+    assert.deepEqual(bern.j.graphAmbiguous.map(a => a.name), ['NB-b2']); assert.deepEqual(bern.j.syncChanges.ad.ids, ['b2']);
+    assert.equal(bern.j.digest, undefined); assert.equal(bern.j.groupRoles, undefined);
+    assert.equal((await ids('vall')).j.digest, undefined, 'not for any viewer');
     const own = await ids('vown');
     assert.deepEqual(own.ids, ['b1']);
     // reports and labels hold the same devices only
@@ -83,6 +91,9 @@ test('an editor limited to sites changes the devices of those sites, and nothing
     st = (await srv.call('GET', '/api/state', { cookie: a.cookie })).json;
     r = await save({ puts: [{ kind: 'setting', id: 'stocktakes', value: [...st.stocktakes, { id: 'stN', name: 'Zürich again', scope: 'Zürich / EG', started: '2026-10-06T00:00:00Z', by: 'Eva' }], base: rev('setting|stocktakes') }] });
     assert.equal(r.status, 403);
+    // a stocktake of Bern sent under the id of Zürich's: Zürich's stays as it was
+    r = await save({ puts: [{ kind: 'setting', id: 'stocktakes', value: [...st.stocktakes, { id: 'stZ', name: 'gone', scope: 'Bern', started: '2026-10-02T00:00:00Z', by: 'Eva' }], base: rev('setting|stocktakes') }] });
+    assert.deepEqual(loadState(srv.db).stocktakes.find(x => x.id === 'stZ'), { id: 'stZ', name: 'Zürich', scope: 'Zürich', started: '2026-10-02T00:00:00Z', by: 'x' });
     // never people, types or other settings
     for (const c of [{ kind: 'user', id: 'e-bern', value: { ...st.users.find(u => u.id === 'e-bern'), role: 'admin' } }, { kind: 'type', id: 'pc', value: { label: 'X' } }, { kind: 'setting', id: 'contracts', value: [] }]) {
       r = await save({ puts: [{ ...c, base: rev(`${c.kind}|${c.id}`) }] });
@@ -95,6 +106,8 @@ test('an editor limited to sites changes the devices of those sites, and nothing
     const photo = id => srv.call('POST', `/api/objects/${id}/images`, { cookie: a.cookie, body: { name: 'p.jpg', data: jpg, thumb: jpg, w: 10, h: 10 } });
     const ph = await photo('b1');
     assert.equal(ph.status, 200, ph.text);
+    const bigPhoto = await srv.call('POST', '/api/objects/b1/images', { cookie: a.cookie, body: { name: 'big.jpg', data: Buffer.concat([Buffer.from(jpg, 'base64').subarray(0, -2), Buffer.alloc(1500000, 1), Buffer.from([0xff, 0xd9])]).toString('base64'), thumb: jpg, w: 10, h: 10 } });
+    assert.equal(bigPhoto.status, 200, 'an editor sends photos larger than 1 MB: ' + bigPhoto.text);
     assert.equal((await photo('z1')).status, 404);
     assert.equal((await srv.call('PATCH', `/api/images/${ph.json.image.id}`, { cookie: a.cookie, body: { caption: 'Label' } })).status, 200);
     assert.equal((await srv.call('DELETE', `/api/images/${ph.json.image.id}`, { cookie: a.cookie })).status, 200);

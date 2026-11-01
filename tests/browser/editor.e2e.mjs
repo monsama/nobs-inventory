@@ -38,8 +38,11 @@ try {
   await a.click('#setBtn'); await a.click('#setTabs [data-st=users]');
   const i = await a.evaluate(async () => (await import('/js/04-settings.js')).USERS.findIndex(u => u.id === 'u-ed'));
   await a.locator(`[data-role="${i}"]`).selectOption('editor');
-  await a.locator(`[data-sees="${i}"]`).click();
-  await a.check('input[name=sees][value=sites]'); await a.check('[data-site="Bern"]');
+  /* Made an editor: which sites is asked at once. */
+  await a.waitForSelector('#seOk');
+  /* Ticking a site is enough: it chooses "only these sites" with it. */
+  await a.check('[data-site="Bern"]');
+  assert.equal(await a.isChecked('input[name=sees][value=sites]'), true);
   assert.equal(await a.locator('input[name=sees][value=own]').count(), 0, 'own devices only is for viewers');
   await a.click('#seOk');
   await eventually(() => { const u = stored().users.find(x => x.id === 'u-ed'); return u.role === 'editor' && JSON.stringify(u.sites) === '["Bern"]'; });
@@ -64,6 +67,17 @@ try {
   assert.equal(await p.isDisabled('#f_b1_model'), false);
   await p.fill('#f_b1_model', 'X1 Carbon'); await p.click('#saveBtn');
   await eventually(() => stored().objs.find(o => o.id === 'b1').model === 'X1 Carbon');
+  // a change the server refuses (a device moved to another site) is taken back and does not block the saves after it
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.objs.find(o => o.id === 'b1').loc = 'Zürich / EG'; (await import('/js/07-render.js')).queueServerSave(); });
+  await eventually(() => p.evaluate(() => /taken back/.test(document.querySelector('#toast')?.textContent || '')));
+  await eventually(() => p.evaluate(async () => (await import('/js/01-core.js')).objs.find(o => o.id === 'b1')?.loc === 'Bern / EG'));
+  assert.equal(stored().objs.find(o => o.id === 'b1').loc, 'Bern / EG');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObjs(['b1']));
+  await p.waitForSelector('#f_b1_model');
+  await p.fill('#f_b1_model', 'X1 Yoga'); await p.click('#saveBtn');
+  await eventually(() => stored().objs.find(o => o.id === 'b1').model === 'X1 Yoga');
+  // the entry sheet is an admin's: not offered to an editor
+  assert.equal(await p.locator('#sheetBtn').count(), 0);
   // photos can be added to it
   await p.waitForSelector('#phAdd'); assert.equal(await p.isDisabled('#phAdd'), false);
   // its location: only the rooms of Bern, no "No location"

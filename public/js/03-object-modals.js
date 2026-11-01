@@ -14,7 +14,7 @@ import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { canEdit, ensureUser, myLocs, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
+import { canEdit, ensureUser, isAdmin, myLocs, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -241,7 +241,7 @@ function retireTies(o){
     plugs.length && ['plug', `Unplug it from ${plugs.map(r => `${esc(byId(r.to).name)}${r.port != null ? ' port ' + esc(portLabel(byId(r.to), r.port)) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
     attached.length && ['attached', `Detach ${attached.map(r => esc(byId(r.from).name)).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
     plan && ['plan', `Take it off the floor plan ${esc(plan.name)}`, () => { delete o.planPos; }],
-    cts.length && ['contracts', `Remove it from ${cts.map(c => esc(c.name)).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
+    cts.length && isAdmin() && ['contracts', `Remove it from ${cts.map(c => esc(c.name)).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
     resp.length && ['resp', `Remove ${resp.map(c => esc(c.name)).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
   ].filter(Boolean);
 }
@@ -380,7 +380,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${SERVER.on && !o.review ? '<button id="labelBtn">Label…</button>' : ''}${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && canEdit() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${SERVER.on && !o.review ? '<button id="labelBtn">Label…</button>' : ''}${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}

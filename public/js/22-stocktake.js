@@ -218,7 +218,7 @@ export function verifiedNote(o){
      marks it done. */
   const mine = !canEdit() && o.uid && o.uid === st.meId;
   const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
-  return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">Report a problem…</button>` : ''}</p>${rep}</div>`;
+  return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">${o.reported && !o.reported.done ? 'Report another problem…' : 'Report a problem…'}</button>` : ''}</p>${rep}${mine && o.reported && !o.reported.done ? `<p class="fieldnote stk-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} is with IT.</p>` : ''}</div>`;
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {

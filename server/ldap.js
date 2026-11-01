@@ -109,6 +109,8 @@ export function profileOf(attrs, config) {
     dept: first('department'),
     mail: first('mail'),
     groups: (attrs.memberof ?? []).map(cnOf),
+    /* The full names too: a role rule given as a DN matches only that group, not one of the same name in another OU. */
+    groupDns: (attrs.memberof ?? []).map(String).slice(0, 500),
     profile: profileFields({ title: first('title'), phone: first('telephoneNumber'), mobile: first('mobile'), office: first('physicalDeliveryOfficeName'),
       manager: first('manager') ? cnOf(first('manager')) : '', mail: first('mail') })
   };

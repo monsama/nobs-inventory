@@ -128,6 +128,8 @@ export const isAdmin = () => !USERS.length || (!!me() && me().role === 'admin');
 export const canEdit = () => isAdmin() || (!!me() && me().role === 'editor');
 /* The sites an editor is limited to (null: no limit), and the rooms they may put a device in. */
 export const mySites = () => { const u = me(); return u && u.role === 'editor' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
+/* The sites someone limited to some sees (a viewer or an editor), or null: the sidebar lists only those. */
+export const seenSites = () => { const u = me(); return u && u.role !== 'admin' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
 export const myLocs = () => { const s = mySites(); return s ? LOCS.filter(l => s.includes(l.split(' / ')[0])) : LOCS; };
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : u.role === 'none' ? 'No access' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */

@@ -11,7 +11,7 @@ import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { labelsModal } from './24-labels.js';
-import { USERS, bindUser, canEdit, isAdmin, myLocs, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
+import { USERS, bindUser, canEdit, isAdmin, myLocs, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
@@ -54,7 +54,7 @@ export function renderSide(){
     shown.map(typeBtn).join('') +
     (folded ? `<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
       : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? '<button class="side-more" data-alltypes="0">Fewer types</button>' : '');
-  const sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])];
+  const limit = seenSites(), sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])].filter(s => !limit || limit.includes(s));
   $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>` +
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`).join('')).join('');
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */

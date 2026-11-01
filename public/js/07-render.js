@@ -120,7 +120,7 @@ function keepOffline(){
     const { puts, dels } = pendingChanges();
     if (!puts.length && !dels.length) return;
     localStorage.setItem(OFFLINE_KEY, JSON.stringify({ user: st.meId, at: new Date().toISOString(),
-      puts: puts.map(({ kind, id, key, json }) => ({ kind, id, key, json })), dels: dels.map(({ kind, id, key }) => ({ kind, id, key })) }));
+      puts: puts.map(({ kind, id, key, json, base }) => ({ kind, id, key, json, base })), dels: dels.map(({ kind, id, key, base }) => ({ kind, id, key, base })) }));
   } catch { /* storage full or blocked: the changes stay in the page, as before */ }
 }
 export function dropOffline(){ try { localStorage.removeItem(OFFLINE_KEY); } catch { /* none */ } }
@@ -131,7 +131,13 @@ function restoreOffline(){
   /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
   const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
   if (stk) st.stocktakes = JSON.parse(stk.json);
+  /* Rooms an editor added there come back too (the server checks they are in their sites). */
+  const locs = kept.puts.find(c => c.kind === 'setting' && c.id === 'locs');
+  if (locs) for (const l of JSON.parse(locs.json)) if (!LOCS.includes(l)) LOCS.push(l);
   const n = replayLocal({ puts: kept.puts.filter(c => c.kind !== 'setting'), dels: kept.dels }, []) + (stk ? 1 : 0);
+  /* Each is saved on the revision it was made on: what someone else changed meanwhile comes back as a conflict, to be
+     decided, instead of being overwritten. */
+  for (const c of [...kept.puts, ...kept.dels]) if (Number.isInteger(c.base) && c.base !== null) SERVER.revs[c.key] = c.base;
   if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
 }
 if (typeof window !== 'undefined') window.addEventListener('online', () => { if (SERVER.base && SERVER.save === 'offline') sendChanges(); });
@@ -217,6 +223,14 @@ async function sendNow(){
       const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
       if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); setSave('failed'); return; }
       const j = await r.json().catch(() => ({}));
+      /* Refused for good (403: not this person's to change): those changes are taken back from the server's version, so
+         they neither block every later save nor come back with a reload. */
+      if (r.status === 403){
+        toast('Not saved: ' + (j.error || 'not yours to change') + ' The change was taken back.');
+        SERVER.busy = false;
+        await reloadFromServer({ flush: false, skip: [...puts, ...dels].map(c => c.key) });
+        setSave('saved'); return;
+      }
       if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); setSave('failed'); return; }
       for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
       if (Object.keys(j.codes || {}).length) render();
@@ -278,8 +292,14 @@ export function refusedModal(items){
    reload never drops an edit. Records in skip are the ones someone else changed: their newer version is kept. After a restore (discard), the
    restored inventory replaces everything here. */
 export async function reloadFromServer({ flush = true, skip = [], discard = false, data = null } = {}){
-  if (flush && !discard && SERVER.base && canEdit()){ if (SERVER.busy) await SERVER.inflight; await flushSave(); }
   let d = data;
+  if (flush && !discard && SERVER.base && canEdit()){
+    if (SERVER.busy) await SERVER.inflight;
+    const had = pendingChanges();
+    await flushSave();
+    /* An edit made while the changes were loading was just saved: the copy loaded before it is older, so read again. */
+    if (had.puts.length || had.dels.length) d = null;
+  }
   if (!d){
     const r = await fetch('api/state', {credentials: 'same-origin'});
     if (r.status === 401){ loginModal(); return false; }
