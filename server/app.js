@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { inScope, scopeKey, scopeOf, scopeState } from './scope.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
@@ -380,10 +381,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.get('/api/state', requireUser, (req, res) => {
     /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
-    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}"`;
+    const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
-    const s = loadState(db); delete s.empty;
+    const s = scopeState(loadState(db), scopeOf(req.user)); delete s.empty;
     if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
@@ -691,7 +692,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const opts = reportOptions({ ...req.query, ...(req.method === 'POST' ? { ids: (req.body || {}).ids } : {}), kind: req.params.kind });
       if (opts.kind !== req.params.kind) throw new HttpError(404, 'No such report.');
-      const s = loadState(db), r = buildReport(s, opts);
+      const s = scopeState(loadState(db), scopeOf(req.user)), r = buildReport(s, opts);
       const day = new Date().toISOString().slice(0, 10), base = `nobs-${opts.kind}${opts.kind === 'costs' ? '-' + opts.year : ''}${opts.kind === 'handback' ? '-' + opts.id.replace(/[^\w-]/g, '_') : ''}-${day}`;
       if (opts.kind === 'stocktake' && !(s.stocktakes || []).some(t => t.id === opts.id && t.finished)) throw new HttpError(404, 'No such stocktake.');
       if (opts.kind === 'handback' && !s.users.some(u => String(u.id) === opts.id)) throw new HttpError(404, 'No such person.');
@@ -710,7 +711,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const b = req.body || {}, ids = Array.isArray(b.ids) ? b.ids.slice(0, 5000).map(String) : [];
       if (!ids.length) throw new HttpError(400, 'Pick the devices to make labels for.');
-      const s = loadState(db), byId = new Map(s.objs.filter(o => !o.review).map(o => [String(o.id), o]));
+      const s = scopeState(loadState(db), scopeOf(req.user)), byId = new Map(s.objs.filter(o => !o.review).map(o => [String(o.id), o]));
       const devices = ids.map(id => byId.get(id)).filter(Boolean).map(o => ({ id: o.id, code: o.code || '', name: o.name || '', serial: o.serial || '' }));
       if (!devices.length) throw new HttpError(400, 'None of these devices is in the inventory.');
       const format = LABEL_FORMATS[b.format] ? b.format : 'a4-24';
@@ -971,6 +972,35 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(d.id);
       audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
       res.json({ ok: true, moved: r.moved });
+    } catch (e) { next(e); }
+  });
+  /* My devices: anyone signed in confirms they have a device they are the user of, or reports a problem with it (an
+     admin sees it on the device and in Data quality). Nothing else of the device can be changed this way. */
+  const myDevice = req => {
+    const s = loadState(db), o = s.objs.find(x => x.id === String(req.params.id) && !x.review);
+    if (!o || o.uid !== req.user.id) throw new HttpError(404, 'This is not one of your devices.');
+    return { s, o };
+  };
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  app.post('/api/my/devices/:id/confirm', requireUser, (req, res, next) => {
+    try {
+      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
+      const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
+      o.verified = { at: today(), by, ...(prev ? { prev } : {}) };
+      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Confirmed by its user ${by}` });
+      saveState(db, s); audit(db, req.user.id, `device confirmed by its user: ${o.name}`);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  app.post('/api/my/devices/:id/report', requireUser, (req, res, next) => {
+    try {
+      const text = String((req.body || {}).text || '').trim().slice(0, 500);
+      if (!text) throw new HttpError(400, 'Say what is wrong.');
+      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
+      o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
+      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
+      saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
+      res.json({ ok: true });
     } catch (e) { next(e); }
   });
   /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */

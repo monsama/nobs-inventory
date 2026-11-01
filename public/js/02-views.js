@@ -688,6 +688,7 @@ const QUALITY_FIX = {
   addisabled: ['status', 'bkStatus', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],
   conflict: [null, null, 'open each and pick the value to keep'],
+  reported: [null, null, 'open each, look at the problem and mark it as done'],
 };
 /* The bar of a data-quality check over the Table (drawn with the filters, like a person's bar): set by renderTable. */
 let QFIX = null;

@@ -450,6 +450,7 @@ export const QUALITY = {
     return ![p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) && !(g.ownerName && low(g.ownerName) === low(p.name))
       && !(p.source === 'ldap' && owner.split('@')[0] === low(p.login));
   }],
+  reported: ['Problem reported by its user', 'Its user reported a problem: look at it, then mark it as done on the device', o => !!o.reported],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };
 /* "Seen today · Intune", "Seen 3 days ago · AD", "Seen 12.08.2026 · Lansweeper": amber after 30 days. */

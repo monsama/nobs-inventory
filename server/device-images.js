@@ -3,6 +3,7 @@
    takes its metadata out (EXIF: camera, time, GPS position) before it is sent; the server checks again what it gets: a
    JPEG, PNG or WebP picture by its first bytes, within the sizes below, with the JPEG metadata blocks taken out once more.
    Everyone signed in sees them; an admin adds, captions and removes them. */
+import { inScope, scopeOf } from './scope.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
 
@@ -86,11 +87,14 @@ export function imageStats(db) {
 
 export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit }) {
   ensureImagesTable(db);
-  const objectOf = id => {
+  /* A viewer limited to some sites sees the photos of their devices only (server/scope.js). */
+  const objectOf = (id, req = null) => {
     if (!/^[\w.-]{1,80}$/.test(String(id || ''))) throw new HttpError(404, 'No such device.');
     const row = db.prepare("SELECT data FROM docs WHERE kind = 'object' AND id = ?").get(String(id));
     if (!row) throw new HttpError(404, 'No such device.');
-    return JSON.parse(row.data);
+    const o = JSON.parse(row.data);
+    if (req && !inScope(o, scopeOf(req.user))) throw new HttpError(404, 'No such device.');
+    return o;
   };
   const imageRow = id => {
     if (!/^img-[0-9a-f]{24}$/.test(String(id || ''))) throw new HttpError(404, 'No such photo.');
@@ -101,7 +105,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
 
   app.get('/api/objects/:id/images', requireUser, (req, res, next) => {
     try {
-      objectOf(req.params.id);
+      objectOf(req.params.id, req);
       const rows = db.prepare('SELECT id, name, caption, mime, w, h, bytes, created, by FROM device_images WHERE obj_id = ? ORDER BY created, id').all(req.params.id);
       res.set('Cache-Control', 'no-store').json({ images: rows.map(meta), max: PHOTO_MAX });
     } catch (e) { next(e); }
@@ -150,6 +154,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
   app.get('/api/images/:id', requireUser, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
+      objectOf(r.obj_id, req);
       const thumb = req.query.size === 'thumb';
       const ext = thumb || r.mime === 'image/jpeg' ? 'jpg' : r.mime.split('/')[1];
       const file = `${r.name.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[^\w .-]+/g, '_').slice(0, 80) || 'photo'}.${ext}`;

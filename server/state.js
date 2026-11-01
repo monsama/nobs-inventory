@@ -266,6 +266,8 @@ function checkStateRules(s, size = true) {
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
+    if (u.own !== undefined && typeof u.own !== 'boolean') bad('Own devices only is yes or no.');
+    if (u.sites !== undefined && (!Array.isArray(u.sites) || u.sites.length > 50 || u.sites.some(x => typeof x !== 'string' || x.length > 120))) bad('The sites a person may see are a list of site names.');
     if (u.aliases !== undefined && (!Array.isArray(u.aliases) || u.aliases.length > 20 || u.aliases.some(a => typeof a !== 'string' || a.length > 120))) bad('Other names of a person are a short list of text.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
     /* Title, phones, office, manager and e-mail, from the directory or Entra (from says which). */
@@ -319,6 +321,7 @@ function checkStateRules(s, size = true) {
       }
     }
     if (o.graph !== undefined && (!o.graph || typeof o.graph !== 'object' || Array.isArray(o.graph))) bad(`${o.name}: the Microsoft Graph data is an object.`);
+    if (o.reported !== undefined && (!o.reported || typeof o.reported !== 'object' || typeof o.reported.text !== 'string' || o.reported.text.length > 500 || typeof o.reported.by !== 'string' || o.reported.by.length > 120 || !Date.parse(o.reported.at))) bad(`${o.name}: a reported problem has its text, who and when.`);
     /* Which fields a directory filled in (fill.js), and what AD says of the computer account. */
     { const p = verifiedProblem(o.verified); if (p) bad(`${o.name}: ${p}`); }
     if (o.src !== undefined && (!o.src || typeof o.src !== 'object' || Array.isArray(o.src) || Object.values(o.src).some(v => !['hand', 'ls', 'graph', 'ad'].includes(v)))) bad(`${o.name}: the sources of its fields are hand, Lansweeper, Intune or AD.`);
