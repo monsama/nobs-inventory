@@ -117,7 +117,9 @@ function applyDepartments(s, records) {
   s.users ??= [];
   /* Lookups instead of a pass over every person and device per record; kept up to date as people are added. */
   const byLogin = new Map(), byName = new Map(), byUser = new Map();
-  const indexPerson = u => { if (u.login && !byLogin.has(low(u.login))) byLogin.set(low(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u); };
+  /* Names and logins a merge left as aliases find the person too, so a merged person is not made again. */
+  const indexPerson = u => { if (u.login && !byLogin.has(low(u.login))) byLogin.set(low(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u);
+    for (const a of u.aliases || []) { if (!byLogin.has(low(a))) byLogin.set(low(a), u); if (!byName.has(low(a))) byName.set(low(a), u); } };
   s.users.forEach(indexPerson);
   for (const o of s.objs) if (o.user) { const k = low(o.user); byUser.set(k, [...(byUser.get(k) || []), o]); }
   for (const r of records) {

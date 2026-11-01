@@ -147,7 +147,7 @@ export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
    name is looked for first, so a typed "Anna" stays Anna; then the login. */
 export function ensureUser(name, source = 'manual'){
   const low = String(name).toLowerCase();
-  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low);
+  let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low) || USERS.find(x => (x.aliases || []).some(a => a.toLowerCase() === low));
   if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
   return u;
 }

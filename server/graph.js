@@ -240,7 +240,8 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const ref = u => ({ id: u.id, upn: clean(u.userPrincipalName), enabled: u.accountEnabled !== false, synced: u.onPremisesSyncEnabled === true, seen: at });
   const taken = new Set();
   for (const p of s.users) {
-    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login)))) || null;
+    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login))))
+      || (p.aliases || []).map(a => bySam.get(low(a)) || byUpn.get(low(a))).find(Boolean) || null;
     if (u && !taken.has(u.id)) {
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
@@ -260,7 +261,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
     for (const upn of owners) {
       const u = byUpn.get(upn); if (!u || taken.has(u.id)) continue;
       const login = clean(u.onPremisesSamAccountName) || clean(u.userPrincipalName);
-      if (!login || s.users.some(x => low(x.login) === low(login))) continue;
+      if (!login || s.users.some(x => low(x.login) === low(login) || (x.aliases || []).some(a => low(a) === low(login) || low(a) === upn))) continue;
       s.users.push({ id: freeUserId(s.users, 'entra-' + low(login).replace(/[^a-z0-9._-]+/g, '-').slice(0, 40)), login, name: clean(u.displayName).slice(0, 120) || login,
         ...(clean(u.department) ? { dept: clean(u.department).slice(0, 120) } : {}), role: 'none', groups: [], source: 'entra', active: u.accountEnabled !== false, entra: ref(u),
         ...(profileOfEntra(u) ? { profile: profileOfEntra(u) } : {}) });

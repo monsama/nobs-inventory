@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { mergePeople } from '../public/js/people-match.js';
+import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
 import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
@@ -918,6 +920,29 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       restoreBackup(db, data, SHEET_KEY);
       audit(db, req.user.id, 'restored a backup from a file');
       res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* Two records of one person merged (public/js/people-match.js): devices, entry sheets and the sign-in go to the one
+     kept, the other's login and name stay as aliases so a sync finds the person again. A backup is taken first. */
+  app.post('/api/users/merge', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const { keep, drop } = req.body || {};
+      const s = loadState(db), k = s.users.find(u => u.id === keep), d = s.users.find(u => u.id === drop);
+      if (!k || !d) throw new HttpError(404, 'No such person.');
+      if (d.id === req.user.id) throw new HttpError(400, 'Your own account cannot be merged away: keep it.');
+      const hadLogin = !!k.login;
+      autoBackup(db, 'before merging two people');
+      let r;
+      try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
+      saveState(db, s);
+      db.prepare('UPDATE sheets SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
+      /* The sign-in: the dropped one's password goes with its login when the kept one had none, else it is removed. */
+      const kc = db.prepare('SELECT 1 FROM credentials WHERE user_id = ?').get(k.id);
+      if (!hadLogin && !kc) db.prepare('UPDATE credentials SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
+      db.prepare('DELETE FROM credentials WHERE user_id = ?').run(d.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(d.id);
+      audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
+      res.json({ ok: true, moved: r.moved });
     } catch (e) { next(e); }
   });
   /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */

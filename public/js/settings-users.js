@@ -3,7 +3,8 @@
 import { modal, closeModal } from './19-modal.js';
 import { resetFilters } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
-import { SERVER, queueServerSave, render, flushSave } from './07-render.js';
+import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
+import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
 import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
@@ -26,6 +27,50 @@ export function sourceChips(u){
 const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
 /* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
 const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
+/* Possible duplicates: the same person found twice (public/js/people-match.js). Each group says why, keeps the record
+   the sources trust most (picked here, changeable), and merges on the server: devices, entry sheets and the sign-in go
+   with it, the other names stay as aliases. Not the same hides the pair for good. Admins only. */
+const WHY = { login: 'Same login, e-mail or UPN', name: 'Same name' };
+let DUPES = [];
+function dupesHtml(devicesOfUser){
+  if (!canEdit()) return '';
+  DUPES = duplicateGroups(USERS, st.peopleNotSame || []).map(g => ({ ...g, people: g.ids.map(id => USERS.find(u => u.id === id)).filter(Boolean) })).filter(g => g.people.length > 1);
+  if (!DUPES.length) return '';
+  const who = u => [u.login, u.profile && u.profile.mail, u.entra && u.entra.upn].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
+  return `<details class="udupes" ${st.userDupesOpen === false ? '' : 'open'}><summary><b>Possible duplicates</b> <span class="chip warn">${DUPES.length}</span> <span class="muted">the same person found by more than one source</span></summary>
+    ${DUPES.map((g, gi) => { const keep = keepOf(g.people); return `<div class="udupe" data-dupe="${gi}"><div class="udupe-why">${esc(WHY[g.why])}</div>
+      ${g.people.map(u => `<label class="udupe-p"><input type="radio" name="dk${gi}" value="${esc(u.id)}" ${u.id === keep.id ? 'checked' : ''} ${u.source === 'ldap' || g.people.every(x => x.source !== 'ldap') ? '' : 'disabled'}> <span class="usrcs">${sourceChips(u)}</span> <b>${esc(u.name)}</b> <span class="muted">${esc(who(u))}${u.dept ? ' · ' + esc(u.dept) : ''} · ${devicesOfUser(u.name)} device${devicesOfUser(u.name) === 1 ? '' : 's'}${u.active === false ? ' · deactivated' : ''}</span></label>`).join('')}
+      <div class="udupe-acts"><span class="note">Keep the ticked one; the others are merged into it.</span><span class="grow"></span><button type="button" data-dnot="${gi}">Not the same</button><button type="button" class="primary" data-dmerge="${gi}">Merge</button></div></div>`; }).join('')}</details>`;
+}
+function wireDupes(){
+  const d = document.querySelector('.udupes'); if (d) d.ontoggle = () => { st.userDupesOpen = d.open; };
+  document.querySelectorAll('[data-dnot]').forEach(b => b.onclick = () => {
+    const g = DUPES[+b.dataset.dnot]; if (!g) return;
+    const keys = new Set(st.peopleNotSame || []);
+    for (let i = 0; i < g.people.length; i++) for (let j = i + 1; j < g.people.length; j++) keys.add(pairKey(g.people[i].id, g.people[j].id));
+    st.peopleNotSame = [...keys]; queueServerSave(); renderSetUsers(); toast('Kept apart: not shown as duplicates again');
+  });
+  document.querySelectorAll('[data-dmerge]').forEach(b => b.onclick = async () => {
+    const gi = +b.dataset.dmerge, g = DUPES[gi]; if (!g) return;
+    const keepId = (document.querySelector(`input[name="dk${gi}"]:checked`) || {}).value, keep = g.people.find(u => u.id === keepId); if (!keep) return;
+    const drop = g.people.filter(u => u.id !== keepId);
+    const logins = drop.filter(u => u.login && u.login !== keep.login);
+    if (!confirm(`Merge ${drop.map(u => u.name).join(', ')} into ${keep.name}?\n\nTheir devices and entry sheets go to ${keep.name}; their names and logins stay as other names, so the syncs find the person again.${logins.length && keep.login ? `\n${logins.map(u => u.login).join(', ')} can no longer sign in: ${keep.name} signs in as ${keep.login}.` : ''}\nA backup is taken first.`)) return;
+    b.disabled = true;
+    await flushSave();
+    let moved = 0;
+    try {
+      for (const u of drop) {
+        const r = await fetch('api/users/merge', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep: keep.id, drop: u.id }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'The merge did not work.');
+        moved += j.moved || 0;
+      }
+      toast(`Merged into ${keep.name}${moved ? `: ${moved} device${moved === 1 ? '' : 's'} moved` : ''}`);
+    } catch (e) { toast(e.message); }
+    await reloadFromServer({ discard: true }); renderSetUsers();
+  });
+}
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
@@ -40,7 +85,23 @@ export function renderSetUsers(){
   const PROFILE = [['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['phone', 'Phone'], ['mobile', 'Mobile'], ['mail', 'E-mail']];
   const profileTip = u => u.profile ? PROFILE.filter(([k]) => u.profile[k]).map(([k, l]) => `\n${l}: ${u.profile[k]}`).join('') : '';
   const profileLine = u => u.profile && (u.profile.title || u.profile.office) ? `<div class="usub">${esc([u.profile.title, u.profile.office].filter(Boolean).join(' · '))}</div>` : '';
-  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => !st.userDir || DIRS[st.userDir][1](u)).map(([u, i]) => `<tr>
+  /* Search and filters: by name, login, department, e-mail or UPN (and the other names a merge kept); by source,
+     status, role, and whether they have devices. */
+  const q = String(st.userQ || '').trim().toLowerCase();
+  const srcOf = u => ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
+  const shown = u => (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
+    && (!st.userStatus || (st.userStatus === 'active') === (u.active !== false)) && (!st.userRole || (u.role || 'viewer') === st.userRole)
+    && (!st.userDevs || devicesOfUser(u.name) > 0)
+    && (!q || [u.name, u.login, u.dept, u.profile && u.profile.mail, u.entra && u.entra.upn, ...(u.aliases || [])].some(v => v && String(v).toLowerCase().includes(q)));
+  const nShown = USERS.filter(shown).length, filtering = !!(q || st.userDir || st.userSrc || st.userStatus || st.userRole || st.userDevs);
+  const sel = (id, label, cur, opts) => `<select id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
+    ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
+    ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
+    ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
+    <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
+    <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? '<button type="button" class="link" id="uClear">Clear</button>' : ''}</div>`;
+  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => `<tr>
       ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${esc(profileTip(u))}">${esc(u.name)}${profileLine(u)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
@@ -53,11 +114,19 @@ export function renderSetUsers(){
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <p class="note">Role: Admin can change everything, Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
     ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
+    ${dupesHtml(devicesOfUser)}${filterBar}
+    ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
+  /* The search redraws as one types; the field keeps the focus and the caret. */
+  const uq = $('#uQ'); if (uq) uq.oninput = () => { st.userQ = uq.value; const at = uq.selectionStart; renderSetUsers(); const n = $('#uQ'); if (n){ n.focus(); n.setSelectionRange(at, at); } };
+  [['uSrc', 'userSrc'], ['uStatus', 'userStatus'], ['uRole', 'userRole']].forEach(([id, k]) => { const e = $('#' + id); if (e) e.onchange = () => { st[k] = e.value; renderSetUsers(); }; });
+  const uv = $('#uDevs'); if (uv) uv.onchange = () => { st.userDevs = uv.checked; renderSetUsers(); };
+  root.querySelectorAll('#uClear, [data-uclear]').forEach(b => b.onclick = () => { st.userQ = st.userDir = st.userSrc = st.userStatus = st.userRole = ''; st.userDevs = false; renderSetUsers(); });
+  wireDupes();
   root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].id));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
