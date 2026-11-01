@@ -140,7 +140,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.filter(o => o.name === 'PC-7').length === 1);
   await p.click('#cards .card[data-open="r7"] .cardtick');
   await p.click('#rvAccept'); await p.click('#cfMerge');
-  await stored(st => { const r = st.objs.find(o => o.id === 'r7'); return r.review.merged === 'p7' && (st.objs.find(o => o.id === 'p7').nics || []).some(n => n.ip === '10.1.4.7'); });
+  await stored(st => { const r = st.objs.find(o => o.id === 'r7'); return r?.review?.merged === 'p7' && (st.objs.find(o => o.id === 'p7').nics || []).some(n => n.ip === '10.1.4.7'); });
   assert.equal(await p.locator('#cards .card').count(), 1, 'PC-8 still waits');
 
   assert.deepEqual(errors, []);
