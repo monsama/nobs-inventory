@@ -128,3 +128,34 @@ test('a source after Lansweeper keeps the value it set up to date', () => {
   assert.equal(maySet({ policy: { ram: true } }, o, 'ram', 'graph'), true);
   assert.equal(maySet({ policy: { ram: true } }, { ...o, src: { ram: 'ls' } }, 'ram', 'graph'), false, 'not a value Lansweeper set');
 });
+
+test('modes: Updates replaces what sources after it wrote; Only if empty never replaces a value; by hand always stays', async () => {
+  const { fieldMode, fieldModeProblem } = await import('../public/js/sync-map.js');
+  const s = { fieldOrder: { os: ['graph', 'ad'] } };
+  const o = { os: 'Windows 10', src: { os: 'ad' } };
+  assert.equal(fieldMode(s, 'os', 'graph'), 'update', 'Updates by default, as before');
+  assert.equal(maySet(s, o, 'os', 'graph'), true, 'Intune before AD replaces what AD wrote');
+  s.fieldMode = { os: { graph: 'fill' } };
+  assert.equal(maySet(s, o, 'os', 'graph'), false, 'only if empty: the value stays');
+  assert.equal(maySet(s, { os: '' }, 'os', 'graph'), true, 'an empty field is filled');
+  assert.equal(maySet({ fieldOrder: { os: ['graph'] } }, { os: 'x', src: { os: 'hand' } }, 'os', 'graph'), false, 'by hand stays');
+  assert.equal(fieldModeProblem({ os: { graph: 'fill', ad: 'update' } }), '');
+  assert.match(fieldModeProblem({ os: { ls2: 'fill' } }), /Updates or Only if empty/);
+  assert.match(fieldModeProblem({ nosuch: {} }), /not a field/);
+});
+
+test('a sync notes what it changed and filled, per field, with the devices', async () => {
+  const { historyLens, noteChanges } = await import('../server/sync-changes.js');
+  const s = { history: { a: [{ t: 'x', msg: 'old' }] } };
+  const lens = historyLens(s);
+  s.history.a.unshift({ t: 'y', msg: 'Intune: Model changed from A to B' });
+  s.history.b = [{ t: 'y', msg: 'Intune: Model filled in: C' }, { t: 'y', msg: 'Lansweeper: IP address changed from 1 to 2' }];
+  noteChanges(s, 'graph', lens, new Date('2026-11-02T10:00:00Z'));
+  assert.deepEqual(s.syncChanges.graph.changed, { Model: 1 }); assert.deepEqual(s.syncChanges.graph.filled, { Model: 1 });
+  assert.deepEqual(s.syncChanges.graph.ids.sort(), ['a', 'b']); assert.equal(s.syncChanges.graph.n, 2);
+  // the next batch of the same run adds up
+  const lens2 = historyLens(s);
+  s.history.c = [{ t: 'z', msg: 'Intune: OS filled in: W11' }];
+  noteChanges(s, 'graph', lens2, new Date('2026-11-02T10:03:00Z'));
+  assert.equal(s.syncChanges.graph.n, 3); assert.equal(s.syncChanges.graph.filled.OS, 1);
+});

@@ -1,3 +1,4 @@
+import { historyLens, noteChanges } from './sync-changes.js';
 import { AD_FILL } from '../public/js/sync-map.js';
 import { autoBackup } from './backup.js';
 import { HttpError } from './errors.js';
@@ -56,7 +57,9 @@ export async function syncLdapUsers(db, config) {
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;
   else if (computers && computers.length) {
+    const lens = historyLens(s);
     counts.computers = applyComputers(s, computers);
+    noteChanges(s, 'ad', lens);
     /* Devices without a location take their user's office, when Settings → Locations says so. */
     const office = officeLocations(s, stamp(new Date()));
     if (office) { counts.office = office; counts.computers += office; }

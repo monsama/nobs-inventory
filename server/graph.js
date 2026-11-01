@@ -1,5 +1,6 @@
 /* Microsoft Graph as a second source: the join status, Intune enrolment and compliance of each device, and the values
    the inventory does not have yet. It signs in with a certificate, so no password is kept, and it only reads. */
+import { historyLens, noteChanges } from './sync-changes.js';
 import { GRAPH_FILL } from '../public/js/sync-map.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
@@ -535,6 +536,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   s.graphFields = graphFieldReport(records, fallback, now);
+  const lens = historyLens(s);
   const counts = applyGraph(s, records, now);
   const added = intakeFromGraph(s, now);
   if (added.review) counts.review = added.review;
@@ -547,6 +549,7 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (defenderError) counts.defenderError = defenderError;
   if (autopilot) Object.assign(counts, applyAutopilot(s, autopilot, now));
   if (autopilotError) counts.autopilotError = autopilotError;
+  noteChanges(s, 'graph', lens, now);
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);
   return counts;

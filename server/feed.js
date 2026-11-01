@@ -1,3 +1,4 @@
+import { historyLens, noteChanges } from './sync-changes.js';
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
 import { LS_FIELDS, LS_FILL, fieldOrder } from '../public/js/sync-map.js';
@@ -263,6 +264,7 @@ export const feedChanged = counts => ['created', 'updated', 'linked', 'links', '
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
 export function mergeRecords(s, records, now = new Date(), ipLocations = null, { byHand = false } = {}) {
+  const lens = historyLens(s);
   const before = { ipLocations: s.lsIpLocations || [] };
   if (ipLocations) s.lsIpLocations = ipLocations; else ipLocations = s.lsIpLocations || [];
   for (const r of records) if (r.model) r.model = modelFor(s, r.model);
@@ -461,6 +463,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   counts.networks = JSON.stringify([s.lsNets || [], s.lsIpLocations || []]) === netsBefore ? 0 : 1;
   counts.links = applyLinks(s, pairs, counts, seen);
   counts.software = applySoftware(s, pairs);
+  noteChanges(s, 'ls', lens, now);
   return counts;
 }
 

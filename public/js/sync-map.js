@@ -45,6 +45,23 @@ export function fieldOrder(s, k) {
    one that does ('hand': none). Else a source in the field's order sets it while it is empty, keeps its own value up to
    date, and replaces the value of a source after it in the order, or of one taken out of the order set for it. A value with no source
    noted (typed before the notes) only Lansweeper replaces, as the first source; a value set by hand none. */
+/* How a source writes a field (Settings → Data sources), as s.fieldMode[k][src]: 'update' keeps the field in step with
+   the source and replaces what sources after it wrote (the default, as before modes); 'fill' writes it only while it is
+   empty and never replaces a value. */
+export const MODES = { update: 'Updates', fill: 'Only if empty' };
+export function fieldMode(s, k, src) {
+  const m = s && s.fieldMode && s.fieldMode[k] && s.fieldMode[k][src];
+  return m === 'fill' || m === 'update' ? m : 'update';
+}
+export function fieldModeProblem(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v !== 'object' || Array.isArray(v)) return 'How the sources write the fields is a list per field.';
+  for (const [k, m] of Object.entries(v)) {
+    if (!ORDER_FIELDS.includes(k) || !m || typeof m !== 'object' || Array.isArray(m)) return `${k} is not a field the sources set.`;
+    if (Object.entries(m).some(([src, x]) => !SOURCES_OF(k).includes(src) || !(x in MODES))) return `How the sources write ${SYNC_FIELD_LABEL[k]} is Updates or Only if empty.`;
+  }
+  return '';
+}
 export function maySet(s, o, k, src) {
   const pick = o.pick && o.pick[k];
   if (pick) return pick === src;
@@ -52,6 +69,8 @@ export function maySet(s, o, k, src) {
   if (i < 0) return false;
   if (o[k] === undefined || o[k] === null || o[k] === '') return true;
   const had = o.src && o.src[k];
+  /* Only if empty: a value already there stays, whoever wrote it (its own earlier value too). */
+  if (fieldMode(s, k, src) === 'fill') return false;
   /* On a device linked to Lansweeper, a field it comes before src for is left to it once it has a value: its next push
      decides. A value src set itself, while Lansweeper reports none for the field, src keeps up to date. */
   const lsHas = !!(o.vals && o.vals[k] && o.vals[k].ls);
@@ -114,7 +133,7 @@ export const SOURCE_EXTRAS = {
 export const PEOPLE_SOURCES = [
   ['Active Directory', 'People with their login, name and department, and their card: title, phones, office, manager and e-mail'],
   ['Entra', 'People and their departments, as a reference beside AD (Settings → Entra & Intune)'],
-  ['Lansweeper', 'The departments of the people it sees as users, unless "Feed may overwrite" turns that off'],
+  ['Lansweeper', 'The departments of the people it sees as users, unless "What Lansweeper writes" turns that off'],
   ['Contacts', 'People from AD or Entra are added as internal contacts only when picked (Contacts → From directory…), with their title, department, e-mail, phones and office'],
 ];
 

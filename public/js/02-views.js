@@ -9,6 +9,7 @@ import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-re
 import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
+import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { labelsModal } from './24-labels.js';
 import { USERS, bindUser, canEdit, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
@@ -132,7 +133,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = null; st.scanOld = st.twins = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -161,6 +162,7 @@ export function renderFilterBar(){
     st.adGroup && ['adGroup', 'AD group', st.adGroup],
     st.quality && QUALITY[st.quality] && ['quality', 'Data quality', QUALITY[st.quality][0]],
     st.ids && ['ids', 'List', st.ids.label],
+    st.handField && ['handField', 'Set by hand', SYNC_FIELD_LABEL[st.handField] || st.handField],
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   const pool = list && st.scope ? scopePool().length : 0;
@@ -170,13 +172,22 @@ export function renderFilterBar(){
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
     <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && canEdit() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() && mine.some(o => o.status !== 'stock') ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+  /* Values set by hand in one field: given back to the sources, which write them again at their next sync. */
+  const hf = list && st.handField && canEdit() ? `<div class="fb-person fb-qfix"><b>Set by hand: ${esc(SYNC_FIELD_LABEL[st.handField] || st.handField)}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && QFIX && QUALITY_FIX[st.quality] && QUALITY[st.quality];
   const qbar = !qf ? '' : `<div class="fb-person fb-qfix"><b>${esc(QUALITY[st.quality][0])}</b><span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && canEdit() ? `<button type="button" data-qfix="1" id="qfixSel">Select all ${QFIX.n}</button>` : ''}</div>`;
-  bar.hidden = !chips.length && !scope && !who && !qbar;
-  bar.innerHTML = who + qbar + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
+  bar.hidden = !chips.length && !scope && !who && !qbar && !hf;
+  bar.innerHTML = who + qbar + hf + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
 }
 $('#fbar').addEventListener('click', e => {
   if (e.target.closest('[data-qfix]')){ if (QFIX) QFIX.select(); return; }
+  if (e.target.closest('[data-handback]') && st.handField){
+    const k = st.handField, list = filtered(), snap = snapshot(list);
+    for (const o of list){ if (o.pick && o.pick[k] === 'hand') delete o.pick[k]; if (o.src && o.src[k] === 'hand') delete o.src[k]; hist(o, now(), `${SYNC_FIELD_LABEL[k] || k}: given back to the sources`); }
+    st.handField = null;
+    toastUndo(`${list.length} ${list.length === 1 ? 'device' : 'devices'}: ${SYNC_FIELD_LABEL[k] || k} given back to the sources`, () => { restoreSnapshot(snap, 'Give back undone'); render(); });
+    render(); return;
+  }
   const pa = e.target.closest('[data-pact]');
   if (pa){
     const person = USERS.find(u => u.id === st.person); if (!person) return;

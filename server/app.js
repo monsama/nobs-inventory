@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { inScope, scopeKey, scopeOf, scopeState } from './scope.js';
+import { scopeKey, scopeOf, scopeState } from './scope.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
