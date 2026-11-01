@@ -7,7 +7,7 @@ import { audit } from './db.js';
 import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
-import { applyGroupRole } from '../public/js/group-roles.js';
+import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
 
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
@@ -56,7 +56,9 @@ export async function syncLdapUsers(db, config) {
      sign-in named, give a role and sites; one a rule gave goes when no rule matches any more. */
   for (const p of people) {
     const u = s.users.find(x => x.source === 'ldap' && x.login && x.login.toLowerCase() === p.login.toLowerCase());
-    if (u && !p.admin && applyGroupRole(u, s.groupRoles, [...(p.groups || []), ...(u.entraGroups || [])])) counts.updated++;
+    if (!u) continue;
+    if (JSON.stringify(u.groupDns || []) !== JSON.stringify(p.groupDns || [])) { if ((p.groupDns || []).length) u.groupDns = p.groupDns; else delete u.groupDns; }
+    if (!p.admin && applyGroupRole(u, s.groupRoles, groupsOf(u, p.groups, p.groupDns))) counts.updated++;
   }
   for (const u of s.users) {
     if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); delete u.leftBy; counts.deactivated++; }

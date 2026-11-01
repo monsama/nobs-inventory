@@ -7,7 +7,7 @@ import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
-import { applyGroupRole } from '../public/js/group-roles.js';
+import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
@@ -18,7 +18,7 @@ import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, stateSeq, changesSince, settingOf, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, settingOf, ADMIN_SETTINGS, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -143,7 +143,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     if (req.path === '/feed/push' && throttle.blocked(pushKeys)) return res.set('Connection', 'close').status(429).json({ error: 'Too many wrong feed tokens. Try again in 15 minutes.' });
     const ok = req.path === '/feed/push'
       ? feedTokenValid(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1], feedToken)
-      : currentUser(req)?.role === 'admin';
+      /* An editor sends photos of their sites' devices (up to 6 MB, server/device-images.js); nothing else this large. */
+      : currentUser(req)?.role === 'admin' || (currentUser(req)?.role === 'editor' && /^\/(objects\/[^/]+\/images|images\/[^/]+\/replace)$/.test(req.path));
     if (!ok && req.path === '/feed/push') throttle.recordFailure(pushKeys);
     if (ok) return next();
     res.set('Connection', 'close').status(401).json({ error: 'Sign in as an admin first.' });
@@ -214,11 +215,13 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
       /* Entra groups in the token (when the app registration sends the groups claim): kept, and with the directory's
          groups they give a role and sites (Settings → Users → Roles from groups). */
-      if (Array.isArray(claims.groups)) {
-        const ids = claims.groups.filter(g => typeof g === 'string' && g.length <= 64).slice(0, 500);
+      /* Without the groups claim (not set up, or more groups than a token holds) the Entra groups kept from before go: a
+         role an Entra group gave is not kept on an old list. */
+      {
+        const ids = Array.isArray(claims.groups) ? claims.groups.filter(g => typeof g === 'string' && g.length <= 64).slice(0, 500) : [];
         const before = user.role, changed = JSON.stringify(user.entraGroups || []) !== JSON.stringify(ids);
-        user.entraGroups = ids;
-        if (applyGroupRole(user, settingOf(db, 'groupRoles'), [...(user.groups || []), ...ids]) || changed) {
+        if (ids.length) { user.entraGroups = ids; user.entraGroupsAt = new Date().toISOString(); } else { delete user.entraGroups; delete user.entraGroupsAt; }
+        if (applyGroupRole(user, settingOf(db, 'groupRoles'), groupsOf(user)) || changed) {
           saveUserDoc(user); bumpUser(user.id);
           if (user.role !== before) audit(db, user.id, `role from groups: ${user.role}${user.sites ? ' (' + user.sites.join(', ') + ')' : ''}`);
         }
@@ -312,7 +315,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
           Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
           if (d.dept) delete user.deptFrom;
-          if (!isAdmin) applyGroupRole(user, settingOf(db, 'groupRoles'), [...(d.groups || []), ...(user.entraGroups || [])]);
+          if (Array.isArray(d.groupDns) && d.groupDns.length) user.groupDns = d.groupDns; else delete user.groupDns;
+          if (!isAdmin) applyGroupRole(user, settingOf(db, 'groupRoles'), groupsOf(user, d.groups, d.groupDns));
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
             if (wasLansweeper) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(user.id);   /* the directory checks the password now */
@@ -394,7 +398,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
   const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
-  const redactUser = ({ login, groups, entraGroups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  const redactUser = ({ login, groups, groupDns, entraGroups, entraGroupsAt, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
   app.get('/api/state', requireUser, (req, res, next) => {
     /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
        with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a
@@ -408,7 +412,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         /* Someone limited to sites: what changed, as they see it (scope.js). A device that moved out of their sites is
            named as deleted, with its connections and history; one that moved in comes with them. A change to their own
            account (their sites) gets everything again. */
-        if (rows && sc && rows.some(r => r.kind === 'user' && r.id === String(req.user.id))) rows = null;
+        if (rows && rows.some(r => r.kind === 'user' && r.id === String(req.user.id))) rows = null;
         if (rows) {
           res.set('Cache-Control', 'no-store');
           const puts = [], dels = [], revs = {}, seen = new Set();
@@ -422,7 +426,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
             if (data === null) dels.push([kind, id]); else puts.push([kind, id, admin ? data : kind === 'object' ? redactObj(data) : kind === 'user' ? redactUser(data) : data]);
           };
           for (const r of rows) {
-            if (!admin && r.kind === 'setting' && CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') continue;
+            if (!admin && r.kind === 'setting' && ((CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') || ADMIN_SETTINGS.includes(r.id))) continue;
             if (!sc) { send(r.kind, r.id, r.data); continue; }
             if (r.kind === 'object') {
               if (r.data && inScope(r.data, sc)) {
@@ -437,8 +441,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
               send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
             } else if (r.kind === 'history') {
               if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
-            } else if (r.kind === 'setting' && r.id === 'stocktakes' && Array.isArray(r.data)) {
-              send('setting', r.id, scopeState({ stocktakes: r.data }, sc).stocktakes);
+            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges'].includes(r.id) && r.data) {
+              /* Only what is about the devices they see: the device list is read for it. */
+              const seen = scopeState({ objs: db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(x => JSON.parse(x.data)), [r.id]: r.data }, sc);
+              send('setting', r.id, seen[r.id]);
             } else send(r.kind, r.id, r.data);
           }
           return res.json({ delta: true, cseq, puts, dels, revs });
@@ -454,6 +460,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const s = scopeState(loadState(db), sc); delete s.empty;
     if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
+      for (const k of ADMIN_SETTINGS) delete s[k];
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
       s.objs = s.objs.map(redactObj);
       s.users = s.users.map(redactUser);
@@ -512,8 +519,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
         if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
           if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
-            const ids = new Set(c.value.map(x => x && x.id));
-            c.value = [...c.value, ...(cur.stocktakes || []).filter(x => !ids.has(x.id) && !(x.scope && sc.sites.includes(siteOf({ loc: x.scope }))))]
+            /* Another site's stocktake stays as stored, also when one sent claims its id. */
+            const theirs = (cur.stocktakes || []).filter(x => !(x.scope && sc.sites.includes(siteOf({ loc: x.scope })))), taken = new Set(theirs.map(x => x.id));
+            c.value = [...c.value.filter(x => x && !taken.has(x.id)), ...theirs]
               .sort((a, b) => String(b.started || '').localeCompare(String(a.started || '')));
           }
         }

@@ -39,7 +39,11 @@ test('since: only what changed, deletes named, and the page copy patched to what
     await srv.call('POST', '/api/users/v1/password', { cookie: a.cookie, body: { password: 'viewerpass123' } });
     await srv.call('POST', '/api/users/v2/password', { cookie: a.cookie, body: { password: 'viewerpass123' } });
     const v = await signIn(srv, 'vera', 'viewerpass123');
-    d = (await srv.call('GET', `/api/state?since=${now.cseq}`, { cookie: v.cookie })).json;
+    // their own account changed since: everything again (their role or sites may be others now)
+    assert.ok(!(await srv.call('GET', `/api/state?since=${now.cseq}`, { cookie: v.cookie })).json.delta);
+    const vNow = (await srv.call('GET', '/api/state', { cookie: v.cookie })).json;
+    const s3b = loadState(srv.db); s3b.users.find(u => u.id === 'v2').name = 'Sam Site-Viewer'; saveState(srv.db, s3b);
+    d = (await srv.call('GET', `/api/state?since=${vNow.cseq}`, { cookie: v.cookie })).json;
     assert.ok(d.delta); assert.ok(d.puts.some(p => p[0] === 'user'));
     assert.ok(!JSON.stringify(d).includes('"login"'), 'no logins');
     const site = await signIn(srv, 'sam', 'viewerpass123');

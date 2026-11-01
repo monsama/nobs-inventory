@@ -18,6 +18,17 @@ export function scopeState(s, sc) {
   s.history = Object.fromEntries(Object.entries(s.history || {}).filter(([k]) => ids.has(k)));
   s.stocktakes = sc.own ? [] : (s.stocktakes || []).filter(t => !t.scope || sc.sites.includes(String(t.scope).split(' / ')[0]));
   if (sc.own) { s.contracts = []; s.licences = []; s.users = (s.users || []).filter(u => u.id === sc.own || u.role === 'admin'); }
+  /* The devices a sync found twice, and what each sync changed: only about the devices they see (names and serial
+     numbers of other sites' devices are in them). */
+  if (Array.isArray(s.graphAmbiguous)) s.graphAmbiguous = sc.own ? [] : s.graphAmbiguous.filter(a => (a.devices || []).length && a.devices.every(id => ids.has(id)));
+  if (s.syncChanges && typeof s.syncChanges === 'object') {
+    const keep = run => ({ ...run, ids: (run.ids || []).filter(id => ids.has(id)) });
+    s.syncChanges = sc.own ? {} : Object.fromEntries(Object.entries(s.syncChanges).map(([k, c]) => {
+      const run = keep(c); run.n = run.ids.length;
+      if (Array.isArray(c.earlier)) run.earlier = c.earlier.map(keep).map(e => ({ ...e, n: e.ids.length }));
+      return [k, run];
+    }));
+  }
   return s;
 }
 
@@ -51,7 +62,7 @@ export function editorProblem(body, s, sc) {
         const key = t => JSON.stringify(t), before = new Map((s.stocktakes || []).map(t => [t.id, t])), after = Array.isArray(c.value) ? c.value : [];
         const mine = t => !sc || (t && t.scope && site(t.scope));
         const changed = [...after.filter(t => !before.has(t.id) || key(before.get(t.id)) !== key(t)), ...[...before.values()].filter(t => !after.some(x => x.id === t.id))];
-        if (changed.some(t => !mine(t))) return 'Only stocktakes of your sites can be started or changed.';
+        if (changed.some(t => !mine(t) || (before.has(t.id) && !mine(before.get(t.id))))) return 'Only stocktakes of your sites can be started or changed.';
       }
     } else return c.kind === 'user' ? 'Only an admin can add or change people.' : c.kind === 'type' ? 'Only an admin can change object types.' : 'Only an admin can change the settings.';
   }

@@ -90,6 +90,9 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
 /* The connections to other systems, as the app keeps them: the directory and Microsoft Graph settings, Graph's
    certificates with their sealed private keys, the Lansweeper API settings and push token. What the server's
    environment sets (NI_LDAP_*, NI_GRAPH_*, the service passwords) is outside the app and stays. */
+/* Settings only an admin's page gets: who the weekly e-mail goes to, the backups and their copy, the restore test, the
+   roles from groups. Nobody else's page uses them. */
+export const ADMIN_SETTINGS = ['digest', 'digestRun', 'backupExport', 'backupExportRun', 'restoreTest', 'autoBackups', 'backupKeep', 'groupRoles'];
 export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'lansweeper'];
 export function clearConnections(db) {
   db.exec('BEGIN');
@@ -289,6 +292,8 @@ function checkStateRules(s, size = true) {
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
     if (u.own !== undefined && typeof u.own !== 'boolean') bad('Own devices only is yes or no.');
     if (u.roleBy !== undefined && (typeof u.roleBy !== 'string' || u.roleBy.length > 300)) bad('The group a role came from is a name.');
+    if (u.entraGroupsAt !== undefined && (typeof u.entraGroupsAt !== 'string' || !Date.parse(u.entraGroupsAt))) bad('When the Entra groups were read is a date.');
+    if (u.groupDns !== undefined && (!Array.isArray(u.groupDns) || u.groupDns.length > 500 || u.groupDns.some(g => typeof g !== 'string' || g.length > 1000))) bad('The directory groups of a person are a list of names.');
     if (u.entraGroups !== undefined && (!Array.isArray(u.entraGroups) || u.entraGroups.length > 500 || u.entraGroups.some(g => typeof g !== 'string' || g.length > 64))) bad('The Entra groups of a person are a list of IDs.');
     if (u.sites !== undefined && (!Array.isArray(u.sites) || u.sites.length > 50 || u.sites.some(x => typeof x !== 'string' || x.length > 120))) bad('The sites a person may see are a list of site names.');
     if (u.aliases !== undefined && (!Array.isArray(u.aliases) || u.aliases.length > 20 || u.aliases.some(a => typeof a !== 'string' || a.length > 120))) bad('Other names of a person are a short list of text.');
