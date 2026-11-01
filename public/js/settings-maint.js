@@ -63,7 +63,35 @@ export let BACKUPS = null;
 let BACKUP_STORAGE = null;
 export async function loadBackups(){
   const r = await fetch('api/backups', {credentials: 'same-origin'});
+  const x = await fetch('api/backup-export', {credentials: 'same-origin'}).catch(() => null);
+  EXPORT = x && x.ok ? await x.json() : null;
   if (r.ok){ const j = await r.json(); BACKUPS = j.backups; BACKUP_STORAGE = j.storage ?? null; if ($('#setMaint')) renderSetMaint(); }
+}
+/* The copy outside the server (server/backup-export.js), as the server says: set up, on, password set, last copy. */
+let EXPORT = null;
+function exportHtml(edit){
+  const x = EXPORT; if (!x) return '';
+  if (!x.dir) return `<div class="bk-export"><b>Copy outside the server</b> <span class="chip kept">Not set up</span><p class="note">Optional. To keep a nightly encrypted copy on another machine, mount a share on the server and set <span class="mono">NI_BACKUP_EXPORT_DIR</span> (see the README). It can then be turned on here.</p></div>`;
+  const l = x.last;
+  const lastText = !l ? 'No copy yet.' : l.ok ? `Last copy ${esc(pushDate(l.at))}: <span class="mono">${esc(l.file)}</span>, ${(l.bytes / 1048576).toFixed(1)} MB.` : `<span class="warn">The last copy failed ${esc(pushDate(l.at))}: ${esc(l.error || '')}</span>`;
+  return `<div class="bk-export"><b>Copy outside the server</b> ${x.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}
+    <p class="note">Each night at 02:30 the inventory is written as one encrypted file to the folder the server names. Restore it here with Restore from file…, or on any computer with <span class="mono">scripts/decrypt-backup.mjs</span>. Keep the password apart from the server: without it a copy cannot be read.</p>
+    <div class="bk-exrow"><label class="pchk" style="width:auto"><input type="checkbox" id="bxOn" ${x.on ? 'checked' : ''} ${edit && x.passwordSet ? '' : 'disabled'}> Copy each night</label>
+      <label for="bxKeep" class="note">Keep the last</label><input id="bxKeep" type="number" min="1" max="365" value="${x.keep}" style="width:70px" ${edit ? '' : 'disabled'}><span class="note">copies</span></div>
+    <div class="bk-exrow"><label for="bxPw" class="note">Password</label><input id="bxPw" type="password" autocomplete="new-password" placeholder="${x.passwordSet ? 'Set ' + esc(pushDate(x.passwordSet)) + ': type to replace' : `At least ${x.passwordMin} characters`}" ${edit ? '' : 'disabled'} style="flex:1;min-width:160px"><button id="bxPwSave" ${edit ? '' : 'disabled'}>Save password</button></div>
+    <div class="bk-exrow"><span class="note" style="flex:1" id="bxLast">${lastText}</span><button id="bxRun" ${edit && x.passwordSet ? '' : 'disabled'}>Copy now</button></div></div>`;
+}
+function wireExport(){
+  const call = async (method, url, body) => {
+    const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'That did not work.');
+    EXPORT = j; renderSetMaint(); return j;
+  };
+  const on = $('#bxOn'); if (on) on.onchange = () => call('PUT', 'api/backup-export', { on: on.checked }).then(() => toast(on.checked ? 'A copy is made each night' : 'No more copies outside the server'), e => toast(e.message));
+  const keep = $('#bxKeep'); if (keep) keep.onchange = () => call('PUT', 'api/backup-export', { keep: Number(keep.value) }).then(j => toast(`Keeping the last ${j.keep} copies`), e => toast(e.message));
+  const ps = $('#bxPwSave'); if (ps) ps.onclick = () => { const pw = $('#bxPw').value; call('POST', 'api/backup-export/password', { password: pw }).then(() => toast('Password saved: keep it apart from the server'), e => toast(e.message)); };
+  const run = $('#bxRun'); if (run) run.onclick = async () => { run.disabled = true; $('#bxLast').textContent = 'Copying…'; try { await call('POST', 'api/backup-export/run'); toast('Copied outside the server'); loadBackups(); } catch (e) { toast(e.message); loadBackups(); } };
 }
 export function backupPanel(edit){
   const list = BACKUPS || [];
@@ -74,7 +102,8 @@ export function backupPanel(edit){
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}${BACKUP_STORAGE != null ? `, ${(BACKUP_STORAGE / 1048576).toFixed(1)} MB on disk for all of them` : ''}. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n" title="In the inventory, without those waiting in To review">Objects</th><th class="n hide-n" title="The size of the backup downloaded as a file">File size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
-    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
+    ${edit ? exportHtml(edit) : ''}
+    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
 }
 export function wireBackups(edit){
   const msg = t => toast(t);
@@ -94,24 +123,32 @@ export function wireBackups(edit){
   const file = $('#bkFile');
   if ($('#bkAuto')) $('#bkAuto').onchange = () => { st.autoBackups = $('#bkAuto').checked; queueServerSave(); toast(st.autoBackups ? 'Automatic backups are on' : 'Automatic backups are off'); renderSetMaint(); };
   if ($('#bkKeep')) $('#bkKeep').onchange = () => { const v = Math.max(1, Math.min(100, Math.floor(+$('#bkKeep').value) || 10)); st.backupKeep = v; queueServerSave(); toast('Keeping the last ' + v + ' backups'); renderSetMaint(); };
+  wireExport();
   if (file) file.onchange = async () => {
     const f = file.files[0]; if (!f) return;
-    const text = await f.text();
-    restoreModal(f.name, () => fetch('api/backups/restore-file', {method: 'POST', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: text}));
+    /* An encrypted copy (from outside the server) goes as it is, with its password; a downloaded backup as text. */
+    const head = new Uint8Array(await f.slice(0, 8).arrayBuffer());
+    if (String.fromCharCode(...head) === 'NOBSENC1'){
+      const bytes = await f.arrayBuffer();
+      restoreModal(f.name, pw => fetch('api/backups/restore-encrypted', {method: 'POST', headers: {'Content-Type': 'application/octet-stream', ...(pw ? {'X-Backup-Password': pw} : {})}, credentials: 'same-origin', body: bytes}), { encrypted: true });
+    } else {
+      const text = await f.text();
+      restoreModal(f.name, () => fetch('api/backups/restore-file', {method: 'POST', headers: {'Content-Type': 'text/plain'}, credentials: 'same-origin', body: text}));
+    }
     file.value = '';
   };
 }
 /* A restore replaces the inventory, so it asks for the word RESTORE. */
-export function restoreModal(label, run){
+export function restoreModal(label, run, { encrypted = false } = {}){
   modal(`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${esc(label)}. The current state is backed up first, so the restore can be undone from the list.</p>
-    <div class="form" style="padding:0"><label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
+    <div class="form" style="padding:0">${encrypted ? `<label for="rsPw">Password of the copy</label><input id="rsPw" type="password" autocomplete="off" placeholder="${EXPORT && EXPORT.passwordSet ? 'Empty: the one set on this server' : 'The password it was made with'}">` : ''}<label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
     <div class="mf"><button id="rsCancel">Cancel</button><button id="rsOk" class="danger-text" disabled>Restore</button></div>`, 'sm');
   $('#rsCancel').onclick = closeModal;
   $('#rsWord').oninput = () => { $('#rsOk').disabled = $('#rsWord').value !== 'RESTORE'; };
   $('#rsOk').onclick = async () => {
     /* Changes not saved yet are saved first, so the backup taken before the restore has them. */
     await flushSave();
-    const r = await run();
+    const r = await run(encrypted ? $('#rsPw').value : undefined);
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ toast(j.error || 'The backup could not be restored.'); return; }
     closeModal(); toast('Restored'); await reloadFromServer({ discard: true }); loadBackups();

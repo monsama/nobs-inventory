@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
@@ -866,7 +867,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), ...(diskSpace ? { diskSpace } : {}) }));
+      res.set('Cache-Control', 'no-store').json(healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, ...(diskSpace ? { diskSpace } : {}) }));
     } catch (e) { next(e); }
   });
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */
@@ -915,6 +916,47 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       takeBackup(db, 'before a restore from file');
       restoreBackup(db, data, SHEET_KEY);
       audit(db, req.user.id, 'restored a backup from a file');
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+  /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
+  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN });
+  app.get('/api/backup-export', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(exportInfo()));
+  app.put('/api/backup-export', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const b = req.body || {};
+      if (b.on && !exportDir()) throw new HttpError(400, 'No folder is set on the server: set NI_BACKUP_EXPORT_DIR first.');
+      const before = exportSettings(db);
+      saveExportSettings(db, { ...before, ...('on' in b ? { on: !!b.on } : {}), ...('keep' in b ? { keep: b.keep } : {}) });
+      const after = exportSettings(db);
+      audit(db, req.user.id, `copy of the backups outside the server: ${after.on ? 'on' : 'off'}, keep ${after.keep}`);
+      res.json(exportInfo());
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backup-export/password', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const pw = req.body && typeof req.body.password === 'string' ? req.body.password : '';
+      if (pw.length < PASSWORD_MIN) throw new HttpError(400, `The password needs at least ${PASSWORD_MIN} characters.`);
+      if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
+      setAppSecret(db, SECRET_KEY, 'backupExportPassword', pw);
+      audit(db, req.user.id, 'password of the backup copies set');
+      res.json(exportInfo());
+    } catch (e) { next(e); }
+  });
+  app.post('/api/backup-export/run', requireUser, requireAdmin, async (req, res, next) => {
+    try { const r = await runExport(db, SECRET_KEY); audit(db, req.user.id, `backup copied outside the server: ${r.file}`); res.json(exportInfo()); }
+    catch (e) { audit(db, req.user.id, 'copy of the backups outside the server failed: ' + (lastExport(db) || {}).error); next(new HttpError(400, (lastExport(db) || {}).error || e.message)); }
+  });
+  /* An encrypted copy restored: its password typed in, or the one set here. */
+  app.post('/api/backups/restore-encrypted', requireUser, requireAdmin, express.raw({ type: 'application/octet-stream', limit: '200mb', inflate: false }), (req, res, next) => {
+    try {
+      const pw = String(req.get('x-backup-password') || '') || getAppSecret(db, SECRET_KEY, 'backupExportPassword');
+      if (!isEncryptedBackup(req.body)) throw new HttpError(400, 'This is not an encrypted backup of NOBS Inventory.');
+      let data;
+      try { data = JSON.parse(decryptBackup(req.body, pw)); } catch (e) { throw new HttpError(400, e.message); }
+      takeBackup(db, 'before a restore from file');
+      restoreBackup(db, data, SHEET_KEY);
+      audit(db, req.user.id, 'restored an encrypted backup from a file');
       res.json({ ok: true });
     } catch (e) { next(e); }
   });

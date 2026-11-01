@@ -21,7 +21,7 @@ const ERROR = /fail|refus|error|throttl|denied|wrong|could not|not set|not allow
 /* diskSpace(dir) → { free, total } in bytes: the file system's own numbers, or given (tests, so they do not depend on
    the disk of the machine they run on). */
 export const statDisk = dir => { const f = fs.statfsSync(dir); return { free: f.bavail * f.bsize, total: f.blocks * f.bsize }; };
-export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
+export function healthReport(db, s, { version, on = {}, graphCert = null, photos = null, copy = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
   const checks = [];
   const add = (area, name, state, value, note = '') => checks.push({ area, name, state, value, note });
 
@@ -49,6 +49,13 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
   add('Backups', 'Last backup', !last ? 'warn' : old > 14 ? 'bad' : old > 7 ? 'warn' : 'ok',
     last ? `${ago(last.at, now)} (${last.reason}) · ${n.n} kept, ${mb(n.bytes)}` : 'None yet',
     !last || old > 7 ? 'Take one in Backups below, and download it to keep a copy off this server.' : '');
+  /* The copy outside the server (optional): off unless the server names a folder and it is turned on. */
+  if (copy && copy.dir && copy.on) {
+    const c = copy.last, age = c ? (now - Date.parse(c.at)) / DAY : Infinity, lastOk = c && c.ok;
+    add('Backups', 'Copy outside the server', !c ? 'warn' : !lastOk ? 'bad' : age > 3 ? 'bad' : age > 1.5 ? 'warn' : 'ok',
+      !c ? 'None yet' : lastOk ? `${ago(c.at, now)} · ${c.file} · ${mb(c.bytes || 0)}` : `Failed ${ago(c.at, now)}: ${c.error || 'unknown'}`,
+      !c ? 'The first copy is made tonight at 02:30, or with Copy now in Backups below.' : !lastOk || age > 1.5 ? 'Check the folder on the server (NI_BACKUP_EXPORT_DIR) and the password, then use Copy now.' : '');
+  } else add('Backups', 'Copy outside the server', 'off', copy && copy.dir ? 'Off' : 'Not set up', 'Optional: a nightly encrypted copy to a share, set up with NI_BACKUP_EXPORT_DIR on the server and turned on in Backups below.');
   add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before every sync, push and import, and once a day before the first change',
     s.autoBackups === false ? 'Without them a sync that goes wrong cannot be undone.' : '');
 

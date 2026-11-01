@@ -40,6 +40,8 @@ services:
       NI_LS_AUTH_SCHEME: ${NI_LS_AUTH_SCHEME:-}
       NI_LS_SITE: ${NI_LS_SITE:-}
       NI_FEED_CSV: ${NI_FEED_CSV:-}
+      # Optional: a nightly encrypted copy of the backups in this folder (in the container), e.g. /offsite below.
+      NI_BACKUP_EXPORT_DIR: ${NI_BACKUP_EXPORT_DIR:-}
     secrets:
       - admin_password
       - ldap_service_password
@@ -49,6 +51,8 @@ services:
     volumes:
       - ni-data:/data
       - ./feed:/feed:ro
+      # The folder on the host for the copies outside the server: mount a share there (see the README).
+      - ${NI_BACKUP_EXPORT_HOST:-./offsite}:/offsite
     # The shared proxy (proxy/, its own Compose project) reaches the app as nobs-inventory:8080 on this network.
     networks:
       - default
