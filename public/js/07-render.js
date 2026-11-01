@@ -6,6 +6,7 @@ import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderStocktake } from './22-stocktake.js';
+import { linkedCode } from './25-scan.js';
 import { openObjs, FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
@@ -473,7 +474,6 @@ export async function loadFromServer(user){
   openLinked();
 }
 /* An address with ?o=INV-0001 (the QR code on a device's label, scanned with a phone): that device opens. */
-export const linkedCode = v => { const m = /[?&]o=([^&#\s]+)/.exec(String(v || '')); if (!m) return ''; try { return decodeURIComponent(m[1]); } catch { return ''; } };
 function openLinked(){
   const code = linkedCode(location.search); if (!code) return;
   history.replaceState(history.state, '', location.pathname + location.hash);

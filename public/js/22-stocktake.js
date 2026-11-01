@@ -6,10 +6,10 @@ import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } fro
 import { USERS, canEdit, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
-import { linkedCode, queueServerSave, render } from './07-render.js';
+import { queueServerSave, render } from './07-render.js';
 import { STOCKTAKE_DAYS, confirmedIn, daysSinceVerified, inScope, stocktakeDevices, stocktakeResult } from './stocktake.js';
 import { dateText } from './dates.js';
-import { canScan, codeReader } from './25-scan.js';
+import { canScan, codeReader, linkedCode } from './25-scan.js';
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export const activeStocktake = () => (st.stocktakes || []).find(t => !t.finished) || null;
