@@ -41,7 +41,11 @@ try {
   const row = label => p.locator('.ds-matrix tbody tr', { has: p.locator(`th:text-is("${label}")`) });
   /* What a row says: the sources in their order, with those only shown, and the sentence. */
   const chain = label => row(label).locator('.ds-chain').evaluate(td => td.textContent.replace(/\s*›\s*/g, ' › ').replace(/\s+/g, ' ').trim());
-  const how = label => row(label).locator('.ds-how').textContent();
+  /* The sentence without what it adds while a source is not set up (none is here), checked once on its own. */
+  const bare = t => t.replace(/ [^.]* (is|are) not set up: (it writes|they write) nothing yet\.$/, '');
+  const how = async label => bare(await row(label).locator('.ds-how').textContent());
+  const says = async () => bare(await p.textContent('#dsSays'));
+  assert.equal(await row('IP address').locator('.ds-how').textContent(), 'Lansweeper keeps it up to date at every scan. Lansweeper is not set up: it writes nothing yet.');
   assert.equal(await chain('IP address'), '1Lansweeper');
   assert.equal(await how('IP address'), 'Lansweeper keeps it up to date at every scan.');
   assert.equal(await chain('Disks'), '1Entra & Intune shown only: Lansweeper', 'Intune comes first where Lansweeper only shows its value');
@@ -69,7 +73,7 @@ try {
     await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
     await p.click('[data-dsup=ad]'); await p.click('[data-dsup=ad]'); await p.click('[data-dsup=graph]');
     assert.match(await p.textContent('#dsList'), /1\s*Active Directory[\s\S]*2\s*Entra & Intune[\s\S]*3\s*Lansweeper/);
-    assert.equal(await p.textContent('#dsSays'), 'AD keeps it up to date; Entra & Intune keeps it up to date where AD has no value; Lansweeper keeps it up to date where AD and Entra & Intune have no value.');
+    assert.equal(await says(), 'AD keeps it up to date; Entra & Intune keeps it up to date where AD has no value; Lansweeper keeps it up to date where AD and Entra & Intune have no value.');
     await p.click('#dsSave');
   };
   await reorderOs();
@@ -89,7 +93,7 @@ try {
   // a source not ticked is only shown, and Lansweeper's box on its tab follows
   await row('IP address').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
   await p.uncheck('[data-dsuse=ls]');
-  assert.match(await p.textContent('#dsSays'), /No source writes it: it is kept as typed\. Lansweeper is shown beside the field\./);
+  assert.match(await says(), /No source writes it: it is kept as typed\. Lansweeper is shown beside the field\./);
   await p.click('#dsSave'); await p.waitForSelector('.ds-matrix');
   await stored(st => JSON.stringify((st.fieldOrder || {}).ip) === '[]' && st.policy.ip === false);
   assert.equal(await chain('IP address'), 'Kept as typed shown only: Lansweeper');
@@ -110,7 +114,7 @@ try {
   // Only if empty: AD then fills the field only while it is empty; the row says so, Back to the default clears it
   await row('Operating system').locator('[data-dsedit]').click(); await p.waitForSelector('#dsList');
   await p.selectOption('[data-dsmode=ad]', 'fill');
-  assert.match(await p.textContent('#dsSays'), /AD writes it only while it is empty\.$/);
+  assert.match(await says(), /AD writes it only while it is empty\.$/);
   await p.click('#dsSave');
   if (await p.locator('#dpOk').count()) await p.click('#dpOk');
   await stored(st => ((st.fieldMode || {}).os || {}).ad === 'fill');

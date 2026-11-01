@@ -686,7 +686,7 @@ export function renderObj(o){
     if (rerender) render(); else {
       $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();
       /* A new model is in the list now: its "added when saved" note goes. */
-      document.querySelectorAll('#view input[data-combo]').forEach(comboNote);
+      document.querySelectorAll('#view input[data-combo]:not([data-combo=ip])').forEach(comboNote);
     }
     return true;
   };

@@ -1061,6 +1061,9 @@ details.menu>summary::-webkit-details-marker{display:none}
 input[data-ro-locked]:not([type=checkbox]):not([type=radio]),select[data-ro-locked],textarea[data-ro-locked],.readonly .obj input:disabled:not([type=checkbox]):not([type=radio]),.readonly .obj select:disabled,.readonly .obj textarea:disabled{background:var(--panel);background-image:none;border-color:transparent;color:var(--fg);opacity:1;cursor:default;padding-right:6px}
 .combo>input[data-ro-locked]+.combo-arrow,.datefield:has(input[data-ro-locked]) .df-cal,.readonly .obj .combo>input:disabled+.combo-arrow,.readonly .obj .df-cal:disabled{display:none}
 .combo>input[data-ro-locked]{padding-right:6px}
+/* No hint to type in a field that cannot be changed, and no pencil for "typed by hand" (it reads as Edit). */
+input[data-ro-locked]::placeholder,textarea[data-ro-locked]::placeholder,.readonly .obj input:disabled::placeholder{color:transparent}
+.readonly .obj .fsrc[data-src=hand]{visibility:hidden}
 .ro-banner{margin:0 0 12px;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel);color:var(--muted);font-size:13px}
 .ro-banner b{color:var(--fg)}
 #whoBtn{height:28px;font-size:13px;color:var(--muted)}
