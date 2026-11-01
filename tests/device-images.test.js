@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, signIn, seedBasics } from './helpers.js';
-import { imageType, stripJpeg, PHOTO_MAX } from '../server/device-images.js';
+import { imageType, stripJpeg, stripWebp, PHOTO_MAX } from '../server/device-images.js';
 import { loadState, saveState } from '../server/state.js';
 import { setPassword } from '../server/auth.js';
 
@@ -83,4 +83,47 @@ test('metadata goes wherever it hides: after the end of a JPEG, in a PNG chunk, 
   assert.ok(!clean.includes('GPS') && !clean.includes('secret'), 'EXIF and text chunks are gone');
   assert.ok(clean.includes('pixels') && clean.includes('IEND'), 'the picture stays');
   assert.ok(!cleanImage(withTail).includes('GPS'));
+});
+
+/* A WebP as a camera app writes it: VP8X announcing EXIF, the picture, and an EXIF chunk with a GPS position. */
+const chunk = (type, body) => { const b = Buffer.from(body); const h = Buffer.alloc(8); h.write(type, 0, 'latin1'); h.writeUInt32LE(b.length, 4); return Buffer.concat([h, b, b.length % 2 ? Buffer.from([0]) : Buffer.alloc(0)]); };
+const webp = () => { const body = Buffer.concat([chunk('VP8X', Buffer.from([0x08, 0, 0, 0, 9, 0, 0, 9, 0, 0])), chunk('VP8 ', 'picture-bytes'), chunk('EXIF', 'GPS 47.3769N 8.5417E'), chunk('XMP ', '<x:xmpmeta>me</x:xmpmeta>')]);
+  const head = Buffer.alloc(12); head.write('RIFF', 0, 'latin1'); head.writeUInt32LE(body.length + 4, 4); head.write('WEBP', 8, 'latin1'); return Buffer.concat([head, body]); };
+
+test('a WebP loses its EXIF and XMP, and the flags that announced them; an animation is refused', () => {
+  const w = webp(), clean = stripWebp(w);
+  assert.equal(imageType(clean), 'image/webp');
+  assert.ok(!clean.includes('GPS') && !clean.includes('xmpmeta'));
+  assert.ok(clean.includes('picture-bytes'));
+  assert.equal(clean.readUInt32LE(4), clean.length - 8, 'the RIFF size fits');
+  assert.equal(clean[20] & 0x0c, 0, 'no EXIF or XMP flag');
+  const anim = Buffer.concat([w.subarray(0, 12), chunk('ANIM', 'x')]);
+  assert.throws(() => stripWebp(anim), /still picture/);
+});
+
+test('a photo made smaller: stored under a new id only when smaller; all photos listed for admins only', async () => {
+  const srv = await startServer();
+  try {
+    seedBasics(srv.db);
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const id = loadState(srv.db).objs[0].id;
+    const big = Buffer.concat([jpeg(), Buffer.alloc(0)]);
+    const pad = Buffer.concat([big.subarray(0, big.length - 2), Buffer.from('x'.repeat(4000)), Buffer.from([0xff, 0xd9])]);
+    const add = await srv.call('POST', `/api/objects/${id}/images`, { cookie: a.cookie, body: { name: 'big.jpg', caption: 'Label', data: b64(pad), thumb: b64(jpeg()), w: 800, h: 600 } });
+    assert.equal(add.status, 200, add.text);
+    const old = add.json.image;
+    const list = await srv.call('GET', '/api/images', { cookie: a.cookie });
+    assert.deepEqual(list.json.images.map(x => [x.id, x.obj_id]), [[old.id, id]]);
+    assert.equal((await srv.call('GET', '/api/images')).status, 401);
+    // a WebP, smaller: replaces it under a new id, with its caption; the old address is gone
+    const r = await srv.call('POST', `/api/images/${old.id}/replace`, { cookie: a.cookie, body: { data: b64(webp()), thumb: b64(jpeg()), w: 800, h: 600 } });
+    assert.equal(r.status, 200, r.text);
+    assert.notEqual(r.json.image.id, old.id); assert.equal(r.json.image.caption, 'Label'); assert.equal(r.json.image.mime, 'image/webp');
+    assert.equal((await srv.call('GET', `/api/images/${old.id}`, { cookie: a.cookie })).status, 404);
+    const got = await fetch(`${srv.base}/api/images/${r.json.image.id}`, { headers: { cookie: a.cookie } });
+    assert.equal(got.headers.get('content-type'), 'image/webp');
+    assert.ok(!Buffer.from(await got.arrayBuffer()).includes('GPS'), 'its metadata taken out');
+    // not smaller: refused, the photo stays
+    assert.equal((await srv.call('POST', `/api/images/${r.json.image.id}/replace`, { cookie: a.cookie, body: { data: b64(pad), thumb: b64(jpeg()), w: 800, h: 600 } })).status, 409);
+  } finally { await srv.close(); }
 });

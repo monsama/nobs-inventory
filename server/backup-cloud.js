@@ -55,7 +55,8 @@ export async function uploadToCloud(target, name, bytes, fetchImpl = fetch, now 
     const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
     const headers = { host: u.host, 'x-amz-content-sha256': sha(bytes), 'x-amz-date': amzDate, 'content-type': 'application/octet-stream' };
     const authorization = signS3({ method: 'PUT', path, headers, payloadHash: headers['x-amz-content-sha256'], region: target.region, accessKey: target.accessKey, secretKey: target.secretKey, amzDate });
-    const { host, ...send } = headers;
+    /* fetch sets Host itself (it is signed above with the same value). */
+    const send = Object.fromEntries(Object.entries(headers).filter(([k]) => k !== 'host'));
     r = await fetchImpl(`${u.origin}${encPath(path)}`, { method: 'PUT', body: bytes, headers: { ...send, authorization } });
   }
   if (!r.ok) {

@@ -6,6 +6,7 @@ import { isAdmin } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';
 import { dateTimeText } from './dates.js';
 import { CERT, certAttention, certPanel, loadCert, wireCertPanel } from './certificate.js';
+import { forgetPhotos, prepare } from './23-photos.js';
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['settings', 'Settings'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
@@ -247,6 +248,46 @@ function wireDigest(){
       $('#dgClose').onclick = () => { closeModal(); }; } catch (e) { toast(e.message); }
   };
 }
+/* Make photos smaller: every stored device photo written again the way new ones are (23-photos.js, prepare) and kept
+   only when that makes it at least 15 % smaller. Runs in this page, one photo after the other; the floor plans are not
+   touched. */
+let PHOTOS = null, SHRINK = null;
+const mbOf = n => `${(n / 1048576).toFixed(1)} MB`;
+function photosShrinkPanel(){
+  const list = PHOTOS; if (!Array.isArray(list) || !list.length) return '';
+  const total = list.reduce((t, p) => t + p.bytes + (p.tbytes || 0), 0);
+  const s = SHRINK;
+  const status = !s ? `${list.length} photo${list.length === 1 ? '' : 's'} of devices and racks, ${mbOf(total)} together.`
+    : s.running ? `Photo ${s.done} of ${s.n}: ${s.changed} made smaller, ${mbOf(s.saved)} saved so far…`
+    : `Done: ${s.changed} of ${s.n} photos made smaller, ${mbOf(s.saved)} saved.${s.failed ? ` ${s.failed} could not be read here and stayed as they were.` : ''}`;
+  return `<div class="panelbox"><div class="hdr">Photos</div>
+    <p class="note" style="padding:10px 12px">New photos are made as small as they can be without a visible loss: WebP or JPEG, whichever is smaller, screenshots without any loss, and a file that is already small is kept as it is. Photos added before can be made smaller the same way: each is replaced only when it gets at least 15 % smaller, under a new address. Floor plans are not changed.</p>
+    <div class="addrel" style="padding:0 12px 10px"><span class="note" style="flex:1" id="psStatus" role="status" aria-live="polite">${status}</span><button id="psRun" ${s && s.running ? 'disabled' : ''}>${s && s.running ? 'Working…' : 'Make photos smaller'}</button></div></div>`;
+}
+function wirePhotosShrink(){
+  const b = $('#psRun'); if (!b) return;
+  b.onclick = async () => {
+    const list = [...(PHOTOS || [])];
+    SHRINK = { running: true, n: list.length, done: 0, changed: 0, saved: 0, failed: 0 }; renderSetMaint();
+    const show = () => { const el = $('#psStatus'); if (el) el.textContent = `Photo ${SHRINK.done} of ${SHRINK.n}: ${SHRINK.changed} made smaller, ${mbOf(SHRINK.saved)} saved so far…`; };
+    for (const p of list) {
+      SHRINK.done++; show();
+      try {
+        const r = await fetch(`api/images/${encodeURIComponent(p.id)}`, { credentials: 'same-origin' });
+        if (!r.ok) throw new Error('not read');
+        const blob = await r.blob();
+        const next = await prepare(new File([blob], p.name || 'Photo', { type: p.mime }));
+        const before = p.bytes + (p.tbytes || 0), after = next.bytes + next.tbytes;
+        if (after > before * 0.85) continue;
+        const u = await fetch(`api/images/${encodeURIComponent(p.id)}/replace`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) });
+        if (u.ok) { SHRINK.changed++; SHRINK.saved += before - after; } else if (u.status !== 409) SHRINK.failed++;
+      } catch { SHRINK.failed++; }
+    }
+    SHRINK.running = false; PHOTOS = null; forgetPhotos();
+    toast(SHRINK.changed ? `${SHRINK.changed} photo${SHRINK.changed === 1 ? '' : 's'} made smaller, ${mbOf(SHRINK.saved)} saved` : 'The photos were already as small as they get');
+    if ($('#setMaint')) renderSetMaint();
+  };
+}
 export function renderSetMaint(){
   const edit = isAdmin();
   if (edit && BACKUPS === null) loadBackups();
@@ -254,15 +295,16 @@ export function renderSetMaint(){
   if (edit && (HEALTH === null || (HEALTH && Date.now() - HEALTH_AT > 60000))) { HEALTH = undefined; loadHealth(); }
   if (CERT === null) loadCert().then(() => { if ($('#setMaint')) renderSetMaint(); });
   if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
+  if (edit && PHOTOS === null){ PHOTOS = undefined; fetch('api/images', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { images: [] }).then(j => { PHOTOS = j.images; if ($('#setMaint')) renderSetMaint(); }, () => { PHOTOS = []; }); }
   if (edit && TOKENS === null){ TOKENS = undefined; fetch('api/tokens', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { tokens: [] }).then(j => { TOKENS = j.tokens; if ($('#setMaint')) renderSetMaint(); }, () => { TOKENS = []; }); }
-  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? tokensPanel() : ''}${edit ? digestPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? photosShrinkPanel() : ''}${edit ? tokensPanel() : ''}${edit ? digestPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
-  if (edit) wireBackups(edit); wireTokens(); wireDigest();
+  if (edit) wireBackups(edit); wireTokens(); wireDigest(); wirePhotosShrink();
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
   if (edit) $('#frReset').onclick = factoryResetModal;
   if (edit) $('#setReset').onclick = () => clearConfirm();
