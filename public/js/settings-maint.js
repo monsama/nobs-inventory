@@ -182,6 +182,23 @@ export async function loadHealth(){
   if ($('#setMaint')) renderSetMaint();
 }
 const HEALTH_CHIP = { ok: ['ok', 'OK'], warn: ['warn', 'Check'], bad: ['bad', 'Act now'], off: ['', 'Off'] };
+/* Where each Health row is dealt with: [Settings tab, element on it]. A row with none (the version, the disk) is text. */
+const HEALTH_GO = { 'Last backup': ['maintenance', '#bkNew'], 'Automatic backups': ['maintenance', '#bkAuto'], 'Copy outside the server': ['maintenance', '.bk-export'],
+  'Restore test': ['maintenance', '#rtRun'], 'Device photos': ['maintenance', '#psRun'], 'This page (HTTPS)': ['maintenance', '#certPanel'],
+  Lansweeper: ['feed', null], 'Active Directory': ['directory', null], 'Entra & Intune': ['entra', null], 'Microsoft Graph sign-in': ['entra', null],
+  'Errors in the last 24 hours': ['log', 'errors'], 'Signed in': ['users', null] };
+const hlTarget = c => HEALTH_GO[c.name] || (c.area === 'Certificates' && /^Directory CA/.test(c.name) ? ['directory', null] : null);
+function healthGo(c){
+  const t = hlTarget(c); if (!t) return;
+  const [tab, at] = t;
+  if (tab === 'log') LOG_FILTER = at || 'all';
+  if (tab !== 'maintenance'){ const b = document.querySelector(`#setTabs [data-st="${tab}"]`); if (b) b.click(); return; }
+  const el = at && document.querySelector('#setMaint ' + at); if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const f = el.matches('button, input, select, a') ? el : el.querySelector('button:not([disabled]), input:not([disabled])');
+  if (f) f.focus({ preventScroll: true });
+  el.classList.add('hl-flash'); setTimeout(() => el.classList.remove('hl-flash'), 1600);
+}
 function healthPanel(){
   if (!HEALTH) return '<div class="panelbox"><div class="hdr">Health</div><p class="note" style="padding:12px">Checking…</p></div>';
   /* The page's own certificate is checked by the page (Certificate below): its state is counted here too. */
@@ -192,7 +209,7 @@ function healthPanel(){
   const head = { ok: 'Everything is in order', warn: 'Something needs a look', bad: 'Something needs action' }[worst];
   return `<div class="panelbox hl-${worst}"><div class="hdr">Health <span class="chip ${HEALTH_CHIP[worst][0]}">${esc(head)}</span></div>
     <div class="hl-tools"><span class="muted">Checked ${esc(HEALTH.at ? dateTimeText(HEALTH.at) : '')}</span><button id="hlAgain" class="mini">Check again</button></div>
-    ${areas.map(a => `<div class="side-sub hl-area">${esc(a)}</div><div class="hl-list">${checks.filter(c => c.area === a).map(c => `<div class="hl-row"><span class="chip ${HEALTH_CHIP[c.state][0]}">${HEALTH_CHIP[c.state][1]}</span><b>${esc(c.name)}</b><span class="hl-val">${esc(c.value)}${c.note ? `<small>${esc(c.note)}</small>` : ''}</span></div>`).join('')}</div>`).join('')}</div>`;
+    ${areas.map(a => `<div class="side-sub hl-area">${esc(a)}</div><div class="hl-list">${checks.filter(c => c.area === a).map(c => `<div class="hl-row"><span class="chip ${HEALTH_CHIP[c.state][0]}">${HEALTH_CHIP[c.state][1]}</span>${hlTarget(c) ? `<button type="button" class="link hl-go" data-hlgo="${esc(c.area)}|${esc(c.name)}" title="Go to where this is set">${esc(c.name)}</button>` : `<b>${esc(c.name)}</b>`}<span class="hl-val">${esc(c.value)}${c.note ? `<small>${esc(c.note)}</small>` : ''}</span></div>`).join('')}</div>`).join('')}</div>`;
 }
 /* Read-only API tokens for other tools (server/api-tokens.js). A new token is shown once, with how to use it. */
 let TOKENS = null, NEW_TOKEN = null;
@@ -307,6 +324,7 @@ export function renderSetMaint(){
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
   if (edit) wireBackups(edit); wireTokens(); wireDigest(); wirePhotosShrink();
+  $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
   if (edit) $('#frReset').onclick = factoryResetModal;
   if (edit) $('#setReset').onclick = () => clearConfirm();

@@ -7,7 +7,7 @@ import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
-import { $, LS_ON, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
+import { $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
 /* The switch that turns Lansweeper on or off for this inventory. */
 export function renderLsToggle(){
   const host = $('#setLsToggle'); if (!host) return;
@@ -290,7 +290,7 @@ export function renderSetFeed(){
     const r = await fetch('api/feed/push-token', {method: 'POST', credentials: 'same-origin'});
     const j = await r.json().catch(() => ({}));
     if (!r.ok){ pushMsg(j.error || 'The token could not be made.'); return; }
-    pushNew = j.token; pushInfo = j.info; pushNote = ''; renderSetFeed();
+    pushNew = j.token; pushInfo = j.info; pushNote = ''; SYNC.lansweeper = true; renderSetFeed();
   };
   /* After a copy the token is hidden again; it can only be read once, then a new token is made. */
   if ($('#pushCopy')) $('#pushCopy').onclick = async () => {

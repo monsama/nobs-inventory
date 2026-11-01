@@ -44,6 +44,11 @@ try {
   await p.waitForSelector('table.grid');
   assert.match(await p.textContent('#fbar'), new RegExp(`Due for replacement in ${y + 1}`));
   assert.equal(await p.locator('table.grid tbody tr').count(), 2);
+  // the list says why: purchase, the year due and the replacement price, right after Name
+  const heads = await p.$$eval('table.grid thead th', t => t.map(x => x.textContent.trim()));
+  const at = heads.findIndex(h => /^Name/.test(h));
+  assert.deepEqual(heads.slice(at + 1, at + 4).map(h => h.replace(/\s+.*$/s, '')), ['Purchased', 'Due', 'Replacement']);
+  assert.match(await p.textContent('table.grid tbody'), new RegExp(`${y + 1} · by purchase[\\s\\S]*CHF 1[’',]?500`));
   assert.deepEqual(errors, []);
   console.log('lifecycle: all checks passed');
 } finally { await browser.close(); server.close(); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

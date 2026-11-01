@@ -2,13 +2,13 @@ import { applyDelta } from './delta.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, isAdmin, me, pushDate } from './04-settings.js';
+import { USERS, applyRole, bindUser, canEdit, isAdmin, me, ownOnly, pushDate } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
-import { renderStocktake } from './22-stocktake.js';
+import { renderMine, renderStocktake } from './22-stocktake.js';
 import { linkedCode } from './25-scan.js';
-import { openObjs, FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
+import { openObjs, FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -18,9 +18,11 @@ import { forgetPhotos } from './23-photos.js';
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
-const NO_SIDE = ['overview', 'contracts', 'contacts', 'stocktake', 'sw'];
+const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
+  /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
+  if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';
   if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }
   /* The sidebar filters lists: the views that are no list of devices (Overview, Contracts, …) are shown without it. */
   document.body.classList.toggle('noside', NO_SIDE.includes(st.tab));
@@ -37,6 +39,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'contacts') renderContacts();
   else if (st.tab === 'overview') renderOverview();
   else if (st.tab === 'stocktake') renderStocktake();
+  else if (st.tab === 'mine') renderMine();
   else renderObj(byId(st.tab));
   renderFilterBar();
   fullTextTooltips();
@@ -90,14 +93,16 @@ export const SYNC_LATE_DAYS = 2;
 /* The status bar: whether changes reached the server, and when Lansweeper last sent data. */
 export function renderStatus(){
   const save = $('#stSave'), sync = $('#stSync'); if (!save || !sync) return;
-  const S = {
+  let S = {
     saved: ['', 'All changes saved', 'Every change is stored on the server.'],
     saving: ['', 'Saving…', 'Changes are being sent to the server.'],
     failed: ['bad', 'Not saved', 'The last change was refused. It is kept here and sent again with the next change.'],
     offline: ['bad', 'No connection', 'Your changes are kept on this device and sent when the server answers again, also after the page is closed and opened again.'],
   }[SERVER.save] || ['', '', ''];
+  /* The device page open has edits not saved yet: said here too, not "All changes saved" beside "Not saved yet". */
+  if (SERVER.save === 'saved' && document.querySelector('#objSaved.dirty')) S = ['warn', 'Device not saved yet', 'The device page has changes that are not saved: use Save on the page.'];
   /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
-  save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
+  save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : S[0] === 'warn' ? `<span class="chip warn">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
   save.classList.toggle('hide-n', !S[0]);
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
@@ -540,6 +545,8 @@ export async function loadFromServer(user){
   if (!(await reloadFromServer())) return;
   document.body.classList.remove('signed-out');
   st.meId = user.id;
+  /* Someone who sees only their own devices starts on them. */
+  if (ownOnly() && st.tab === 'cards') st.tab = 'mine';
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
   restoreOffline();

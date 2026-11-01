@@ -130,9 +130,12 @@ try {
   await p.fill('#f_nb2_model', 'ThinkPad T14');
   assert.equal(await p.isVisible('#saveBtn'), true);
   assert.match(await p.textContent('#objSaved'), /Not saved yet/);
+  // the status bar says the same, not "All changes saved"
+  assert.match(await p.textContent('#stSave'), /Device not saved yet/);
   await p.press('#f_nb2_model', 'Tab');
   await until(p, () => /^Saved \d\d:\d\d$/.test(document.querySelector('#objSaved').textContent));
   assert.equal(await p.isVisible('#saveBtn'), false);
+  await until(p, () => !/not saved/i.test(document.querySelector('#stSave').textContent));
 
   // 3. a new person, added from the device and given it in one step
   await p.selectOption('#f_nb2_user', '__new');

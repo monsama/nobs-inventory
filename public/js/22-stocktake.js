@@ -2,7 +2,7 @@
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
-import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } from './01-core.js';
+import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
 import { USERS, canEdit, who, mySites, myLocs } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -209,6 +209,32 @@ function historyHtml(){
       <td class="act"><div class="sheet-acts">${t.result.missing.length ? `<button type="button" class="link" data-stkmiss="${esc(t.id)}" title="The devices not found, in the Table, to look for or set their status">Show missing</button> ` : ''}<a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${canEdit() ? ` <button class="icon ghost" data-stkdel="${esc(t.id)}" aria-label="Remove ${esc(t.name)} from the list">×</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
+/* My devices: the start of someone who sees only the devices given to them. One row per device, with what they do
+   there: confirm they still have it, report a problem, and what became of a report. The device opens from its name. */
+export function renderMine(){
+  const mine = objs.filter(o => o.uid === st.meId && o.status !== 'retired').sort((a, b) => a.name.localeCompare(b.name));
+  $('#toolbar').innerHTML = `<b>My devices</b><span class="muted">${mine.length} device${mine.length === 1 ? '' : 's'} given to you</span>`;
+  const row = o => {
+    const d = daysSinceVerified(o), open = o.reported && !o.reported.done;
+    const state = d === null ? '<span class="chip warn">Not confirmed yet</span>' : d > STOCKTAKE_DAYS ? `<span class="chip warn">Confirmed ${esc(dateText(o.verified.at))}</span>` : `<span class="chip ok">Confirmed ${esc(dateText(o.verified.at))}</span>`;
+    const t = TYPES[o.type] || { label: o.type };
+    return `<li class="mine-row"><div class="mine-dev">${tico(o.type)}<div><button type="button" class="link mine-name" data-open="${esc(o.id)}">${esc(o.name)}</button>
+        <div class="muted mine-sub">${esc([t.label, o.model, o.code].filter(Boolean).join(' · '))}</div></div></div>
+      <div class="mine-state">${state}${open ? '<span class="chip warn">Reported – IT is on it</span>' : ''}</div>
+      <div class="mine-acts">${d !== 0 ? `<button type="button" data-mine="${esc(o.id)}">I have it</button>` : ''}<button type="button" data-myreport="${esc(o.id)}">${open ? 'Report another problem…' : 'Report a problem…'}</button></div>
+      ${open ? `<p class="fieldnote stk-note mine-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))}: ${esc(o.reported.text)}</p>` : doneNote(o).replace('class="fieldnote', 'class="mine-note fieldnote')}</li>`;
+  };
+  $('#view').innerHTML = `<div class="mine"><div class="panelbox"><div class="hdr">My devices <span class="cnt">${mine.length}</span></div>
+    ${mine.length ? `<p class="note" style="padding:10px 12px 0">The devices IT has given you. Tell IT you still have each one, or report a problem: IT sees it on the device.</p><ul class="mine-list">${mine.map(row).join('')}</ul>`
+      : '<p class="note" style="padding:12px">No device is given to you in the inventory. If you have one, tell IT.</p>'}</div></div>`;
+}
+/* To the person who reported a problem: IT has dealt with it, when, and what was done if IT said; for 30 days. */
+export const REPORT_DONE_SHOWN_DAYS = 30;
+export function doneNote(o){
+  const d = o.reported && o.reported.done;
+  if (!d || !(Date.now() - Date.parse(d.at) < REPORT_DONE_SHOWN_DAYS * 864e5)) return '';
+  return `<p class="fieldnote ok stk-note"><b>Done:</b> IT dealt with your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} on ${esc(dateText(String(d.at).slice(0, 10)))}${d.note ? `: ${esc(d.note)}` : '.'}</p>`;
+}
 /* On a device's page, under its location: when it was last confirmed on site, and Confirm now. */
 export function verifiedNote(o){
   const d = daysSinceVerified(o), v = o.verified;
@@ -218,7 +244,7 @@ export function verifiedNote(o){
      marks it done. */
   const mine = !canEdit() && o.uid && o.uid === st.meId;
   const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
-  return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">${o.reported && !o.reported.done ? 'Report another problem…' : 'Report a problem…'}</button>` : ''}</p>${rep}${mine && o.reported && !o.reported.done ? `<p class="fieldnote stk-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} is with IT.</p>` : ''}</div>`;
+  return `<span></span><div><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">${o.reported && !o.reported.done ? 'Report another problem…' : 'Report a problem…'}</button>` : ''}</p>${rep}${mine && o.reported && !o.reported.done ? `<p class="fieldnote stk-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} is with IT.</p>` : ''}${mine ? doneNote(o) : ''}</div>`;
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {
@@ -226,10 +252,18 @@ document.addEventListener('click', async e => {
   if (t.dataset.repdone){
     const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported || o.reported.done) return;
     /* Kept, marked done, so the list of reported problems can show what was handled; Undo opens it again. */
-    const before = { ...o.reported };
-    o.reported = { ...o.reported, done: { at: new Date().toISOString(), by: String(who()).slice(0, 120) } };
-    hist(o, now(), `Reported problem done: ${o.reported.text}`); queueServerSave(); render();
-    toastUndo('Marked as done', () => { o.reported = before; queueServerSave(); render(); }); return;
+    /* What was done, if wanted: the person who reported it reads it on their device. */
+    modal(`<div class="mh">Problem done</div><div class="mb"><p class="note"><b>${esc(o.name)}</b>: ${esc(o.reported.text)}</p>
+      <label for="repNote">What was done <span class="muted">(optional, ${esc(o.reported.by)} sees it on the device)</span></label><textarea id="repNote" rows="3" maxlength="500" style="width:100%"></textarea></div>
+      <div class="mf"><button id="repNo">Cancel</button><button id="repOk" class="primary">Mark as done</button></div>`, 'sm');
+    $('#repNo').onclick = closeModal;
+    $('#repOk').onclick = () => {
+      const note = $('#repNote').value.trim().slice(0, 500), before = { ...o.reported };
+      o.reported = { ...o.reported, done: { at: new Date().toISOString(), by: String(who()).slice(0, 120), ...(note ? { note } : {}) } };
+      hist(o, now(), `Reported problem done: ${o.reported.text}${note ? ` (${note})` : ''}`); queueServerSave(); closeModal(); render();
+      toastUndo('Marked as done', () => { o.reported = before; queueServerSave(); render(); });
+    };
+    $('#repNote').focus(); return;
   }
   const id = t.dataset.mine || t.dataset.myreport;
   const post = async (path, body) => { const r = await fetch(`api/my/devices/${encodeURIComponent(id)}/${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); };

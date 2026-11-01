@@ -86,6 +86,14 @@ try {
   await p.click('#bkNew'); await p.waitForSelector('#setMaint .grid.mini td');
   await p.click('#hlAgain');
   await wait(async () => /OK\s*Last backup\s*less than an hour ago/.test(await p.textContent('#setMaint')));
+  // each row goes to where it is dealt with: the restore test's button here, Lansweeper's tab, the log's errors
+  await p.click('[data-hlgo="Backups|Restore test"]');
+  await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'rtRun'));
+  await p.click('[data-hlgo="Syncs|Lansweeper"]');
+  await wait(() => p.evaluate(() => !!document.querySelector('#setTabs [data-st=feed].active')));
+  await p.click('#setTabs [data-st=maintenance]'); await p.waitForSelector('.hl-list');
+  await p.click('[data-hlgo="Log|Errors in the last 24 hours"]');
+  await p.waitForSelector('[data-logf=errors].active');
 
   // A settings change is in the log with what it changed, under the Settings filter and found by search
   await p.click('#setTabs [data-st=locations]');

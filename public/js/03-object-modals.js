@@ -12,7 +12,7 @@ import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPan
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
-import { SERVER, queueServerSave, render } from './07-render.js';
+import { SERVER, queueServerSave, render, renderStatus } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { canEdit, ensureUser, isAdmin, myLocs, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -380,7 +380,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${SERVER.on && !o.review ? '<button id="labelBtn">Label…</button>' : ''}${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${SERVER.on && !o.review ? '<button id="labelBtn">Label…</button>' : ''}${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
@@ -418,7 +418,7 @@ export function renderObj(o){
   const objView = $('#view').querySelector('.obj');
   /* A field saves when it is left; while one is being typed in, Save shows (Enter or leaving the field do the same). */
   /* The notes box saves itself when it is left (below), so it does not show Save. */
-  const dirty = e => { if (e && e.target && (e.target.id === 'objNotes' || e.target.closest('#phPanel'))) return; $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); };
+  const dirty = e => { if (e && e.target && (e.target.id === 'objNotes' || e.target.closest('#phPanel'))) return; $('#saveBtn').hidden = false; $('#objSaved').textContent = 'Not saved yet'; $('#objSaved').classList.add('dirty'); renderStatus(); };
   objView.addEventListener('input', dirty);
   /* A field saves when it is left: the whole object is saved, without a redraw, except for a type change, which changes the fields. */
   objView.addEventListener('change', e => {
@@ -683,7 +683,11 @@ export function renderObj(o){
     /* A new person: the page is drawn again, so More offers the entry sheet for them. */
     if ((o.uid || null) !== uidWas) rerender = true;
     if (followUp) setTimeout(followUp, 0);
-    if (rerender) render(); else { $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); }
+    if (rerender) render(); else {
+      $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();
+      /* A new model is in the list now: its "added when saved" note goes. */
+      document.querySelectorAll('#view input[data-combo]:not([data-combo=ip])').forEach(comboNote);
+    }
     return true;
   };
   $('#saveBtn').onclick = () => saveObj();

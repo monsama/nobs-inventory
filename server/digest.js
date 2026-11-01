@@ -5,12 +5,13 @@
    goes in it; the mail server's password stays on the server. */
 import nodemailer from 'nodemailer';
 import { readSecret } from './secrets.js';
+import { writeDoc } from './db.js';
 import { contractStatus } from '../public/js/costs.js';
 import { dateText } from '../public/js/dates.js';
 
 const WARRANTY_SOON = 90;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
-const putDoc = (db, id, v) => db.prepare("INSERT INTO docs (kind, id, data) VALUES ('setting', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(id, JSON.stringify(v));
+const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 
 /* The mail server the server names, or null. Port 465 is TLS from the start; others use STARTTLS when offered. */
 export function smtpConfig(env = process.env) {

@@ -12,6 +12,7 @@ import zlib from 'node:zlib';
 import { PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { once } from 'node:events';
+import { writeDoc } from './db.js';
 import { getAppSecret } from './app-secrets.js';
 import { takeBackup } from './backup.js';
 import { writeBackupFile } from './backup-store.js';
@@ -78,7 +79,7 @@ export async function exportOnce(dir, password, produce, { keep = 14, now = new 
 
 /* Settings and the last run: kept as their own documents, not in the page's state (the page cannot change them by a save). */
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
-const putDoc = (db, id, v) => db.prepare("INSERT INTO docs (kind, id, data) VALUES ('setting', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(id, JSON.stringify(v));
+const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 export const exportSettings = db => ({ on: false, keep: 14, ...getDoc(db, 'backupExport', {}) });
 export const saveExportSettings = (db, v) => putDoc(db, 'backupExport', { on: !!v.on, keep: Math.min(365, Math.max(1, Math.floor(Number(v.keep) || 14))) });
 export const lastExport = db => getDoc(db, 'backupExportRun', null);

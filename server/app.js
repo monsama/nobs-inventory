@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import dns from 'node:dns/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { audit } from './db.js';
+import { audit, writeDoc } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
@@ -982,7 +982,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       if (b.on && !smtpConfig()) throw new HttpError(400, 'No mail server is set on the server: set NI_SMTP_HOST first.');
       saveDigestSettings(db, { ...cur, ...b });
       const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
-      if (link) db.prepare("UPDATE docs SET data = json_set(data, '$.link', ?) WHERE kind = 'setting' AND id = 'digest'").run(link);
+      if (link) writeDoc(db, 'setting', 'digest', { ...settingOf(db, 'digest'), link });
       const d = digestSettings(db);
       audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}${d.reports ? ', reported problems at once' : ''}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
       res.json(digestInfo());

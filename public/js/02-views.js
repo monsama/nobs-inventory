@@ -1,6 +1,7 @@
 import { syncButtonHtml } from './16-sync.js';
 import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
+import { dueOf, lifeOf } from './lifecycle.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
@@ -11,7 +12,7 @@ import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { labelsModal } from './24-labels.js';
-import { USERS, bindUser, canEdit, isAdmin, myLocs, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
+import { USERS, bindUser, canEdit, isAdmin, myLocs, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
@@ -237,14 +238,19 @@ function emptyHtml(){
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
+/* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
+   lists (Cards, Table); the others show nothing they can use. */
+const OWN_TABS = ['mine', 'cards', 'table'];
+export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.includes(id) : id !== 'mine');
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
   /* Stocktake shows while one runs, or while it is the tab open (from the Overview). */
   if (!st.tabIds.includes('stocktake')) st.tabIds.push('stocktake');
   const stk = (st.stocktakes || []).some(t => !t.finished);
-  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake'));
+  if (!st.tabIds.includes('mine')) st.tabIds.unshift('mine');
+  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && tabAllowed(id) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake'));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope && LIST_TABS.includes(st.tab)) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
@@ -638,6 +644,10 @@ export const TABLE_COLS = [
   {k:'rack', w:130, label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
   {k:'user', w:160, label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
   {k:'warranty', w:130, label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
+  /* Replacement planning: when it was bought, the year it is due (and why), and what replacing it costs. */
+  {k:'purchased', w:130, label:'Purchased', cell: o => `<td>${o.purchased ? esc(dayText(o.purchased)) : ''}</td>`},
+  {k:'due', w:200, label:'Due for replacement', cell: o => { const d = dueOf(o, st.lifecycle); return `<td>${d ? `${d.year} <span class="muted">· ${d.from === 'purchase' ? 'by purchase' : 'warranty ends'}</span>` : ''}</td>`; }},
+  {k:'replPrice', w:150, label:'Replacement price', cell: o => { const p = lifeOf(st.lifecycle, o.type).price; return `<td class="n">${p ? money(p) : ''}</td>`; }},
   {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
   {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
   {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
@@ -656,16 +666,16 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '4');
+      localStorage.setItem('ni-cols-v', '5');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;
@@ -757,18 +767,22 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   const bl = $('#bkLabels'); if (bl) bl.onclick = () => labelsModal([...st.bulk]);
   const idx = relIndex();   /* one index of the relations for all rows */
   let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
+  /* A data-quality check's column, or the columns a list from the Overview asks for (the replacement plan: purchase,
+     due year, price), go right after Name while it is listed. */
   const fix = !st.scope && st.quality && QUALITY_FIX[st.quality];
-  if (fix && fix[0]){
-    const c = tableCols().find(x => x.k === fix[0]), at = shown.findIndex(x => x.k === 'name') + 1;
-    if (c) shown = [...shown.slice(0, at).filter(x => x !== c), c, ...shown.slice(at).filter(x => x !== c)];
+  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : [];
+  const laid = !!fix || after.length > 0;
+  if (after.length){
+    const cs = after.map(k => tableCols().find(x => x.k === k)).filter(Boolean), at = shown.findIndex(x => x.k === 'name') + 1;
+    shown = [...shown.slice(0, at).filter(x => !cs.includes(x)), ...cs, ...shown.slice(at).filter(x => !cs.includes(x))];
   }
   /* The column filters and the sort apply to the devices, before anything is drawn: by the text each cell shows, as
      the table showed it. Column 0 is the tick box; column k is shown[k - 1]. */
   /* The Table listed by a data-quality check is laid out for it for a while: the layout from before (order, widths,
      filters) is kept aside and comes back once the check is no longer listed, so the moved column does not stay. */
   const KEEP = 'view:table:0:keep';
-  if (fix && !TBL[KEEP]) TBL[KEEP] = TBL['view:table:0'] ? JSON.parse(JSON.stringify(TBL['view:table:0'])) : { none: true };
-  else if (!fix && TBL[KEEP]) { if (TBL[KEEP].none) delete TBL['view:table:0']; else TBL['view:table:0'] = TBL[KEEP]; delete TBL[KEEP]; saveTBL(); }
+  if (laid && !TBL[KEEP]) TBL[KEEP] = TBL['view:table:0'] ? JSON.parse(JSON.stringify(TBL['view:table:0'])) : { none: true };
+  else if (!laid && TBL[KEEP]) { if (TBL[KEEP].none) delete TBL['view:table:0']; else TBL['view:table:0'] = TBL[KEEP]; delete TBL[KEEP]; saveTBL(); }
   const tv = TBL['view:table:0'] || {};
   /* The filters, sort, widths and order are kept by column position. When a column is shown or hidden the positions
      move, so each is carried to where its column is now (by the column's key), and one whose column is gone is dropped. */
@@ -782,9 +796,12 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   }
   if (TBL['view:table:0']) tv.keys = keys;
   /* A column order of one's own: the column of the data-quality check still goes right after Name. */
-  if (fix && fix[0] && Array.isArray(tv.order) && keys.includes(fix[0])){
-    const ci = keys.indexOf(fix[0]) + 1, ni = keys.indexOf('name') + 1;
-    tv.order = tv.order.filter(x => x !== ci); tv.order.splice(tv.order.indexOf(ni) + 1, 0, ci);
+  if (after.length && Array.isArray(tv.order)){
+    let prev = keys.indexOf('name') + 1;
+    for (const k of after.filter(x => keys.includes(x))){
+      const ci = keys.indexOf(k) + 1;
+      tv.order = tv.order.filter(x => x !== ci); tv.order.splice(tv.order.indexOf(prev) + 1, 0, ci); prev = ci;
+    }
   }
   const textOf = html => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
   const colOf = ci => shown[ci - 1];
