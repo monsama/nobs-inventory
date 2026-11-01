@@ -101,3 +101,17 @@ test('sign in with Microsoft: an address alone does not take over an account', (
   assert.equal(userForClaims(users, { preferred_username: 'jsmith@corp.example', oid: 'new' }).id, 'a', 'its own address');
   assert.equal(userForClaims(users, { preferred_username: 'JSmith@corp.example', oid: 'new', tid: 't1', idp: 'https://sts.windows.net/t1/' }).id, 'a', 'a member of the tenant');
 });
+
+test('sign in with Microsoft: the sign-in under way is sealed in its cookie, not kept on the server', async () => {
+  const { startSso, finishSso } = await import('../server/sso.js');
+  const cfg = { clientId: 'c', tenant: 't' }, now = Date.now();
+  const s = startSso(cfg, 'https://inv.example/api/sso/callback', now);
+  const state = new URL(s.url).searchParams.get('state');
+  assert.ok(!s.bind.includes(state), 'nothing of the sign-in is readable in the cookie');
+  const refused = /started elsewhere or too long ago/;
+  const flip = s.bind.slice(0, 20) + (s.bind[20] === 'A' ? 'B' : 'A') + s.bind.slice(21);
+  await assert.rejects(finishSso(cfg, { state, code: 'x', bind: flip }, async () => { throw new Error('not reached'); }, now), refused, 'a changed cookie');
+  await assert.rejects(finishSso(cfg, { state: state + 'x', code: 'x', bind: s.bind }, async () => { throw new Error('not reached'); }, now), refused, 'another state');
+  await assert.rejects(finishSso(cfg, { state, code: 'x', bind: s.bind }, async () => { throw new Error('not reached'); }, now + 11 * 60 * 1000), refused, 'after ten minutes');
+  await assert.rejects(finishSso(cfg, { state, code: 'x', bind: '' }, async () => { throw new Error('not reached'); }, now), refused, 'no cookie');
+});

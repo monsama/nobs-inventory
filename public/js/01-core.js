@@ -112,6 +112,9 @@ export let PLANS = [];
 export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 export const LS_ON = () => st.useLansweeper !== false;
+/* Lansweeper in use here: switched on, and set up or having sent something. A new inventory that never had it shows no
+   Lansweeper status or filters, however the switch stands. */
+export const LS_USED = () => LS_ON() && (!!(st.lansweeper && (st.lansweeper.endpoint || st.lansweeper.site)) || st.lsSource === 'api' || !!(SYNC && (SYNC.run || SYNC.lansweeper)) || objs.some(o => o.feed) || REVIEW.some(o => o.feed));
 /* Whether Lansweeper data still comes in. Microsoft Graph being set up is SYNC.graph, from the server. */
 export const lsLive = () => LS_ON() && st.feedOn !== false;
 /* Fields only a scan fills in, that nobody types: hidden while Lansweeper is off. The values are kept. */
@@ -204,7 +207,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0, graph: false, defender: false};
+export const SYNC = {run: '', time: 0, graph: false, defender: false, lansweeper: false};
 export { stampTime };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -248,7 +251,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
 export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
-  rackId:null, setTab:'feed', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
+  rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ ...DEFAULT_POLICY },
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 export let APP_VERSION = '';
@@ -425,7 +428,7 @@ export function lastSeenOf(o){
 }
 /* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
    click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
-const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
+export const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
 /* The people by id, for the checks below (the user list lives in Settings, which sets it here). */
 let PEOPLE_LIST = [], PEOPLE = new Map();
 export const setPeople = list => { PEOPLE_LIST = list || []; PEOPLE = new Map(); };
@@ -438,7 +441,7 @@ export const QUALITY = {
   nouser: ['No user', 'A computer or phone in use that nobody is assigned to', o => PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.user && !o.hotdesk],
   unseen: ['Not seen for 90 days', 'No source has seen it for over 90 days: is it still there?', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
   unconfirmed: ['Not confirmed on site for 12 months', 'Not found in a stocktake, or confirmed on its page, for over a year', o => { if (!(st.stocktakes || []).some(t => t.finished)) return false; const d = daysSinceVerified(o); return d === null || d > STOCKTAKE_DAYS; }],
-  leaver: ['With someone who left', 'Assigned to a person who is deactivated: select them in the Table and use Set status → Take back into stock, or give them to someone else', o => !['retired', 'stock'].includes(o.status) && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
+  leaver: ['With someone who left', 'Assigned to a person who is deactivated: search their name, open them and use Take all back, or give the devices to someone else', o => !['retired', 'stock'].includes(o.status) && !!o.uid && !!personOf(o.uid) && personOf(o.uid).active === false],
   addisabled: ['Disabled in AD, marked in use', 'Its computer account is disabled in Active Directory, but here it is in use', o => o.status === 'active' && !!(o.ad && o.ad.disabled)],
   ownerdiff: ['Intune names someone else', 'The primary user in Intune is not the person it is assigned to here', o => {
     const p = o.uid && personOf(o.uid), g = o.graph;
@@ -659,7 +662,7 @@ export const isAttached = k => k === 'attached';
 /* Whether an object has the search text in one of the fields a search looks at. */
 export const matchesQ = (o, q) => !q || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.adGroup || st.quality);
+export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
@@ -670,7 +673,7 @@ export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q &
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 
@@ -772,3 +775,15 @@ export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand
 /* Delete at the end of a row or card, next to Edit: a monochrome bin; what it does is asked first (confirmModal). */
 export const deleteButton = (attr, name) => `<button type="button" class="icon ghost delbtn" ${attr} aria-label="Delete ${esc(name)}" title="Delete"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>`;
 export const editButton = (attr, name, edit = true) => `<button type="button" class="icon ghost editbtn" ${attr} aria-label="${edit ? 'Edit' : 'Show'} ${esc(name)}" title="${edit ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button>`;
+
+/* On a phone a wide table (class "stack") shows each row as a card: every cell gets the name of its column, set here
+   once the table is on the page, from its header. */
+const labelStack = t => {
+  const heads = [...t.querySelectorAll(':scope>thead>tr>th')].map(th => th.textContent.trim());
+  t.querySelectorAll(':scope>tbody>tr').forEach(tr => [...tr.children].forEach((td, i) => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || ''); }));
+};
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+  let queued = false;
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; document.querySelectorAll('table.stack').forEach(labelStack); }); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+}

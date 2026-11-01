@@ -101,6 +101,13 @@ test('the server\'s secrets go only where they were meant to: Lansweeper\'s API,
     const lc = ldapConfigOf(srv0.db, { NI_LDAP_URL: 'ldaps://dc01.example.test', NI_LDAP_SERVICE_PASSWORD: 'SERVER-PW' });
     assert.equal(lc.servicePassword, '');
     await assert.rejects(ldapListUsers(lc), /is for dc01\.example\.test, not evil\.example/);
+    /* The server's encrypted setting cannot be turned to no encryption in Settings. */
+    saveState(srv0.db, { ...loadState(srv0.db), ldap: { url: 'ldap://dc01.example.test', serviceDn: 'cn=svc', security: 'plain' } });
+    const lp = ldapConfigOf(srv0.db, { NI_LDAP_URL: 'ldaps://dc01.example.test', NI_LDAP_SERVICE_PASSWORD: 'SERVER-PW' });
+    assert.equal(lp.servicePassword, '');
+    assert.match(lp.passwordProblem, /only encrypted/);
+    saveState(srv0.db, { ...loadState(srv0.db), ldap: { url: 'ldap://dc01.example.test', serviceDn: 'cn=svc', security: 'starttls' } });
+    assert.equal(ldapConfigOf(srv0.db, { NI_LDAP_URL: 'ldaps://dc01.example.test', NI_LDAP_SERVICE_PASSWORD: 'SERVER-PW' }).servicePassword, 'SERVER-PW', 'STARTTLS is encrypted too');
   } finally { await srv0.close(); }
 
   /* The password saved in Settings is tied to the directory server it was saved for. */
@@ -113,6 +120,11 @@ test('the server\'s secrets go only where they were meant to: Lansweeper\'s API,
     const r = await srv.call('POST', '/api/ldap/sync', { cookie: a.cookie });
     assert.notEqual(r.status, 200);
     assert.match(JSON.stringify(r.json), /saved for dc01\.example\.test.*Save the password again/);
+    /* … and to an encrypted connection: the same server without encryption does not get it. */
+    url = 'ldap://dc01.example.test';
+    const p = await srv.call('POST', '/api/ldap/sync', { cookie: a.cookie });
+    assert.notEqual(p.status, 200);
+    assert.match(JSON.stringify(p.json), /encrypted connection to dc01\.example\.test/);
   } finally { await srv.close(); }
 });
 

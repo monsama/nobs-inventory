@@ -22,7 +22,8 @@ export * from './settings-network.js';
 export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
-export const SET_TABS = [['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['sources','Data sources'],['locations','Locations'],['vlans','Network'],['types','Object types'],['users','Users'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+/* What everyone sets up first comes first; the sources (each optional) after them. */
+export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['log','Log'],['about','About']];
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
@@ -35,6 +36,9 @@ export function openSettings(){
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();
+  /* Opened on a tab: that tab has the focus and is in view (on a phone the row of tabs scrolls). */
+  const at = $('#setTabs .tab.active');
+  if (at){ at.scrollIntoView({ inline: 'nearest', block: 'nearest' }); requestAnimationFrame(() => { if (document.contains(at)) at.focus({ preventScroll: true }); }); }
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
    The sections draw themselves again often, so the state is put back on each new title as it appears. */

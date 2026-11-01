@@ -1,7 +1,7 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { byId, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
 import { canEdit, me } from './04-settings.js';
@@ -18,8 +18,10 @@ function accept(list){
     REVIEW.splice(i, 1);
     const src = REVIEW_SRC[o.review.src] || o.review.src;
     delete o.review; delete o.excluded;
+    /* A computer or phone nobody has is in stock, not in use: it does not show up as "in use without a user". */
+    if (PERSONAL.includes(o.type) && o.status === 'active' && !o.uid && !o.hotdesk) o.status = 'stock';
     objs.push(o);
-    hist(o, now(), `Accepted into the inventory by ${who()} (found by ${src})`);
+    hist(o, now(), `Accepted into the inventory by ${who()} (found by ${src})${o.status === 'stock' ? ', in stock: nobody has it yet' : ''}`);
   }
 }
 /* Ignore: stays here as ignored and is excluded from the syncs, so none of them brings it back or changes it. */
@@ -262,8 +264,25 @@ export function reviewBanner(o){
 export function bindReviewBanner(o){
   document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {
     const k = b.dataset.rvpage;
+    /* The next one waiting, taken before this one leaves the list: opened once this one is done, so a record after
+       record is worked through without going back to the list. */
+    const waiting = REVIEW.filter(x => x.review && !x.review.ignored);
+    const next = ['accept', 'ignore', 'merge'].includes(k) ? waiting[waiting.indexOf(o) + 1] || waiting.find(x => x !== o) : null;
+    const tab = st.tab;
     reviewDo(k, [o]);
+    /* Only when it was done: a question asked first (Already in the inventory?) leaves the record where it is. */
+    const done = !o.review || o.review.ignored || o.review.merged || !REVIEW.includes(o);
+    if (next && done && tab === o.id) setTimeout(() => openNext(next.id), 0);
   });
+}
+/* Opens the next waiting record in the tab of the one just done. */
+function openNext(id){
+  const next = REVIEW.find(x => x.id === id);
+  if (!next || !next.review || next.review.ignored) return;
+  const i = st.open.indexOf(st.tab);
+  if (i >= 0) st.open[i] = next.id; else st.open.push(next.id);
+  const j = st.tabIds.indexOf(st.tab); if (j >= 0) st.tabIds[j] = next.id; else st.tabIds.push(next.id);
+  st.tab = next.id; render();
 }
 /* Settings: where a source's new devices go. To review is the default for every source; a source trusted fully can add
    them straight in (a device not seen for long still waits). */

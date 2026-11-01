@@ -1,7 +1,7 @@
-import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PORTED, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
-import { RACKABLE, TYPE_U, bindUser, rackCheck, rackOf, who } from './04-settings.js';
+import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
 /* ---------- new object ---------- */
@@ -43,6 +43,8 @@ export function newObjModal(pre={}){
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
       ${LOCS.length ? '' : '<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>'}
+      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
+      <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
@@ -72,7 +74,15 @@ export function newObjModal(pre={}){
   else if (!c && ctx && [...$('#nUp').options].some(x => x.value === ctx.id)) $('#nUp').value = ctx.id;
   $('#nUp').addEventListener('change', () => portNote('nPort', ''));
   $('#nPort').addEventListener('input', () => portNote('nPort', ''));
-  $('#nType').onchange = fitType;
+  /* The status follows the user until it is chosen here: a computer or phone nobody has yet is in stock, one given to
+     somebody is in use; other devices are in use. */
+  let statusTouched = false;
+  const fitStatus = () => { if (!statusTouched) $('#nStatus').value = PERSONAL.includes($('#nType').value) && !$('#nUser').value ? 'stock' : 'active'; };
+  $('#nStatus').onchange = () => { statusTouched = true; };
+  $('#nUser').onchange = fitStatus;
+  if (c && c.status && c.status !== 'retired'){ $('#nStatus').value = c.status; statusTouched = true; }
+  fitStatus();
+  $('#nType').onchange = () => { fitType(); fitStatus(); };
   $('#nName').focus();
   $('#nCancel').onclick = closeModal;
   $('#nOk').onclick = () => {
@@ -93,7 +103,9 @@ export function newObjModal(pre={}){
     else if (PORTED.includes(o.type)) o.ports = o.type === 'server' ? 4 : 8;
     if (o.type === 'patch') o.ports = 24;
     if (o.type === 'rack'){ const u = +$('#nUnits').value; if (Number.isInteger(u) && u >= 1 && u <= 60) o.units = u; }
-    objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who());
+    o.status = $('#nStatus').value || 'active';
+    if ($('#nUser').value) o.uid = $('#nUser').value;
+    objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who() + (o.uid ? `, for ${o.user}` : ''));
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
     if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (p && t.type === 'patch') p = patchPort(p); else if (/^\d+$/.test(p) && hasPorts(t)) p = +p;

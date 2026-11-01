@@ -1516,6 +1516,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
 .stk-scanrow{display:flex;gap:8px;padding-top:10px}.stk-scanrow input{flex:1;min-width:0;height:40px;font-size:15px}
+.stk-cam{display:block;width:100%;max-height:60vh;background:#000;border-radius:6px;object-fit:cover}
 .stk-last{min-height:20px;margin:6px 0 0;font-size:13px}.stk-last .ok{color:var(--ok)}.stk-last .warn{color:var(--warn,#b45309)}
 .stk-tabs{display:flex;gap:4px;padding-top:10px}
 .stk-list{padding:4px 0 8px}
@@ -1591,3 +1592,41 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .modal .mb.ph-view{flex-direction:row;align-items:center}
 .uhand{display:block;font-size:12px;margin-top:4px}
 .ph-thumb img{object-fit:contain;background:var(--panel2)}
+/* A person's devices: their bar over the list, with what is done when they come or go. */
+.fbar .fb-person{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 100%;padding:2px 0 6px;border-bottom:1px solid var(--bd2);margin-bottom:4px}
+.fbar .fb-person .grow{flex:1}
+/* To review: Accept, Merge and Ignore on the card itself. */
+.card .rv-acts{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 6px}
+.card .rv-act{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
+.card .rv-act:hover,.card .rv-act:focus-visible{border-color:var(--accent);outline:none}
+.card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 50%,var(--bd))}
+.card .rv-act.no{color:var(--muted)}
+/* Overview: getting started, for a new inventory. */
+.start-list{list-style:none;margin:0;padding:6px 12px 10px;display:flex;flex-direction:column;gap:6px}
+.start-step{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd2)}
+.start-step:last-child{border-bottom:none}
+.start-n{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);font-size:12px;font-weight:600}
+.start-step.done .start-n{background:var(--accent);border-color:var(--accent);color:#fff}
+.start-t{flex:1;display:flex;flex-direction:column;min-width:0}
+.start-t .muted{font-size:12px}
+@media (max-width:760px){table.stack{min-width:0!important;table-layout:auto!important;width:100%}table.stack>colgroup,table.stack>thead{display:none}
+table.stack,table.stack>tbody,table.stack>tbody>tr,table.stack>tbody>tr>td{display:block}table.stack>tbody>tr{border:1px solid var(--bd2);border-radius:8px;margin:0 0 8px;padding:6px 10px}
+table.stack>tbody>tr>td{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;border:0!important;padding:3px 0!important;white-space:normal;overflow:visible}
+table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font:12px system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:0}table.stack>tbody>tr>td[data-label=""]{grid-template-columns:minmax(0,1fr)}table.stack>tbody>tr>td[data-label=""]::before{display:none}
+table.stack>tbody>tr>th{display:block;border:0}}
+body.noside #side,body.noside #sideBtn{display:none!important}
+@media (max-width:760px){table.stack>tbody>tr>td>input[type=checkbox],table.stack>tbody>tr>td>label>input[type=checkbox]{justify-self:start;width:auto;height:auto}table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.icon{justify-self:start}}
+
+/* GUI check: entry sheet on a phone, stocktake scan row and width, review card buttons, person bar and cards on a phone. */
+.sheet-pwopt{display:flex;flex-direction:column;gap:2px}.sheet-pwopt .note{margin:0}
+@media (max-width:760px){.form.sheet-form{grid-template-columns:minmax(0,1fr)}}
+.stk{max-width:1400px}
+.stk-scanrow{align-items:center;flex-wrap:wrap}.stk-scanrow button{height:40px}
+@media (max-width:760px){.stk-scanrow input{flex:1 1 100%}}
+.card .rv-act{height:28px;padding:0 10px}
+@media (pointer:coarse){.card .rv-act{min-height:40px}}
+@media (max-width:760px){.fbar .fb-person .grow{flex-basis:100%}}
+@media (max-width:760px){table.stack>tbody{display:block;padding:10px}
+table.stack>tbody>tr>td>.chip,table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.sheet-acts{justify-self:start}
+table.stack>tbody>tr>td>input:not([type=checkbox]),table.stack>tbody>tr>td>select{width:100%;min-width:0}
+table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}

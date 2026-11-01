@@ -750,3 +750,17 @@ test('health and reports: admins see the health of the server; everyone signed i
     assert.ok(log.some(e => e.action === 'report made: Inventory (PDF)'), 'a report made is in the log');
   } finally { await srv.close(); }
 });
+
+test('a Lansweeper push set up on the server is told to the signed-in page, before any data came', async () => {
+  const srv = await startServer({ feedToken: 'push-token-1234567890' });
+  try {
+    assert.equal((await srv.call('GET', '/api/me')).json.lansweeperFeed, undefined, 'not to someone signed out');
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal((await srv.call('GET', '/api/me', { cookie: a.cookie })).json.lansweeperFeed, true);
+  } finally { await srv.close(); }
+  const off = await startServer();
+  try {
+    const a = await signIn(off, 'admin', 'adminpass123');
+    assert.equal((await off.call('GET', '/api/me', { cookie: a.cookie })).json.lansweeperFeed, false);
+  } finally { await off.close(); }
+});

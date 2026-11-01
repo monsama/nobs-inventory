@@ -51,6 +51,7 @@ export function sheetHtml(sh, logoSvg = ''){
   const pw = sh.password
     ? `<div class="pw"><p>Initial password of your Windows account</p><div class="val">${esc(sh.password)}</div>
       <p>Windows asks you to choose your own password when you first sign in. Keep this sheet private and do not write your new password on it.</p></div>`
+    : sh.noPassword ? `<p>Sign in with your Windows account${sh.login ? ` <b>${esc(sh.login)}</b>` : ''} as before.</p>`
     : `<p class="gone">The initial password is no longer on this copy of the sheet. It has been changed, or ${esc(String(sh.passwordDays || 14))} days have passed. IT can set a new one.</p>`;
   return `<div class="sheet">
     <div class="top"><div class="logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="">` : logoSvg}</div><div><div class="brand">${esc(COMPANY.name || 'NOBS Inventory')}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${esc(day(sh.issued))}<br>by ${esc(sh.by)}</div></div>
@@ -79,23 +80,25 @@ async function printSheet(sh){
 }
 const stateText = (s, days) => s.password === 'kept'
   ? `<span class="chip warn" title="The password is on the kept sheet until it is marked as changed">On the sheet until ${esc(day(new Date(new Date(s.created).getTime() + days * 86400000).toISOString()))}</span>`
+  : s.password === 'none' ? '<span class="chip">No password</span>'
   : s.password === 'changed' ? '<span class="chip ok">Changed</span>' : `<span class="chip kept" title="Removed after ${days} days">Removed</span>`;
 
 /* The window in Settings → Users: a new sheet for the person, and the sheets kept for them. */
-export async function sheetModal(u, fresh = null){
+/* only: the sheet is made from one device, so only that one is ticked (the person may have others already). */
+export async function sheetModal(u, fresh = null, { only = null } = {}){
   await flushSave();
   let list;
   try { list = await call('GET', 'api/sheets?user=' + encodeURIComponent(u.id)); }
   catch (e) { toast(e.message); return; }
   const days = list.passwordDays;
   const mine = objs.filter(o => String(o.uid) === String(u.id));
-  const devs = mine.length ? mine.map(o => `<label class="pchk"><input type="checkbox" data-sdev="${esc(o.id)}" checked> ${esc(o.name)} <span class="note">${esc([o.code, o.model, o.serial].filter(Boolean).join(' · '))}</span></label>`).join('')
+  const devs = mine.length ? mine.map(o => `<label class="pchk"><input type="checkbox" data-sdev="${esc(o.id)}"${!only || String(o.id) === String(only) ? ' checked' : ''}> ${esc(o.name)} <span class="note">${esc([o.code, o.model, o.serial].filter(Boolean).join(' · '))}</span></label>`).join('')
     : `<p class="note">${esc(u.name)} has no devices in the inventory. Give them their devices first, or make a sheet without devices.</p>`;
   const kept = list.sheets.length ? `<table class="grid mini" style="min-width:820px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:17%"><col style="width:25%"><col style="width:41%"></colgroup><thead><tr><th>Issued</th><th>By</th><th>Password</th><th></th></tr></thead><tbody>${
     list.sheets.map(s => `<tr><td>${esc(day(s.created))}</td><td>${esc(s.by)}</td><td>${stateText(s, days)}</td>
       <td class="act"><div class="sheet-acts"><button data-sprint="${esc(s.id)}">Print</button><a class="btnlink" href="api/sheets/${encodeURIComponent(s.id)}/pdf" download>Download PDF</a>${s.password === 'kept' ? `<button data-schanged="${esc(s.id)}" title="The person has signed in and chosen their own password: remove it from the kept sheet">Password changed</button>` : ''}<button class="icon ghost" data-sdel="${esc(s.id)}" aria-label="Delete this sheet">×</button></div></td></tr>`).join('')}</tbody></table>`
     : '<p class="note">No sheet has been made for this person yet.</p>';
-  const made = fresh ? `<div class="panelbox sheet-new"><div class="hdr">New initial password</div><div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+  const made = fresh && fresh.sheet.password ? `<div class="panelbox sheet-new"><div class="hdr">New initial password</div><div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
       <div class="sheet-pw"><code class="mono" id="sheetPw">${esc(fresh.sheet.password)}</code><button id="sheetCopy">Copy</button></div>
       <p class="note">Set it on the AD account <b class="mono">${esc(fresh.sheet.login)}</b> with "User must change password at next logon". It is printed on the sheet.</p></div></div>` : '';
   modal(`<div class="mh">Entry sheet for ${esc(u.name)}</div>
@@ -104,6 +107,7 @@ export async function sheetModal(u, fresh = null){
         <p class="note">The sheet lists the devices handed out and a new initial password for the person's Windows account. Set that password in Active Directory with "User must change password at next logon". The app does not change anything in AD.</p>
         <div class="form sheet-form" style="padding:10px 12px">
           <label for="sheetLogin">Windows sign-in name</label><input id="sheetLogin" class="mono" autocomplete="off" value="${esc(u.login || '')}">
+          <label for="sheetPwOn">Password</label><div class="sheet-pwopt"><label class="pchk"><input type="checkbox" id="sheetPwOn"${only ? '' : ' checked'}> <span>A new initial password for the Windows account</span></label><p class="note">Leave it off when the person already has their account.</p></div>
           <label>Devices</label><div class="sheet-devs">${devs}</div>
           <label for="sheetNote">Note</label><textarea id="sheetNote" rows="2" maxlength="500" placeholder="First day, desk, anything else to write on the sheet"></textarea>
         </div>
@@ -114,14 +118,14 @@ export async function sheetModal(u, fresh = null){
     </div>
     <div class="mf"><button id="sheetClose">Close</button></div>`, 'wide');
   $('#sheetClose').onclick = closeModal;
-  if (fresh) $('#sheetCopy').onclick = () => navigator.clipboard.writeText(fresh.sheet.password).then(() => toast('Password copied'), () => toast('Copy it by hand: the browser does not allow it.'));
+  if (fresh && $('#sheetCopy')) $('#sheetCopy').onclick = () => navigator.clipboard.writeText(fresh.sheet.password).then(() => toast('Password copied'), () => toast('Copy it by hand: the browser does not allow it.'));
   $('#sheetMake').onclick = async () => {
     const login = $('#sheetLogin').value.trim();
-    if (!login){ $('#sheetErr').textContent = 'Give the Windows sign-in name.'; $('#sheetLogin').focus(); return; }
+    if (!login && $('#sheetPwOn').checked){ $('#sheetErr').textContent = 'Give the Windows sign-in name.'; $('#sheetLogin').focus(); return; }
     const deviceIds = [...document.querySelectorAll('[data-sdev]:checked')].map(c => c.dataset.sdev);
     try {
-      const r = await call('POST', 'api/sheets', { userId: u.id, deviceIds, login, note: $('#sheetNote').value });
-      await sheetModal(u, r);
+      const r = await call('POST', 'api/sheets', { userId: u.id, deviceIds, login, note: $('#sheetNote').value, password: $('#sheetPwOn').checked });
+      await sheetModal(u, r, { only });
       printSheet(r.sheet);
     } catch (e) { $('#sheetErr').textContent = e.message; }
   };

@@ -1,12 +1,13 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
+import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { view } from './07-render.js';
 import { resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { openSettings } from './04-settings.js';
+import { USERS, canEdit, openSettings } from './04-settings.js';
+import { newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 
 const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -17,6 +18,25 @@ const bars = (rows, attr) => {
     <span class="ov-lbl">${r.icon || ''}<span>${esc(r.label)}</span></span><span class="ov-track"><span ${r.bad ? 'class="bad" ' : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`).join('')}</div>`;
 };
 
+/* Getting started, for an admin of a new inventory: the few things to set up first, each ticked when it is done and
+   with the button that does it. Gone when the first four are done, or when hidden (kept in this browser). */
+const GS_HIDE = 'ni-start-hidden';
+function startHtml(){
+  /* Only for a new inventory: one in use for a while (many devices) does not need it. */
+  if (!canEdit() || objs.length >= 50) return '';
+  try { if (localStorage.getItem(GS_HIDE)) return ''; } catch { /* no storage: shown */ }
+  const steps = [
+    [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
+    [USERS.length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
+    [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'users', 'Set the name'],
+    [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New object'],
+  ];
+  const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
+  if (steps.every(x => x[0])) return '';
+  const row = ([done, title, note, act, label], i) => `<li class="start-step${done ? ' done' : ''}"><span class="start-n" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="start-t"><b>${title}</b><span class="muted">${note}</span></span>${done ? '<span class="chip ok">Done</span>' : `<button type="button" data-start="${act}">${label}</button>`}</li>`;
+  return `<div class="panelbox start"><div class="hdr">Getting started <span class="cnt">${steps.filter(x => x[0]).length} of ${steps.length} done</span><button type="button" class="link" id="startHide" style="margin-left:auto">Hide</button></div>
+    <ol class="start-list">${steps.map(row).join('')}${row(optional, steps.length)}</ol></div>`;
+}
 export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');
@@ -80,7 +100,7 @@ export function renderOverview(){
   $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} objects</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
-  $('#view').innerHTML = `<div class="ov">
+  $('#view').innerHTML = `<div class="ov">${startHtml()}
     <div class="ov-kpis">
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock · ${compact(live.length - inUse.length - stock)} other`, 'data-ovs="active"')}
       ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
@@ -111,6 +131,9 @@ export function renderOverview(){
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
   const go = (tab, set = {}) => { resetFilters(); Object.assign(st, { scope: null, rvSrc: '', rvKnown: false, rvOld: false, bulk: new Set() }, set); st.tab = tab; view(); };
   const v = $('#view');
+  /* Getting started: each step's button opens where it is done. */
+  v.querySelectorAll('[data-start]').forEach(b => b.onclick = () => { if (b.dataset.start === 'new'){ newObjModal(); return; } st.setTab = b.dataset.start; openSettings(); });
+  const gh = $('#startHide'); if (gh) gh.onclick = () => { try { localStorage.setItem(GS_HIDE, '1'); } catch { /* shown again next time */ } renderOverview(); };
   v.querySelectorAll('[data-ovt]').forEach(b => b.onclick = () => go('cards', { type: b.dataset.ovt, live: true }));
   v.querySelectorAll('[data-ovl]').forEach(b => b.onclick = () => go('cards', { loc: b.dataset.ovl, live: true }));
   v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));

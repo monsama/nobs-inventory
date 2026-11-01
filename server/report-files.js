@@ -4,6 +4,7 @@
    column, so it can be sorted, filtered and summed in Excel; numbers stay numbers. Written without any further library:
    the .xlsx is a small zip of XML files. */
 import PDFDocument from 'pdfkit';
+import { unicodeFonts } from './pdf-fonts.js';
 import zlib from 'node:zlib';
 
 const M = 36, PW = 841.89, PH = 595.28, W = PW - 2 * M;   /* A4 landscape, margins */
@@ -12,7 +13,7 @@ const cellText = (col, v) => col.money ? money(v) : typeof v === 'number' ? Stri
 
 export function reportPdf(r, company = {}) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: M, bufferPages: true, info: { Title: r.title, Author: company.name || 'NOBS Inventory' } });
+    const doc = unicodeFonts(new PDFDocument({ size: 'A4', layout: 'landscape', margin: M, bufferPages: true, info: { Title: r.title, Author: company.name || 'NOBS Inventory' } }));
     const chunks = [];
     doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     const weights = r.columns.reduce((t, c) => t + (c.w || 1), 0);

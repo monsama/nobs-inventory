@@ -1,6 +1,7 @@
 /* Settings → Users: the people, where each comes from, their role, login, password and entry sheet; the company
    (name and logo for the entry sheets). */
 import { modal, closeModal } from './19-modal.js';
+import { resetFilters } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave } from './07-render.js';
 import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
@@ -52,12 +53,12 @@ export function renderSetUsers(){
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <p class="note">Role: Admin can change everything, Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
     ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
-    <div style="overflow-x:auto"><table class="grid mini" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
-  root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].name));
+  root.querySelectorAll('[data-devs]').forEach(a => a.onclick = () => showDevicesOf(USERS[+a.dataset.devs].id));
   /* Admins that are active: the inventory needs at least one of them, so the page refuses what the server would refuse. */
   const activeAdmins = () => USERS.filter(x => x.role === 'admin' && x.active !== false).length;
   root.querySelectorAll('[data-act]').forEach(c => c.onchange = () => {
@@ -187,10 +188,16 @@ export function userLoginModal(u){
     st.setTab = 'users'; openSettings();
   };
 }
-/* Shows one user's devices in Cards, by searching for the name. */
-export function showDevicesOf(name){
+/* Shows one person's devices: the Table filtered by that person (by id, not by a search for the name), with the person's
+   own bar on top: hand-back list, entry sheet, take all back. A name no person has is searched for instead. */
+export function showDevicesOf(nameOrId){
   closeModal();
-  st.q = name; st.tab = 'cards'; st.cardsGroup = 'none';   /* the cards' own filter holds the name */
+  const u = USERS.find(x => x.id === nameOrId) || USERS.find(x => x.name === nameOrId);
+  /* Every other filter goes (the Table's column filters too), so the person's devices are all there. */
+  resetFilters();
+  st.scope = null; st.rvSrc = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set();
+  if (u){ st.person = u.id; st.q = ''; st.live = true; st.tab = 'table'; }
+  else { st.person = null; st.q = String(nameOrId || ''); st.tab = 'cards'; st.cardsGroup = 'none'; }
   render();
 }
 export function passwordModal(u){

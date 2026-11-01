@@ -11,18 +11,30 @@ const SCOPE = 'openid profile email';
 const PENDING_MS = 10 * 60 * 1000;
 const b64url = b => Buffer.from(b).toString('base64url');
 
-/* The sign-ins started and not finished yet, by their state: kept here for ten minutes. */
-const pending = new Map();
-function sweep(now) { for (const [k, v] of pending) if (v.until < now) pending.delete(k); }
+/* A sign-in started and not finished yet lives only in the browser's cookie, sealed (AES-256-GCM) with a key this
+   process makes at start: its state, nonce, PKCE verifier and return address, for ten minutes. The server keeps nothing
+   per sign-in, so calling start in a loop fills no memory, and a sign-in started in another browser (without that
+   cookie) cannot be finished in this one. A restart only ends the sign-ins under way. */
+const SEAL_KEY = crypto.randomBytes(32);
+function seal(v) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', SEAL_KEY, iv);
+  const body = Buffer.concat([c.update(JSON.stringify(v)), c.final()]);
+  return b64url(Buffer.concat([iv, c.getAuthTag(), body]));
+}
+function unseal(t) {
+  try {
+    const b = Buffer.from(String(t || ''), 'base64url');
+    if (b.length < 29 || b.length > 2048) return null;
+    const d = crypto.createDecipheriv('aes-256-gcm', SEAL_KEY, b.subarray(0, 12));
+    d.setAuthTag(b.subarray(12, 28));
+    return JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString());
+  } catch { return null; }
+}
 
-/* Starts a sign-in: where to send the browser, and the value bound to it in a cookie, so a sign-in started in another
-   browser cannot be finished in this one. */
+/* Starts a sign-in: where to send the browser, and the sealed value for its cookie. */
 export function startSso(cfg, redirectUri, now = Date.now()) {
-  sweep(now);
-  /* Many unfinished sign-ins (someone calling start in a loop): the oldest make room, not all of them. */
-  while (pending.size >= 1000) pending.delete(pending.keys().next().value);
-  const state = b64url(crypto.randomBytes(24)), nonce = b64url(crypto.randomBytes(24)), verifier = b64url(crypto.randomBytes(48)), bind = b64url(crypto.randomBytes(24));
-  pending.set(state, { nonce, verifier, bind, redirectUri, until: now + PENDING_MS });
+  const state = b64url(crypto.randomBytes(24)), nonce = b64url(crypto.randomBytes(24)), verifier = b64url(crypto.randomBytes(48));
+  const bind = seal({ state, nonce, verifier, redirectUri, until: now + PENDING_MS });
   const q = new URLSearchParams({ client_id: cfg.clientId, response_type: 'code', redirect_uri: redirectUri, response_mode: 'query', scope: SCOPE, state, nonce,
     code_challenge: b64url(crypto.createHash('sha256').update(verifier).digest()), code_challenge_method: 'S256', prompt: 'select_account' });
   return { url: `${LOGIN}/${encodeURIComponent(cfg.tenant)}/oauth2/v2.0/authorize?${q}`, bind };
@@ -65,10 +77,8 @@ export async function verifyIdToken(cfg, token, nonce, fetchImpl = fetch, now = 
 
 /* Finishes a sign-in: checks the state and its cookie, swaps the code for the tokens and checks the ID token. */
 export async function finishSso(cfg, { state, code, bind }, fetchImpl = fetch, now = Date.now()) {
-  sweep(now);
-  const p = pending.get(String(state || ''));
-  pending.delete(String(state || ''));
-  if (!p || !bind || p.bind.length !== String(bind).length || !crypto.timingSafeEqual(Buffer.from(p.bind), Buffer.from(String(bind)))) throw new Error('the sign-in was started elsewhere or too long ago');
+  const p = unseal(bind), st = String(state || '');
+  if (!p || typeof p.state !== 'string' || !(p.until >= now) || p.state.length !== st.length || !crypto.timingSafeEqual(Buffer.from(p.state), Buffer.from(st))) throw new Error('the sign-in was started elsewhere or too long ago');
   const m = await tenantMeta(cfg, fetchImpl, now);
   const body = new URLSearchParams({ client_id: cfg.clientId, grant_type: 'authorization_code', code: String(code || ''), redirect_uri: p.redirectUri, code_verifier: p.verifier, scope: SCOPE,
     client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: clientAssertion(cfg, new Date(now)) });

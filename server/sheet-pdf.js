@@ -2,6 +2,7 @@
    password while the kept sheet has it, the devices handed out, a note and the signature lines. */
 import { dateText } from '../public/js/dates.js';
 import PDFDocument from 'pdfkit';
+import { unicodeFonts } from './pdf-fonts.js';
 
 const M = 50, W = 595.28 - 2 * M;   /* A4 width, margins */
 const day = dateText;
@@ -20,7 +21,7 @@ function nobsMark(doc, x, y, s) {
 
 export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: M, compress, info: { Title: `Entry sheet ${sheet.person.name}`, Author: company.name || 'NOBS Inventory' } });
+    const doc = unicodeFonts(new PDFDocument({ size: 'A4', margin: M, compress, info: { Title: `Entry sheet ${sheet.person.name}`, Author: company.name || 'NOBS Inventory' } }));
     const parts = [];
     doc.on('data', b => parts.push(b)); doc.on('end', () => resolve(Buffer.concat(parts))); doc.on('error', reject);
     const bottom = () => doc.page.height - M;
@@ -57,6 +58,8 @@ export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
       doc.font('Courier-Bold').fontSize(18).fillColor('#111').text(sheet.password, M + 12, y + 23, { characterSpacing: 1 });
       doc.font('Helvetica').fontSize(8.5).fillColor('#222').text('Windows asks you to choose your own password when you first sign in. Keep this sheet private and do not write your new password on it.', M + 12, y + 47, { width: W - 24 });
       doc.y = y + 80;
+    } else if (sheet.noPassword) {
+      doc.font('Helvetica').fontSize(10).fillColor('#222').text(`Sign in with your Windows account${sheet.login ? ` (${sheet.login})` : ''} as before.`, M, doc.y, { width: W });
     } else {
       doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555').text(`The initial password is no longer on this copy of the sheet. It has been changed, or ${sheet.passwordDays || 14} days have passed. IT can set a new one.`, M, doc.y, { width: W });
     }

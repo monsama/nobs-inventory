@@ -24,7 +24,9 @@ export function reportOptions(q = {}, today = new Date()) {
   const y = Math.round(Number(q.year));
   const year = y >= 2000 && y <= 2100 ? y : today.getFullYear();
   const id = /^[\w.@-]{1,80}$/.test(String(q.id || '')) ? String(q.id) : '';
-  return { kind, group, years, year, id };
+  /* Only these devices (the list the page shows filtered), for the inventory and the lifecycle; null: all of them. */
+  const ids = Array.isArray(q.ids) && (kind === 'inventory' || kind === 'lifecycle') ? q.ids.slice(0, 50000).map(String) : null;
+  return { kind, group, years, year, id, ids };
 }
 
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -41,9 +43,10 @@ export function buildReport(s, opts, today = new Date()) {
   const person = d => (d.uid && users.get(d.uid) && users.get(d.uid).name) || d.user || (d.hotdesk ? 'Hot desk' : '');
   const dept = d => (d.uid && users.get(d.uid) && users.get(d.uid).dept) || '';
   /* The inventory: not retired, and not waiting in To review or ignored there. */
-  const live = (s.objs || []).filter(d => d.status !== 'retired' && !d.review);
+  const only = o.ids && new Set(o.ids);
+  const live = (s.objs || []).filter(d => d.status !== 'retired' && !d.review && (!only || only.has(String(d.id))));
   const currency = s.currency || 'CHF';
-  const made = `Made on ${dateText(iso(today))}`;
+  const made = `${only ? 'Filtered list · ' : ''}Made on ${dateText(iso(today))}`;
   const grouped = (list, keyOf, emptyName) => {
     const m = new Map();
     for (const [k, row] of list) { const name = k || emptyName; if (!m.has(name)) m.set(name, []); m.get(name).push(row); }
