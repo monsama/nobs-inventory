@@ -74,7 +74,7 @@ export function renderSetPane(){
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   /* Someone who is not an admin sees the settings to know them, not to change them: said once, at the top. */
-  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : '<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.</p>') + html;
+  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : `<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${canEdit() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + html;
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
@@ -150,7 +150,8 @@ export function applyRole(){
   /* An editor changes devices, not the settings: Settings stays read only for them, as for a viewer. */
   const roSet = !isAdmin();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
-    if (!ro && !(roSet && el.closest('#setPane'))){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
+    /* An editor adds rooms in their sites (Settings → Locations): that part stays open for them. */
+    if (!ro && !(roSet && el.closest('#setPane') && !el.closest('[data-editor-ok]'))){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
     if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   }));
