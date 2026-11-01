@@ -38,6 +38,17 @@ export function openDb(file) {
   return db;
 }
 
+/* A record written outside a full save (a run's result, a sign-in): stored, and its revision raised when it changed, so
+   pages that copy only what changed since (and the conflict check) see it. */
+export function writeDoc(db, kind, id, value) {
+  const json = JSON.stringify(value);
+  const cur = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?').get(kind, String(id));
+  if (cur && cur.data === json) return false;
+  db.prepare('INSERT INTO docs (kind, id, data) VALUES (?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data').run(kind, String(id), json);
+  db.prepare('INSERT INTO revs (kind, id, rev) VALUES (?, ?, 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1').run(kind, String(id));
+  return true;
+}
+
 export function audit(db, userId, action, detail = null) {
   db.prepare('INSERT INTO audit (at, user_id, action, detail) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), userId ?? null, action, detail == null ? null : JSON.stringify(detail));
   /* Keep the last 20,000 entries; older ones are removed when the log grows, but never one of the last 90 days. */

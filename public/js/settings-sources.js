@@ -47,8 +47,12 @@ export function orderSentence(k, order, modes = st.fieldMode){
   const says = used.map((x, i) => mode(x) === 'fill' ? `${SHORT[x]} writes it only while it is empty`
     : i === 0 ? (x === 'ls' && !LS_FILL[k] ? 'Lansweeper keeps it up to date at every scan' : `${SHORT[x]} keeps it up to date`)
     : `${SHORT[x]} keeps it up to date where ${list(used.slice(0, i).map(y => SHORT[y]))} ${i === 1 ? 'has' : 'have'} no value`);
-  return says.join('; ') + '.';
+  /* A source in the order that is not set up writes nothing yet: said, so the sentence is not read as what happens now. */
+  const idle = SOURCES_ON ? used.filter(x => !SOURCES_ON[x]) : [];
+  return says.join('; ') + '.' + (idle.length ? ` ${list(idle.map(x => SHORT[x]))} ${idle.length === 1 ? 'is' : 'are'} not set up: ${idle.length === 1 ? 'it writes' : 'they write'} nothing yet.` : '');
 }
+/* Which sources are set up, as the Health check on Maintenance says (the server's settings), set when the tab is drawn. */
+let SOURCES_ON = null;
 
 /* What the devices' fields would become under other settings (next: fieldOrder and policy), from the values each source
    last reported (o.vals): the syncs run in turn, weakest source first, as maySet lets them. A field picked or set by hand
@@ -105,10 +109,13 @@ function setOrder(k, list, what, modes = null){
 
 export function renderSetSources(){
   const root = $('#setSources'); if (!root) return;
-  const on = { ls: LS_ON(), ad: !!(SERVER.ldap || (st.ldap && st.ldap.url)), graph: !!(SERVER.graph || SYNC.graph), defender: false };
+  /* Set up, as Health says it: Lansweeper switched on and given an API, a push or a file; the directory and Graph set
+     on the server. */
+  const on = { ls: LS_ON() && !!SYNC.lansweeper, ad: !!(SERVER.ldap || (st.ldap && st.ldap.url)), graph: !!(SERVER.graph || SYNC.graph), defender: false };
   /* Defender is read by the Entra & Intune sync, when turned on there. */
   on.defender = on.graph && !!SYNC.defender;
   on.autopilot = on.graph;
+  SOURCES_ON = on;
   const intake = src => (st.intake || {})[src] === 'direct' ? 'go straight into the inventory' : 'wait in To review';
 
   /* What the last sync of a source changed on the fields, and the devices it changed (server/sync-changes.js). */

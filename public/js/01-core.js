@@ -250,7 +250,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Rack and Map tabs, the Settings tab, and the settings loaded from the server (feedOn, policy, ldap, lansweeper...).
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
-export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
+export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
   policy:{ ...DEFAULT_POLICY },
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
@@ -772,10 +772,10 @@ export function markHand(o, k){
 export function keepByHand(o, k){ if (o.pick && o.pick[k] && o.pick[k] !== 'hand') o.pick = {...o.pick, [k]: 'hand'}; }
 
 /* The one way to edit a row or a card: a pencil button at its end, the same in every list (contacts, contracts, licences).
-   attr says what it opens (data-…="id"); a viewer gets Show instead of Edit. */
+   attr says what it opens (data-…="id"); a viewer gets Show (an eye, not a pencil) instead of Edit. */
 /* Delete at the end of a row or card, next to Edit: a monochrome bin; what it does is asked first (confirmModal). */
 export const deleteButton = (attr, name) => `<button type="button" class="icon ghost delbtn" ${attr} aria-label="Delete ${esc(name)}" title="Delete"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>`;
-export const editButton = (attr, name, edit = true) => `<button type="button" class="icon ghost editbtn" ${attr} aria-label="${edit ? 'Edit' : 'Show'} ${esc(name)}" title="${edit ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></button>`;
+export const editButton = (attr, name, edit = true) => `<button type="button" class="icon ghost editbtn" ${attr} aria-label="${edit ? 'Edit' : 'Show'} ${esc(name)}" title="${edit ? 'Edit' : 'Show'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">${edit ? '<path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/>' : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'}</svg></button>`;
 
 /* On a phone a wide table (class "stack") shows each row as a card: every cell gets the name of its column, set here
    once the table is on the page, from its header. */

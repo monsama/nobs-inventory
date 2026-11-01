@@ -102,10 +102,12 @@ test('the restore test: the newest copy (or backup) restored into memory and cou
     // a backup here: restored in memory, the inventory untouched
     saveState(srv.db, { ...loadState(srv.db), objs: [{ id: 'o1', code: 'INV-1', type: 'pc', name: 'PC-ONE', status: 'active', loc: '' }, { id: 'o2', code: 'INV-2', type: 'pc', name: 'PC-TWO', status: 'active', loc: '' }] });
     takeBackup(srv.db, 'by hand');
-    const revsBefore = JSON.stringify(srv.db.prepare('SELECT * FROM revs ORDER BY kind, id').all());
+    const revsBefore = JSON.stringify(srv.db.prepare("SELECT * FROM revs WHERE NOT (kind = 'setting' AND id = 'restoreTest') ORDER BY kind, id").all());
     const x = (await srv.call('POST', '/api/restore-test', { cookie: a.cookie })).json;
     assert.equal(x.restoreTest.ok, true, JSON.stringify(x.restoreTest)); assert.equal(x.restoreTest.from, 'backup'); assert.equal(x.restoreTest.objects, 2);
-    assert.equal(JSON.stringify(srv.db.prepare('SELECT * FROM revs ORDER BY kind, id').all()), revsBefore, 'nothing written to the inventory');
+    assert.equal(JSON.stringify(srv.db.prepare("SELECT * FROM revs WHERE NOT (kind = 'setting' AND id = 'restoreTest') ORDER BY kind, id").all()), revsBefore, 'nothing written to the inventory');
+    // only its own result, with a new revision, so pages see it
+    assert.ok(srv.db.prepare("SELECT rev FROM revs WHERE kind = 'setting' AND id = 'restoreTest'").get().rev >= 2);
     let h = (await srv.call('GET', '/api/health/details', { cookie: a.cookie })).json.checks.find(c => c.name === 'Restore test');
     assert.equal(h.state, 'ok'); assert.match(h.value, /2 devices came back/);
     // with the copy outside on, the newest copy is the one tested

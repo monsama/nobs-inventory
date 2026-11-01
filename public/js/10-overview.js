@@ -94,7 +94,7 @@ export function renderOverview(){
   const reports = objs.filter(o => o.reported && o.status !== 'retired');
   const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
   const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
-  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
+  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
@@ -166,7 +166,7 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovrv]').forEach(b => b.onclick = () => go('cards', { scope: 'review' }));
   v.querySelectorAll('[data-ovplan]').forEach(b => b.onclick = () => {
     const row = replacementPlan(objs, st.lifecycle, new Date().getFullYear()).rows.find(r => r.key === b.dataset.ovplan);
-    if (row) go('table', { ids: { label: row.key === 'overdue' ? 'Due for replacement: overdue' : `Due for replacement in ${row.key}`, ids: row.ids } });
+    if (row) go('table', { ids: { label: row.key === 'overdue' ? 'Due for replacement: overdue' : `Due for replacement in ${row.key}`, ids: row.ids, cols: ['purchased', 'due', 'replPrice'] } });
   });
   const pl = $('#ovLife'); if (pl) pl.onclick = () => lifeModal();
   v.querySelectorAll('[data-ovopen]').forEach(b => b.onclick = () => openObjs([b.dataset.ovopen]));

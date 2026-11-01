@@ -4,7 +4,7 @@
    is kept for Settings and Health; only numbers, a file name and a short error, never data of the inventory. */
 import fs from 'node:fs';
 import path from 'node:path';
-import { openDb } from './db.js';
+import { openDb, writeDoc } from './db.js';
 import { getAppSecret } from './app-secrets.js';
 import { decryptBackup, exportDir, exportSettings } from './backup-export.js';
 import { restoreBackup } from './backup.js';
@@ -13,7 +13,7 @@ import { loadState } from './state.js';
 
 const OURS = /^nobs-backup-\d{4}-\d{2}-\d{2}-\d{4}\.nobsbak$/;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
-const putDoc = (db, id, v) => db.prepare("INSERT INTO docs (kind, id, data) VALUES ('setting', ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data").run(id, JSON.stringify(v));
+const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 export const lastRestoreTest = db => getDoc(db, 'restoreTest', null);
 
 /* The backup to test: { from: 'copy' | 'backup', name, text }. The copy outside when it is set up and has a file. */

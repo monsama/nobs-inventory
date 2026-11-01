@@ -73,7 +73,8 @@ export function renderSetPane(){
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
-  pane.innerHTML = html;
+  /* Someone who is not an admin sees the settings to know them, not to change them: said once, at the top. */
+  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : '<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.</p>') + html;
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
@@ -126,6 +127,8 @@ export const who = () => (me() && me().name) || 'someone';
    those, and refuses anything else), never the settings or the people. */
 export const isAdmin = () => !USERS.length || (!!me() && me().role === 'admin');
 export const canEdit = () => isAdmin() || (!!me() && me().role === 'editor');
+/* A viewer who sees only the devices given to them: they start on My devices, and get only the views that help with that. */
+export const ownOnly = () => { const u = me(); return !!u && u.role === 'viewer' && !!u.own; };
 /* The sites an editor is limited to (null: no limit), and the rooms they may put a device in. */
 export const mySites = () => { const u = me(); return u && u.role === 'editor' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
 /* The sites someone limited to some sees (a viewer or an editor), or null: the sidebar lists only those. */
@@ -140,7 +143,8 @@ export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|card
 export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
-  $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro;
+  /* Someone who cannot add or link sees no buttons for it, rather than disabled ones. */
+  $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro; $('#newBtn').hidden = ro; $('#linkBtn').hidden = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   /* An editor changes devices, not the settings: Settings stays read only for them, as for a viewer. */
