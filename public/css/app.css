@@ -1612,6 +1612,7 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 @media (max-width:760px){table.stack{min-width:0!important;table-layout:auto!important;width:100%}table.stack>colgroup,table.stack>thead{display:none}
 table.stack,table.stack>tbody,table.stack>tbody>tr,table.stack>tbody>tr>td{display:block}table.stack>tbody>tr{border:1px solid var(--bd2);border-radius:8px;margin:0 0 8px;padding:6px 10px}
 table.stack>tbody>tr>td{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;border:0!important;padding:3px 0!important;white-space:normal;overflow:visible}
-table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font-size:12px}table.stack>tbody>tr>td[data-label=""]{grid-template-columns:minmax(0,1fr)}table.stack>tbody>tr>td[data-label=""]::before{display:none}
+table.stack>tbody>tr>td::before{content:attr(data-label);color:var(--muted);font:12px system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:0}table.stack>tbody>tr>td[data-label=""]{grid-template-columns:minmax(0,1fr)}table.stack>tbody>tr>td[data-label=""]::before{display:none}
 table.stack>tbody>tr>th{display:block;border:0}}
 body.noside #side,body.noside #sideBtn{display:none!important}
+@media (max-width:760px){table.stack>tbody>tr>td>input[type=checkbox],table.stack>tbody>tr>td>label>input[type=checkbox]{justify-self:start;width:auto;height:auto}table.stack>tbody>tr>td>button.icon,table.stack>tbody>tr>td>.icon{justify-self:start}}
