@@ -8,7 +8,7 @@ import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { applyGroupRole } from '../public/js/group-roles.js';
-import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
@@ -949,7 +949,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
       if (link) db.prepare("UPDATE docs SET data = json_set(data, '$.link', ?) WHERE kind = 'setting' AND id = 'digest'").run(link);
       const d = digestSettings(db);
-      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
+      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}${d.reports ? ', reported problems at once' : ''}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
       res.json(digestInfo());
     } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
   });
@@ -1056,7 +1056,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
       (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
       saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
+      /* At once to the admins, when turned on: after answering, so a slow mail server does not hold the page. */
       res.json({ ok: true });
+      sendReportMail(db, o, o.reported, process.env, mailTransport).then(sent => { if (sent) audit(db, null, `e-mail sent: problem reported on ${o.name}`); },
+        e => audit(db, null, `e-mail about the problem on ${o.name} failed: ${String(e.message || e).slice(0, 200)}`));
     } catch (e) { next(e); }
   });
   /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */

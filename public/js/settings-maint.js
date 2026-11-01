@@ -230,13 +230,14 @@ function digestPanel(){
       <label for="dgTo">Send to</label><input id="dgTo" placeholder="it@example.com, lead@example.com" value="${esc((d.to || []).join(', '))}">
       <label for="dgDay">When</label><div class="bk-exrow"><select id="dgDay">${DAYS.map((n, i) => `<option value="${i}" ${i === d.day ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="dgHour" aria-label="Hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === d.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select>
         <label class="pchk" style="width:auto"><input type="checkbox" id="dgOn" ${d.on ? 'checked' : ''}> Send each week</label></div>
+      <span></span><label class="pchk" style="width:auto"><input type="checkbox" id="dgRep" ${d.reports ? 'checked' : ''}> Also send each problem a device's user reports, at once</label>
       </div>
       <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
         <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}</div>`;
 }
 function wireDigest(){
   const sv = $('#dgSave'); if (!sv) return;
-  const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
+  const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, reports: $('#dgRep').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
   const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
   sv.onclick = () => call('PUT', 'api/digest', body()).then(j => { DIGEST = j; renderSetMaint(); toast(j.on ? 'The weekly e-mail is on' : 'Saved'); }, e => toast(e.message));
   $('#dgSend').onclick = async () => { try { await call('PUT', 'api/digest', body()); DIGEST = await call('POST', 'api/digest/send'); toast('Sent'); } catch (e) { toast(e.message); DIGEST = null; } renderSetMaint(); };
