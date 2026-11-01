@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toRecords, applyGraph, applyGraphPeople, intakeFromGraph, applyAutopilot } from '../server/graph.js';
+import { graphFieldReport, toRecords, applyGraph, applyGraphPeople, intakeFromGraph, applyAutopilot } from '../server/graph.js';
 import { applyComputers, listAdUnmatched, addFromAd, adType, intakeFromAd } from '../server/ldap-sync.js';
 import { adDay, adOs, computerOf, COMPUTER_ATTRS, profileOf, cnOf } from '../server/ldap.js';
 import { createThrottle } from '../server/throttle.js';
@@ -118,6 +118,8 @@ test('Graph: a value typed that matches it stays the page\'s, phone details are 
   const s4 = state([{ id: 'x', name: 'Pixel Ben', serial: 'G1', status: 'active' }]);
   applyGraph(s4, [r2], NOW);
   assert.equal(s4.objs[0].graph.patch, '2026-06-01');
+  const rep = graphFieldReport([{ ...r2, intune: true }, { intune: true, category: '' }, { intune: false, carrier: 'x' }], true);
+  assert.equal(rep.managed, 2); assert.equal(rep.fields.patch, 1); assert.equal(rep.fields.carrier, 1); assert.equal(rep.fallback, true);
   const s3 = { ...state([{ id: 'q', name: 'PC-1', serial: 'S1', status: 'active' }]), fillGraph: false };
   applyGraph(s3, [rec()], NOW);
   assert.equal(s3.objs[0].os, undefined); assert.equal(s3.objs[0].graph.compliance, 'compliant', 'what Graph reports is still kept');

@@ -326,7 +326,7 @@ export function applyState(d){
   CONTACTS.list = Array.isArray(d.contacts) ? d.contacts : [];
   COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
   st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
-  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : [];
+  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : []; st.graphFields = d.graphFields && typeof d.graphFields === 'object' ? d.graphFields : null;
   st.graphAmbiguous = Array.isArray(d.graphAmbiguous) ? d.graphAmbiguous : [];
   st.adUnmatched = Array.isArray(d.adUnmatched) ? d.adUnmatched : [];
   st.ldapCa = d.ldapCa && Array.isArray(d.ldapCa.certs) ? d.ldapCa : null;

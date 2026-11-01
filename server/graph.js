@@ -187,8 +187,9 @@ export function toRecords(devices, managed) {
 export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
   const token = await graphToken(cfg, now, fetchImpl);
   const devices = await graphAll(token, `${GRAPH}/devices?$select=${DEVICE_SELECT}`, fetchImpl);
+  let fallback = false;
   const managed = await graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_SELECT}`, fetchImpl)
-    .catch(e => (e.upstream === 400 ? graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_BASE}`, fetchImpl) : Promise.reject(e)));
+    .catch(e => { if (e.upstream !== 400) throw e; fallback = true; return graphAll(token, `${GRAPH}/deviceManagement/managedDevices?$select=${MANAGED_BASE}`, fetchImpl); });
   let users = null, peopleError = '';
   if (cfg.people && cfg.people !== 'off') {
     try {
@@ -216,7 +217,7 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
     try { autopilot = await graphAll(token, `${GRAPH}/deviceManagement/windowsAutopilotDeviceIdentities`, fetchImpl, GRAPH_ORIGIN, 'Windows Autopilot'); }
     catch (e) { autopilotError = [401, 403].includes(e.upstream) ? `Autopilot was not read: the app needs the permission ${AUTOPILOT_PERMISSION}, type Application, with admin consent.` : 'Autopilot was not read: ' + e.message; }
   }
-  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError };
+  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError, fallback };
 }
 
 /* ---------- people from Entra ----------
@@ -522,9 +523,18 @@ export function applyDefender(s, machines, now = new Date()) {
   }
   return n;
 }
+/* Which of Intune's fields the last sync brought, and for how many of the devices Intune manages: so it shows what this
+   tenant gives (some fields only exist for some platforms), and when Graph refused the extra fields (fallback). */
+export const FIELD_REPORT = { category: 'Category', enrollType: 'How enrolled', enrollProfile: 'Enrollment profile', certExpires: 'Intune certificate end',
+  patch: 'Android security patch', carrier: 'Carrier', imei: 'IMEI', phone: 'Phone number', ownership: 'Ownership', free: 'Free storage', jailbroken: 'Jailbroken', supervised: 'Supervised' };
+export function graphFieldReport(records, fallback = false, now = new Date()) {
+  const managed = (records || []).filter(r => r.intune);
+  return { at: now.toISOString(), managed: managed.length, fallback: !!fallback, fields: Object.fromEntries(Object.keys(FIELD_REPORT).map(k => [k, managed.filter(r => r[k]).length])) };
+}
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError } = await fetchGraphAll(cfg, now, fetchImpl);
+  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
+  s.graphFields = graphFieldReport(records, fallback, now);
   const counts = applyGraph(s, records, now);
   const added = intakeFromGraph(s, now);
   if (added.review) counts.review = added.review;
