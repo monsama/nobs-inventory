@@ -89,6 +89,15 @@ test('an editor limited to sites changes the devices of those sites, and nothing
       assert.equal(r.status, 403, c.kind + ' ' + c.id);
     }
     assert.equal((await srv.call('PUT', '/api/state', { cookie: a.cookie, body: st })).status, 403, 'no full save');
+    // photos: of Bern's devices, not of Zürich's
+    const seg = (m, body) => { const b = Buffer.from(body); const h = Buffer.alloc(4); h[0] = 0xff; h[1] = m; h.writeUInt16BE(b.length + 2, 2); return Buffer.concat([h, b]); };
+    const jpg = Buffer.concat([Buffer.from([0xff, 0xd8]), seg(0xe0, 'JFIF\0\x01\x01\0\0\x01\0\x01\0\0'), seg(0xdb, 'q'), seg(0xda, 's'), Buffer.from('px'), Buffer.from([0xff, 0xd9])]).toString('base64');
+    const photo = id => srv.call('POST', `/api/objects/${id}/images`, { cookie: a.cookie, body: { name: 'p.jpg', data: jpg, thumb: jpg, w: 10, h: 10 } });
+    const ph = await photo('b1');
+    assert.equal(ph.status, 200, ph.text);
+    assert.equal((await photo('z1')).status, 404);
+    assert.equal((await srv.call('PATCH', `/api/images/${ph.json.image.id}`, { cookie: a.cookie, body: { caption: 'Label' } })).status, 200);
+    assert.equal((await srv.call('DELETE', `/api/images/${ph.json.image.id}`, { cookie: a.cookie })).status, 200);
     // an editor without sites changes every device, still no settings
     const e = await signIn(srv, 'eall', 'eallpass12345');
     const all = (await srv.call('GET', '/api/state', { cookie: e.cookie })).json;

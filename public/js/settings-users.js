@@ -96,6 +96,49 @@ function seesModal(u){
     queueServerSave(); closeModal(); renderSetUsers(); toast(`${u.name}: ${seesText(u).replace('Sees: ', 'sees ')}`);
   };
 }
+/* Roles from groups (public/js/group-roles.js): a group of AD (its name or DN) or of Entra (its object ID) gives a role
+   and sites, at each directory sync and sign-in. */
+const groupRules = () => Array.isArray(st.groupRoles) ? st.groupRoles : [];
+function groupRolesHtml(){
+  if (!isAdmin()) return '';
+  const rules = groupRules(), by = g => USERS.filter(u => u.roleBy === g).length;
+  return `<div class="panelbox" id="groupRoles"><div class="hdr">Roles from groups <span class="cnt">${rules.length || 'none'}</span></div>
+    <p class="note">A person in one of these groups gets its role and sites at each directory sync and sign-in; the first rule that matches counts. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group, not from here. When no rule matches any more, a role a rule gave goes back to No access.</p>
+    ${rules.length ? `<table class="grid mini stack"><thead><tr><th>Group</th><th>Role</th><th>Sites</th><th>People now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => `<tr>
+      <td class="mono">${esc(r.group)}</td><td>${r.role === 'editor' ? 'Editor' : 'Viewer'}</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : '<span class="muted">All</span>'}</td><td class="n">${by(r.group)}</td>
+      <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the rule for ${esc(r.group)}">Remove</button></div></td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a rule…</button></div></div>`;
+}
+function groupRuleModal(i){
+  const rules = groupRules(), r = i === null ? { group: '', role: 'viewer', sites: [] } : rules[i];
+  const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
+  modal(`<div class="mh">${i === null ? 'Add a rule' : 'Change the rule'}</div><div class="mb"><div class="form">
+      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${esc(r.group)}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID">
+      <label for="grRole">Role</label><select id="grRole"><option value="viewer" ${r.role === 'viewer' ? 'selected' : ''}>Viewer: looks</option><option value="editor" ${r.role === 'editor' ? 'selected' : ''}>Editor: changes devices</option></select>
+      <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${esc(n)}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('') : '<span class="muted">No sites yet: the rule gives all sites.</span>'}</div>
+    </div><p class="note">No site ticked: all sites.</p></div>
+    <div class="mf"><button id="grCancel">Cancel</button><button id="grOk" class="primary">Save</button></div>`, 'sm');
+  $('#grCancel').onclick = closeModal;
+  $('#grOk').onclick = () => {
+    const group = $('#grGroup').value.trim();
+    if (!group){ toast('Name the group.'); $('#grGroup').focus(); return; }
+    if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('There is a rule for this group already.'); return; }
+    const next = { group, role: $('#grRole').value, sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
+    if (!next.sites.length) delete next.sites;
+    st.groupRoles = i === null ? [...rules, next] : rules.map((x, j) => j === i ? next : x);
+    queueServerSave(); closeModal(); renderSetUsers(); toast(`${group}: ${next.role}${next.sites ? ` in ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
+  };
+}
+function wireGroupRoles(){
+  const add = $('#grAdd'); if (add) add.onclick = () => groupRuleModal(null);
+  document.querySelectorAll('[data-gredit]').forEach(b => b.onclick = () => groupRuleModal(+b.dataset.gredit));
+  document.querySelectorAll('[data-grdel]').forEach(b => b.onclick = () => {
+    const before = groupRules(), r = before[+b.dataset.grdel];
+    st.groupRoles = before.filter((x, j) => j !== +b.dataset.grdel);
+    queueServerSave(); renderSetUsers();
+    toastUndo(`Rule for ${r.group} removed`, () => { st.groupRoles = before; queueServerSave(); renderSetUsers(); });
+  });
+}
 export function renderSetUsers(){
   /* Devices per person, counted in one pass: asking each person's count separately went through every device each time. */
   const devCount = new Map();
@@ -131,7 +174,7 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
-      <td><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="editor" ${u.role === 'editor' ? 'selected' : ''}>Editor</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</td>
+      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="editor" ${u.role === 'editor' ? 'selected' : ''}>Editor</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? `<span class="chip kept ugrp" title="Given by the group ${esc(u.roleBy)} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</div></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td>${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Password</button>` : `<button data-login="${i}" title="Give this user a login name">Login name</button>`) : ''}</td>
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>${devicesOfUser(u.name) ? `<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${esc(u.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}` : ''}</td>
@@ -143,8 +186,9 @@ export function renderSetUsers(){
     ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>${groupRolesHtml()}`;
   const root = $('#setUsers');
+  wireGroupRoles();
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
   /* The search redraws as one types; the field keeps the focus and the caret. */
   const uq = $('#uQ'); if (uq) uq.oninput = () => { st.userQ = uq.value; const at = uq.selectionStart; renderSetUsers(); const n = $('#uQ'); if (n){ n.focus(); n.setSelectionRange(at, at); } };

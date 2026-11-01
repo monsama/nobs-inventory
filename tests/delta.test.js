@@ -43,6 +43,29 @@ test('since: only what changed, deletes named, and the page copy patched to what
     assert.ok(d.delta); assert.ok(d.puts.some(p => p[0] === 'user'));
     assert.ok(!JSON.stringify(d).includes('"login"'), 'no logins');
     const site = await signIn(srv, 'sam', 'viewerpass123');
-    assert.ok(!(await srv.call('GET', `/api/state?since=${now.cseq}`, { cookie: site.cookie })).json.delta);
+    // a viewer limited to sites: the changes as they see them; a device moving in comes with its history and connections
+    const s4 = loadState(srv.db);
+    s4.objs.find(o => o.id === 'o1').loc = 'HQ / 1';
+    s4.objs.push({ id: 'z1', code: 'INV-9', type: 'pc', name: 'PC-ZH', status: 'active', loc: 'ZH / 1' });
+    s4.rels.push({ id: 'r1', from: 'z1', to: 'o1', kind: 'connected' }); s4.history.z1 = [{ t: 'x', msg: 'bought in Zürich' }];
+    saveState(srv.db, s4);
+    let sv = (await srv.call('GET', '/api/state', { cookie: site.cookie })).json;
+    assert.deepEqual(sv.objs.map(o => o.id), ['o1']);
+    const s5 = loadState(srv.db); s5.objs.find(o => o.id === 'z1').loc = 'HQ / 1'; s5.sites = ['HQ', 'ZH']; saveState(srv.db, s5);
+    d = (await srv.call('GET', `/api/state?since=${sv.cseq}`, { cookie: site.cookie })).json;
+    assert.ok(d.delta);
+    assert.deepEqual(d.puts.map(p => p.slice(0, 2).join('|')).sort(), ['history|z1', 'object|z1', 'rel|r1', 'setting|sites']);
+    const mine = applyDelta(structuredClone(sv), d), whole = (await srv.call('GET', '/api/state', { cookie: site.cookie })).json;
+    assert.deepEqual(mine.objs.map(o => o.id).sort(), whole.objs.map(o => o.id).sort());
+    assert.deepEqual(mine.rels, whole.rels); assert.deepEqual(mine.history, whole.history);
+    // and moving out again: named as gone, with its connection and history
+    sv = whole;
+    const s6 = loadState(srv.db); s6.objs.find(o => o.id === 'z1').loc = 'ZH / 1'; saveState(srv.db, s6);
+    d = (await srv.call('GET', `/api/state?since=${sv.cseq}`, { cookie: site.cookie })).json;
+    assert.deepEqual(d.dels.map(x => x.join('|')).sort(), ['history|z1', 'object|z1', 'rel|r1']);
+    assert.ok(!JSON.stringify(d.puts).includes('ZH / 1'), 'nothing of the other site');
+    // their own account changed (other sites): everything again
+    const s7 = loadState(srv.db); s7.users.find(u => u.id === 'v2').sites = ['ZH']; saveState(srv.db, s7);
+    assert.ok(!(await srv.call('GET', `/api/state?since=${sv.cseq}`, { cookie: site.cookie })).json.delta);
   } finally { await srv.close(); }
 });

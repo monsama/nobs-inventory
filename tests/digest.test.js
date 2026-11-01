@@ -53,6 +53,23 @@ test('set up and sent from Settings: addresses checked, sent through the server,
     assert.equal(sent.length, 1); assert.equal(sent[0].to, 'it@example.com, lead@example.com'); assert.match(sent[0].text, /NB-OLD/);
     assert.ok(!JSON.stringify(r.json).includes('smtp-secret'));
     assert.equal(r.json.last.ok, true);
+    // a problem a device's user reports: sent at once when turned on, not otherwise
+    const st0 = loadState(srv.db);
+    st0.users.push({ id: 'u-anna', login: 'anna', name: 'Anna Muster', role: 'viewer', own: true, source: 'manual', active: true, groups: [] });
+    st0.objs[0].uid = 'u-anna'; st0.objs[0].loc = 'Bern / EG'; saveState(srv.db, st0);
+    const { setPassword } = await import('../server/auth.js'); setPassword(srv.db, 'u-anna', 'annapass12345');
+    const anna = await signIn({ ...srv, base }, 'anna', 'annapass12345');
+    const report = text => fetch(`${base}/api/my/devices/a/report`, { method: 'POST', headers: { cookie: anna.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+    assert.equal((await report('Battery swollen')).status, 200);
+    await new Promise(res => setTimeout(res, 100));
+    assert.equal(sent.length, 1, 'off: no mail');
+    assert.equal((await call('PUT', '/api/digest', { reports: true })).json.reports, true);
+    assert.equal((await report('Screen <b>flickers</b>')).status, 200);
+    for (let i = 0; i < 50 && sent.length < 2; i++) await new Promise(res => setTimeout(res, 20));
+    assert.equal(sent.length, 2);
+    assert.equal(sent[1].subject, 'NOBS Inventory: problem reported on NB-OLD');
+    assert.match(sent[1].text, /Anna Muster reported a problem with NB-OLD \(INV-1 · Bern \/ EG\):\s+Screen <b>flickers<\/b>[\s\S]*https:\/\/inv\.example\/\?o=INV-1/);
+    assert.ok(!sent[1].html.includes('<b>flickers</b>'), 'escaped in the HTML');
     s2.close();
   } finally { process.env = before; await srv.close(); }
 });

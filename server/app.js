@@ -6,18 +6,19 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { editorProblem, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
-import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, smtpConfig } from './digest.js';
+import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
+import { applyGroupRole } from '../public/js/group-roles.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
-import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken } from './api-tokens.js';
-import { PASSWORD_MIN, decryptBackup, exportDir, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
+import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
+import { PASSWORD_MIN, decryptBackup, exportSet, exportWhere, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, stateSeq, changesSince, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, settingOf, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -211,6 +212,17 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let user = userForClaims(loadState(db).users, claims);
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
+      /* Entra groups in the token (when the app registration sends the groups claim): kept, and with the directory's
+         groups they give a role and sites (Settings → Users → Roles from groups). */
+      if (Array.isArray(claims.groups)) {
+        const ids = claims.groups.filter(g => typeof g === 'string' && g.length <= 64).slice(0, 500);
+        const before = user.role, changed = JSON.stringify(user.entraGroups || []) !== JSON.stringify(ids);
+        user.entraGroups = ids;
+        if (applyGroupRole(user, settingOf(db, 'groupRoles'), [...(user.groups || []), ...ids]) || changed) {
+          saveUserDoc(user); bumpUser(user.id);
+          if (user.role !== before) audit(db, user.id, `role from groups: ${user.role}${user.sites ? ' (' + user.sites.join(', ') + ')' : ''}`);
+        }
+      }
       if (user.role === 'none') { audit(db, user.id, 'sign in with Microsoft refused: no role'); return back('norole'); }
       /* A directory user is checked as at a password sign-in: still in the directory and in its sign-in group, and admin
          only while in the admin group (the last active admin stays one). Without a service account the role the last
@@ -300,6 +312,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
           Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
           if (d.dept) delete user.deptFrom;
+          if (!isAdmin) applyGroupRole(user, settingOf(db, 'groupRoles'), [...(d.groups || []), ...(user.entraGroups || [])]);
           if (user.active !== false) {
             saveUserDoc(user); bumpUser(user.id);   /* a new revision, so a page holding the old record cannot save it back */
             if (wasLansweeper) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(user.id);   /* the directory checks the password now */
@@ -381,25 +394,52 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
   const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
-  const redactUser = ({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  const redactUser = ({ login, groups, entraGroups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
   app.get('/api/state', requireUser, (req, res, next) => {
     /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
        with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a
        long gap get everything, as without since. */
     const since = req.query.since !== undefined ? Number(req.query.since) : NaN;
     const sc = scopeOf(req.user), admin = req.user.role === 'admin';
-    if (Number.isInteger(since) && since >= 0 && !sc) {
+    if (Number.isInteger(since) && since >= 0 && !(sc && sc.own)) {
       try {
         const cseq = stateSeq(db);
-        const rows = since > cseq ? null : changesSince(db, since);
+        let rows = since > cseq ? null : changesSince(db, since);
+        /* Someone limited to sites: what changed, as they see it (scope.js). A device that moved out of their sites is
+           named as deleted, with its connections and history; one that moved in comes with them. A change to their own
+           account (their sites) gets everything again. */
+        if (rows && sc && rows.some(r => r.kind === 'user' && r.id === String(req.user.id))) rows = null;
         if (rows) {
           res.set('Cache-Control', 'no-store');
-          const puts = [], dels = [], revs = {};
+          const puts = [], dels = [], revs = {}, seen = new Set();
+          const rev = db.prepare('SELECT rev FROM revs WHERE kind = ? AND id = ?'), doc = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+          const objOf = id => { const d = doc.get('object', String(id)); return d ? JSON.parse(d.data) : null; };
+          let allRels = null;
+          const relsOf = id => { allRels ||= db.prepare("SELECT data FROM docs WHERE kind = 'rel'").all().map(x => JSON.parse(x.data)); return allRels.filter(x => x.from === id || x.to === id); };
+          const send = (kind, id, data) => {
+            const key = kind + '|' + id; if (seen.has(key)) return; seen.add(key);
+            const r = rev.get(kind, id); if (r) revs[key] = r.rev;
+            if (data === null) dels.push([kind, id]); else puts.push([kind, id, admin ? data : kind === 'object' ? redactObj(data) : kind === 'user' ? redactUser(data) : data]);
+          };
           for (const r of rows) {
             if (!admin && r.kind === 'setting' && CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') continue;
-            revs[r.kind + '|' + r.id] = r.rev;
-            if (r.data === null) { dels.push([r.kind, r.id]); continue; }
-            puts.push([r.kind, r.id, admin ? r.data : r.kind === 'object' ? redactObj(r.data) : r.kind === 'user' ? redactUser(r.data) : r.data]);
+            if (!sc) { send(r.kind, r.id, r.data); continue; }
+            if (r.kind === 'object') {
+              if (r.data && inScope(r.data, sc)) {
+                send('object', r.id, r.data);
+                const h = doc.get('history', r.id); send('history', r.id, h ? JSON.parse(h.data) : null);
+                for (const x of relsOf(r.id)) if (inScope(objOf(x.from), sc) && inScope(objOf(x.to), sc)) send('rel', String(x.id), x);
+              } else {
+                send('object', r.id, null); send('history', r.id, null);
+                for (const x of relsOf(r.id)) send('rel', String(x.id), null);
+              }
+            } else if (r.kind === 'rel') {
+              send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
+            } else if (r.kind === 'history') {
+              if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
+            } else if (r.kind === 'setting' && r.id === 'stocktakes' && Array.isArray(r.data)) {
+              send('setting', r.id, scopeState({ stocktakes: r.data }, sc).stocktakes);
+            } else send(r.kind, r.id, r.data);
           }
           return res.json({ delta: true, cseq, puts, dels, revs });
         }
@@ -468,7 +508,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/changes', requireUser, requireEditor, (req, res, next) => {
     try {
       if (req.user.role === 'editor') {
-        const cur = loadState(db), sc = scopeOf(req.user);
+        const cur = loadState(db, { history: false }), sc = scopeOf(req.user);
         /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
         if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
           if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
@@ -489,7 +529,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       /* Settings are logged one by one with what changed (before → after); the map layout is a preference, not logged. */
       const all = [...(Array.isArray(req.body?.puts) ? req.body.puts : []), ...(Array.isArray(req.body?.dels) ? req.body.dels : [])].filter(c => c && typeof c === 'object');
       const settingIds = [...new Set(all.filter(c => c.kind === 'setting' && c.id !== 'mapPos').map(c => String(c.id)))];
-      const before = removes || settingIds.length ? loadState(db) : null;
+      const before = removes || settingIds.length ? loadState(db, { history: false }) : null;
       /* Once a day, before the first change made on the page: an inventory kept by hand, without syncs, is backed up too
          (parts that did not change take no room again). */
       autoBackup(db, 'daily, before the first change', { daily: true });
@@ -914,7 +954,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let graphCert = null;
       if (g && g.certPem) { try { graphCert = new Date(new crypto.X509Certificate(g.certPem).validTo).toISOString(); } catch { /* unreadable: not shown */ } }
       const on = { lansweeper: s.useLansweeper !== false && (!!cfgLs() || !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV), ldap: !!cfgLdap(), graph: !!g };
-      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: !!exportDir(), ...exportSettings(db), last: lastExport(db) }, restore: lastRestoreTest(db), ...(diskSpace ? { diskSpace } : {}) });
+      return healthReport(db, s, { version: APP_VERSION, on, graphCert, photos: imageStats(db), copy: { dir: exportSet(), ...exportSettings(db), last: lastExport(db) }, restore: lastRestoreTest(db), ...(diskSpace ? { diskSpace } : {}) });
   };
   app.get('/api/health/details', requireUser, requireAdmin, (req, res, next) => {
     try { res.set('Cache-Control', 'no-store').json(healthNow()); } catch (e) { next(e); }
@@ -936,7 +976,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
       if (link) db.prepare("UPDATE docs SET data = json_set(data, '$.link', ?) WHERE kind = 'setting' AND id = 'digest'").run(link);
       const d = digestSettings(db);
-      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
+      audit(db, req.user.id, `weekly e-mail: ${d.on ? 'on' : 'off'}${d.reports ? ', reported problems at once' : ''}, to ${d.to.length} address${d.to.length === 1 ? '' : 'es'}`);
       res.json(digestInfo());
     } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
   });
@@ -1043,7 +1083,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
       (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
       saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
+      /* At once to the admins, when turned on: after answering, so a slow mail server does not hold the page. */
       res.json({ ok: true });
+      sendReportMail(db, o, o.reported, process.env, mailTransport).then(sent => { if (sent) audit(db, null, `e-mail sent: problem reported on ${o.name}`); },
+        e => audit(db, null, `e-mail about the problem on ${o.name} failed: ${String(e.message || e).slice(0, 200)}`));
     } catch (e) { next(e); }
   });
   /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */
@@ -1070,7 +1113,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   };
   /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To review. */
   app.get('/api/v1/devices', apiAuth, (req, res) => {
-    const s = loadState(db), q = String(req.query.q || '').trim().toLowerCase();
+    const s = loadState(db, { history: false }), q = String(req.query.q || '').trim().toLowerCase();
     let list = s.objs.filter(o => !o.review);
     if (req.query.status) list = list.filter(o => o.status === String(req.query.status));
     if (req.query.type) list = list.filter(o => o.type === String(req.query.type));
@@ -1082,15 +1125,33 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     }
     res.json({ count: out.length, devices: out });
   });
+  /* GET /api/v1/contracts, /api/v1/licences[?format=csv]; /api/v1/people only for a token made with people. */
+  const apiList = (req, res, key, list, cols) => {
+    if (req.query.format === 'csv') return res.type('text/csv').send('\ufeff' + [cols.join(','), ...list.map(d => cols.map(c => csvCellApi(Array.isArray(d[c]) ? d[c].join(' ') : d[c])).join(','))].join('\r\n'));
+    res.json({ count: list.length, [key]: list });
+  };
+  app.get('/api/v1/contracts', apiAuth, (req, res) => {
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'contracts', (s.contracts || []).map(c => apiContract(c, s)), ['id', 'name', 'kind', 'supplier', 'ref', 'start', 'end', 'renewMonths', 'noticeMonths', 'noticeBy', 'state', 'cost', 'per', 'devices']);
+  });
+  app.get('/api/v1/licences', apiAuth, (req, res) => {
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'licences', (s.licences || []).map(l => apiLicence(l, s)), ['id', 'name', 'seats', 'used', 'free', 'over', 'cost', 'per', 'end']);
+  });
+  app.get('/api/v1/people', apiAuth, (req, res) => {
+    if (!req.apiToken.people) return res.status(403).json({ error: 'This token was made without people.' });
+    const s = loadState(db, { history: false });
+    apiList(req, res, 'people', (s.users || []).filter(u => u.source !== 'manual' || u.login !== 'admin').map(u => apiPerson(u, s)), ['id', 'name', 'department', 'active', 'left', 'devices']);
+  });
   /* GET /api/v1/devices/INV-0001: one device by inventory number, id or serial number. */
   app.get('/api/v1/devices/:code', apiAuth, (req, res) => {
-    const s = loadState(db), k = String(req.params.code);
+    const s = loadState(db, { history: false }), k = String(req.params.code);
     const o = s.objs.find(x => !x.review && (x.code === k || x.id === k)) || s.objs.find(x => !x.review && x.serial && x.serial === k);
     if (!o) return res.status(404).json({ error: 'No such device.' });
     res.json(apiDevice(o, s, { people: req.apiToken.people }));
   });
   /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
-  const exportInfo = () => ({ dir: !!exportDir(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
+  const exportInfo = () => ({ dir: exportSet(), where: exportWhere(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
   /* The restore test (server/restore-test.js): weekly from the scheduler, and on request here. */
   app.locals.restoreTest = now => runRestoreTest(db, SECRET_KEY, process.env, now);
   app.post('/api/restore-test', requireUser, requireAdmin, async (req, res, next) => {
@@ -1101,7 +1162,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.put('/api/backup-export', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {};
-      if (b.on && !exportDir()) throw new HttpError(400, 'No folder is set on the server: set NI_BACKUP_EXPORT_DIR first.');
+      if (b.on && !exportSet()) throw new HttpError(400, 'Nowhere is set on the server: set NI_BACKUP_EXPORT_DIR, NI_BACKUP_EXPORT_AZURE_URL or NI_BACKUP_EXPORT_S3_URL first.');
       const before = exportSettings(db);
       saveExportSettings(db, { ...before, ...('on' in b ? { on: !!b.on } : {}), ...('keep' in b ? { keep: b.keep } : {}) });
       const after = exportSettings(db);

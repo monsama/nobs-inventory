@@ -9,18 +9,20 @@ import { graphSettingsProblem } from './graph-keys.js';
 import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
+import { groupRolesProblem } from '../public/js/group-roles.js';
+import { lifecycleProblem } from '../public/js/lifecycle.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { liftOvr } from './fill.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
 /* The syncs that bring in devices of their own: their new devices wait in To review unless Settings says otherwise. */
 export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
 export const intakeOf = (s, src) => ((s.intake || {})[src] === 'direct' ? 'direct' : 'review');
-export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame'];
+export const PAGE_SETTINGS = ['syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. */
@@ -60,8 +62,9 @@ export function revsOf(db) {
 
 /* What a new server starts with; a setting that is not stored has this value. */
 export const blankState = () => ({ objs: [], rels: [], users: [], types: {}, history: {}, locs: [], sites: [], vlans: [], domains: [], typeFields: {}, racks: [], policy: null, feedOn: true, feedSync: true, ldap: null, mapPos: {}, seq: 100, codeN: 0, rseq: 0 });
-export function loadState(db) {
-  const rows = db.prepare('SELECT kind, id, data FROM docs').all();
+/* history: false leaves the devices' history out (most of the inventory's bulk), for a job that does not need it. */
+export function loadState(db, { history = true } = {}) {
+  const rows = db.prepare(history ? 'SELECT kind, id, data FROM docs' : "SELECT kind, id, data FROM docs WHERE kind != 'history'").all();
   const s = blankState();
   for (const r of rows) {
     const v = JSON.parse(r.data);
@@ -201,6 +204,8 @@ function checkStateRules(s, size = true) {
   /* The sources of each field, in their order (Settings → Data sources). */
   { const p = fieldOrderProblem(s.fieldOrder); if (p) bad(p); }
   { const p = fieldModeProblem(s.fieldMode); if (p) bad(p); }
+  if (s.groupRoles !== undefined && s.groupRoles !== null) { const p = groupRolesProblem(s.groupRoles); if (p) bad(p); }
+  { const p = lifecycleProblem(s.lifecycle); if (p) bad(p); }
   /* Stocktakes (the Stocktake view): started, finished, what they found. */
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
   if (s.peopleNotSame !== undefined && (!Array.isArray(s.peopleNotSame) || s.peopleNotSame.length > 5000 || s.peopleNotSame.some(x => typeof x !== 'string' || x.length > 200))) bad('The people marked as not the same are a list of pairs.');
@@ -283,6 +288,8 @@ function checkStateRules(s, size = true) {
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
     if (u.own !== undefined && typeof u.own !== 'boolean') bad('Own devices only is yes or no.');
+    if (u.roleBy !== undefined && (typeof u.roleBy !== 'string' || u.roleBy.length > 300)) bad('The group a role came from is a name.');
+    if (u.entraGroups !== undefined && (!Array.isArray(u.entraGroups) || u.entraGroups.length > 500 || u.entraGroups.some(g => typeof g !== 'string' || g.length > 64))) bad('The Entra groups of a person are a list of IDs.');
     if (u.sites !== undefined && (!Array.isArray(u.sites) || u.sites.length > 50 || u.sites.some(x => typeof x !== 'string' || x.length > 120))) bad('The sites a person may see are a list of site names.');
     if (u.aliases !== undefined && (!Array.isArray(u.aliases) || u.aliases.length > 20 || u.aliases.some(a => typeof a !== 'string' || a.length > 120))) bad('Other names of a person are a short list of text.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
@@ -519,7 +526,7 @@ export function saveState(db, s) {
 
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
    many relations, users, types and which settings. The history lines that go with an object change are not counted. */
-export const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', company: 'company', locs: 'locations', sites: 'sites',
+export const SETTING_NAMES = { typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
   vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
   policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources', stocktakes: 'stocktakes',
   locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
@@ -572,7 +579,10 @@ export function applyChanges(db, body, guard = () => {}) {
   /* A page from before the source picker may still send o.ovr: it becomes picks (fill.js). */
   { const policy = settingOf(db, 'policy') || {}; for (const c of puts) if (c.kind === 'object') liftOvr(c.value, typeof policy === 'object' ? policy : {}); }
 
-  const revs = revsOf(db);
+  /* The revisions of the records this save names, read one by one: not every record's. */
+  const revOf = db.prepare('SELECT rev FROM revs WHERE kind = ? AND id = ?');
+  const revs = {};
+  for (const c of [...puts, ...dels]) { const r = revOf.get(c.kind, c.id); if (r) revs[docKey(c.kind, c.id)] = r.rev; }
   const conflicts = [];
   const usable = c => {
     if (c.base === null || c.base === undefined){ if (c.kind === 'setting' && LAST_WINS.includes(c.id)) return true; bad('A change needs the revision it was based on.'); }   /* a preference: the last save wins */
@@ -583,7 +593,9 @@ export function applyChanges(db, body, guard = () => {}) {
   };
   const okPuts = puts.filter(usable), okDels = dels.filter(usable);
 
-  const s = loadState(db);
+  /* The history of the devices is checked entry by entry, never against the rest: only the records this save sends are
+     loaded, so a save to a large inventory does not read every device's history. */
+  const s = loadState(db, { history: false });
   delete s.revs; delete s.empty;
   for (const c of okDels) {
     if (c.kind === 'object') s.objs = s.objs.filter(o => o.id !== c.id);
@@ -635,8 +647,7 @@ export function applyChanges(db, body, guard = () => {}) {
   const touched = new Set([...okPuts, ...okDels].map(c => docKey(c.kind, c.id)));
   if (Object.keys(codes).length) touched.add(docKey('setting', 'codeN'));
   writeDocs(db, s, touched);
-  const after = revsOf(db);
   const applied = {};
-  for (const c of [...okPuts, ...okDels]) { const key = docKey(c.kind, c.id); applied[key] = after[key] ?? 0; }
+  for (const c of [...okPuts, ...okDels]) { const r = revOf.get(c.kind, c.id); applied[docKey(c.kind, c.id)] = r ? r.rev : 0; }
   return { revs: applied, codes, conflicts };
 }

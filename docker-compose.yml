@@ -6,7 +6,7 @@ services:
   app:
     container_name: nobs-inventory
     # Pinned release image (set NI_IMAGE in .env). Built locally only if the pull is not possible.
-    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.80}
+    image: ${NI_IMAGE:-ghcr.io/monsama/nobs-inventory:0.9.81}
     build: .
     restart: unless-stopped
     # No extra rights inside the container: it needs none to serve the inventory.
@@ -42,6 +42,11 @@ services:
       NI_FEED_CSV: ${NI_FEED_CSV:-}
       # Optional: a nightly encrypted copy of the backups in this folder (in the container), e.g. /offsite below.
       NI_BACKUP_EXPORT_DIR: ${NI_BACKUP_EXPORT_DIR:-}
+      NI_BACKUP_EXPORT_AZURE_URL: ${NI_BACKUP_EXPORT_AZURE_URL:-}
+      NI_BACKUP_EXPORT_S3_URL: ${NI_BACKUP_EXPORT_S3_URL:-}
+      NI_BACKUP_EXPORT_S3_REGION: ${NI_BACKUP_EXPORT_S3_REGION:-}
+      NI_BACKUP_EXPORT_S3_ACCESS_KEY: ${NI_BACKUP_EXPORT_S3_ACCESS_KEY:-}
+      NI_BACKUP_EXPORT_S3_SECRET_KEY: ${NI_BACKUP_EXPORT_S3_SECRET_KEY:-}
       # Optional: the mail server for the weekly e-mail to the admins (Settings → Maintenance).
       NI_SMTP_HOST: ${NI_SMTP_HOST:-}
       NI_SMTP_PORT: ${NI_SMTP_PORT:-}

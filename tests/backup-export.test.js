@@ -130,3 +130,36 @@ test('the restore test: the newest copy (or backup) restored into memory and cou
     await srv.close(); fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the copy to cloud storage: Azure with its SAS URL, S3 signed; nothing of the token in what is kept', async () => {
+  const { runExport, lastExport, saveExportSettings } = await import('../server/backup-export.js');
+  const { setAppSecret } = await import('../server/app-secrets.js');
+  const { cloudTarget } = await import('../server/backup-cloud.js');
+  const crypto = await import('node:crypto');
+  const key = crypto.randomBytes(32);
+  const srv = await startServer({ sheetKey: key });
+  try {
+    setAppSecret(srv.db, key, 'backupExportPassword', 'a long enough secret');
+    saveExportSettings(srv.db, { on: true, keep: 3 });
+    const calls = [];
+    const fake = status => async (url, init) => { calls.push({ url: String(url), init }); return { ok: status < 300, status, text: async () => '<Error><Code>AccessDenied</Code></Error>' }; };
+    // Azure: PUT to the container with the SAS token, as a block blob
+    const az = { NI_BACKUP_EXPORT_AZURE_URL: 'https://acct.blob.core.windows.net/nobs?sv=2022&sp=cw&sig=SECRETSIG' };
+    const r = await runExport(srv.db, key, az, new Date(2026, 10, 1, 2, 30), fake(201));
+    assert.equal(r.cloud, 'Azure Blob Storage');
+    assert.equal(calls[0].url, `https://acct.blob.core.windows.net/nobs/${r.file}?sv=2022&sp=cw&sig=SECRETSIG`);
+    assert.equal(calls[0].init.method, 'PUT'); assert.equal(calls[0].init.headers['x-ms-blob-type'], 'BlockBlob');
+    assert.ok(Buffer.from(calls[0].init.body).subarray(0, 8).equals(Buffer.from('NOBSENC1')), 'the encrypted file');
+    assert.ok(!JSON.stringify(lastExport(srv.db)).includes('SECRETSIG'));
+    // S3: signed with the key, refused here: the status is kept, never the address or key
+    const s3 = { NI_BACKUP_EXPORT_S3_URL: 'https://s3.eu-central-1.amazonaws.com/bucket/nobs', NI_BACKUP_EXPORT_S3_REGION: 'eu-central-1', NI_BACKUP_EXPORT_S3_ACCESS_KEY: 'AKIATEST', NI_BACKUP_EXPORT_S3_SECRET_KEY: 'TOPSECRETKEY' };
+    await assert.rejects(runExport(srv.db, key, s3, new Date(2026, 10, 2, 2, 30), fake(403)), /S3 refused the upload \(403 AccessDenied\)/);
+    const c = calls[1];
+    assert.match(c.url, /^https:\/\/s3\.eu-central-1\.amazonaws\.com\/bucket\/nobs\/nobs-backup-2026-11-02-0230\.nobsbak$/);
+    assert.match(c.init.headers.authorization, /^AWS4-HMAC-SHA256 Credential=AKIATEST\/\d{8}\/eu-central-1\/s3\/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/);
+    const kept = JSON.stringify(lastExport(srv.db));
+    assert.ok(kept.includes('403') && !kept.includes('TOPSECRETKEY') && !kept.includes('amazonaws'));
+    assert.equal(cloudTarget({ NI_BACKUP_EXPORT_AZURE_URL: 'http://x.blob.core.windows.net/c?sig=1' }).error, 'NI_BACKUP_EXPORT_AZURE_URL needs https and a SAS token (…?sv=…&sig=…).');
+    assert.match(cloudTarget({ NI_BACKUP_EXPORT_S3_URL: 'https://s3.example/b' }).error, /ACCESS_KEY/);
+  } finally { await srv.close(); }
+});

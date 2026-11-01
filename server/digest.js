@@ -29,7 +29,7 @@ export function saveDigestSettings(db, v) {
   if (bad) throw Object.assign(new Error(`${bad} is not an e-mail address.`), { status: 400 });
   if (to.length > 20) throw Object.assign(new Error('At most 20 addresses.'), { status: 400 });
   const day = Math.min(6, Math.max(0, Math.floor(Number(v.day)))), hour = Math.min(23, Math.max(0, Math.floor(Number(v.hour))));
-  putDoc(db, 'digest', { on: !!v.on && to.length > 0, to, day: Number.isFinite(day) ? day : 1, hour: Number.isFinite(hour) ? hour : 7 });
+  putDoc(db, 'digest', { on: !!v.on && to.length > 0, reports: !!v.reports && to.length > 0, to, day: Number.isFinite(day) ? day : 1, hour: Number.isFinite(hour) ? hour : 7 });
 }
 export const lastDigest = db => getDoc(db, 'digestRun', null);
 
@@ -81,4 +81,26 @@ export async function sendDigest(db, mail, env = process.env, now = new Date(), 
     putDoc(db, 'digestRun', { at: now.toISOString(), ok: false, error: String(e.message || e).slice(0, 300) });
     throw e;
   }
+}
+
+/* A problem a device's user reported, sent at once to the same addresses (when turned on in Settings → Maintenance).
+   Says the device, who and what, and links to it; nothing else of the inventory. */
+export function buildReportMail(o, rep, link = '') {
+  const where = [o.code, o.loc].filter(Boolean).join(' · ');
+  const url = link && o.code ? `${link.replace(/\/?$/, '/')}?o=${encodeURIComponent(o.code)}` : link;
+  const subject = `NOBS Inventory: problem reported on ${o.name}`;
+  const text = [`${rep.by} reported a problem with ${o.name}${where ? ` (${where})` : ''}:`, '', rep.text, '', url ? `Open the device: ${url}` : '', '', 'Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → Maintenance.'].join('\n');
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;max-width:640px"><p><b>${esc(rep.by)}</b> reported a problem with <b>${esc(o.name)}</b>${where ? ` (${esc(where)})` : ''}:</p>
+<blockquote style="margin:8px 0;padding:6px 12px;border-left:3px solid #ccc">${esc(rep.text)}</blockquote>${url ? `<p><a href="${esc(url)}">Open the device</a></p>` : ''}
+<p style="color:#777;font-size:12px">Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → Maintenance.</p></div>`;
+  return { subject, text, html };
+}
+export async function sendReportMail(db, o, rep, env = process.env, transport = null) {
+  const cfg = smtpConfig(env), set = digestSettings(db);
+  if (!cfg || !set.reports || !set.to.length) return false;
+  const m = buildReportMail(o, rep, set.link || env.NI_PUBLIC_URL || '');
+  const t = transport || nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
+  await t.sendMail({ from: cfg.from, to: set.to.join(', '), subject: m.subject, text: m.text, html: m.html });
+  return true;
 }

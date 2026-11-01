@@ -54,8 +54,8 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
     const c = copy.last, age = c ? (now - Date.parse(c.at)) / DAY : Infinity, lastOk = c && c.ok;
     add('Backups', 'Copy outside the server', !c ? 'warn' : !lastOk ? 'bad' : age > 3 ? 'bad' : age > 1.5 ? 'warn' : 'ok',
       !c ? 'None yet' : lastOk ? `${ago(c.at, now)} · ${c.file} · ${mb(c.bytes || 0)}` : `Failed ${ago(c.at, now)}: ${c.error || 'unknown'}`,
-      !c ? 'The first copy is made tonight at 02:30, or with Copy now in Backups below.' : !lastOk || age > 1.5 ? 'Check the folder on the server (NI_BACKUP_EXPORT_DIR) and the password, then use Copy now.' : '');
-  } else add('Backups', 'Copy outside the server', 'off', copy && copy.dir ? 'Off' : 'Not set up', 'Optional: a nightly encrypted copy to a share, set up with NI_BACKUP_EXPORT_DIR on the server and turned on in Backups below.');
+      !c ? 'The first copy is made tonight at 02:30, or with Copy now in Backups below.' : !lastOk || age > 1.5 ? 'Check where the server copies to (NI_BACKUP_EXPORT_DIR, or the cloud storage) and the password, then use Copy now.' : '');
+  } else add('Backups', 'Copy outside the server', 'off', copy && copy.dir ? 'Off' : 'Not set up', 'Optional: a nightly encrypted copy to a share or to cloud storage (Azure Blob, S3), set up on the server and turned on in Backups below.');
   /* The weekly restore test: a backup that cannot be restored is worse than none, because it is trusted. */
   {
     const age = restore ? (now - Date.parse(restore.at)) / DAY : Infinity;

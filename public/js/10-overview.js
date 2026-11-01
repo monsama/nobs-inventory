@@ -1,10 +1,12 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
+import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, toast, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
+import { lifeOf, replacementPlan } from './lifecycle.js';
+import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
-import { SERVER, view } from './07-render.js';
+import { SERVER, queueServerSave, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
 import { USERS, canEdit, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
@@ -135,6 +137,7 @@ export function renderOverview(){
       ${openRep.length || doneRep.length ? `<div class="panelbox" id="ovReported"><div class="hdr">Reported problems <span class="cnt">${openRep.length ? `${openRep.length} open` : 'none open'}</span></div>
         <div class="ov-att">${openRep.map(repRow).join('')}</div>
         ${doneRep.length ? `<details class="ov-done"><summary>Done in the last 30 days (${doneRep.length})</summary><div class="ov-att">${doneRep.map(repRow).join('')}</div></details>` : ''}</div>` : ''}
+      ${planHtml(live)}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
@@ -161,6 +164,11 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovintune]').forEach(b => b.onclick = () => go('table', { intune: b.dataset.ovintune, live: true }));
   v.querySelectorAll('[data-ovos]').forEach(b => b.onclick = () => go('table', { osFam: b.dataset.ovos, live: true }));
   v.querySelectorAll('[data-ovrv]').forEach(b => b.onclick = () => go('cards', { scope: 'review' }));
+  v.querySelectorAll('[data-ovplan]').forEach(b => b.onclick = () => {
+    const row = replacementPlan(objs, st.lifecycle, new Date().getFullYear()).rows.find(r => r.key === b.dataset.ovplan);
+    if (row) go('table', { ids: { label: row.key === 'overdue' ? 'Due for replacement: overdue' : `Due for replacement in ${row.key}`, ids: row.ids } });
+  });
+  const pl = $('#ovLife'); if (pl) pl.onclick = () => lifeModal();
   v.querySelectorAll('[data-ovopen]').forEach(b => b.onclick = () => openObjs([b.dataset.ovopen]));
   v.querySelectorAll('[data-ovhb]').forEach(b => b.onclick = () => showDevicesOf(b.dataset.ovhb));
   v.querySelectorAll('[data-ovq]').forEach(b => b.onclick = () => go('table', { quality: b.dataset.ovq, live: true }));
@@ -170,4 +178,36 @@ export function renderOverview(){
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
   v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; view(); });
+}
+
+/* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */
+function planHtml(live){
+  const plan = replacementPlan(live, st.lifecycle, new Date().getFullYear());
+  if (!plan.planned && !plan.unknown) return '';
+  const max = Math.max(1, ...plan.rows.map(r => r.ids.length));
+  const tip = r => Object.entries(r.sites).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s}: ${n}`).join(', ');
+  return `<div class="panelbox" id="ovPlan"><div class="hdr">Replacement plan <span class="cnt">${compact(plan.planned)} planned</span>${isAdmin() ? '<button type="button" class="link" id="ovLife" style="margin-left:auto">Lifetimes and prices…</button>' : ''}</div>
+    <div class="ov-bars">${plan.rows.map(r => `<button class="ov-bar" data-ovplan="${r.key}" title="${esc(r.label)}: ${r.ids.length} device${r.ids.length === 1 ? '' : 's'}${r.ids.length ? ` (${esc(tip(r))})` : ''}" ${r.ids.length ? '' : 'disabled'}>
+      <span class="ov-lbl"><span>${esc(r.label)}</span></span><span class="ov-track"><span ${r.key === 'overdue' && r.ids.length ? 'class="bad" ' : ''}style="width:${r.ids.length ? Math.max(2, Math.round(r.ids.length / max * 100)) : 0}%"></span></span><span class="ov-n">${compact(r.ids.length)}${plan.priced && r.cost ? `<small class="ov-cost">${money(r.cost)}</small>` : ''}</span></button>`).join('')}</div>
+    <p class="note ov-plnote">Due when a type's lifetime has passed since purchase; without a purchase date, when the warranty ends.${plan.unknown ? ` ${compact(plan.unknown)} device${plan.unknown === 1 ? ' has' : 's have'} neither date.` : ''}${plan.priced ? '' : ' Add replacement prices to see the budget per year.'}</p></div>`;
+}
+/* The lifetime and the replacement price of each type, for the plan. */
+function lifeModal(){
+  const used = Object.keys(TYPES).filter(t => objs.some(o => o.type === t && o.status !== 'retired'));
+  modal(`<div class="mh">Lifetimes and replacement prices</div><div class="mb"><p class="note">How many years a device of each type is kept, and what replacing one costs. 0 years: not planned.</p>
+    <table class="grid mini ov-life"><thead><tr><th>Type</th><th>Years</th><th>Price (${esc(COSTS.currency || 'CHF')})</th></tr></thead><tbody>${used.map(t => { const l = lifeOf(st.lifecycle, t); return `<tr><td>${esc(TYPES[t].label)}</td>
+      <td><input type="number" min="0" max="40" step="1" data-lfy="${esc(t)}" value="${l.years}" aria-label="Lifetime of ${esc(TYPES[t].label)} in years"></td>
+      <td><input type="number" min="0" step="any" data-lfp="${esc(t)}" value="${l.price || ''}" placeholder="0" aria-label="Replacement price of ${esc(TYPES[t].label)}"></td></tr>`; }).join('')}</tbody></table></div>
+    <div class="mf"><button id="lfCancel">Cancel</button><button id="lfOk" class="primary">Save</button></div>`, 'sm');
+  $('#lfCancel').onclick = closeModal;
+  $('#lfOk').onclick = () => {
+    const next = { ...(st.lifecycle || {}) };
+    for (const t of used) {
+      const y = Math.round(Number($(`[data-lfy="${t}"]`).value)), p = Number($(`[data-lfp="${t}"]`).value);
+      if (!Number.isInteger(y) || y < 0 || y > 40){ toast(`${TYPES[t].label}: a lifetime is 0 to 40 years.`); return; }
+      if (!(p >= 0)){ toast(`${TYPES[t].label}: the price is a number.`); return; }
+      next[t] = { years: y, ...(p > 0 ? { price: p } : {}) };
+    }
+    st.lifecycle = next; queueServerSave(); closeModal(); renderOverview(); toast('Lifetimes and prices saved');
+  };
 }
