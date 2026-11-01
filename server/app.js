@@ -695,7 +695,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
     try {
       const made = createSheet(db, SHEET_KEY, loadState(db), req.body || {}, req.user.name || req.user.login || '');
-      audit(db, req.user.id, `entry sheet ${made.id} made for ${made.sheet.person.name} (${made.sheet.devices.length} devices)`);
+      audit(db, req.user.id, `entry sheet ${made.id} made for ${made.sheet.person.name} (${made.sheet.devices.length} devices${made.sheet.password ? '' : ', no password'})`);
       res.json(made);
     } catch (e) { next(e); }
   });

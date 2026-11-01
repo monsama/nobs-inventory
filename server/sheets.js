@@ -55,7 +55,7 @@ export function newPassword() {
 
 export function initSheets(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS sheets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created TEXT NOT NULL, by TEXT NOT NULL,
-    password TEXT NOT NULL, data TEXT NOT NULL)`);   /* password: 'kept', 'changed' or 'expired' */
+    password TEXT NOT NULL, data TEXT NOT NULL)`);   /* password: 'kept', 'changed', 'expired' or 'none' (made without one) */
 }
 
 const row = r => ({ id: r.id, userId: r.user_id, created: r.created, by: r.by, password: r.password });
@@ -78,7 +78,7 @@ export function purgePasswords(db, key, now = new Date()) {
 }
 
 /* Makes a sheet for a person and the devices given, from what the inventory holds (not from what the page sends). */
-export function createSheet(db, key, state, { userId, deviceIds = [], login = '', note = '' }, by, now = new Date()) {
+export function createSheet(db, key, state, { userId, deviceIds = [], login = '', note = '', password = true }, by, now = new Date()) {
   const person = state.users.find(u => u.id === userId);
   if (!person) throw new HttpError(404, 'No such person.');
   const ids = new Set(Array.isArray(deviceIds) ? deviceIds.map(String) : []);
@@ -87,13 +87,15 @@ export function createSheet(db, key, state, { userId, deviceIds = [], login = ''
   }));
   if (devices.length !== ids.size) throw new HttpError(400, 'A device on the sheet is not in the inventory.');
   const account = String(login || person.login || '').trim().slice(0, 120);
-  if (!account) throw new HttpError(400, 'Give the Windows sign-in name of the person.');
+  if (!account && password !== false) throw new HttpError(400, 'Give the Windows sign-in name of the person.');
   const pr = person.profile || {};
   const sheet = { person: { name: person.name, dept: person.dept || '', ...Object.fromEntries(['title', 'office', 'manager', 'mail'].filter(k => pr[k]).map(k => [k, String(pr[k]).slice(0, 200)])) }, login: account, devices, note: String(note || '').slice(0, 500),
-    issued: now.toISOString(), by, password: newPassword(), passwordDays: PASSWORD_DAYS };
+    issued: now.toISOString(), by, passwordDays: PASSWORD_DAYS };
+  /* A sheet for devices only (a person who already has an account) has no password, and none is kept. */
+  if (password !== false) sheet.password = newPassword(); else sheet.noPassword = true;
   const id = 'sh' + crypto.randomBytes(8).toString('hex');
-  db.prepare("INSERT INTO sheets (id, user_id, created, by, password, data) VALUES (?, ?, ?, ?, 'kept', ?)")
-    .run(id, userId, sheet.issued, by, sealSheet(key, sheet));
+  db.prepare("INSERT INTO sheets (id, user_id, created, by, password, data) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(id, userId, sheet.issued, by, sheet.password ? 'kept' : 'none', sealSheet(key, sheet));
   return { id, sheet };
 }
 export const listSheets = (db, userId) => db.prepare('SELECT id, user_id, created, by, password FROM sheets WHERE user_id = ? ORDER BY created DESC').all(userId).map(row);

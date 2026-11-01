@@ -57,6 +57,8 @@ export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
       doc.font('Courier-Bold').fontSize(18).fillColor('#111').text(sheet.password, M + 12, y + 23, { characterSpacing: 1 });
       doc.font('Helvetica').fontSize(8.5).fillColor('#222').text('Windows asks you to choose your own password when you first sign in. Keep this sheet private and do not write your new password on it.', M + 12, y + 47, { width: W - 24 });
       doc.y = y + 80;
+    } else if (sheet.noPassword) {
+      doc.font('Helvetica').fontSize(10).fillColor('#222').text(`Sign in with your Windows account${sheet.login ? ` (${sheet.login})` : ''} as before.`, M, doc.y, { width: W });
     } else {
       doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555').text(`The initial password is no longer on this copy of the sheet. It has been changed, or ${sheet.passwordDays || 14} days have passed. IT can set a new one.`, M, doc.y, { width: W });
     }

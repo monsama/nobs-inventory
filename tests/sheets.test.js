@@ -151,3 +151,22 @@ test('a restore adds the sheets that are missing and keeps those that are there'
     assert.equal(srv.db.prepare('SELECT password FROM sheets WHERE id = ?').get(two).password, 'expired');
   } finally { await srv.close(); }
 });
+
+test('a sheet can be made without a password: for devices only, nothing secret is kept', async () => {
+  const key = crypto.randomBytes(32);
+  const srv = await startServer({ sheetKey: key });
+  try {
+    seed(srv);
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const made = await srv.call('POST', '/api/sheets', { cookie: a.cookie, body: { userId: 'u-anna', deviceIds: ['o2'], password: false } });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+    assert.equal(made.json.sheet.password, undefined);
+    assert.equal(made.json.sheet.noPassword, true);
+    assert.equal(srv.db.prepare('SELECT password FROM sheets WHERE id = ?').get(made.json.id).password, 'none');
+    const pdf = await srv.call('GET', `/api/sheets/${made.json.id}/pdf`, { cookie: a.cookie, raw: true });
+    assert.equal(pdf.status, 200);
+    // with a password the sign-in name is still needed
+    const bad = await srv.call('POST', '/api/sheets', { cookie: a.cookie, body: { userId: 'u-anna', deviceIds: ['o2'] } });
+    assert.equal(bad.status, 400);
+  } finally { await srv.close(); }
+});
