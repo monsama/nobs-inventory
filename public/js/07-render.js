@@ -6,7 +6,7 @@ import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderStocktake } from './22-stocktake.js';
-import { FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
+import { openObjs, FIXED_TABS, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -470,6 +470,15 @@ export async function loadFromServer(user){
   st.meId = user.id;
   if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
   render();
+  openLinked();
+}
+/* An address with ?o=INV-0001 (the QR code on a device's label, scanned with a phone): that device opens. */
+export const linkedCode = v => { const m = /[?&]o=([^&#\s]+)/.exec(String(v || '')); if (!m) return ''; try { return decodeURIComponent(m[1]); } catch { return ''; } };
+function openLinked(){
+  const code = linkedCode(location.search); if (!code) return;
+  history.replaceState(history.state, '', location.pathname + location.hash);
+  const o = objs.find(x => x.code === code) || objs.find(x => String(x.id) === code);
+  if (o) openObjs([o.id]); else toast(`${code} is not in the inventory.`);
 }/* What the sign-in says when Microsoft's sign-in did not let someone in (the reason itself is in the log). */
 const SSO_ERRORS = {
   unknown: 'Your Microsoft account is not a user of the inventory. An admin can add you, or sync the people from AD or Entra.',

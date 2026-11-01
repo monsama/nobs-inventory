@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
+import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { finishSso, startSso, userForClaims } from './sso.js';
 import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
@@ -697,6 +698,20 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     } catch (e) { next(e); }
   };
   app.get('/api/reports/:kind', requireUser, report);
+  /* Labels with a QR code for the devices picked (their ids in the body), from what the inventory holds. */
+  app.post('/api/labels', requireUser, async (req, res, next) => {
+    try {
+      const b = req.body || {}, ids = Array.isArray(b.ids) ? b.ids.slice(0, 5000).map(String) : [];
+      if (!ids.length) throw new HttpError(400, 'Pick the devices to make labels for.');
+      const s = loadState(db), byId = new Map(s.objs.filter(o => !o.review).map(o => [String(o.id), o]));
+      const devices = ids.map(id => byId.get(id)).filter(Boolean).map(o => ({ id: o.id, code: o.code || '', name: o.name || '', serial: o.serial || '' }));
+      if (!devices.length) throw new HttpError(400, 'None of these devices is in the inventory.');
+      const format = LABEL_FORMATS[b.format] ? b.format : 'a4-24';
+      const pdf = await labelsPdf(devices, { format, skip: b.skip, base: `${req.protocol}://${req.get('host')}${req.baseUrl || ''}`, company: (s.company || {}).name || '' });
+      audit(db, req.user.id, `labels made for ${devices.length} device${devices.length === 1 ? '' : 's'}`);
+      res.set('Cache-Control', 'no-store').type('application/pdf').attachment(`nobs-labels-${new Date().toISOString().slice(0, 10)}.pdf`).send(pdf);
+    } catch (e) { next(e); }
+  });
   app.post('/api/reports/:kind', requireUser, report);
   app.post('/api/sheets', requireUser, requireAdmin, (req, res, next) => {
     try {

@@ -6,7 +6,7 @@ import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, toast, toastUndo } fro
 import { USERS, canEdit, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
-import { queueServerSave, render } from './07-render.js';
+import { linkedCode, queueServerSave, render } from './07-render.js';
 import { STOCKTAKE_DAYS, confirmedIn, daysSinceVerified, inScope, stocktakeDevices, stocktakeResult } from './stocktake.js';
 import { dateText } from './dates.js';
 
@@ -153,6 +153,8 @@ function wireActive(t, edit){
 /* A scan: the device it names, confirmed; one recorded elsewhere, moved here when that is what was found; something
    not in the inventory, noted for the result. */
 function found(t, v){
+  /* A device's label holds its address (…/?o=INV-0001): the inventory number in it counts. */
+  v = linkedCode(v) || v;
   const q = v.toLowerCase(), norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const live = objs.filter(o => o.status !== 'retired');
   const hits = live.filter(o => [o.code, o.serial, o.name].some(x => x && String(x).toLowerCase() === q))
