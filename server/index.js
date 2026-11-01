@@ -13,7 +13,7 @@ import { graphConfigOf, syncGraph } from './graph.js';
 import { isDue, scheduleOf } from '../public/js/schedule.js';
 import { autoBackup, takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
-import { exportDir, exportSettings, lastExport, runExport } from './backup-export.js';
+import { exportSet, exportSettings, lastExport, runExport } from './backup-export.js';
 import { digestSettings, smtpConfig } from './digest.js';
 import { purgeOrphanImages } from './device-images.js';
 import { collectParts, convertOldBackups } from './backup-store.js';
@@ -63,7 +63,7 @@ export function runFeedFile(db, file, now = new Date()) {
    is set, otherwise the report file; the directory users; Microsoft Graph. Due in the same minute, they run in that order,
    so the devices Lansweeper adds are there for Graph to match. Kept passwords on entry sheets are cleared daily at 06:00. */
 export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null, digest = null, restoreTest = null } = {}, log = console.log) {
-  if (!restoreTest && !lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportDir(env) && !smtpConfig(env)) return null;
+  if (!restoreTest && !lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportSet(env) && !smtpConfig(env)) return null;
   const done = {};
   const once = (key, t) => { const k = `${t.toDateString()} ${t.getHours()}:${t.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
   /* One run at a time: a tick while a sync is still going is skipped, and the next one also looks at the minutes it
@@ -83,7 +83,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
     /* Anything that throws here (a secret file that can no longer be read, say) is logged; it must not stop the server. */
     try {
       /* The copy of the backups outside the server, when the server names a folder and it is on: nightly at 02:30. */
-      if (exportDir(env) && exportSettings(db).on && mins.some(t => t.getHours() === 2 && t.getMinutes() === 30 && once('export', t))) {
+      if (exportSet(env) && exportSettings(db).on && mins.some(t => t.getHours() === 2 && t.getMinutes() === 30 && once('export', t))) {
         try { const r = await runExport(db, sheetKey, env, now); log('backup copied outside the server:', r.file); audit(db, null, `backup copied outside the server: ${r.file}`); }
         catch (e) { log('copy of the backups outside the server failed:', e.message); audit(db, null, 'copy of the backups outside the server failed: ' + ((lastExport(db) || {}).error || e.message)); }
       }

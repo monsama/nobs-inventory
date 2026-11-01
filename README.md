@@ -198,6 +198,13 @@ The app can write one encrypted file of the inventory each night (02:30) to a sh
 
 The files (`nobs-backup-YYYY-MM-DD-HHMM.nobsbak`) are AES-256-GCM encrypted with a key made from that password; the last 14 are kept (changeable). The password is kept encrypted on the server and is not in any backup: **keep it apart**, a copy cannot be read without it. Restore one in Settings → Maintenance → *Restore from file…*, or turn it back into a backup file on any computer: `node scripts/decrypt-backup.mjs nobs-backup-….nobsbak > backup.json`. Only the server decides the folder; the page cannot point it anywhere else.
 
+Instead of a share, or as well, the same file can go to cloud storage, named in `.env`:
+
+- Azure Blob Storage: `NI_BACKUP_EXPORT_AZURE_URL`, the container's URL with a SAS token that may create and write (`sp=cw`), e.g. `https://account.blob.core.windows.net/nobs-backups?sv=…&sig=…`.
+- S3 (Amazon S3, MinIO, Wasabi …): `NI_BACKUP_EXPORT_S3_URL` (bucket URL, with an optional folder: `https://s3.eu-central-1.amazonaws.com/my-bucket/nobs`), `NI_BACKUP_EXPORT_S3_REGION`, `NI_BACKUP_EXPORT_S3_ACCESS_KEY` and `NI_BACKUP_EXPORT_S3_SECRET_KEY`. Give the key only the right to put objects in that bucket.
+
+The app uploads and never deletes in the cloud: set a lifecycle rule there for how long the copies stay. The SAS URL and the secret key stay on the server: they are never shown or logged.
+
 ### Weekly e-mail (optional)
 
 Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), then in Settings → Maintenance → Weekly e-mail give the addresses, the day and hour, and use Preview and Send now once.
