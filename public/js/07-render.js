@@ -441,7 +441,7 @@ export async function boot(){
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SYNC.lansweeper = !!info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SYNC.lansweeper = !!(info.lansweeper || info.lansweeperFeed); SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
   /* Back from Microsoft: what went wrong, if anything, said on the sign-in; the address is cleaned. */
   const ssoErr = new URLSearchParams(location.search).get('sso');
   if (ssoErr) history.replaceState(null, '', location.pathname + location.hash);

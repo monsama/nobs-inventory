@@ -172,7 +172,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
-    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph(), sso: ssoOn() });
+    res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph(), sso: ssoOn(),
+      /* Signed in: whether a push or a nightly file is set up for Lansweeper, so the page says so before the first data came. */
+      ...(u ? { lansweeperFeed: !!feedTokenInfo(db) || !!feedToken || !!process.env.NI_FEED_CSV } : {}) });
   });
 
   /* Sign in with Microsoft (server/sso.js), when turned on in Settings → Entra & Intune and Graph is set up. The browser
