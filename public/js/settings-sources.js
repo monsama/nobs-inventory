@@ -113,10 +113,13 @@ export function renderSetSources(){
 
   /* What the last sync of a source changed on the fields, and the devices it changed (server/sync-changes.js). */
   const changesHtml = src => {
-    const c = (st.syncChanges || {})[src]; if (!c || !c.n) return '';
+    const c = (st.syncChanges || {})[src]; if (!c || (!c.n && !(c.earlier || []).length)) return '';
     const part = (o, verb) => { const e = Object.entries(o || {}).sort((a, b) => b[1] - a[1]); return e.length ? `${verb} ${list(e.slice(0, 4).map(([f, n]) => `${f} on ${n}`))}${e.length > 4 ? ` and ${e.length - 4} more` : ''}` : ''; };
-    const text = [part(c.changed, 'changed'), part(c.filled, 'filled in')].filter(Boolean).join('; ');
-    return `<div class="ds-changes">${esc(text.charAt(0).toUpperCase() + text.slice(1))} <button type="button" class="link" data-dschg="${src}">${c.n === 1 ? 'Show the device' : `Show the ${c.n} devices`}</button></div>`;
+    const says = r => { const x = [part(r.changed, 'changed'), part(r.filled, 'filled in')].filter(Boolean).join('; '); return x.charAt(0).toUpperCase() + x.slice(1); };
+    const show = (r, i) => `<button type="button" class="link" data-dschg="${src}" data-dsrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button>`;
+    const earlier = c.earlier || [];
+    return `<div class="ds-changes">${c.n ? `${esc(says(c))} ${show(c, -1)}` : 'The last run changed nothing.'}
+      ${earlier.length ? `<details class="ds-earlier"><summary>Earlier runs (${earlier.length})</summary><ul>${earlier.map((r, i) => `<li><span class="muted">${esc(when(r.at))}</span> ${esc(says(r))} ${show(r, i)}</li>`).join('')}</ul></details>` : ''}</div>`;
   };
   /* One card per source: set up or not, its last run, where its new devices go and whether it fills fields. */
   const card = (src, runKey, lines) => {
@@ -168,8 +171,9 @@ export function renderSetSources(){
 
   /* The devices a sync changed, and the ones a field was set by hand on: listed in the Table. */
   root.querySelectorAll('[data-dschg]').forEach(b => b.onclick = () => {
-    const c = (st.syncChanges || {})[b.dataset.dschg]; if (!c) return;
-    resetFilters(); st.ids = { label: `Changed by ${SOURCE_LABEL[b.dataset.dschg]} at the last sync`, ids: c.ids || [] }; st.scope = null; st.tab = 'table'; closeModal(); render();
+    const all = (st.syncChanges || {})[b.dataset.dschg]; if (!all) return;
+    const i = Number(b.dataset.dsrun ?? -1), c = i < 0 ? all : (all.earlier || [])[i]; if (!c) return;
+    resetFilters(); st.ids = { label: i < 0 ? `Changed by ${SOURCE_LABEL[b.dataset.dschg]} at the last sync` : `Changed by ${SOURCE_LABEL[b.dataset.dschg]} on ${when(c.at)}`, ids: c.ids || [] }; st.scope = null; st.tab = 'table'; closeModal(); render();
   });
   root.querySelectorAll('[data-dshand]').forEach(b => b.onclick = () => { resetFilters(); st.handField = b.dataset.dshand; st.scope = null; st.tab = 'table'; closeModal(); render(); });
   if (!edit) return;
