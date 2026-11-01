@@ -56,7 +56,7 @@ try {
   const rows = db.prepare('SELECT * FROM device_images').all();
   assert.equal(rows.length, 2);
   assert.ok(Math.max(rows[0].w, rows[0].h) <= 2560, 'made smaller');
-  assert.equal(rows[0].mime, 'image/jpeg');
+  assert.ok(['image/jpeg', 'image/webp'].includes(rows[0].mime), rows[0].mime);
   assert.ok(!Buffer.from(rows[0].data).includes('GPS'), 'sent without its GPS position');
   await until(() => /2 photos added by Administrator/.test(loadState(db).history.o1?.[0]?.msg || ''));
   if (shots) await page.screenshot({ path: path.join(shots, 'photos-panel.png') });
@@ -79,9 +79,63 @@ try {
   await page.click('#phClose');
   assert.equal((await page.$$('.ph-thumb')).length, 1);
 
+  /* Smallest without a visible loss: a photo becomes WebP (smaller than the JPEG at the same quality); a screenshot
+     stays lossless; a small upright JPEG is kept as it is, byte for byte (but its metadata). */
+  const picks = await page.evaluate(async () => {
+    const { prepare } = await import('/js/23-photos.js');
+    const make = async (w, h, type, q, noise) => {
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+      const img = x.createImageData(w, h);
+      for (let i = 0; i < img.data.length; i += 4) { const v = noise ? (Math.sin(i / 97) * 60 + 120 + (i % 7) * 9) : ((i / 4) % w < w / 2 ? 30 : 220); img.data[i] = v; img.data[i + 1] = v * 0.8; img.data[i + 2] = 255 - v; img.data[i + 3] = 255; }
+      x.putImageData(img, 0, 0); if (!noise) { x.fillStyle = '#000'; x.font = '40px sans-serif'; x.fillText('Settings → Network', 20, 80); }
+      const b = await new Promise(r => c.toBlob(r, type, q));
+      return new File([b], 'p.' + type.split('/')[1], { type });
+    };
+    const decode = b64 => atob(b64).slice(0, 12);
+    const photo = await make(3000, 2000, 'image/jpeg', 0.95, true), shot = await make(1200, 800, 'image/png', undefined, false), small = await make(800, 600, 'image/jpeg', 0.6, true);
+    const [a, b, c] = [await prepare(photo), await prepare(shot), await prepare(small)];
+    /* The same picture at 2560 px as JPEG and as WebP at the quality used: what is sent is the smaller one. */
+    const bmp = await createImageBitmap(photo), cv = document.createElement('canvas'); cv.width = 2560; cv.height = Math.round(2000 * 2560 / 3000); cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+    const sizeAs = (type) => new Promise(r => cv.toBlob(x => r(x.size), type, 0.85));
+    const both = [await sizeAs('image/jpeg'), await sizeAs('image/webp')];
+    return { photo: [decode(a.data), a.bytes, photo.size, Math.min(...both)], shot: [decode(b.data), b.bytes, shot.size], small: [c.bytes, small.size] };
+  });
+  assert.match(picks.photo[0], /^RIFF....WEBP|^\xff\xd8\xff/, 'a photo as WebP or JPEG');
+  assert.ok(picks.photo[1] <= picks.photo[3] * 1.02, `the smaller of the two: ${picks.photo[1]} vs ${picks.photo[3]}`);
+  assert.ok(picks.photo[1] < picks.photo[2] / 2, 'much smaller than the camera file');
+  assert.ok(picks.shot[1] <= picks.shot[2], 'a screenshot never larger than its PNG');
+  assert.ok(/^RIFF....WEBP|^\x89PNG/.test(picks.shot[0]), 'and lossless');
+  assert.equal(picks.small[0], picks.small[1], 'a small JPEG kept as it is');
+
+  /* Make photos smaller (Maintenance): a big PNG photo stored before is replaced by a smaller one under a new id. */
+  const big = await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 1600; c.height = 1200; const x = c.getContext('2d'); const img = x.createImageData(1600, 1200);
+    for (let i = 0; i < img.data.length; i += 4) { const v = Math.sin(i / 53) * 70 + 120 + (i % 11) * 5; img.data[i] = v; img.data[i + 1] = 200 - v / 2; img.data[i + 2] = v / 3; img.data[i + 3] = 255; }
+    x.putImageData(img, 0, 0);
+    const toB64 = async b => { const u = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+    const png = await new Promise(r => c.toBlob(r, 'image/png')), jpg = await new Promise(r => { const t = document.createElement('canvas'); t.width = 160; t.height = 120; t.getContext('2d').drawImage(c, 0, 0, 160, 120); t.toBlob(r, 'image/jpeg', 0.8); });
+    const r = await fetch('api/objects/o1/images', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'old.png', data: await toB64(png), thumb: await toB64(jpg), w: 1600, h: 1200 }) });
+    return (await r.json()).image;
+  });
+  assert.equal(big.mime, 'image/png');
+  const before = db.prepare('SELECT SUM(bytes) AS b FROM device_images').get().b;
+  await page.click('#setBtn'); await page.click('#setTabs [data-st=maintenance]');
+  await page.waitForSelector('#psRun');
+  assert.match(await page.textContent('#psStatus'), /2 photos of devices and racks/);
+  await page.click('#psRun');
+  await until(() => page.evaluate(() => /Done: /.test(document.querySelector('#psStatus')?.textContent || '')), 30000);
+  assert.match(await page.textContent('#psStatus'), /Done: 1 of 2 photos made smaller/);
+  const after = db.prepare('SELECT * FROM device_images').all();
+  assert.equal(after.length, 2);
+  assert.ok(!after.some(r => r.id === big.id), 'under a new id');
+  const re = after.find(r => r.name === 'old.png');
+  assert.ok(re.bytes < big.bytes * 0.85, `smaller: ${re.bytes} < ${big.bytes}`);
+  assert.ok(db.prepare('SELECT SUM(bytes) AS b FROM device_images').get().b < before);
+  await page.keyboard.press('Escape');
+
   /* A viewer: the photo, no Add, no Remove. */
   const vp = await signIn('viewer', 'viewerpass123');
-  assert.equal((await vp.$$('.ph-thumb')).length, 1);
+  assert.equal((await vp.$$('.ph-thumb')).length, 2);
   assert.equal(await vp.$('#phAdd'), null);
   await vp.click('.ph-thumb'); await vp.waitForSelector('.ph-modal');
   assert.equal(await vp.$('#phDel'), null);

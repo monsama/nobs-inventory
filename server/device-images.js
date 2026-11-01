@@ -66,8 +66,30 @@ export function stripPng(buf) {
   }
   throw new HttpError(400, 'This PNG picture cannot be read.');
 }
+/* A WebP with only the chunks that draw the picture: EXIF and XMP (camera, GPS) go, and the flags that announced them. */
+const WEBP_KEEP = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ICCP']);
+export function stripWebp(buf) {
+  const out = [];
+  let i = 12;
+  while (i + 8 <= buf.length) {
+    const type = buf.toString('latin1', i, i + 4), len = buf.readUInt32LE(i + 4), end = i + 8 + len + (len % 2);
+    if (i + 8 + len > buf.length) throw new HttpError(400, 'This WebP picture cannot be read.');
+    if (type === 'ANIM' || type === 'ANMF') throw new HttpError(400, 'Send a still picture, not an animation.');
+    if (WEBP_KEEP.has(type)) {
+      const chunk = Buffer.from(buf.subarray(i, Math.min(end, buf.length)));
+      if (type === 'VP8X' && len >= 1) chunk[8] &= ~0x0c;   /* no EXIF (0x08), no XMP (0x04) */
+      out.push(chunk);
+    }
+    i = end;
+  }
+  if (!out.some(c => /^VP8[ L]/.test(c.toString('latin1', 0, 4)))) throw new HttpError(400, 'This WebP picture cannot be read.');
+  const body = Buffer.concat(out), head = Buffer.alloc(12);
+  head.write('RIFF', 0, 'latin1'); head.writeUInt32LE(body.length + 4, 4); head.write('WEBP', 8, 'latin1');
+  return Buffer.concat([head, body]);
+}
 /* A picture without its metadata, whatever sent it (the page, a script, a backup file). */
-export const cleanImage = buf => { const t = imageType(buf); return t === 'image/jpeg' ? stripJpeg(buf) : t === 'image/png' ? stripPng(buf) : buf; };
+export const cleanImage = buf => { const t = imageType(buf); return t === 'image/jpeg' ? stripJpeg(buf) : t === 'image/png' ? stripPng(buf) : t === 'image/webp' ? stripWebp(buf) : buf; };
+export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const b64 = v => typeof v === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(v) ? Buffer.from(v, 'base64') : null;
 const text = (v, n) => [...String(v ?? '')].map(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? ' ' : ch).join('').trim().slice(0, n);
@@ -98,6 +120,19 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     if (req && !inScope(o, scopeOf(req.user))) throw new HttpError(404, 'No such device.');
     return o;
   };
+  /* A photo and its preview as sent: JPEG, PNG or WebP (preview JPEG or WebP), within the sizes, metadata taken out. */
+  const pictureOf = b => {
+    let data = b64(b.data), thumb = b64(b.thumb);
+    if (!data || !thumb) throw new HttpError(400, 'Send the photo and its preview.');
+    const mime = imageType(data);
+    if (!PHOTO_TYPES.includes(mime) || !['image/jpeg', 'image/webp'].includes(imageType(thumb))) throw new HttpError(400, 'Send a JPEG, PNG or WebP photo.');
+    if (data.length > PHOTO_BYTES) throw new HttpError(413, `The photo is larger than ${PHOTO_BYTES / 1048576} MB.`);
+    if (thumb.length > THUMB_BYTES) throw new HttpError(413, 'The preview of the photo is too large.');
+    data = cleanImage(data); thumb = cleanImage(thumb);
+    const w = Math.round(Number(b.w)), h = Math.round(Number(b.h));
+    if (!(w > 0 && w <= 10000 && h > 0 && h <= 10000)) throw new HttpError(400, 'The size of the photo is missing.');
+    return { data, thumb, mime, w, h };
+  };
   const imageRow = id => {
     if (!/^img-[0-9a-f]{24}$/.test(String(id || ''))) throw new HttpError(404, 'No such photo.');
     const r = db.prepare('SELECT * FROM device_images WHERE id = ?').get(String(id));
@@ -117,16 +152,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     try {
       const o = objectOf(req.params.id, req);
       const b = req.body || {};
-      let data = b64(b.data), thumb = b64(b.thumb);
-      if (!data || !thumb) throw new HttpError(400, 'Send the photo and its preview.');
-      /* JPEG and PNG, whose metadata can be taken out here (the page sends nothing else). */
-      const mime = imageType(data);
-      if (!['image/jpeg', 'image/png'].includes(mime) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'Send a JPEG or PNG photo.');
-      if (data.length > PHOTO_BYTES) throw new HttpError(413, `The photo is larger than ${PHOTO_BYTES / 1048576} MB.`);
-      if (thumb.length > THUMB_BYTES) throw new HttpError(413, 'The preview of the photo is too large.');
-      data = cleanImage(data); thumb = cleanImage(thumb);
-      const w = Math.round(Number(b.w)), h = Math.round(Number(b.h));
-      if (!(w > 0 && w <= 10000 && h > 0 && h <= 10000)) throw new HttpError(400, 'The size of the photo is missing.');
+      const { data, thumb, mime, w, h } = pictureOf(b);
       const count = db.prepare('SELECT COUNT(*) AS n FROM device_images WHERE obj_id = ?').get(o.id).n;
       if (count >= PHOTO_MAX) throw new HttpError(409, `A device keeps up to ${PHOTO_MAX} photos. Remove one first.`);
       if (imageStats(db).bytes + data.length > PHOTOS_TOTAL) throw new HttpError(507, 'There is no room for more photos: remove some first.');
@@ -157,12 +183,36 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     try {
       const r = imageRow(req.params.id);
       objectOf(r.obj_id, req);
-      const thumb = req.query.size === 'thumb';
-      const ext = thumb || r.mime === 'image/jpeg' ? 'jpg' : r.mime.split('/')[1];
+      const thumb = req.query.size === 'thumb', type = thumb ? imageType(Buffer.from(r.thumb)) || 'image/jpeg' : r.mime;
+      const ext = type === 'image/jpeg' ? 'jpg' : type.split('/')[1];
       const file = `${r.name.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[^\w .-]+/g, '_').slice(0, 80) || 'photo'}.${ext}`;
-      res.set({ 'Content-Type': thumb ? 'image/jpeg' : r.mime, 'Cache-Control': 'private, max-age=31536000, immutable',
+      res.set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=31536000, immutable',
         'Content-Disposition': `${req.query.download ? 'attachment' : 'inline'}; filename="${file}"`, 'Content-Security-Policy': "default-src 'none'; sandbox" })
         .send(Buffer.from(thumb ? r.thumb : r.data));
+    } catch (e) { next(e); }
+  });
+
+  /* All photos, for Make photos smaller (Settings → Maintenance): what each is, not the pictures. */
+  app.get('/api/images', requireUser, requireAdmin, (req, res) => {
+    res.set('Cache-Control', 'no-store').json({ images: db.prepare('SELECT id, obj_id, name, mime, w, h, bytes, LENGTH(thumb) AS tbytes FROM device_images ORDER BY bytes DESC').all() });
+  });
+  /* The same photo, smaller: stored under a new id (a photo's id never shows other bytes, so browsers may keep it), with
+     its name, caption, date and who added it; the old one goes. Only when it is smaller. */
+  app.post('/api/images/:id/replace', requireUser, requireEditor, (req, res, next) => {
+    try {
+      const r = imageRow(req.params.id);
+      objectOf(r.obj_id, req);
+      const p = pictureOf(req.body || {});
+      if (p.data.length + p.thumb.length >= r.bytes + Buffer.from(r.thumb).length) throw new HttpError(409, 'The new picture is not smaller: the photo stays as it is.');
+      const id = `img-${crypto.randomBytes(12).toString('hex')}`;
+      db.exec('BEGIN');
+      try {
+        db.prepare('INSERT INTO device_images (id, obj_id, name, caption, mime, w, h, bytes, created, by, data, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(id, r.obj_id, r.name, r.caption, p.mime, p.w, p.h, p.data.length, r.created, r.by, p.data, p.thumb);
+        db.prepare('DELETE FROM device_images WHERE id = ?').run(r.id);
+        db.exec('COMMIT');
+      } catch (e) { db.exec('ROLLBACK'); throw e; }
+      res.json({ image: meta({ ...r, id, mime: p.mime, w: p.w, h: p.h, bytes: p.data.length }), before: r.bytes });
     } catch (e) { next(e); }
   });
 

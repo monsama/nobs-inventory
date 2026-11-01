@@ -1,8 +1,9 @@
 /* Photos of a device, on its page: the label with the serial number, how it is cabled, where it stands. Shown as small
    previews; one opens large, with the ones before and after it (arrow keys too). An admin adds them (the button, by
    dropping pictures on the panel, or by pasting one), gives each a caption and removes them.
-   A photo is made smaller here before it is sent (at most 2560 pixels on its long side, and a preview of 480), turned
-   the way the camera held it, and drawn again, which leaves its metadata behind: the camera, the time and the GPS
+   A photo is made smaller here before it is sent (at most 2560 pixels on its long side, and a preview of 480; JPEG or
+   WebP, whichever is smaller, see prepare), turned the way the camera held it, and drawn again, which leaves its
+   metadata behind: the camera, the time and the GPS
    position stay on this computer. The server checks the picture again and keeps it apart from the inventory
    (server/device-images.js). */
 import { $, byId, esc, hist, now, toast } from './01-core.js';
@@ -96,8 +97,38 @@ export async function movePhotos(from, to){
   if (j.left) toast(`${j.left} photo${j.left === 1 ? '' : 's'} stayed with the record: the device has no room for more.`);
 }
 
-/* A picture file, made ready to send: turned upright, at most LONG_SIDE pixels, without its metadata, and a preview. */
-async function prepare(file){
+/* The JPEG's own orientation (EXIF tag 0x0112): 1 is upright; anything else needs turning, so the file cannot be kept. */
+async function jpegOrientation(file){
+  const b = new DataView(await file.slice(0, 131072).arrayBuffer());
+  if (b.byteLength < 4 || b.getUint16(0) !== 0xffd8) return 1;
+  for (let i = 2; i + 4 < b.byteLength;) {
+    const m = b.getUint16(i), len = b.getUint16(i + 2);
+    if (m === 0xffe1 && b.getUint32(i + 4) === 0x45786966) {   /* "Exif" */
+      const t = i + 10, le = b.getUint16(t) === 0x4949, u16 = k => b.getUint16(k, le), u32 = k => b.getUint32(k, le);
+      const ifd = t + u32(t + 4);
+      for (let n = 0, cnt = u16(ifd); n < cnt; n++) { const at = ifd + 2 + n * 12; if (at + 12 > b.byteLength) break; if (u16(at) === 0x0112) return u16(at + 8); }
+      return 1;
+    }
+    if ((m & 0xff00) !== 0xff00 || m === 0xffda) return 1;
+    i += 2 + len;
+  }
+  return 1;
+}
+/* Whether this browser writes WebP (Safari writes a PNG instead when asked). */
+let WEBP = null;
+const webpOk = async () => {
+  if (WEBP !== null) return WEBP;
+  const c = document.createElement('canvas'); c.width = c.height = 2;
+  WEBP = await new Promise(r => c.toBlob(b => r(!!b && b.type === 'image/webp'), 'image/webp', 0.8));
+  return WEBP;
+};
+/* A picture file, made ready to send, as small as it can be without a visible loss: turned upright, at most LONG_SIDE
+   pixels, without its metadata, and a preview. Each way of writing it is tried and the smallest wins:
+   - a photo: JPEG and WebP at a quality the eye does not tell from the original (WebP is about a third smaller);
+   - a screenshot (PNG): PNG and lossless WebP, so text stays exactly as sharp;
+   - the file itself, when it is already small enough, upright and not larger than the others: nothing is written again,
+     so nothing is lost (the server takes its metadata out). */
+export async function prepare(file){
   if (file.size > MAX_FILE) throw new Error(`${file.name} is larger than ${MAX_FILE / 1048576} MB.`);
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
@@ -110,14 +141,21 @@ async function prepare(file){
     x.drawImage(bmp, 0, 0, w, h);
     c.toBlob(b => b ? resolve(b) : reject(new Error(`${file.name} could not be made smaller.`)), type, q);
   });
-  const size = fit(LONG_SIDE);
-  /* A screenshot (PNG) stays sharp as a PNG while that is not too large; a photo becomes a JPEG. */
-  let data = file.type === 'image/png' ? await draw(size, 'image/png') : null;
-  if (!data || data.size > MAX_SENT) data = await draw(size, 'image/jpeg', 0.85);
-  if (data.size > MAX_SENT) data = await draw(size, 'image/jpeg', 0.7);
-  const thumb = await draw(fit(THUMB_SIDE), 'image/jpeg', 0.8);
+  const size = fit(LONG_SIDE), webp = await webpOk();
+  const screenshot = file.type === 'image/png';
+  const tries = screenshot
+    ? [draw(size, 'image/png'), ...(webp ? [draw(size, 'image/webp', 1)] : [])]
+    : [draw(size, 'image/jpeg', 0.85), ...(webp ? [draw(size, 'image/webp', 0.85)] : [])];
+  let data = (await Promise.all(tries)).filter(b => b && b.size).sort((a, b) => a.size - b.size)[0];
+  /* The file as it is, when nothing above is smaller and it needs no turning or shrinking. */
+  const keepable = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && size[0] === bmp.width && size[1] === bmp.height
+    && (file.type !== 'image/jpeg' || (await jpegOrientation(file)) === 1);
+  if (keepable && file.size <= data.size && file.size <= MAX_SENT) data = file;
+  if (data.size > MAX_SENT) data = await draw(size, webp ? 'image/webp' : 'image/jpeg', 0.85);
+  if (data.size > MAX_SENT) data = await draw(size, webp ? 'image/webp' : 'image/jpeg', 0.7);
+  const thumbs = (await Promise.all([draw(fit(THUMB_SIDE), 'image/jpeg', 0.8), ...(webp ? [draw(fit(THUMB_SIDE), 'image/webp', 0.8)] : [])])).sort((a, b) => a.size - b.size);
   bmp.close && bmp.close();
-  return { name: file.name || 'Photo', data: await base64(data), thumb: await base64(thumb), w: size[0], h: size[1] };
+  return { name: file.name || 'Photo', data: await base64(data), thumb: await base64(thumbs[0]), w: size[0], h: size[1], bytes: data.size, tbytes: thumbs[0].size };
 }
 async function base64(blob){
   const bytes = new Uint8Array(await blob.arrayBuffer());

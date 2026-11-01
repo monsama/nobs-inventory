@@ -1,4 +1,4 @@
-import { purgeOrphanImages, imageType, cleanImage, ensureImagesTable } from './device-images.js';
+import { purgeOrphanImages, imageType, cleanImage, ensureImagesTable, PHOTO_TYPES } from './device-images.js';
 import { storeBackup, collectParts } from './backup-store.js';
 import { openSheet, sealSheet } from './sheets.js';
 import { loadState, saveState, settingOf, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
@@ -90,7 +90,7 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
   const photos = Array.isArray(data.photos) && data.photos.length ? data.photos.map(p => {
     const ok = p && typeof p.id === 'string' && /^img-[0-9a-f]{24}$/.test(p.id) && typeof p.obj_id === 'string' && typeof p.data === 'string' && typeof p.thumb === 'string';
     const bytes = ok ? Buffer.from(p.data, 'base64') : null, thumb = ok ? Buffer.from(p.thumb, 'base64') : null;
-    if (!ok || !['image/jpeg', 'image/png'].includes(imageType(bytes)) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'The backup has a device photo that is not a picture.');
+    if (!ok || !PHOTO_TYPES.includes(imageType(bytes)) || !['image/jpeg', 'image/webp'].includes(imageType(thumb))) throw new HttpError(400, 'The backup has a device photo that is not a picture.');
     return { ...p, bytes: bytes.length, buf: cleanImage(bytes), tbuf: cleanImage(thumb) };
   }) : null;
   const cur = loadState(db);
