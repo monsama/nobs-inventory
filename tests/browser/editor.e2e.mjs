@@ -54,6 +54,8 @@ try {
   assert.equal(await p.isDisabled('#f_b1_model'), false);
   await p.fill('#f_b1_model', 'X1 Carbon'); await p.click('#saveBtn');
   await eventually(() => stored().objs.find(o => o.id === 'b1').model === 'X1 Carbon');
+  // photos can be added to it
+  await p.waitForSelector('#phAdd'); assert.equal(await p.isDisabled('#phAdd'), false);
   // its location: only the rooms of Bern, no "No location"
   const locs = await p.locator('#f_b1_loc option').allTextContents();
   assert.deepEqual(locs, ['Bern / EG', 'Bern / OG']);

@@ -87,6 +87,8 @@ export function imageStats(db) {
 
 export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit }) {
   ensureImagesTable(db);
+  /* An editor adds, captions and removes the photos of the devices they may change (their sites, when limited). */
+  const requireEditor = (req, res, next) => (req.user.role === 'editor' ? next() : requireAdmin(req, res, next));
   /* A viewer limited to some sites sees the photos of their devices only (server/scope.js). */
   const objectOf = (id, req = null) => {
     if (!/^[\w.-]{1,80}$/.test(String(id || ''))) throw new HttpError(404, 'No such device.');
@@ -111,9 +113,9 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  app.post('/api/objects/:id/images', requireUser, requireAdmin, (req, res, next) => {
+  app.post('/api/objects/:id/images', requireUser, requireEditor, (req, res, next) => {
     try {
-      const o = objectOf(req.params.id);
+      const o = objectOf(req.params.id, req);
       const b = req.body || {};
       let data = b64(b.data), thumb = b64(b.thumb);
       if (!data || !thumb) throw new HttpError(400, 'Send the photo and its preview.');
@@ -138,9 +140,9 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
   });
 
   /* A record folded into a device as the same device: its photos go to that device, as many as it has room for. */
-  app.post('/api/objects/:id/images/move', requireUser, requireAdmin, (req, res, next) => {
+  app.post('/api/objects/:id/images/move', requireUser, requireEditor, (req, res, next) => {
     try {
-      const from = objectOf(req.params.id), to = objectOf(req.body && req.body.to);
+      const from = objectOf(req.params.id, req), to = objectOf(req.body && req.body.to, req);
       const rows = db.prepare('SELECT id FROM device_images WHERE obj_id = ? ORDER BY created, id').all(from.id);
       const room = Math.max(0, PHOTO_MAX - db.prepare('SELECT COUNT(*) AS n FROM device_images WHERE obj_id = ?').get(to.id).n);
       const move = rows.slice(0, room);
@@ -164,18 +166,21 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  app.patch('/api/images/:id', requireUser, requireAdmin, (req, res, next) => {
+  app.patch('/api/images/:id', requireUser, requireEditor, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
+      objectOf(r.obj_id, req);
       const caption = text(req.body && req.body.caption, 200);
       db.prepare('UPDATE device_images SET caption = ? WHERE id = ?').run(caption, r.id);
       res.json({ image: meta({ ...r, caption }) });
     } catch (e) { next(e); }
   });
 
-  app.delete('/api/images/:id', requireUser, requireAdmin, (req, res, next) => {
+  app.delete('/api/images/:id', requireUser, requireEditor, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
+      /* An editor only for a device of theirs; an admin also for one already gone. */
+      if (req.user.role === 'editor') objectOf(r.obj_id, req);
       db.prepare('DELETE FROM device_images WHERE id = ?').run(r.id);
       let name = r.obj_id;
       try { name = objectOf(r.obj_id).name; } catch { /* the device is gone: its id is named */ }
