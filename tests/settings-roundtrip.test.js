@@ -29,13 +29,13 @@ test('settings kept in Settings are saved and loaded again', () => {
   db.close();
 });
 
-test('a backup carries those settings, and a restore into an empty database brings them back', () => {
+test('a backup carries those settings, and a restore into an empty database brings them back', async () => {
   const db = freshDb();
   const s = loadState(db);
   Object.assign(s, { vlans: [{ vid: 10, name: 'Users' }], models: ['ThinkPad T14'], subnets });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(backupFileText(db, id));
+  const data = JSON.parse(await backupFileText(db, id));
   assert.deepEqual(data.state.settings.subnets, subnets);
   const fresh = freshDb();
   restoreBackup(fresh, data);
@@ -46,7 +46,7 @@ test('a backup carries those settings, and a restore into an empty database brin
   db.close(); fresh.close();
 });
 
-test('a backup and a restore keep what came with 0.9.7 and after: new fields, card lines, certificates, network data', () => {
+test('a backup and a restore keep what came with 0.9.7 and after: new fields, card lines, certificates, network data', async () => {
   const db = freshDb();
   const s = loadState(db);
   const obj = {
@@ -64,7 +64,7 @@ test('a backup and a restore keep what came with 0.9.7 and after: new fields, ca
   });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(backupFileText(db, id));
+  const data = JSON.parse(await backupFileText(db, id));
   const fresh = freshDb();
   restoreBackup(fresh, data);
   const back = loadState(fresh);
@@ -84,13 +84,13 @@ test('the company name and logo are kept; a logo that is not a PNG or JPEG is re
   assert.throws(() => checkState({ ...base, company: { name: 'x'.repeat(81) } }), /80 characters/);
 });
 
-test('a restore puts every setting back as it was, also those that were not there yet when the backup was taken', () => {
+test('a restore puts every setting back as it was, also those that were not there yet when the backup was taken', async () => {
   const db = freshDb();
   const s = loadState(db);
   Object.assign(s, { vlans: [{ vid: 10, name: 'Users' }], currency: 'CHF', graph: { tenant: 'contoso.onmicrosoft.com', client: '11111111-1111-1111-1111-111111111111' } });
   saveState(db, s);
   const id = takeBackup(db, 'test');
-  const data = JSON.parse(backupFileText(db, id));
+  const data = JSON.parse(await backupFileText(db, id));
   const later = loadState(db);
   Object.assign(later, {
     vlans: [{ vid: 20, name: 'Servers' }], currency: 'EUR', models: ['Added later'], subnets,

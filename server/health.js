@@ -46,7 +46,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
   add('Backups', 'Last backup', !last ? 'warn' : old > 14 ? 'bad' : old > 7 ? 'warn' : 'ok',
     last ? `${ago(last.at, now)} (${last.reason}) · ${n.n} kept, ${mb(n.bytes)}` : 'None yet',
     !last || old > 7 ? 'Take one in Backups below, and download it to keep a copy off this server.' : '');
-  add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before every sync, push and import',
+  add('Backups', 'Automatic backups', s.autoBackups === false ? 'warn' : 'ok', s.autoBackups === false ? 'Off' : 'Before every sync, push and import, and once a day before the first change',
     s.autoBackups === false ? 'Without them a sync that goes wrong cannot be undone.' : '');
 
   /* Syncs: each one set up, its last run and its schedule. */

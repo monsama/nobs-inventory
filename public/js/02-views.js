@@ -644,7 +644,7 @@ export function renderTable(){
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} rows</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
+${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}<option value="__back">Take back into stock (no user)</option></select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
@@ -668,7 +668,14 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
     });
     toastUndo(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
   };
-  const bs = $('#bkStatus'); if (bs) bs.onchange = () => { if (!bs.value) return; const snap = snapshot([...st.bulk].map(byId)); st.bulk.forEach(id => { const o = byId(id); o.status = bs.value; hist(o, now(), 'Status set to ' + STATUS[bs.value].label + ' (bulk)'); }); toastUndo(n + ' set to ' + STATUS[bs.value].label, () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
+  const bs = $('#bkStatus'); if (bs) bs.onchange = () => {
+    if (!bs.value) return;
+    /* Take back: in stock, and nobody has it any more (a person who left gives their devices back). */
+    const back = bs.value === '__back', to = back ? 'stock' : bs.value;
+    const snap = snapshot([...st.bulk].map(byId));
+    st.bulk.forEach(id => { const o = byId(id); const had = o.user; o.status = to;
+      if (back && (o.uid || o.hotdesk)){ o.uid = null; delete o.hotdesk; hist(o, now(), `Taken back into stock from ${had} (bulk)`); } else hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
+    toastUndo(n + (back ? ' taken back into stock' : ' set to ' + STATUS[to].label), () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
   const br = $('#bkResp'); if (br) br.onchange = () => {
     const [kind, id] = br.value.split(':'); if (!kind) return;

@@ -18,7 +18,7 @@ import { typeByRules } from '../public/js/type-rules.js';
 const FEED_FIELDS = LS_FIELDS;
 /* A change to one of these by a sync is written to the device's history, with the old and the new value. Others change silently. */
 const LOG_FIELDS = { ip: 'IP', mac: 'MAC', model: 'Model', os: 'Operating system', domain: 'Domain', warranty: 'Warranty end' };
-import { stamp } from '../public/js/dates.js';
+import { stamp, stampTime } from '../public/js/dates.js';
 export { stamp };
 
 
@@ -164,6 +164,8 @@ function applySoftware(s, pairs) {
 /* What a dock's record says hangs on it, kept short: the monitors by their Lansweeper ref or name. */
 const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref: String(l.ref).slice(0, 60) } : {}), ...(l.name ? { name: String(l.name).slice(0, 200) } : {}), kind: String(l.kind || '').slice(0, 30), ...(l.port ? { port: String(l.port).slice(0, 30) } : {}) }));
 const DOCK_LINKS_DAYS = 30;
+/* Records waiting in To review at most: more are not added until some are accepted or ignored. */
+export const REVIEW_MAX = 5000;
 function applyLinks(s, pairs, counts, seen) {
   let n = 0;
   if (s.feedOn === false) return n;
@@ -187,7 +189,8 @@ function applyLinks(s, pairs, counts, seen) {
   /* A dock not seen for DOCK_LINKS_DAYS (the laptop undocked for good) no longer keeps its links, so they are removed
      and their ports are free again. Links kept before the day was noted count from the first push that sees them. */
   const mergedLinks = new Map();
-  const fresh = at => !at || Date.parse(seen) - Date.parse(at) <= DOCK_LINKS_DAYS * 864e5;
+  /* The times are written dd.mm.yyyy hh:mm (stamp): read with stampTime. One that cannot be read counts as now. */
+  const fresh = at => !at || !stampTime(at) || stampTime(seen) - stampTime(at) <= DOCK_LINKS_DAYS * 864e5;
   const addMerged = (id, list, at) => { if (Array.isArray(list) && list.length && fresh(at)) mergedLinks.set(id, [...(mergedLinks.get(id) || []), ...list]); };
   for (const o of s.objs) {
     if (o.excluded && o.review && o.review.merged && o.feed) { if (o.feed.links && !o.feed.linksAt) o.feed.linksAt = seen; addMerged(o.review.merged, o.feed.links, o.feed.linksAt); }
@@ -267,6 +270,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   const pairs = [];
   const locs = s.locs || [];
   let taken = null;   /* codes and ids in use, read when the first new device is made */
+  /* How many wait in To review: a push cannot add more than REVIEW_MAX there (a wrong or stolen token would fill the inventory). */
+  let waiting = null;
   /* A field that is not a valid address is left out of the record, so it is never stored. */
   const clean = raw => {
     const r = { ...raw };
@@ -345,6 +350,12 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     }
     if (!found) {
       if (!r.name) continue;
+      const toReview = !!(ipOnly || twin || (!byHand && intakeOf(s, 'lansweeper') === 'review'));
+      if (toReview) {
+        waiting ??= s.objs.filter(o => o.review && !o.review.ignored).length;
+        if (waiting >= REVIEW_MAX) { counts.reviewFull = (counts.reviewFull || 0) + 1; continue; }
+        waiting++;
+      }
       const type = typeFor(s, r.assetType, r.model, r.role, r.name, r.chassis);
       /* The next free code and id: one taken by hand (or restored from an older backup) is passed over. */
       taken ??= { codes: new Set(s.objs.map(o => o.code)), ids: new Set(s.objs.map(o => o.id)) };
@@ -358,7 +369,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ...(r.user ? { user: r.user } : {}),
         ...(r.nics && r.nics.length ? { nics: r.nics } : {}),
         ...Object.fromEntries(Object.keys(LS_FILL).filter(k => fieldOrder(s, k).includes('ls')).map(k => [k, k === 'price' ? priceOf(r[k]) : String(r[k] || '').trim()]).filter(([, v]) => v !== null && v !== '')),
-        ...(ipOnly || twin || (!byHand && intakeOf(s, 'lansweeper') === 'review') ? { review: { src: 'lansweeper', at: seen } } : {})
+        ...(toReview ? { review: { src: 'lansweeper', at: seen } } : {})
       };
       /* Every value it came with is Lansweeper's. */
       for (const k of [...FEED_FIELDS, 'user', 'loc']) if (obj[k]) markSource(obj, k, 'ls');

@@ -62,16 +62,16 @@ export function storeBackup(db, data, { photos = true } = {}) {
     photos: [],
   };
   if (photos) photoHashes(db);
-  if (photos) for (const p of db.prepare('SELECT id, obj_id, name, caption, mime, w, h, bytes, created, by, data_hash, thumb_hash FROM device_images ORDER BY id').all()) {
+  if (photos) for (const p of db.prepare('SELECT id, obj_id, name, caption, mime, w, h, bytes, created, by, data_hash, thumb_hash, LENGTH(thumb) AS tlen FROM device_images ORDER BY id').all()) {
     const has = h => !!db.prepare('SELECT 1 FROM backup_parts WHERE hash = ?').get(h);
     let d = p.data_hash, t = p.thumb_hash;
     if (!has(d) || !has(t)) {
       const x = db.prepare('SELECT data, thumb FROM device_images WHERE id = ?').get(p.id);
       d = putPart(db, Buffer.from(x.data), { gz: false }); t = putPart(db, Buffer.from(x.thumb), { gz: false });
     }
-    const { data_hash, thumb_hash, ...meta } = p;   // eslint-disable-line no-unused-vars
+    const { data_hash, thumb_hash, tlen, ...meta } = p;   // eslint-disable-line no-unused-vars
     m.photos.push({ meta: putJson(db, meta), data: d, thumb: t });
-    size += Math.ceil(p.bytes / 3) * 4 + 200;
+    size += Math.ceil(p.bytes / 3) * 4 + Math.ceil(p.tlen / 3) * 4 + 200;
   }
   return { manifest: JSON.stringify(m), size };
 }
@@ -91,15 +91,21 @@ export function loadBackup(db, row, { photos = true } = {}) {
   };
 }
 
-/* Writes a backup as a file, part by part, so one with many photos is never held in memory whole. */
-export function writeBackupFile(db, row, write) {
-  if (Number(row.format) !== 2) { write(row.data); return; }
+/* Writes a backup as a file, part by part, so one with many photos is never held in memory whole: write may return a
+   promise (waiting for the connection to take more), which is waited for before the next photo. */
+export async function writeBackupFile(db, row, write) {
+  if (Number(row.format) !== 2) { await write(row.data); return; }
   const whole = loadBackup(db, row, { photos: false });
   const head = JSON.stringify(whole);
-  write(head.slice(0, -1) + ',"photos":[');
-  const m = JSON.parse(row.data);
-  m.photos.forEach((p, i) => write((i ? ',' : '') + JSON.stringify({ ...getJson(db, p.meta), data: getPart(db, p.data).toString('base64'), thumb: getPart(db, p.thumb).toString('base64') })));
-  write(']}');
+  await write(head.slice(0, -1) + ',"photos":[');
+  let i = 0;
+  for (const p of backupPhotos(db, row)) await write((i++ ? ',' : '') + JSON.stringify({ ...p, data: p.buf.toString('base64'), thumb: p.tbuf.toString('base64'), buf: undefined, tbuf: undefined }));
+  await write(']}');
+}
+/* The photos of a stored backup, one at a time: { id, obj_id, name, …, buf, tbuf }. */
+export function* backupPhotos(db, row) {
+  if (Number(row.format) !== 2) return;
+  for (const p of JSON.parse(row.data).photos || []) yield { ...getJson(db, p.meta), buf: getPart(db, p.data), tbuf: getPart(db, p.thumb) };
 }
 
 /* The parts no backup lists any more are removed. */
@@ -130,7 +136,7 @@ export function convertOldBackups(db) {
     try {
       /* An old backup has no photos: its list of them stays empty. */
       const { manifest } = storeBackup(db, data, { photos: false });
-      db.prepare('UPDATE backups SET format = 2, data = ?, size = ? WHERE id = ?').run(manifest, r.data.length, id);
+      db.prepare('UPDATE backups SET format = 2, data = ?, size = ? WHERE id = ?').run(manifest, Buffer.byteLength(r.data), id);
       db.exec('RELEASE backup');
     } catch (e) { db.exec('ROLLBACK TO backup'); db.exec('RELEASE backup'); throw e; }
   }
@@ -146,10 +152,10 @@ export function backupStorage(db) {
 }
 
 /* A backup as the text of its file, by its id (as a download gives it). */
-export function backupFileText(db, id) {
+export async function backupFileText(db, id) {
   const row = db.prepare('SELECT data, format FROM backups WHERE id = ?').get(Number(id));
   if (!row) return null;
   let out = '';
-  writeBackupFile(db, row, c => { out += c; });
+  await writeBackupFile(db, row, c => { out += c; });
   return out;
 }

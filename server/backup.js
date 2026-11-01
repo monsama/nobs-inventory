@@ -1,4 +1,4 @@
-import { purgeOrphanImages, imageType, stripJpeg, ensureImagesTable } from './device-images.js';
+import { purgeOrphanImages, imageType, cleanImage, ensureImagesTable } from './device-images.js';
 import { storeBackup, collectParts } from './backup-store.js';
 import { openSheet, sealSheet } from './sheets.js';
 import { loadState, saveState, settingOf, SETTING_KEYS, CONNECTION_SETTINGS, blankState } from './state.js';
@@ -43,7 +43,8 @@ function sheetsForBackup(db) {
     catch { return []; }
   });
 }
-export function takeBackup(db, reason) {
+/* gc false: the parts no backup lists any more stay until the next backup (a restore still reading from one). */
+export function takeBackup(db, reason, { gc = true } = {}) {
   const s = loadState(db);
   const keep = Number(s.backupKeep) > 0 ? Math.min(100, Math.floor(Number(s.backupKeep))) : KEEP_DEFAULT;
   const settings = Object.fromEntries(SETTING_KEYS.filter(k => s[k] !== undefined).map(k => [k, s[k]]));
@@ -64,7 +65,7 @@ export function takeBackup(db, reason) {
     const { manifest, size } = storeBackup(db, data);
     id = Number(db.prepare('INSERT INTO backups (at, reason, objects, data, format, size) VALUES (?, ?, ?, ?, 2, ?)').run(data.created, reason, s.objs.length, manifest, size).lastInsertRowid);
     db.prepare('DELETE FROM backups WHERE reason NOT IN (?, ?) AND id NOT IN (SELECT id FROM backups WHERE reason NOT IN (?, ?) ORDER BY id DESC LIMIT ?)').run(BY_HAND, BEFORE_CLEAR, BY_HAND, BEFORE_CLEAR, keep);
-    collectParts(db);
+    if (gc) collectParts(db);
     db.exec('RELEASE backup');
   } catch (e) { db.exec('ROLLBACK TO backup'); db.exec('RELEASE backup'); throw e; }
   return id;
@@ -72,7 +73,8 @@ export function takeBackup(db, reason) {
 
 /* Puts a backup back. The users are kept (a backup adds the users it has that are missing now), and the number
    counters only go up, so no code is given out twice. The current state is backed up first by the caller. */
-export function restoreBackup(db, data, sheetKey = null) {
+/* photosFrom: the photos of a stored backup, read one at a time (backupPhotos), instead of data.photos from a file. */
+export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } = {}) {
   if (!data || data.version !== 1 || !data.state) throw new HttpError(400, 'This file is not a backup of NOBS Inventory.');
   const b = data.state;
   if (!Array.isArray(b.objs) || !Array.isArray(b.rels) || !Array.isArray(b.users) || !b.types || !b.history) throw new HttpError(400, 'The backup is incomplete.');
@@ -83,12 +85,13 @@ export function restoreBackup(db, data, sheetKey = null) {
       throw new HttpError(400, 'The backup has a plan picture that is not a PNG, JPEG, GIF or WebP image.');
   }
   if (new Set(images.map(im => im.id)).size !== images.length) throw new HttpError(400, 'The backup has two plan pictures for the same plan.');
-  /* Device photos (backups from 0.9.75 on): checked as an upload is. A backup without them leaves the photos as they are. */
-  const photos = Array.isArray(data.photos) ? data.photos.map(p => {
+  /* Device photos (backups from 0.9.75 on): checked as an upload is. A backup without any (from before 0.9.75, or taken
+     when there were none) leaves the photos here as they are. */
+  const photos = Array.isArray(data.photos) && data.photos.length ? data.photos.map(p => {
     const ok = p && typeof p.id === 'string' && /^img-[0-9a-f]{24}$/.test(p.id) && typeof p.obj_id === 'string' && typeof p.data === 'string' && typeof p.thumb === 'string';
     const bytes = ok ? Buffer.from(p.data, 'base64') : null, thumb = ok ? Buffer.from(p.thumb, 'base64') : null;
-    if (!ok || !imageType(bytes) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'The backup has a device photo that is not a picture.');
-    return { ...p, bytes: bytes.length, buf: imageType(bytes) === 'image/jpeg' ? stripJpeg(bytes) : bytes, tbuf: thumb };
+    if (!ok || !['image/jpeg', 'image/png'].includes(imageType(bytes)) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'The backup has a device photo that is not a picture.');
+    return { ...p, bytes: bytes.length, buf: cleanImage(bytes), tbuf: cleanImage(thumb) };
   }) : null;
   const cur = loadState(db);
   const st = b.settings || {};
@@ -104,8 +107,11 @@ export function restoreBackup(db, data, sheetKey = null) {
     const login = String(u.login || '').toLowerCase();
     if (login && logins.has(login)) continue;
     if (login) logins.add(login);
-    /* People without a login (device owners from Lansweeper) are not accounts: they come back as they were. */
-    const back = login ? { ...u, active: false } : u;
+    /* People without a login (device owners from Lansweeper) are not accounts: they come back as they were, but without
+       a role when Microsoft sign-in could find them (an Entra ID or an e-mail address), so a backup file cannot bring in
+       someone who signs in that way. */
+    const ssoable = !!(u.entra || (u.profile && u.profile.mail));
+    const back = login ? { ...u, active: false } : ssoable && u.role && u.role !== 'none' ? { ...u, role: 'none' } : u;
     if (login && u.source === 'ldap' && u.active !== false) back.syncOff = true;
     users.set(String(u.id), back);
   }
@@ -129,12 +135,14 @@ export function restoreBackup(db, data, sheetKey = null) {
   saveState(db, s);
   /* The backup's device photos replace those here; one without photos (from before 0.9.75) leaves them as they are. Either
      way photos of devices the restored inventory does not have go. */
-  if (photos) {
+  const stored = photosFrom ? photosFrom() : null, first = stored ? stored.next() : null;
+  if (photos || (first && !first.done)) {
     ensureImagesTable(db);
     db.exec('DELETE FROM device_images');
     const add = db.prepare('INSERT INTO device_images (id, obj_id, name, caption, mime, w, h, bytes, created, by, data, thumb) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     const txt = (v, n) => String(v ?? '').slice(0, n);
-    for (const p of photos) add.run(p.id, p.obj_id, txt(p.name, 120) || 'Photo', txt(p.caption, 200), imageType(p.buf), Math.max(1, Math.min(10000, Number(p.w) || 1)), Math.max(1, Math.min(10000, Number(p.h) || 1)),
+    const each = photos || (function* () { for (let x = first; !x.done; x = stored.next()) yield { ...x.value, buf: cleanImage(x.value.buf), tbuf: cleanImage(x.value.tbuf) }; })();
+    for (const p of each) add.run(p.id, p.obj_id, txt(p.name, 120) || 'Photo', txt(p.caption, 200), imageType(p.buf), Math.max(1, Math.min(10000, Number(p.w) || 1)), Math.max(1, Math.min(10000, Number(p.h) || 1)),
       p.buf.length, txt(p.created, 40), txt(p.by, 120), p.buf, p.tbuf);
   }
   purgeOrphanImages(db);

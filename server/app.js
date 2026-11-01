@@ -15,7 +15,7 @@ import { cleanIpLocations } from './lsnet.js';
 import { feedChanged, mergeFeed, mergeRecords, recordsFromJson, typeFor, typeSetByHand } from './feed.js';
 import { feedTokenInfo, createFeedToken, revokeFeedToken, feedTokenValid } from './feed-token.js';
 import { BEFORE_CLEAR, autoBackup, takeBackup, restoreBackup, setBackupSheetKey } from './backup.js';
-import { backupStorage, collectParts, loadBackup, writeBackupFile } from './backup-store.js';
+import { backupPhotos, backupStorage, collectParts, loadBackup, writeBackupFile } from './backup-store.js';
 import { syncLansweeper } from './lansweeper.js';
 import { entraThumbprintOf, syncGraph, testGraph } from './graph.js';
 import { dropGraphKey, graphCertPem, graphKeyPair, graphSettingsProblem, hasGraphKey, initGraphKeys, storeGraphKey } from './graph-keys.js';
@@ -87,6 +87,16 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   }
   app.set('trust proxy', (addr, i) => i === 0 && (['127.0.0.1', '::1'].includes(plainAddr(addr)) || proxyAddrs.has(plainAddr(addr))));
   const throttle = createThrottle();
+  /* Requests from people not signed in are logged at most once a minute per address and kind, with how many more came:
+     a flood of them cannot push the log's older lines out. */
+  const quiet = new Map();
+  const auditQuiet = (key, msg) => {
+    const t = Date.now(), q = quiet.get(key);
+    if (q && t - q.at < 60000) { q.n++; return; }
+    if (quiet.size > 5000) quiet.clear();
+    quiet.set(key, { at: t, n: 0 });
+    audit(db, null, q && q.n ? `${msg} (and ${q.n} more like it from this address in the minute before)` : msg);
+  };
   /* Browser protections: the page's script is a file of its own, so no inline script runs. */
   app.use((req, res, next) => {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -111,20 +121,27 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* A large body is read only for a signed-in admin, or for the push with its token: nobody else can make the server
      read megabytes before being turned away. */
   app.use('/api', (req, res, next) => {
+    /* A compressed body is never unpacked (inflate: false below): a few KB could become hundreds of MB before any check. */
+    const enc = String(req.get('content-encoding') || 'identity').toLowerCase();
+    if (enc !== 'identity') return res.set('Connection', 'close').status(415).json({ error: 'Send the request uncompressed.' });
     const big = Number(req.get('content-length') || 0) > 1048576 || !!req.get('transfer-encoding');
     if (!big) return next();
+    /* A token checked here counts against the address like one checked by the push itself, so it cannot be guessed here. */
+    const pushKeys = ['push:' + (req.ip || '')];
+    if (req.path === '/feed/push' && throttle.blocked(pushKeys)) return res.set('Connection', 'close').status(429).json({ error: 'Too many wrong feed tokens. Try again in 15 minutes.' });
     const ok = req.path === '/feed/push'
       ? feedTokenValid(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1], feedToken)
       : currentUser(req)?.role === 'admin';
+    if (!ok && req.path === '/feed/push') throttle.recordFailure(pushKeys);
     if (ok) return next();
     res.set('Connection', 'close').status(401).json({ error: 'Sign in as an admin first.' });
   });
   /* A backup can be larger than a normal save; the largest is a full backup with its history and plan pictures. */
   /* Bodies are read only under /api, after the check above: a request elsewhere is never parsed. */
-  app.use('/api', express.json({ limit: '30mb' }));
+  app.use('/api', express.json({ limit: '30mb', inflate: false }));
   /* A backup file comes with its floor-plan pictures (up to 2 MB each), so its upload has a higher limit of its own. */
-  const textBody = express.text({ type: ['text/plain', 'text/csv'], limit: '30mb' });
-  const backupBody = express.text({ type: ['text/plain', 'text/csv'], limit: '200mb' });
+  const textBody = express.text({ type: ['text/plain', 'text/csv'], limit: '30mb', inflate: false });
+  const backupBody = express.text({ type: ['text/plain', 'text/csv'], limit: '200mb', inflate: false });
   app.use('/api', (req, res, next) => (req.path === '/backups/restore-file' ? backupBody : textBody)(req, res, next));
 
   const userDoc = id => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'user' AND id = ?").get(id); return r ? JSON.parse(r.data) : null; };
@@ -224,7 +241,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const keys = ['login:' + login.toLowerCase(), 'ip:' + (req.ip || '')];
       if (throttle.blocked(keys)) {
         const known = db.prepare("SELECT data FROM docs WHERE kind = 'user'").all().some(r => String(JSON.parse(r.data).login || '').toLowerCase() === login.toLowerCase());
-        audit(db, null, 'sign in throttled for ' + (known ? login : 'an unknown login'));
+        auditQuiet('throttled:' + (req.ip || ''), 'sign in throttled for ' + (known ? login : 'an unknown login'));
         throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.');
       }
       if (!login || !password || password.length > 256) { throttle.recordFailure(keys); await failFloor(); throw new HttpError(401, FAILED); }
@@ -281,7 +298,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
         throttle.recordFailure(keys);
         await failFloor();
         /* The login as typed is logged only when it is one: a password typed into the login field must not end up in the log. */
-        audit(db, null, 'failed sign in for ' + (user ? user.login : 'an unknown login'));
+        if (user) audit(db, null, 'failed sign in for ' + user.login);
+        else auditQuiet('unknown:' + (req.ip || ''), 'failed sign in for an unknown login');
         throw new HttpError(401, FAILED);
       }
       throttle.clearFailures(keys.slice(0, 1)); throttle.rememberSuccess(keys);   /* only this login: a success must not clear the address count */
@@ -417,6 +435,9 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const all = [...(Array.isArray(req.body?.puts) ? req.body.puts : []), ...(Array.isArray(req.body?.dels) ? req.body.dels : [])].filter(c => c && typeof c === 'object');
       const settingIds = [...new Set(all.filter(c => c.kind === 'setting' && c.id !== 'mapPos').map(c => String(c.id)))];
       const before = removes || settingIds.length ? loadState(db) : null;
+      /* Once a day, before the first change made on the page: an inventory kept by hand, without syncs, is backed up too
+         (parts that did not change take no room again). */
+      autoBackup(db, 'daily, before the first change', { daily: true });
       const result = applyChanges(db, req.body, guard);
       /* A device deleted for good takes its photos with it. */
       if (removes) purgeOrphanImages(db);
@@ -741,7 +762,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       recordSync(db, 'lansweeper', { ok: true, counts, how: 'push' });
       res.json({ counts });
     } catch (e) {
-      audit(db, null, 'feed push failed: ' + e.message);
+      /* A wrong or throttled token is somebody else's request: logged quietly. */
+      if (pushing) audit(db, null, 'feed push failed: ' + e.message); else auditQuiet('push:' + (req.ip || ''), 'feed push failed: ' + e.message);
       /* Only a push with the right token counts as a run: a wrong token is somebody else's request. */
       if (pushing) recordSync(db, 'lansweeper', { ok: false, error: e.message, how: 'push' });
       next(e);
@@ -838,13 +860,14 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     }
     catch (e) { next(e); }
   });
-  app.get('/api/backups/:id/download', requireUser, requireAdmin, (req, res, next) => {
+  app.get('/api/backups/:id/download', requireUser, requireAdmin, async (req, res, next) => {
     try {
       const row = db.prepare('SELECT at, data, format FROM backups WHERE id = ?').get(Number(req.params.id));
       if (!row) throw new HttpError(404, 'No such backup.');
       /* The whole backup as one file, the photos in it, written part by part. */
       res.attachment(`nobs-backup-${row.at.slice(0, 19).replace(/[:T]/g, '-')}.json`).type('application/json');
-      writeBackupFile(db, row, chunk => res.write(chunk));
+      /* Waits whenever the connection holds enough, so a slow download never piles the photos up in memory. */
+      await writeBackupFile(db, row, chunk => res.write(chunk) || res.destroyed ? null : new Promise(r => { res.once('drain', r); res.once('close', r); }));
       res.end();
     } catch (e) { next(e); }
   });
@@ -852,9 +875,12 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     try {
       const row = db.prepare('SELECT data, format FROM backups WHERE id = ?').get(Number(req.params.id));
       if (!row) throw new HttpError(404, 'No such backup.');
-      const data = loadBackup(db, row);
-      takeBackup(db, 'before a restore');
-      restoreBackup(db, data, SHEET_KEY);
+      /* The photos are read one at a time while they are put back; the backup before the restore leaves the parts in
+         place until the restore is done. */
+      const data = loadBackup(db, row, { photos: false });
+      takeBackup(db, 'before a restore', { gc: false });
+      restoreBackup(db, data, SHEET_KEY, { photosFrom: () => backupPhotos(db, row) });
+      collectParts(db);
       audit(db, req.user.id, 'restored backup ' + req.params.id);
       res.json({ ok: true });
     } catch (e) { next(e); }

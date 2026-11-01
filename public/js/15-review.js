@@ -6,6 +6,7 @@ import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
 import { canEdit, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
+import { movePhotos } from './23-photos.js';
 
 export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
@@ -48,6 +49,8 @@ export function mergeTarget(o){
    device has empty and keeps its address as an adapter. Its relations (monitors attached to it) go to the device. */
 function merge(pairs, how = ''){
   for (const [o, t] of pairs){
+    /* Its photos go to the device, which is what is shown from now on. */
+    movePhotos(o.id, t.id);
     const dock = how ? how === 'dock' : !!twinOf(o) && lc(o.name) !== lc(t.name);
     /* A dock is an attachment of the device, by what stays the same: its MAC address, and the record Lansweeper sees it as. */
     if (dock){
@@ -148,7 +151,11 @@ function unmerge(list){
     if (t && t.accessories){ t.accessories = t.accessories.filter(a => lc(a.seenAs) !== lc(o.name)); if (!t.accessories.length) delete t.accessories; }
     /* What the merge gave the device goes back: the fields it filled, while they still have the record's value, and the
        relations it moved, while they still end at the device. */
-    if (t) for (const k of String(o.review.filled || '').split(',').filter(Boolean)) if (t[k] === o[k]){ delete t[k]; if (t.src && o.src && t.src[k] === o.src[k]) delete t.src[k]; }
+    if (t) for (const k of String(o.review.filled || '').split(',').filter(Boolean)) if (t[k] === o[k]){
+      /* The user is the person by id (uid) behind a getter: it is cleared there, the getter stays. */
+      if (k === 'user') t.uid = null; else delete t[k];
+      if (t.src && o.src && t.src[k] === o.src[k]) delete t.src[k];
+    }
     if (t) for (const m of String(o.review.moved || '').split(',').filter(Boolean)){
       const i = m.lastIndexOf(':'), r = rels.find(x => String(x.id) === m.slice(0, i)), ends = m.slice(i + 1);
       if (!r) continue;

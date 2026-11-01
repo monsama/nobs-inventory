@@ -24,10 +24,10 @@ export function photosPanel(o){
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = canEdit();
   const empty = edit ? 'No photos yet: the label with its serial number, how it is cabled, where it stands. Drop pictures here or paste one.' : 'No photos yet.';
   return `<div class="panelbox ph-panel" id="phPanel"><div class="hdr">Photos <span class="cnt">${list ? list.length || 'none' : '…'}</span></div>
-    <div class="ph-grid" id="phGrid">${!list ? '<p class="note lempty">Loading…</p>' : list.length
+    <div class="ph-grid" id="phGrid">${!list ? '<p class="note lempty">Loading…</p>' : c.failed ? '<p class="note lempty">The photos could not be read. They are asked for again when the page is opened.</p>' : list.length
       ? list.map((p, i) => `<button type="button" class="ph-thumb" data-ph="${i}" title="${esc(label(p))}" aria-label="Open photo ${i + 1} of ${list.length}: ${esc(label(p))}"><img src="${thumbUrl(p)}" alt="" loading="lazy" decoding="async"></button>`).join('')
       : `<p class="note lempty">${empty}</p>`}</div>
-    ${edit && list ? `<div class="addrel ph-add"><button type="button" id="phAdd" ${list.length >= c.max ? `disabled title="A device keeps up to ${c.max} photos"` : ''}>Add photos…</button>
+    ${edit && list && !c.failed ? `<div class="addrel ph-add"><button type="button" id="phAdd" ${list.length >= c.max ? `disabled title="A device keeps up to ${c.max} photos"` : ''}>Add photos…</button>
       <input id="phFile" type="file" accept="image/*" multiple hidden><span class="muted" id="phMsg" role="status" aria-live="polite">${list.length ? `${list.length} of ${c.max}` : ''}</span></div>` : ''}</div>`;
 }
 
@@ -35,7 +35,11 @@ export function photosPanel(o){
 export function bindPhotos(o){
   const panel = $('#phPanel'); if (!panel) return;
   openId = o.id;
-  if (!CACHE.has(o.id)) { load(o); return; }
+  const c = CACHE.get(o.id);
+  if (!c) { load(o); return; }
+  /* What is shown is read again in the background when the page is drawn anew (another admin, a restore): at most every
+     few seconds, so the redraw after it does not ask again. */
+  if (Date.now() - c.at > 5000) load(o);
   panel.querySelectorAll('[data-ph]').forEach(b => b.onclick = () => viewer(o, Number(b.dataset.ph)));
   if (!canEdit()) return;
   const file = $('#phFile');
@@ -70,11 +74,26 @@ function redraw(o){
   bindPhotos(o);
 }
 async function load(o){
+  const was = CACHE.get(o.id);
+  if (was) was.at = Date.now();
   const r = await fetch(`api/objects/${encodeURIComponent(o.id)}/images`, { credentials: 'same-origin' }).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => null) : null;
-  /* A device not saved yet (just made) has none on the server: an empty list, filled once it is saved. */
-  CACHE.set(o.id, j ? { images: j.images || [], max: j.max || 30 } : { images: [], max: 30 });
+  /* A device not saved yet (just made) has none on the server: an empty list, asked again later. A list that could not be
+     read is not kept: the next drawing of the page asks again. */
+  const next = j ? { images: j.images || [], max: j.max || 30, at: Date.now() } : { images: [], max: 30, at: 0, failed: !(r && r.status === 404) };
+  if (was && JSON.stringify(was.images) === JSON.stringify(next.images) && !was.failed) return;
+  CACHE.set(o.id, next);
   redraw(o);
+}
+/* Forgets what was read: after a restore, a reload from the server, or photos moved by a merge. */
+export const forgetPhotos = (...ids) => { if (ids.length) ids.forEach(id => CACHE.delete(id)); else CACHE.clear(); };
+/* A record folded into a device as the same device: its photos go to that device. */
+export async function movePhotos(from, to){
+  if (!SERVER.on) return;
+  const r = await fetch(`api/objects/${encodeURIComponent(from)}/images/move`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to }) }).catch(() => null);
+  forgetPhotos(from, to);
+  const j = r && r.ok ? await r.json().catch(() => ({})) : {};
+  if (j.left) toast(`${j.left} photo${j.left === 1 ? '' : 's'} stayed with the record: the device has no room for more.`);
 }
 
 /* A picture file, made ready to send: turned upright, at most LONG_SIDE pixels, without its metadata, and a preview. */
@@ -122,7 +141,7 @@ async function add(o, files){
       const body = await prepare(f);
       const r = await fetch(`api/objects/${encodeURIComponent(o.id)}/images`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || (r.status === 404 ? 'Save the device first, then add its photos.' : `The photo was not added (${r.status}).`));
+      if (!r.ok) throw new Error(r.status === 404 && /device/i.test(j.error || '') ? 'Save the device first, then add its photos.' : j.error || `The photo was not added (${r.status}).`);
       c.images.push(j.image); added++;
       redraw(o);
     } catch (e) { toast(e.message); break; }

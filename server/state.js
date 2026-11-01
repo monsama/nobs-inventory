@@ -82,7 +82,6 @@ export function clearConnections(db) {
       if (db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = ?").run(id).changes) bumpRev(db, 'setting', id);
     }
     db.exec('DELETE FROM feed_token');
-    if (hasTable(db, 'device_images')) db.exec('DELETE FROM device_images');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
     db.exec('COMMIT');
@@ -101,6 +100,7 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
     /* Every record goes; its revision goes up instead of away, so a page still open from before cannot save into the new start. */
     for (const r of db.prepare('SELECT kind, id FROM docs').all()) bumpRev(db, r.kind, r.id);
     db.exec('DELETE FROM docs; DELETE FROM plan_images; DELETE FROM feed_token;');
+    if (hasTable(db, 'device_images')) db.exec('DELETE FROM device_images');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');

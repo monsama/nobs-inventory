@@ -34,7 +34,14 @@ export function stripJpeg(buf) {
     if (buf[i] !== 0xff) throw new HttpError(400, 'This JPEG picture cannot be read.');
     const m = buf[i + 1];
     if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { out.push(buf.subarray(i, i + 2)); i += 2; continue; }
-    if (m === 0xda) { out.push(buf.subarray(i)); return Buffer.concat(out); }   /* the picture data, to the end */
+    if (m === 0xda) {
+      /* The picture data, to its end marker: anything after it (a second picture a phone appends, with its own
+         metadata) is left out. In the data a 0xFF byte is always followed by 0x00 or a restart marker, so the first
+         FF D9 is the end. */
+      const end = buf.indexOf(Buffer.from([0xff, 0xd9]), i + 2);
+      out.push(end < 0 ? buf.subarray(i) : buf.subarray(i, end + 2));
+      return Buffer.concat(out);
+    }
     const len = buf.readUInt16BE(i + 2);
     if (len < 2 || i + 2 + len > buf.length) throw new HttpError(400, 'This JPEG picture cannot be read.');
     const drop = (m >= 0xe1 && m <= 0xef && m !== 0xe2) || m === 0xfe;
@@ -43,6 +50,23 @@ export function stripJpeg(buf) {
   }
   throw new HttpError(400, 'This JPEG picture cannot be read.');
 }
+
+/* A PNG with only the chunks that draw the picture: text, time and EXIF chunks (camera, GPS) are left out. */
+const PNG_KEEP = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tRNS', 'gAMA', 'cHRM', 'sRGB', 'iCCP', 'sBIT', 'pHYs']);
+export function stripPng(buf) {
+  const out = [buf.subarray(0, 8)];
+  let i = 8;
+  while (i + 12 <= buf.length) {
+    const len = buf.readUInt32BE(i), type = buf.toString('latin1', i + 4, i + 8), end = i + 12 + len;
+    if (end > buf.length) throw new HttpError(400, 'This PNG picture cannot be read.');
+    if (PNG_KEEP.has(type)) out.push(buf.subarray(i, end));
+    i = end;
+    if (type === 'IEND') return Buffer.concat(out);
+  }
+  throw new HttpError(400, 'This PNG picture cannot be read.');
+}
+/* A picture without its metadata, whatever sent it (the page, a script, a backup file). */
+export const cleanImage = buf => { const t = imageType(buf); return t === 'image/jpeg' ? stripJpeg(buf) : t === 'image/png' ? stripPng(buf) : buf; };
 
 const b64 = v => typeof v === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(v) ? Buffer.from(v, 'base64') : null;
 const text = (v, n) => [...String(v ?? '')].map(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? ' ' : ch).join('').trim().slice(0, n);
@@ -87,14 +111,14 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     try {
       const o = objectOf(req.params.id);
       const b = req.body || {};
-      let data = b64(b.data);
-      const thumb = b64(b.thumb);
+      let data = b64(b.data), thumb = b64(b.thumb);
       if (!data || !thumb) throw new HttpError(400, 'Send the photo and its preview.');
+      /* JPEG and PNG, whose metadata can be taken out here (the page sends nothing else). */
       const mime = imageType(data);
-      if (!mime || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'Send a JPEG, PNG or WebP photo.');
+      if (!['image/jpeg', 'image/png'].includes(mime) || imageType(thumb) !== 'image/jpeg') throw new HttpError(400, 'Send a JPEG or PNG photo.');
       if (data.length > PHOTO_BYTES) throw new HttpError(413, `The photo is larger than ${PHOTO_BYTES / 1048576} MB.`);
       if (thumb.length > THUMB_BYTES) throw new HttpError(413, 'The preview of the photo is too large.');
-      if (mime === 'image/jpeg') data = stripJpeg(data);
+      data = cleanImage(data); thumb = cleanImage(thumb);
       const w = Math.round(Number(b.w)), h = Math.round(Number(b.h));
       if (!(w > 0 && w <= 10000 && h > 0 && h <= 10000)) throw new HttpError(400, 'The size of the photo is missing.');
       const count = db.prepare('SELECT COUNT(*) AS n FROM device_images WHERE obj_id = ?').get(o.id).n;
@@ -106,6 +130,19 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
         .run(row.id, o.id, row.name, row.caption, row.mime, row.w, row.h, row.bytes, row.created, row.by, data, thumb);
       audit(db, req.user.id, `photo added to ${o.name}`);
       res.json({ image: meta(row) });
+    } catch (e) { next(e); }
+  });
+
+  /* A record folded into a device as the same device: its photos go to that device, as many as it has room for. */
+  app.post('/api/objects/:id/images/move', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      const from = objectOf(req.params.id), to = objectOf(req.body && req.body.to);
+      const rows = db.prepare('SELECT id FROM device_images WHERE obj_id = ? ORDER BY created, id').all(from.id);
+      const room = Math.max(0, PHOTO_MAX - db.prepare('SELECT COUNT(*) AS n FROM device_images WHERE obj_id = ?').get(to.id).n);
+      const move = rows.slice(0, room);
+      for (const r of move) db.prepare('UPDATE device_images SET obj_id = ? WHERE id = ?').run(to.id, r.id);
+      if (move.length) audit(db, req.user.id, `${move.length} photo${move.length === 1 ? '' : 's'} moved from ${from.name} to ${to.name}`);
+      res.json({ moved: move.length, left: rows.length - move.length });
     } catch (e) { next(e); }
   });
 
