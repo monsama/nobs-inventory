@@ -45,13 +45,13 @@ export async function syncLdapUsers(db, config) {
       Object.assign(u, next);
       if (!u.profile) delete u.profile;
       /* Back in the group: active again, but only when the sync was the one that switched the account off, never an admin. */
-      if (u.syncOff) { u.active = true; delete u.syncOff; delete u.leftAt; }
+      if (u.syncOff) { u.active = true; delete u.syncOff; delete u.leftAt; delete u.leftBy; }
       if (changed) counts.updated++;
     }
     // A local account with the same login is left alone; it is not taken over by the directory.
   }
   for (const u of s.users) {
-    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); counts.deactivated++; }
+    if (u.source === 'ldap' && u.active !== false && !wanted.has((u.login || '').toLowerCase())) { u.active = false; u.syncOff = true; u.leftAt = new Date().toISOString(); delete u.leftBy; counts.deactivated++; }
   }
   /* No computer account at all is most likely a wrong search base: the groups on the devices are left as they are. */
   if (computerError) counts.computerError = computerError;

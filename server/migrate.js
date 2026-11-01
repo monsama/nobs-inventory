@@ -103,5 +103,8 @@ export function migrateState(s) {
     if (u.source !== 'lansweeper' || u.login || !LOGIN_RE.test(v) || logins.has(v.toLowerCase())) continue;
     u.login = v; logins.add(v.toLowerCase()); changed = true;
   }
+  /* People deactivated before 0.9.79 have no date they left: they get today, marked as at the latest then (leftBy), so
+     the Overview says "left before" and the hand-back is due from now on, not from an unknown day. */
+  for (const u of s.users || []) if (u && u.active === false && !u.leftAt) { u.leftAt = new Date().toISOString(); u.leftBy = true; changed = true; }
   return changed;
 }

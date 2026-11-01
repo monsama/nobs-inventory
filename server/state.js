@@ -264,6 +264,7 @@ function checkStateRules(s, size = true) {
     if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
+    if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');
     if (u.login !== undefined && (typeof u.login !== 'string' || u.login.length > 200)) bad('A login must be short text.');
     /* Title, phones, office, manager and e-mail, from the directory or Entra (from says which). */
     if (u.profile !== undefined && (!u.profile || typeof u.profile !== 'object' || Array.isArray(u.profile) || Object.values(u.profile).some(v => typeof v !== 'string' || v.length > 200))) bad('What the directory says of a person is an object of short texts.');

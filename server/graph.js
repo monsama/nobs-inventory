@@ -246,7 +246,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
       if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
-      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) p.leftAt = new Date().toISOString(); else if (on) delete p.leftAt; p.active = on; }
+      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) { p.leftAt = new Date().toISOString(); delete p.leftBy; } else if (on) { delete p.leftAt; delete p.leftBy; } p.active = on; }
       else {
         if (p.source === 'lansweeper' && name && low(p.name) === low(p.login)) p.name = name;
         /* Anyone else without a department (from the directory, Lansweeper or typed) gets Entra's, noted as Entra's, so it

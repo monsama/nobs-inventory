@@ -66,7 +66,7 @@ export function renderSetUsers(){
     if (!c.checked && u.role === 'admin' && activeAdmins() <= 1){ toast('At least one active admin is needed.'); c.checked = true; return; }
     u.active = c.checked;
     /* When they left: the Overview lists their devices to take back, the oldest first. */
-    if (c.checked) delete u.leftAt; else u.leftAt = new Date().toISOString();
+    delete u.leftBy; if (c.checked) delete u.leftAt; else u.leftAt = new Date().toISOString();
     queueServerSave(); renderSetUsers();
   });
   /* A user entered here or named by Lansweeper can be renamed; their devices move to the new name with them. Users from

@@ -2,6 +2,7 @@
    site. Every line leads to the list behind it, filtered. */
 import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
+import { dateText } from './dates.js';
 import { contractsDue, licencesOver, money } from './09-costs.js';
 import { SERVER, view } from './07-render.js';
 import { resetFilters } from './02-views.js';
@@ -124,7 +125,7 @@ export function renderOverview(){
       </div>
       ${handbacks.length ? `<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
         <p class="note" style="padding:8px 12px 2px;margin:0">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
-        <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
+        <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.u.leftBy ? `left before ${dateText(h.u.leftAt.slice(0, 10))}` : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
