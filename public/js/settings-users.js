@@ -1,6 +1,7 @@
 /* Settings → Users: the people, where each comes from, their role, login, password and entry sheet; the company
    (name and logo for the entry sheets). */
 import { modal, closeModal } from './19-modal.js';
+import { resetFilters } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave } from './07-render.js';
 import { USERS, who, roleLabel, me, userId, openSettings, canEdit } from './04-settings.js';
@@ -192,8 +193,9 @@ export function userLoginModal(u){
 export function showDevicesOf(nameOrId){
   closeModal();
   const u = USERS.find(x => x.id === nameOrId) || USERS.find(x => x.name === nameOrId);
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.quality = null;
-  st.scanOld = st.twins = false; st.scope = null;
+  /* Every other filter goes (the Table's column filters too), so the person's devices are all there. */
+  resetFilters();
+  st.scope = null; st.rvSrc = ''; st.rvKnown = st.rvOld = false; st.bulk = new Set();
   if (u){ st.person = u.id; st.q = ''; st.live = true; st.tab = 'table'; }
   else { st.person = null; st.q = String(nameOrId || ''); st.tab = 'cards'; st.cardsGroup = 'none'; }
   render();

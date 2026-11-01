@@ -114,7 +114,7 @@ export const setPlans = v => { PLANS = v; };
 export const LS_ON = () => st.useLansweeper !== false;
 /* Lansweeper in use here: switched on, and set up or having sent something. A new inventory that never had it shows no
    Lansweeper status or filters, however the switch stands. */
-export const LS_USED = () => LS_ON() && (!!(st.lansweeper && (st.lansweeper.url || st.lansweeper.site)) || !!(SYNC && SYNC.run) || objs.some(o => o.feed) || REVIEW.some(o => o.feed));
+export const LS_USED = () => LS_ON() && (!!(st.lansweeper && (st.lansweeper.endpoint || st.lansweeper.site)) || st.lsSource === 'api' || !!(SYNC && (SYNC.run || SYNC.lansweeper)) || objs.some(o => o.feed) || REVIEW.some(o => o.feed));
 /* Whether Lansweeper data still comes in. Microsoft Graph being set up is SYNC.graph, from the server. */
 export const lsLive = () => LS_ON() && st.feedOn !== false;
 /* Fields only a scan fills in, that nobody types: hidden while Lansweeper is off. The values are kept. */
@@ -207,7 +207,7 @@ export const COMPANY = {name: '', logo: ''};
 export const modelNames = () => [...new Set([...MODELS, ...objs.map(o => o.model)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 /* Sync markers. The last Lansweeper sync is the newest time a device carries from the feed. A device it created is New, and one
    saved by hand after that sync is Edited by hand. updateSync() is run before each render, so the markers match the data. */
-export const SYNC = {run: '', time: 0, graph: false, defender: false};
+export const SYNC = {run: '', time: 0, graph: false, defender: false, lansweeper: false};
 export { stampTime };
 export const updateSync = () => {
   SYNC.run = ''; SYNC.time = 0;
@@ -673,7 +673,7 @@ export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q &
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || o.uid === st.person) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

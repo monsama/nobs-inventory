@@ -33,8 +33,8 @@ try {
 
   // getting started: no sites and no company name yet, devices there
   await p.click('#tabsbar [data-tab=overview]'); await p.waitForSelector('.panelbox.start');
-  assert.match(await p.textContent('.panelbox.start'), /1 of 4 done/);
-  assert.equal(await p.locator('.start-step.done').count(), 1, 'the devices are there');
+  assert.match(await p.textContent('.panelbox.start'), /2 of 4 done/);
+  assert.equal(await p.locator('.start-step.done').count(), 2, 'people and devices are there');
 
   // Settings opens on Locations
   await p.click('[data-start="locations"]'); await p.waitForSelector('#setTabs');

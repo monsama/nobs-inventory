@@ -18,7 +18,7 @@ import { forgetPhotos } from './23-photos.js';
    through every record. */
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
-  if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); } st.tab = 'cards'; }
+  if (st.tab === 'review'){ if (st.scope !== 'review'){ st.scope = 'review'; st.rvSrc = ''; st.bulk = new Set(); st.person = null; st.live = false; } st.tab = 'cards'; }
   updateSync(); renderSide(); renderTabs();
   if (st.tab === 'cards') renderCards();
   else if (st.tab === 'table') renderTable();
@@ -45,7 +45,7 @@ export function render({ save = true } = {}){
 /* Back and forward (the browser's buttons, a mouse's side buttons, Alt+arrows) move between the views seen: the open tab
    and the sidebar filters. Each view drawn that differs from the last one is a step in the browser's history; a change of
    the search text only updates the current step, so typing does not make a step of every letter. The address stays. */
-const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'adGroup', 'quality'];
+const NAV_KEYS = ['tab', 'scope', 'rvSrc', 'rvKnown', 'rvOld', 'type', 'loc', 'status', 'warranty', 'scanOld', 'twins', 'intune', 'osFam', 'live', 'resp', 'person', 'adGroup', 'quality'];
 const navOf = () => ({ nobs: 1, ...Object.fromEntries(NAV_KEYS.map(k => [k, st[k] ?? null])), q: st.q || '' });
 let navRestoring = false;
 function noteNav(){
@@ -438,7 +438,7 @@ export async function boot(){
   let info = null;
   try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
   if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
+  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SYNC.lansweeper = !!info.lansweeper; SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
   /* Back from Microsoft: what went wrong, if anything, said on the sign-in; the address is cleaned. */
   const ssoErr = new URLSearchParams(location.search).get('sso');
   if (ssoErr) history.replaceState(null, '', location.pathname + location.hash);

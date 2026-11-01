@@ -54,7 +54,7 @@ function results(q){
   const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
     icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} devices`,
-    go: () => { st.loc = l; st.q = ''; if (!['cards', 'table', 'map', 'plans'].includes(st.tab)) st.tab = 'cards'; render(); } }))]);
+    go: () => { st.loc = l; st.q = ''; st.person = null; if (!['cards', 'table', 'map', 'plans'].includes(st.tab)) st.tab = 'cards'; render(); } }))]);
   return out;
 }
 

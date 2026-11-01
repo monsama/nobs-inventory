@@ -116,6 +116,8 @@ $('#side').addEventListener('click', e => {
     /* The one shown, clicked again: a choice under Waiting goes back to Waiting, Waiting or Ignored to the inventory. */
     const next = !same ? to : to.rvSrc || to.rvKnown || to.rvOld ? { scope: 'review', rvSrc: '', rvKnown: false, rvOld: false } : { scope: null, rvSrc: '', rvKnown: false, rvOld: false };
     Object.assign(st, next); st.bulk = new Set();
+    /* Records in To review have nobody assigned: a person's filter would leave the list empty. */
+    st.person = null; st.live = false;
     if (st.scope && !LIST_TABS.includes(st.tab)) st.tab = 'cards';
   }
   if ('adgroup' in b.dataset) st.adGroup = null;
@@ -138,6 +140,8 @@ export function renderFilterBar(){
   const bar = $('#fbar'); if (!bar) return;
   const list = ['cards', 'table', 'map'].includes(st.tab);
   const rc = contactOf(st.resp), person = st.person ? USERS.find(u => u.id === st.person) : null;
+  /* A person removed meanwhile: the filter goes with them, so it never hides everything unseen. */
+  if (st.person && !person) st.person = null;
   const chips = !list ? [] : [
     st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
     st.loc && ['loc', 'Location', st.loc],
@@ -400,7 +404,7 @@ export function cardHtml(o, idx, join = showJoin()){
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
   const s = STATUS[o.status];
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
-  return `<button class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${esc(o.id)}" aria-pressed="${!!picked}"><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
+  return `<button class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${esc(o.id)}" aria-pressed="${!!picked}"${o.review ? ` aria-label="${esc(o.name)}: waiting in To review"` : ''}><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
     <div class="ch">${tico(o.type)}<div class="hd"><span class="nmrow"><span class="nm">${esc(o.name)}</span>${markHtml(o)}</span><span class="model">${esc(o.model)}</span></div>
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
@@ -547,7 +551,7 @@ export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 
    Shift + click picks every card from the last one picked to this one. A plain click still opens the card. */
 let lastPick = null;
 document.addEventListener('click', e => {
-  const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card) return;
+  const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card || e.target.closest('[data-rvc]')) return;
   const tick = e.target.closest('.cardtick');
   if (!tick && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
   e.preventDefault(); e.stopImmediatePropagation();
@@ -633,7 +637,7 @@ export const TABLE_COLS = [
   {k:'found', w:220, label:'Found by', cell: o => `<td>${o.review ? esc([REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ')) : ''}</td>`}
 ];
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
-export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_ON()) && (c.k !== 'found' || st.scope));
+export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */

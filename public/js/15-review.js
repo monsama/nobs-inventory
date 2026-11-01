@@ -268,8 +268,11 @@ export function bindReviewBanner(o){
        record is worked through without going back to the list. */
     const waiting = REVIEW.filter(x => x.review && !x.review.ignored);
     const next = ['accept', 'ignore', 'merge'].includes(k) ? waiting[waiting.indexOf(o) + 1] || waiting.find(x => x !== o) : null;
+    const tab = st.tab;
     reviewDo(k, [o]);
-    if (next && st.tab === o.id) setTimeout(() => openNext(next.id), 0);
+    /* Only when it was done: a question asked first (Already in the inventory?) leaves the record where it is. */
+    const done = !o.review || o.review.ignored || o.review.merged || !REVIEW.includes(o);
+    if (next && done && tab === o.id) setTimeout(() => openNext(next.id), 0);
   });
 }
 /* Opens the next waiting record in the tab of the one just done. */

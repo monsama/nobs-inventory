@@ -22,11 +22,12 @@ const bars = (rows, attr) => {
    with the button that does it. Gone when the first four are done, or when hidden (kept in this browser). */
 const GS_HIDE = 'ni-start-hidden';
 function startHtml(){
-  if (!canEdit()) return '';
+  /* Only for a new inventory: one in use for a while (many devices) does not need it. */
+  if (!canEdit() || objs.length >= 50) return '';
   try { if (localStorage.getItem(GS_HIDE)) return ''; } catch { /* no storage: shown */ }
   const steps = [
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
-    [USERS.filter(u => u.active !== false && u.role && u.role !== 'none').length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
+    [USERS.length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
     [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'users', 'Set the name'],
     [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New object'],
   ];
