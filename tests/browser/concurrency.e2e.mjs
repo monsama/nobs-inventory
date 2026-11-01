@@ -79,8 +79,11 @@ try {
   await a.locator('table.grid td b', { hasText: /^MON-0433$/ }).first().click();
   await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
+  const asked = [];
+  b.on('request', q => { if (q.url().includes('/api/state')) asked.push(q.url()); });
   await b.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
   await until(b, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('MON-0433') === undefined); }, null, { timeout: 5000 });
+  assert.ok(asked.length && asked.every(u => /\/api\/state\?since=\d+$/.test(u)), 'only the changes are asked for: ' + asked.join(', '));
 
   // 4. A stale window saves an edit to another record: the deleted object does not come back.
   await editModel(b, 'ZH-NB-0201', 'B LAPTOP');

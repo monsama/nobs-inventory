@@ -27,6 +27,14 @@ export function openDb(file) {
   if (!db.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'detail')) db.exec('ALTER TABLE audit ADD COLUMN detail TEXT');
   /* Added in 0.9.75: backups kept as parts, and the device photos (server/backup-store.js, server/device-images.js). */
   ensureBackupStore(db);
+  /* Added in 0.9.80: a running number on every record's revision, so a page asks only for what changed since its copy
+     (GET /api/state?since=). A trigger sets it on every write, whichever code writes. */
+  if (!db.prepare('PRAGMA table_info(revs)').all().some(c => c.name === 'seq')) {
+    db.exec('ALTER TABLE revs ADD COLUMN seq INTEGER NOT NULL DEFAULT 0; UPDATE revs SET seq = rowid;');
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS revs_seq ON revs (seq);
+    CREATE TRIGGER IF NOT EXISTS revs_seq_ins AFTER INSERT ON revs BEGIN UPDATE revs SET seq = (SELECT COALESCE(MAX(seq), 0) + 1 FROM revs) WHERE rowid = NEW.rowid; END;
+    CREATE TRIGGER IF NOT EXISTS revs_seq_upd AFTER UPDATE OF rev ON revs BEGIN UPDATE revs SET seq = (SELECT COALESCE(MAX(seq), 0) + 1 FROM revs) WHERE rowid = NEW.rowid; END;`);
   return db;
 }
 

@@ -16,7 +16,7 @@ import { LABEL_FORMATS, labelsPdf } from './labels.js';
 import { createRequire } from 'node:module';
 const JSQR = createRequire(import.meta.url).resolve('jsqr');
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -378,19 +378,46 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     res.json({ ok: true });
   });
 
-  app.get('/api/state', requireUser, (req, res) => {
+  /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
+  const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
+  const redactUser = ({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  app.get('/api/state', requireUser, (req, res, next) => {
+    /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
+       with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a
+       long gap get everything, as without since. */
+    const since = req.query.since !== undefined ? Number(req.query.since) : NaN;
+    const sc = scopeOf(req.user), admin = req.user.role === 'admin';
+    if (Number.isInteger(since) && since >= 0 && !sc) {
+      try {
+        const cseq = stateSeq(db);
+        const rows = since > cseq ? null : changesSince(db, since);
+        if (rows) {
+          res.set('Cache-Control', 'no-store');
+          const puts = [], dels = [], revs = {};
+          for (const r of rows) {
+            if (!admin && r.kind === 'setting' && CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') continue;
+            revs[r.kind + '|' + r.id] = r.rev;
+            if (r.data === null) { dels.push([r.kind, r.id]); continue; }
+            puts.push([r.kind, r.id, admin ? r.data : r.kind === 'object' ? redactObj(r.data) : r.kind === 'user' ? redactUser(r.data) : r.data]);
+          }
+          return res.json({ delta: true, cseq, puts, dels, revs });
+        }
+      } catch (e) { return next(e); }
+    }
     /* Nothing changed since the page's copy (same revisions, same person and role): 304, without loading anything. The
        page polls every 15 seconds, so this spares loading and sending the whole inventory each time. */
     const tag = `W/"${stateTag(db)}.${req.user.id}.${req.user.role}.${crypto.createHash('sha1').update(scopeKey(scopeOf(req.user))).digest('hex').slice(0, 8)}"`;
     res.set('Cache-Control', 'private, no-cache').set('ETag', tag);
     if (req.get('if-none-match') === tag) return res.status(304).end();
-    const s = scopeState(loadState(db), scopeOf(req.user)); delete s.empty;
-    if (req.user.role !== 'admin') {   /* the connections' settings and sign-in names are for admins, as in Settings */
+    const cseq = stateSeq(db);
+    const s = scopeState(loadState(db), sc); delete s.empty;
+    if (!admin) {   /* the connections' settings and sign-in names are for admins, as in Settings */
       for (const k of CONNECTION_SETTINGS) if (k !== 'graphAmbiguous') delete s[k];   /* the ambiguous devices are a device filter */
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
-      s.objs = s.objs.map(o => o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
-      s.users = s.users.map(({ login, groups, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u));
+      s.objs = s.objs.map(redactObj);
+      s.users = s.users.map(redactUser);
     }
+    s.cseq = cseq;
     res.json(s);
   });
 

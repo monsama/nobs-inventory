@@ -1,3 +1,4 @@
+import { applyDelta } from './delta.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
@@ -270,12 +271,16 @@ export function refusedModal(items){
    yet are saved first; what still cannot be saved (offline, signed out) is put back on top and saved later, so a
    reload never drops an edit. Records in skip are the ones someone else changed: their newer version is kept. After a restore (discard), the
    restored inventory replaces everything here. */
-export async function reloadFromServer({ flush = true, skip = [], discard = false } = {}){
+export async function reloadFromServer({ flush = true, skip = [], discard = false, data = null } = {}){
   if (flush && !discard && SERVER.base && canEdit()){ if (SERVER.busy) await SERVER.inflight; await flushSave(); }
-  const r = await fetch('api/state', {credentials: 'same-origin'});
-  if (r.status === 401){ loginModal(); return false; }
-  if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
-  const d = await r.json();
+  let d = data;
+  if (!d){
+    const r = await fetch('api/state', {credentials: 'same-origin'});
+    if (r.status === 401){ loginModal(); return false; }
+    if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
+    d = await r.json();
+    keepServerCopy(d);
+  }
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
   const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
   applyState(d);
@@ -320,6 +325,12 @@ export function dropMissingTabs(){
 /* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
    (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
+/* The inventory as the server last sent it, untouched by the page, with its running number (cseq): the next check asks
+   only for what changed since (api/state?since=) and applies that to this copy. */
+function keepServerCopy(d){
+  SERVER.copy = Number.isInteger(d.cseq) ? structuredClone(d) : null;
+  SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
+}
 export async function checkForChanges(){
   if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
@@ -327,13 +338,22 @@ export async function checkForChanges(){
   /* Changes that could not be sent while the server was away are sent again here. */
   if ((puts.length || dels.length) && canEdit()){ if (SERVER.save === 'offline') sendChanges(); return; }
   let r;
-  try { r = await fetch('api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
+  const delta = SERVER.copy && SERVER.cseq !== null;
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
   if (!r.ok) return;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
+  if (d.delta){
+    /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
+    const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
+    applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
+    if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
+    return;
+  }
+  keepServerCopy(d);
   const revs = d.revs || {};
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
-  if (changed) await reloadFromServer();
+  if (changed) await reloadFromServer({ data: structuredClone(d) });
 }
 export function applyState(d){
   UNDO.epoch++;

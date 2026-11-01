@@ -38,6 +38,20 @@ export const docKey = (kind, id) => kind + '|' + id;
 /* One setting, read from its own row: for a job that needs one value, not the whole inventory. */
 export const settingOf = (db, id) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); return r ? JSON.parse(r.data) : undefined; };
 export const stateTag = db => { const r = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(rev), 0) AS s FROM revs').get(); return `${r.n}.${r.s}`; };
+/* The running number of the last write (see db.js), and the records written after since: [{ kind, id, rev, data }]
+   with data null for a record deleted. null when there are more than max (the page then loads everything). */
+export const stateSeq = db => db.prepare('SELECT COALESCE(MAX(seq), 0) AS n FROM revs').get().n;
+export function changesSince(db, since, max = 2000) {
+  const rows = db.prepare('SELECT kind, id, rev FROM revs WHERE seq > ? ORDER BY seq LIMIT ?').all(since, max + 1);
+  if (rows.length > max) return null;
+  const get = db.prepare('SELECT data FROM docs WHERE kind = ? AND id = ?');
+  return rows.filter(r => r.kind !== 'setting' || SETTING_KEYS.includes(r.id)).map(r => {
+    const d = get.get(r.kind, r.id);
+    let data = d ? JSON.parse(d.data) : null;
+    if (data && r.kind === 'setting' && r.id === 'policy') data = { ...DEFAULT_POLICY, ...data };   /* as loadState gives it */
+    return { kind: r.kind, id: r.id, rev: r.rev, data };
+  });
+}
 export function revsOf(db) {
   const m = {};
   for (const r of db.prepare('SELECT kind, id, rev FROM revs').all()) m[docKey(r.kind, r.id)] = r.rev;
