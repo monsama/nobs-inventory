@@ -38,6 +38,10 @@ try {
   assert.deepEqual((await names()).sort(), ['Eva Roth', 'Roth, Eva']);
   assert.equal(await p.evaluate(() => document.activeElement.id), 'uQ');
   await p.click('#uClear');
+  // people without a sign-in are listed apart from the accounts; a search looked through everybody
+  assert.match(await p.textContent('[data-ukind].active'), /Accounts/);
+  assert.equal((await names()).includes('Eva Roth'), false);
+  await p.click('[data-ukind="all"]');
   await p.selectOption('#uStatus', 'inactive');
   assert.deepEqual(await names(), ['Xaver Solo']);
   await p.click('#uClear');

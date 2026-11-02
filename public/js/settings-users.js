@@ -164,12 +164,19 @@ export function renderSetUsers(){
      status, role, and whether they have devices. */
   const q = String(st.userQ || '').trim().toLowerCase();
   const srcOf = u => ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
-  const shown = u => (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
+  /* Accounts (people who may sign in) and the people only known as device users (No access) are listed apart; a search
+     or a role filter looks through everybody. */
+  const noAccess = u => (u.role || 'viewer') === 'none';
+  const KINDS = {acc: ['Accounts', u => !noAccess(u)], ppl: ['People without access', noAccess], all: ['Everybody', () => true]};
+  if (!KINDS[st.userKind]) st.userKind = USERS.some(noAccess) ? 'acc' : 'all';
+  const kindOk = u => !!(String(st.userQ || '').trim() || st.userRole) || KINDS[st.userKind][1](u);
+  const shown = u => kindOk(u) && (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
     && (!st.userStatus || (st.userStatus === 'active') === (u.active !== false)) && (!st.userRole || (u.role || 'viewer') === st.userRole)
     && (!st.userDevs || devicesOfUser(u.name) > 0)
     && (!q || [u.name, u.login, u.dept, u.profile && u.profile.mail, u.entra && u.entra.upn, ...(u.aliases || [])].some(v => v && String(v).toLowerCase().includes(q)));
   const nShown = USERS.filter(shown).length, filtering = !!(q || st.userDir || st.userSrc || st.userStatus || st.userRole || st.userDevs);
   const sel = (id, label, cur, opts) => `<select id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const kindTabs = USERS.some(noAccess) ? `<div class="settabs setsub ukinds" role="group" aria-label="Show">${Object.entries(KINDS).map(([k, [l, f]]) => `<button type="button" class="tab${st.userKind === k ? ' active' : ''}" data-ukind="${k}" aria-pressed="${st.userKind === k}">${l} <span class="cnt">${USERS.filter(f).length}</span></button>`).join('')}</div>` : '';
   const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
@@ -189,7 +196,7 @@ export function renderSetUsers(){
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Editor changes the devices (of the sites you give them), Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
     ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
-    ${dupesHtml(devicesOfUser)}${filterBar}
+    ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
@@ -200,6 +207,7 @@ export function renderSetUsers(){
   /* The search redraws as one types; the field keeps the focus and the caret. */
   const uq = $('#uQ'); if (uq) uq.oninput = () => { st.userQ = uq.value; const at = uq.selectionStart; renderSetUsers(); const n = $('#uQ'); if (n){ n.focus(); n.setSelectionRange(at, at); } };
   [['uSrc', 'userSrc'], ['uStatus', 'userStatus'], ['uRole', 'userRole']].forEach(([id, k]) => { const e = $('#' + id); if (e) e.onchange = () => { st[k] = e.value; renderSetUsers(); }; });
+  root.querySelectorAll('[data-ukind]').forEach(b => b.onclick = () => { st.userKind = b.dataset.ukind; renderSetUsers(); });
   const uv = $('#uDevs'); if (uv) uv.onchange = () => { st.userDevs = uv.checked; renderSetUsers(); };
   root.querySelectorAll('#uClear, [data-uclear]').forEach(b => b.onclick = () => { st.userQ = st.userDir = st.userSrc = st.userStatus = st.userRole = ''; st.userDevs = false; renderSetUsers(); });
   wireDupes();
