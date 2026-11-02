@@ -26,7 +26,7 @@ const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector(
 
 // Opens an object's page the way a person does: find it in the table and click its name.
 const openByName = async (p, name) => {
-  await p.click('#tabsbar [data-tab=table]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await p.locator('table.grid td b', { hasText: new RegExp(`^${name}$`) }).first().click();
   await until(p, async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n) && __mods[0].st.tab === __mods[0].byName(n).id); }, name);
 };
@@ -61,7 +61,7 @@ try {
   // A new object plugged into a port from the New object dialog (port 15 is free in the sample).
   await p.click('#newBtn'); await p.waitForSelector('#nName');
   await p.fill('#nName', 'SCEN-SIP-1'); await p.selectOption('#nType', 'sip');
-  await p.selectOption('#nUp', await idOf(p, 'SW-ZH-2OG-01')); await p.fill('#nPort', '15'); await p.click('#nOk');
+  await p.click('#nMore > summary'); await p.selectOption('#nUp', await idOf(p, 'SW-ZH-2OG-01')); await p.fill('#nPort', '15'); await p.click('#nOk');
   assert.ok(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].rels.some(r => r.from === __mods[0].byName('SCEN-SIP-1').id && r.port === 15)); }), 'the new object was not plugged into port 15');
 
   // Delete a relation from the object page.
@@ -95,7 +95,7 @@ try {
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SW-1').u); }), 3, 'the device did not move to U3');
 
   // CSV import through the dialog.
-  await p.click('#tabsbar [data-tab=table]'); await p.click('#csvImp'); await p.waitForSelector('#csvText');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.click('#csvImp'); await p.waitForSelector('#csvText');
   await p.fill('#csvText', 'name,type,model\nCSV-A,pc,Model A\nCSV-B,sip,Model B');
   await p.waitForSelector('#csvGo:not([disabled])'); await p.click('#csvGo');
   assert.ok(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byName('CSV-A') && !!__mods[0].byName('CSV-B')); }), 'the CSV rows were not imported');

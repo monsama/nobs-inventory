@@ -79,6 +79,7 @@ try {
   // the entry sheet is an admin's: not offered to an editor
   assert.equal(await p.locator('#sheetBtn').count(), 0);
   // photos can be added to it
+  await p.click('[data-xadd=photos]');
   await p.waitForSelector('#phAdd'); assert.equal(await p.isDisabled('#phAdd'), false);
   // its location: only the rooms of Bern, no "No location"
   const locs = await p.locator('#f_b1_loc option').allTextContents();

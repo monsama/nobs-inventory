@@ -174,7 +174,7 @@ export function renderSetSources(){
 
   root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">What each source brings into the inventory and how it is set up here now. This page is drawn from the same lists the syncs use, so it always shows what they do.</p><div class="ds-cards">${cards}</div></div>
     <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrix}</div>${reset}</details></div>
-    <div class="panelbox"><div class="hdr">Beyond the fields</div><div class="ds-cards ds-wide">${extras}</div></div>
+    <details class="panelbox fold ds-beyond"><summary class="hdr">Beyond the fields <span class="cnt">what else each source brings</span></summary><div class="ds-cards ds-wide">${extras}</div></details>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
 

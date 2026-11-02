@@ -31,7 +31,7 @@ try {
   const core = fn => p.evaluate(fn);
 
   // Cards: Ctrl+click one, Shift+click to the fourth: four picked, shared with the Table
-  await p.click('#tabsbar [data-tab=cards]'); await p.waitForSelector('#cards .card');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards'); await p.waitForSelector('#cards .card');
   const cards = p.locator('#cards .card');
   const names = await cards.evaluateAll(cs => cs.slice(0, 4).map(c => c.dataset.open));
   await cards.nth(0).click({ modifiers: ['Control'] });
@@ -46,20 +46,20 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).st.open.length === 4);
   assert.deepEqual(await core(async () => (await import('/js/01-core.js')).st.open), names);
   // the same pick in the Table, which can open them too
-  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('#bkAct');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('#bkAct');
   assert.match(await p.textContent('#toolbar'), /4 selected/);
   // Ctrl+A picks every card shown, Escape takes the pick back
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.keyboard.press('Control+a');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.bulk.size === c.filtered().length && c.st.bulk.size > 4; });
   await p.keyboard.press('Escape');
   await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === 0);
-  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');
   await p.keyboard.press('Control+a');
   await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === document.querySelectorAll('table.grid [data-sel]').length);
   await p.keyboard.press('Escape');
   // a plain click still opens a card
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await cards.nth(1).click();
   await until(p, async () => (await import('/js/01-core.js')).st.tab !== 'cards');
 
@@ -77,7 +77,7 @@ try {
   await p.click('#toast .t-undo');
   await until(p, async () => (await import('/js/01-core.js')).REVIEW.length === 6);
   // the Table shows them too, searchable, with Accept and Ignore for the ticked rows
-  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');
   assert.equal(await p.locator('table.grid tbody tr').count(), 6);
   assert.ok((await p.locator('table.grid thead th').allTextContents()).some(t => /Found by/.test(t)), 'To review has a Found by column');
   assert.match(await p.textContent('table.grid tbody tr:first-child'), /Lansweeper/);
@@ -94,7 +94,7 @@ try {
   assert.match(await p.textContent('[data-ovrv]'), /5[\s\S]*Waiting in To review/);
   await p.click('[data-ovrv]');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.scope === 'review' && c.st.tab === 'cards'; });
-  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('table.grid');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.waitForSelector('table.grid');
   // back to the inventory, where the waiting and the ignored ones are not
   await p.click('#fbar [data-fx=scope]');
   await until(p, async () => (await import('/js/01-core.js')).st.scope === null);

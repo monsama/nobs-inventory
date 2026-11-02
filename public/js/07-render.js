@@ -9,7 +9,7 @@ import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
 /* An address with ?o=INV-0001 (a link in an e-mail): the inventory number in it. */
 const linkedCode = v => { const m = /[?&]o=([^&#\s]+)/.exec(String(v || '')); if (!m) return ''; try { return decodeURIComponent(m[1]); } catch { return ''; } };
-import { openObjs, FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs } from './02-views.js';
+import { openObjs, FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -42,6 +42,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'stocktake') renderStocktake();
   else if (st.tab === 'mine') renderMine();
   else renderObj(byId(st.tab));
+  viewSwitch();
   renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();

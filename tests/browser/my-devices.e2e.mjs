@@ -37,7 +37,7 @@ try {
   // she starts on My devices: one row per device, and only the views that help her
   await p.waitForSelector('.mine-row');
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.tab), 'mine');
-  assert.deepEqual(await p.$$eval('#tabsbar [data-tab]', b => b.map(x => x.dataset.tab)), ['mine', 'cards', 'table']);
+  assert.deepEqual(await p.$$eval('#tabsbar [data-tab]', b => b.map(x => x.textContent.trim())), ['My devices', 'Devices'], 'Cards and Table are one tab');
   assert.equal(await p.isVisible('#newBtn'), false, 'no Add button she cannot use');
   assert.match(await p.textContent('.mine-row'), /Not confirmed yet[\s\S]*I have it[\s\S]*Report a problem/);
   await p.click('.mine-row [data-mine]');

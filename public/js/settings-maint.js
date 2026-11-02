@@ -183,8 +183,8 @@ export async function loadHealth(){
 }
 const HEALTH_CHIP = { ok: ['ok', 'OK'], warn: ['warn', 'Check'], bad: ['bad', 'Act now'], off: ['', 'Off'] };
 /* Where each Health row is dealt with: [Settings tab, element on it]. A row with none (the version, the disk) is text. */
-const HEALTH_GO = { 'Last backup': ['maintenance', '#bkNew'], 'Automatic backups': ['maintenance', '#bkAuto'], 'Copy outside the server': ['maintenance', '.bk-export'],
-  'Restore test': ['maintenance', '#rtRun'], 'Device photos': ['maintenance', '#psRun'], 'This page (HTTPS)': ['maintenance', '#certPanel'],
+const HEALTH_GO = { 'Last backup': ['backups', '#bkNew'], 'Automatic backups': ['backups', '#bkAuto'], 'Copy outside the server': ['backups', '.bk-export'],
+  'Restore test': ['backups', '#rtRun'], 'Device photos': ['maintenance', '#psRun'], 'This page (HTTPS)': ['maintenance', '#certPanel'],
   Lansweeper: ['feed', null], 'Active Directory': ['directory', null], 'Entra & Intune': ['entra', null], 'Microsoft Graph sign-in': ['entra', null],
   'Errors in the last 24 hours': ['log', 'errors'], 'Signed in': ['users', null] };
 const hlTarget = c => HEALTH_GO[c.name] || (c.area === 'Certificates' && /^Directory CA/.test(c.name) ? ['directory', null] : null);
@@ -192,7 +192,7 @@ function healthGo(c){
   const t = hlTarget(c); if (!t) return;
   const [tab, at] = t;
   if (tab === 'log') LOG_FILTER = at || 'all';
-  if (tab !== 'maintenance'){ const b = document.querySelector(`#setTabs [data-st="${tab}"]`); if (b) b.click(); return; }
+  if (tab !== st.setTab){ const b = document.querySelector(`#setTabs [data-st="${tab}"]`); if (b) b.click(); if (!['maintenance', 'backups', 'mail'].includes(tab)) return; }
   const el = at && document.querySelector('#setMaint ' + at); if (!el) return;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   const f = el.matches('button, input, select, a') ? el : el.querySelector('button:not([disabled]), input:not([disabled])');
@@ -350,14 +350,19 @@ export function renderSetMaint(){
   if (edit && DIGEST === null){ DIGEST = undefined; fetch('api/digest', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { DIGEST = j; if ($('#setMaint')) renderSetMaint(); }, () => { DIGEST = null; }); }
   if (edit && PHOTOS === null){ PHOTOS = undefined; fetch('api/images', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { images: [] }).then(j => { PHOTOS = j.images; if ($('#setMaint')) renderSetMaint(); }, () => { PHOTOS = []; }); }
   if (edit && TOKENS === null){ TOKENS = undefined; fetch('api/tokens', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { tokens: [] }).then(j => { TOKENS = j.tokens; if ($('#setMaint')) renderSetMaint(); }, () => { TOKENS = []; }); }
-  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? backupPanel(edit) : ''}${edit ? photosShrinkPanel() : ''}${edit ? tokensPanel() : ''}${edit ? digestPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+  /* Three tabs: System (health, certificate, API tokens, photos, clearing and resetting), Backups, and E-mail (the
+     mail server and the weekly e-mail). */
+  const part = ['backups', 'mail'].includes(st.setTab) ? st.setTab : 'system';
+  if (part === 'backups'){ $('#setMaint').innerHTML = edit ? backupPanel(edit) : '<p class="note" style="padding:12px">Only an admin sees the backups.</p>'; if (edit) wireBackups(edit); return; }
+  if (part === 'mail'){ $('#setMaint').innerHTML = edit ? digestPanel() : '<p class="note" style="padding:12px">Only an admin sets up the e-mail.</p>'; if (edit) wireDigest(); return; }
+  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? photosShrinkPanel() : ''}${edit ? tokensPanel() : ''}${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>
     <div class="note" style="padding:10px 12px">Backups stay unless you choose to delete them too, and the audit log keeps a record of the reset. What is set on the server itself (NI_LDAP_…, NI_GRAPH_… and the service passwords) is outside the app: remove it there.</div>
     <div class="addrel" style="padding:10px 12px"><button id="frReset" class="danger-text" ${edit ? '' : 'disabled'}>Factory reset…</button></div></div>`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
-  if (edit) wireBackups(edit); wireTokens(); wireDigest(); wirePhotosShrink();
+  wireTokens(); wirePhotosShrink();
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
   if (edit) $('#frReset').onclick = factoryResetModal;

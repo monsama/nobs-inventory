@@ -69,7 +69,7 @@ try {
   assert.equal(await page.evaluate(async () => (await import('/js/09-costs.js')).num('0,500')), 0.5, 'a leading 0 is a decimal comma');
 
   // the table: a drop that is not a column changes nothing; a header sorts from the keyboard
-  await page.click('[data-tab=table]'); await page.waitForSelector('table.grid th');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await page.waitForSelector('table.grid th');
   const heads = async () => page.locator('table.grid thead th').allTextContents();
   const before = await heads();
   await page.evaluate(() => { const th = document.querySelectorAll('table.grid thead th')[2]; const dt = new DataTransfer(); dt.setData('text/plain', 'cards'); th.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); });

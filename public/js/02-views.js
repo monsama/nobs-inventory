@@ -28,6 +28,8 @@ const GRAPH_TIPS = {
 };
 /* The views that show a list of devices, the inventory's or (st.scope) To review's. */
 const LIST_TABS = ['cards', 'table', 'map'];
+const MORE_KEY = 'ni-more-filters';
+const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
 export function renderSide(){
   /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
@@ -100,6 +102,15 @@ export function renderSide(){
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
+  /* Warranty, Lansweeper checks, duplicates and Entra & Intune under More filters: open while one of them filters, and
+     once opened (this browser). */
+  const mf = $('#moreFilters');
+  if (mf){
+    const on = mf.querySelectorAll('.item.sel').length;
+    $('#moreFiltersOn').textContent = on ? `${on} on` : '';
+    if (on || moreOpen()) mf.open = true;
+    mf.ontoggle = () => { try { if (mf.open) localStorage.setItem(MORE_KEY, '1'); else if (!mf.querySelector('.item.sel')) localStorage.removeItem(MORE_KEY); } catch { /* not kept */ } };
+  }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
   $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
@@ -241,6 +252,18 @@ export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To re
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
 export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.includes(id) : id !== 'mine');
+export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], business: ['Contracts', ['contracts', 'sw', 'contacts']] };
+const TAB_GROUP_OF = Object.fromEntries(Object.entries(TAB_GROUPS).flatMap(([g, [, m]]) => m.map(id => [id, g])));
+const groupLast = g => { const m = TAB_GROUPS[g][1], l = (st.tabLast || {})[g]; return m.includes(l) && tabAllowed(l) ? l : m.find(tabAllowed) || m[0]; };
+/* The switch over a grouped view (Cards | Table, Contracts | Software | Contacts): put first in the toolbar. */
+export function viewSwitch(){
+  const g = TAB_GROUP_OF[st.tab]; if (!g) return;
+  (st.tabLast = st.tabLast || {})[g] = st.tab;
+  const m = TAB_GROUPS[g][1].filter(tabAllowed); if (m.length < 2) return;
+  const tb = $('#toolbar'); if (!tb || tb.querySelector('.vswitch')) return;
+  tb.insertAdjacentHTML('afterbegin', `<span class="vswitch" role="group" aria-label="${TAB_GROUPS[g][0]}">${m.map(id => `<button type="button" class="${id === st.tab ? 'on' : ''}" aria-pressed="${id === st.tab}" data-vsw="${id}">${FIXED_TABS[id]}</button>`).join('')}</span>`);
+  tb.querySelectorAll('[data-vsw]').forEach(b => b.onclick = () => { if (b.dataset.vsw !== st.tab){ st.tab = b.dataset.vsw; view(); } });
+}
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
@@ -252,13 +275,21 @@ export function renderTabs(){
   const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && tabAllowed(id) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake') && (id !== 'map' || st.tab === 'map'));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
-  const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope && LIST_TABS.includes(st.tab)) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+  /* Cards and Table are one tab, Devices; Software, Contracts and Contacts one, Contracts: the button opens the view used
+     last, a switch over the view changes between them (viewSwitch). */
+  const viewTab = id => {
+    const g = TAB_GROUP_OF[id], members = g ? TAB_GROUPS[g][1] : [id], open = g ? (members.includes(st.tab) ? st.tab : groupLast(g)) : id;
+    const on = members.includes(st.tab) || (id === 'review' && st.scope && LIST_TABS.includes(st.tab));
+    return `<button class="tab ${on ? 'active' : ''}" draggable="true" data-tab="${open}">${g ? TAB_GROUPS[g][0] : FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;
+  };
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
   const reload = SERVER.on && !syncButtonHtml() ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span class="tlbl">Reload</span></button>` : '';
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');
-  $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + reload + sync
+  /* A group shows once, where its first member stands in the order. */
+  const shownViews = views.filter(id => id !== 'review' && (!TAB_GROUP_OF[id] || views.find(v => TAB_GROUP_OF[v] === TAB_GROUP_OF[id]) === id));
+  $('#tabsbar').innerHTML = shownViews.map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + reload + sync
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;

@@ -45,7 +45,7 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o2').price === 1499.5);
 
   // a contract from the Contracts tab, with a device found by name; notice due soon
-  await page.click('[data-tab=contracts]');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contracts');
   assert.match(await page.textContent('#view'), /No contracts yet/);
   await page.click('#ctNew');
   await page.fill('#ctName', 'Switch maintenance');
@@ -94,7 +94,7 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).COSTS.contracts.length === 2);
 
   // a licence in the Software view: three devices have it, two seats
-  await page.click('[data-tab=sw]'); await page.waitForSelector('#licNew');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'sw'); await page.waitForSelector('#licNew');
   await page.click('#licNew');
   await page.fill('#licName', 'Microsoft 365 Apps');
   assert.match(await page.textContent('#licErr'), /3 devices/);
@@ -118,6 +118,9 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#view tbody tr').length === 1);
   assert.match(await page.textContent('#view tbody'), /PC-1/);
   await page.click('[data-tab=overview]');
+  // the counts are folded under Statistics, opened on request
+  assert.equal(await page.isVisible('[data-ovt=pc]'), false);
+  await page.click('#ovStats > summary');
   await page.click('[data-ovt=pc]');
   await page.waitForSelector('.card');
   assert.equal(await page.locator('.card').count(), 3, 'the PCs');

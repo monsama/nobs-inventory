@@ -65,6 +65,9 @@ try {
   assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
+  // under More filters, folded until opened; a filter in it keeps it open and is counted on it
+  assert.equal(await p.evaluate(() => document.querySelector('#moreFilters').open), false);
+  await p.click('#moreFilters > summary');
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
   assert.equal(await count('secureboot'), '1', 'Secure Boot off, from Intune');
@@ -91,6 +94,7 @@ try {
 
   // the Overview tiles open the list
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
+  await p.click('#ovStats > summary');
   await p.click('[data-ovintune="noncompliant"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['b']);
   // the Overview: how devices are joined, Intune, operating systems, and Windows 10 under Needs attention

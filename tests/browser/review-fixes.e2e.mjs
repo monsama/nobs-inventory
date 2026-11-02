@@ -40,7 +40,7 @@ async function login(u, pw){
 const ev = (p, f, a) => p.evaluate(f, a);
 try {
   const v = await login('viewer', 'viewerpass123');
-  await v.click('[data-tab=sw]'); await v.waitForTimeout(200);
+  await v.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'sw'); await v.waitForTimeout(200);
   assert.equal(await v.isDisabled('#swQ'), false, 'a viewer can search software'); assert.equal(await v.locator('.sw-tg').first().isDisabled(), false, 'a viewer can open a package');
   await v.click('[data-tab=plans]'); await v.waitForTimeout(200);
   for (const id of ['#plQ', '#plZoomIn', '#plSel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), false, 'a viewer can use ' + id);
@@ -65,13 +65,13 @@ try {
   await a.fill('[data-k=purpose]', 'Kiosk'); await a.locator('[data-k=purpose]').press('Tab'); await a.waitForTimeout(200);
   assert.equal(await ev(a, async () => (await import('/js/01-core.js')).byName('NOLOC-PC').loc), '', 'saving another field moved the device to a room');
   // new object into patch panel port 4
-  await a.click('#newBtn'); await a.fill('#nName', 'PP-TEST-PC'); await a.selectOption('#nUp', 'o9'); await a.fill('#nPort', '4'); await a.click('#nOk'); await a.waitForTimeout(300);
+  await a.click('#newBtn'); await a.fill('#nName', 'PP-TEST-PC'); await a.click('#nMore > summary'); await a.selectOption('#nUp', 'o9'); await a.fill('#nPort', '4'); await a.click('#nOk'); await a.waitForTimeout(300);
   assert.equal(await ev(a, async () => { const c = await import('/js/01-core.js'); const o = c.byName('PP-TEST-PC'); return c.rels.find(r => r.from === o.id).port; }), 'P04', 'the patch panel port is saved as the panel names it');
   // type change pc -> switch
   await ev(a, async () => { const v = await import('/js/02-views.js'); const c = await import('/js/01-core.js'); v.openObj(c.byName('ZH-PC-0142').id); });
   await a.waitForTimeout(200);
   await a.selectOption('[data-k=type]', 'switch'); await a.waitForTimeout(300);
-  await a.click('[data-tab=cards]'); await a.waitForTimeout(200);
+  await a.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards'); await a.waitForTimeout(200);
   assert.ok(!(await a.locator('.card', {hasText: 'ZH-PC-0142'}).textContent()).includes('undefined'), 'the switch card shows no undefined');
   await a.click('[data-tab=rack]'); await a.waitForTimeout(200);
   // map focus drag

@@ -52,7 +52,7 @@ try {
   assert.equal(await p.locator('#typeList [data-type=modem]').count(), 1);
 
   // 1. the filters in force show over the list, each taken off on its own
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.click('#typeList [data-type=notebook]');
   await p.fill('#listQ', 'NB-0002');
   await p.waitForSelector('#fbar:not([hidden])');
@@ -118,7 +118,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'NB-0003'));
   await p.keyboard.press('Escape');
   // from the Cards (no device open), there is no location unless one is picked
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await core(async () => (await import('/js/05-new-object.js')).newObjModal());
   assert.equal(await p.inputValue('#nLoc'), '');
   await p.click('#nCancel');
@@ -145,7 +145,7 @@ try {
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.byId('nb2').user === 'Max Neu'; });
 
   // 10. a renewal whose notice date has passed is amber, and the due ones can be shown alone
-  await p.click('#tabsbar [data-tab=contracts]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contracts');
   assert.match(await p.textContent('.contracts tbody'), /Notice passed · renews/);
   assert.match(await p.textContent('#ctDueBtn'), /1 notice passed/);
 

@@ -37,6 +37,8 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
   await page.click('#setBtn'); await openSetTab(page, 'feed');
+  // under Advanced on the Lansweeper tab
+  await page.click('#lsTypeAdv > summary');
   await page.waitForSelector('.trules');
   assert.equal(await page.locator('.trules tbody tr').count(), DEFAULT_TYPE_RULES.length, 'the shipped rules are shown');
   assert.match(await page.textContent('#setTypeRules .hdr'), /as shipped/);

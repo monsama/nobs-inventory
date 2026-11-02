@@ -1740,3 +1740,31 @@ details.how[open]>summary{margin-bottom:4px}
 .ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
 .ukinds{border-top:1px solid var(--bd)}
 .sync-reload{border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}
+
+/* Simplify round 2 (0.9.89) */
+.ov-stats{margin-top:14px}
+.ov-stats>summary{cursor:pointer;padding:8px 2px;font-weight:600;color:var(--fg)}
+.ov-stats>summary .muted{font-weight:400;margin-left:6px;font-size:12.5px}
+.ov-stats[open]>summary{margin-bottom:10px}
+.more-filters>summary{cursor:pointer;padding:10px 16px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--bd)}
+.more-filters>summary .muted{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;color:var(--linktext)}
+.xadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px dashed var(--bd);border-radius:var(--r-m)}
+.xadd>.muted{margin-right:4px}
+.vswitch{display:inline-flex;border:1px solid var(--bd);border-radius:var(--r-m);overflow:hidden;flex:none}
+.vswitch>button{border:0;border-radius:0;background:var(--btn);min-height:30px;padding:4px 12px}
+.vswitch>button+button{border-left:1px solid var(--bd)}
+.vswitch>button.on{background:var(--accent);color:#fff}
+.vswitch>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
+@media (pointer:coarse){.vswitch>button{min-height:40px}}
+.nmore{margin-top:10px}
+.nmore>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:4px 0}
+.nmore>summary .muted{color:var(--muted);margin-left:4px}
+.nmore[open]>summary{margin-bottom:8px}
+.ls-adv{margin:0 0 14px}
+.ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
+.umenu>summary{list-style:none;cursor:pointer;min-width:34px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--btn);font-size:16px;line-height:1}
+.umenu>summary::-webkit-details-marker{display:none}
+.umenu .menubox{min-width:190px;z-index:60}
+.umenu .menubox>a{padding:6px 10px}
+@media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
+.menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}

@@ -40,7 +40,7 @@ const waitServer = async (fn, what) => {
   assert.fail('the server did not get: ' + what);
 };
 const editModel = async (p, name, model) => {
-  await p.click('#tabsbar [data-tab=table]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await p.locator('table.grid td b', { hasText: new RegExp(`^${name}$`) }).first().click();
   const id = await p.evaluate(async n => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName(n).id); }, name);
   await p.fill(`#f_${id}_model`, model); await p.click('#saveBtn');
@@ -75,7 +75,7 @@ try {
 
   // 3. A deletion reaches the other window when it looks for changes. A first looks for changes too, as it does every 15 seconds.
   await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
-  await a.click('#tabsbar [data-tab=table]');
+  await a.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await a.locator('table.grid td b', { hasText: /^MON-0433$/ }).first().click();
   await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
