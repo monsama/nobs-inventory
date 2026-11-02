@@ -5,7 +5,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 import { eventually } from './until.mjs';
@@ -78,7 +78,7 @@ try {
   await p.click('#rpCancel');
 
   // Health in Maintenance: no backup yet needs a look; after one, the line is OK
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=maintenance]'); await p.waitForSelector('.hl-list');
+  await p.click('#setBtn'); await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');
   const health = await p.textContent('#setMaint');
   assert.match(health, /Health\s*Something needs a look/);
   assert.match(health, /Check\s*Last backup\s*None yet/);
@@ -91,15 +91,15 @@ try {
   await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'rtRun'));
   await p.click('[data-hlgo="Syncs|Lansweeper"]');
   await wait(() => p.evaluate(() => !!document.querySelector('#setTabs [data-st=feed].active')));
-  await p.click('#setTabs [data-st=maintenance]'); await p.waitForSelector('.hl-list');
+  await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');
   await p.click('[data-hlgo="Log|Errors in the last 24 hours"]');
   await p.waitForSelector('[data-logf=errors].active');
 
   // A settings change is in the log with what it changed, under the Settings filter and found by search
-  await p.click('#setTabs [data-st=locations]');
+  await openSetTab(p, 'locations');
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.LOCS.push('Bern / 1. OG'); (await import('/js/07-render.js')).queueServerSave(); });
   await wait(() => loadState(db).locs.includes('Bern / 1. OG'));
-  await p.click('#setTabs [data-st=log]'); await p.waitForSelector('[data-logf=settings]');
+  await openSetTab(p, 'log'); await p.waitForSelector('[data-logf=settings]');
   await p.click('[data-logf=settings]'); await p.waitForSelector('.lg-detail');
   assert.match(await p.textContent('#setLog tbody'), /setting changed: locations/);
   await p.click('.lg-detail summary');

@@ -151,7 +151,10 @@ export const svgProblem = text => SVG_BAD.test(text) || [...text.matchAll(/<\s*(
 
 /* The types the page knows out of the box, and the statuses. Keep in step with TYPES and STATUS in public/js/01-core.js. */
 export const KNOWN_TYPES = ['pc', 'notebook', 'camera', 'bmc', 'server', 'vm', 'accesspoint', 'sip', 'mobile', 'monitor', 'switch', 'printer', 'patch', 'router', 'firewall', 'modem', 'storage', 'android', 'ios', 'rack', 'other', 'pbx', 'plc'];
-const STATUSES = ['active', 'stock', 'unused', 'repair', 'retired'];
+/* A device is in use, in stock or retired. Not in use and In repair, from before 0.9.88, are In stock now: a save that
+   still sends them (a page not reloaded yet, a backup) is taken as In stock. */
+const STATUSES = ['active', 'stock', 'retired'];
+export const LEGACY_STATUS = ['unused', 'repair'];
 const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
 /* A user id that is free: the directory's ids come from the login, and a login can change after the id was made. */
 export const freeUserId = (users, id) => { let n = 1, out = id; while (users.some(u => String(u.id) === out)) out = id + '-' + (++n); return out; };
@@ -160,6 +163,7 @@ export const freeUserId = (users, id) => { let n = 1, out = id; while (users.som
    record belongs) is refused like any other wrong value, not answered with a server error. */
 /* size: false skips measuring the whole inventory (a page save measures what it adds instead, see applyChanges). */
 export function checkState(s, { size = true } = {}) {
+  for (const o of (s && Array.isArray(s.objs) ? s.objs : [])) if (o && LEGACY_STATUS.includes(o.status)) o.status = 'stock';
   try { checkStateRules(s, size); }
   catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
 }

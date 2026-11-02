@@ -8,7 +8,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-flows-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -22,7 +22,7 @@ const watch = async (p) => { p.on('pageerror', e => errors.push(e.message)); ret
 const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } }); await ctx.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const p = await watch(await ctx.newPage());
   await signIn(p);
   const ids = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.map(o => o.id)); });
@@ -33,7 +33,7 @@ try {
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/05-new-object.js')]); const o = __mods[0].byName('ZH-PC-0142'); __mods[1].newObjModal({copy: o}); __mods[0].$('#nName').value = 'COPY-CHECK'; __mods[0].$('#nOk').click(); });
   assert.ok(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byName('COPY-CHECK')); }), 'duplicating an object did not create it');
   // Sites and rooms: a site is added on its own, a room is added under a site, and the sidebar shows both.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=locations]');
+  await p.click('#setBtn'); await openSetTab(p, 'locations');
   await p.fill('#nsName', 'Basel / X'); await p.click('#nsAdd');
   assert.match(await p.textContent('#nsMsg'), /without a slash/, 'a slash in a site name is not refused');
   await p.fill('#nsName', 'Basel'); await p.press('#nsName', 'Enter');
@@ -54,7 +54,7 @@ try {
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').ip6); }), '2001:db8::20', 'the IPv6 address was not saved in lower case');
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SRV-ZH-HV01').mac); }), 'aa:bb:cc:dd:ee:ff', 'the MAC address was not stored with colons');
   // Feed: the Lansweeper address is kept after a reload; Sync now waits for a token on the server.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
+  await p.click('#setBtn'); await openSetTab(p, 'feed');
   await p.selectOption('#lsSource', 'api');
   await p.fill('#ls_endpoint', 'https://lansweeper.example.ch/api/v2/graphql'); await p.press('#ls_endpoint', 'Tab');
   // wait until the server holds the change (the page saves in the background)
@@ -64,7 +64,7 @@ try {
   assert.equal(await p.isDisabled('#lsSync'), true, 'Sync now is on without a token');
   await p.click('#setClose');
   // Object types: adding a custom type keeps the built-in ones after a reload from the server.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
+  await p.click('#setBtn'); await openSetTab(p, 'types');
   await p.fill('#ntName', 'Note'); await p.click('#ntAdd');
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.values(__mods[0].TYPES).some(t => t.label === 'Note')); }, null, { timeout: 5000 });
   await until(p, async () => Object.values((await (await fetch('api/state', { credentials: 'same-origin' })).json()).types).some(t => t.label === 'Note'), null, { timeout: 10000, polling: 200 });
@@ -72,7 +72,7 @@ try {
   const types = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (Object.keys(__mods[0].TYPES)); });
   assert.ok(types.includes('pc') && types.includes('switch'), 'the built-in types are gone after a reload: ' + types.join(','));
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); return (__mods[0].closeModal()); });
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]');
+  await p.click('#setBtn'); await openSetTab(p, 'types');
   await p.click('.icondd-btn[aria-label$="icon for PC"]');
   if (!(await p.isVisible('.icondd-list:not([hidden]) .icondd-up'))) throw new Error('the icon dropdown does not open');
   await p.click('.icondd-item[data-ic=pc][data-icon=server]');
@@ -84,16 +84,16 @@ try {
   await ctx.close();
 
   // The Users table has room for its columns, so the Password button is not cut off.
-  const ctxU = await browser.newContext({ viewport: { width: 1000, height: 800 } });
+  const ctxU = await browser.newContext({ viewport: { width: 1000, height: 800 } }); await ctxU.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const u = await watch(await ctxU.newPage());
   await signIn(u);
-  await u.click('#setBtn'); await u.click('#setTabs [data-st=users]');
+  await u.click('#setBtn'); await openSetTab(u, 'users');
   const box = await u.locator('#setUsers table').boundingBox();
   assert.ok(box.width >= 900, 'the Users table is squeezed: ' + box.width);
   await ctxU.close();
 
   // A new object is kept after a reload, and a user is added.
-  const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } }); await ctx2.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const q = await watch(await ctx2.newPage());
   await signIn(q);
   // Two objects may share a name: each has its own code.
@@ -111,7 +111,7 @@ try {
   await until(q, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('PERSIST-CHECK-1') !== undefined); }, null, { timeout: 10000 });
   const hist = await q.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].HISTORY[__mods[0].byName('PERSIST-CHECK-1').id].map(h => h.msg).join(' ')); });
   assert.match(hist, /Created manually by Administrator/, 'the history does not name the person who made the change: ' + hist);
-  await q.click('#setBtn'); await q.click('#setTabs [data-st=users]');
+  await q.click('#setBtn'); await openSetTab(q, 'users');
   await q.fill('#nuFirst', 'Test'); await q.fill('#nuLast', 'Person'); await q.fill('#nuDept', 'QA'); await q.click('#nuAdd');
   assert.equal(await q.locator('#setUsers [aria-label="Name of Test Person"]').count(), 1, 'the user was not added');
   await ctx2.close();

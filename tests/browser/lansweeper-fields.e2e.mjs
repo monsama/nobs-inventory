@@ -7,6 +7,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-lsfields-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -30,7 +31,7 @@ const server = await new Promise(r => { const x = createApp({ db }).listen(0, '1
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
-await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none in previews */ } });
+await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-all-fields', '1'); } catch { /* none in previews */ } });
 const page = await ctx.newPage();
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const shots = process.env.NI_SHOTS;
@@ -62,7 +63,7 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').warranty === '2030-01-31');
 
   // Settings: a subnet the adapters report is offered, and Use fills in the form
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('.sn-suggest');
+  await page.click('#setBtn'); await openSetTab(page, 'vlans'); await page.waitForSelector('.sn-suggest');
   assert.match(await page.textContent('.sn-suggest'), /172\.21\.108\.0\/24.*3 devices.*Bern Lager/s);
   await page.click('[data-snuse="0"]');
   // Use opens the editor filled in: name, gateway, the device types seen there, and a range per kind of address seen

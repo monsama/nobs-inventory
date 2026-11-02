@@ -57,33 +57,33 @@ export async function renderSetGraph(){
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
       <li><div class="gs-head"><b>Register the app in Entra</b>${done(ids || fromServer)}</div>
-        <ol class="gs-sub">
+        <details class="how" ${ids || fromServer ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>Open the <a class="link" style="text-decoration:underline" href="${ENTRA}" target="_blank" rel="noopener">Entra admin center</a> → <b>Applications</b> → <b>App registrations</b> → <b>New registration</b>.</li>
           <li><b>Name:</b> <span class="mono">NOBS Inventory</span></li>
           <li><b>Supported account types:</b> <i>Accounts in this organizational directory only (single tenant)</i></li>
           <li><b>Redirect URI:</b> leave it empty. The inventory signs in as itself with a certificate, not as a person, so nothing is sent back to a web address.</li>
           <li>Click <b>Register</b>. The app's <b>Overview</b> page opens: copy its two IDs into the fields below and save.</li>
-        </ol>
+        </ol></details>
         <div class="form" style="padding:8px 0 0">
           <label for="gTenant">Directory (tenant) ID</label><input id="gTenant" class="mono" value="${esc(g.tenant)}" placeholder="${fromServer ? 'Set on the server' : '1b2c3d4e-5f60-…'}" autocomplete="off" ${fromServer ? 'disabled' : ''}>
           <label for="gClient">Application (client) ID</label><input id="gClient" class="mono" value="${esc(g.clientId)}" placeholder="${fromServer ? 'Set on the server' : '9a8b7c6d-…'}" autocomplete="off" ${fromServer ? 'disabled' : ''}>
         </div>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="gSave" ${fromServer ? 'disabled' : ''}>Save IDs</button><span class="note" id="gSaveMsg" role="status"></span></div></li>
       <li><div class="gs-head"><b>Give the app a certificate</b>${done(!!chosen || fromServer)}</div>
-        <ol class="gs-sub">
+        <details class="how" ${!!chosen || fromServer ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>Click <b>Create a certificate</b> below. The server keeps its private key, encrypted; the key never leaves the server.</li>
           <li>Click <b>Download the .cer</b>.</li>
           <li>In the app in Entra: <b>Certificates &amp; secrets</b> → tab <b>Certificates</b> (not Client secrets) → <b>Upload certificate</b> → choose the .cer → <b>Add</b>.</li>
           <li>Entra lists it with a thumbprint: the same as in the list at the bottom of this box.</li>
-        </ol>
+        </ol></details>
         <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphCert" ${edit && !fromServer ? '' : 'disabled'}>Create a certificate</button>${chosen ? `<a class="link" href="api/graph/cert/${esc(chosen.thumbprint)}/cer" download>Download the .cer</a>` : ''}</div></li>
       <li><div class="gs-head"><b>Allow it to read devices</b></div>
-        <ol class="gs-sub">
+        <details class="how" ${g.configured ? '' : 'open'}><summary>Step by step in Entra</summary><ol class="gs-sub">
           <li>In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>Microsoft Graph</b> → <b>Application permissions</b> (not Delegated).</li>
           <li>Search and tick <span class="mono">Device.Read.All</span> and <span class="mono">DeviceManagementManagedDevices.Read.All</span> → <b>Add permissions</b>. For people from Entra (step 4) also <span class="mono">User.Read.All</span>.</li>
           <li>Click <b>Grant admin consent for</b> your organisation → <b>Yes</b>. Both lines then show a green tick.</li>
           <li><span class="mono">User.Read</span> (Delegated), which Entra adds by itself, can stay: it only applies when a person signs in to the app, which never happens. Removing it is tidier, not needed.</li>
-        </ol>
+        </ol></details>
         <details class="gs-why"><summary>Why Application and not Delegated?</summary>
           <p class="note">Delegated permissions act for a person who signs in, and only reach what that person may see. The inventory reads the devices by itself, every night, with nobody signed in, so it needs Application permissions, which an admin grants once for the whole organisation. Both are read-only: the inventory cannot change anything in Entra or Intune.</p></details></li>
       <li><div class="gs-head"><b>People from Entra</b> <span class="muted">(optional)</span></div>

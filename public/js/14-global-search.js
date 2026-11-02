@@ -11,7 +11,7 @@ import { showDevicesOf } from './settings-users.js';
 const MAX = { dev: 8, other: 4 };
 const box = $('#search'), list = $('#gsList');
 /* On a phone there is no Ctrl+K: the hint would only cut the placeholder short. */
-if (window.matchMedia && matchMedia('(max-width:760px)').matches) box.placeholder = 'Search everything…';
+if (window.matchMedia && matchMedia('(max-width:760px)').matches) box.placeholder = 'Search…';
 let items = [], active = -1;
 
 /* Small line icons in the style of the type icons. */

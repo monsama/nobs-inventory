@@ -98,7 +98,7 @@ table.locs td.site{color:var(--muted)}
 .fsrc:hover{color:var(--fg)}
 /* On a phone the label sits above its field: the source mark moves up beside the label, and the empty columns kept
    for alignment on a wide screen go, so the field gets the width. */
-@media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot,.obj .form .ctlrow>.pchk-slot,.obj .form .ctlrow>.fm-slot{display:none}}
+@media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot,.obj .form .ctlrow>.pchk-slot{display:none}}
 /* Sources that disagree: a dot on the mark; a source picked by hand: the mark in the accent colour. */
 .fsrc{color:var(--muted);cursor:help;position:relative}
 .fsrc-multi::after{content:"";position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
@@ -493,7 +493,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
 .gs-why>p{margin:4px 0 0}
 /* overview */
-.ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px}
+.ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px;margin:0 auto;width:100%;box-sizing:border-box}
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
@@ -892,7 +892,7 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 .ctlrow:has(>.avpick)>.fmenu{margin-top:8px}
 .ctlrow:has(>.avpick .avitem)>.fmenu{margin-top:7px}
 @media (min-width:761px){.ctlrow:has(>.avpick .avitem)>.fsrc{margin-top:14px}}
-.form label:has(+ .ctlrow .avpick){align-self:start;padding-top:8px}
+.form label:has(+ .ctlrow .avpick){align-self:start;padding-top:0}
 /* A gateway or DNS server taken from the device's subnet: shown in grey, as a hint, not as the device's own value. */
 /* A value the device takes from its subnet (gateway, DNS): shown like a value, not like an empty field's hint. */
 input.inherit::placeholder{color:var(--fg);font-style:normal;opacity:.85}
@@ -1531,7 +1531,6 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
 .stk-scanrow{display:flex;gap:8px;padding-top:10px}.stk-scanrow input{flex:1;min-width:0;height:40px;font-size:15px}
-.stk-cam{display:block;width:100%;max-height:60vh;background:#000;border-radius:6px;object-fit:cover}
 .stk-last{min-height:20px;margin:6px 0 0;font-size:13px}.stk-last .ok{color:var(--ok)}.stk-last .warn{color:var(--warn,#b45309)}
 .stk-tabs{display:flex;gap:4px;padding-top:10px}
 .stk-list{padding:4px 0 8px}
@@ -1694,3 +1693,50 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .dg-mail summary{cursor:pointer;font-weight:600}
 .dg-mail .form,.dg-mail .bk-exrow{max-width:760px}
 .dg-mail #smPort{max-width:120px}
+
+/* Hand out: the people (or devices in stock) found, each a row to pick. */
+.ho-l{display:block;font-weight:600;margin-bottom:4px}
+#hoQ,#hsQ{width:100%}
+.ho-list{display:flex;flex-direction:column;gap:2px;margin:8px 0;max-height:300px;overflow:auto}
+.ho-p{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;height:auto;padding:6px 10px;border:1px solid transparent;background:none}
+.ho-p:hover{background:var(--hover)}
+.ho-p.sel{border-color:var(--accent);background:var(--hover)}
+.ho-p small,.ho-p .muted{font-size:12px}
+.ho-dev{padding:4px 2px}
+.ho-sheet{margin-top:6px}
+
+/* Layout check (0.9.88): rows that fit a phone, things lined up, room around text. */
+@media (max-width:640px){
+  .lrow{gap:6px;padding:7px 10px}
+  .lrow.room{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) 32px 72px}
+  .lrow.vl{grid-template-columns:44px minmax(0,1fr) 40px 72px}.lrow.vl>:nth-child(3){display:none}
+  .lrow.dm{grid-template-columns:minmax(0,1fr) 40px 72px}.lrow.dm>:nth-child(2){display:none}
+}
+table.stack>tbody>tr>td{max-width:none}
+.pgroup.sfp{grid-auto-columns:34px}
+@media (pointer:coarse){.pgroup{grid-template-rows:repeat(2,40px);grid-auto-columns:40px}.pgroup .port{width:40px;height:40px;min-height:40px}.hl-row .hl-go{min-height:0}}
+.form>.vnote{margin:-4px 0 6px}
+#ovMaint .ov-row .chip{min-width:168px}
+.ct-curl{margin-left:14px;padding-left:14px;border-left:1px solid var(--bd)}
+/* A row of a list in Settings → Users: every cell starts at the top, so a cell with a second line does not lift the rest. */
+#setUsers table.grid td{vertical-align:top}
+/* A contract on a device: its state wraps under the name rather than cutting the name short. */
+.relrow:has([data-contract]){flex-wrap:wrap}
+/* Labels beside a field of more than one line start at its first line. */
+.form>label:has(+ .sheet-pwopt),.form>label:has(+ div .pchk:first-child){align-self:start;padding-top:2px}
+.form2>label[for=mtNote],.form2>label[for=repNote]{align-self:start;padding-top:6px}
+.form2{grid-template-columns:110px minmax(0,1fr)}
+
+/* Settings: a group's own tabs, in a quieter row under the main ones. */
+.settabs.setsub{padding:4px 10px;background:var(--panel)}.settabs.setsub .tab{font-size:13px;min-height:0;padding:4px 10px}
+#setAbout{font-size:13px}
+
+/* Explanations and step lists folded behind their title (0.9.88) */
+details.how{margin:6px 0}
+details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
+details.how[open]>summary{margin-bottom:4px}
+.panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
+.ds-adv{margin:8px 0 0}
+.ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
+.ukinds{border-top:1px solid var(--bd)}
+.sync-reload{border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}

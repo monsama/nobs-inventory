@@ -2,6 +2,7 @@
    a patch panel port is saved as P04, a new switch has no undefined SFP, the focused relations map keeps its boxes on a drag,
    and a floor plan area takes only clicks on itself and follows the pointer when dragged. */
 import assert from 'node:assert/strict';
+import { openSetTab } from './until.mjs';
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -44,17 +45,17 @@ try {
   await v.click('[data-tab=plans]'); await v.waitForTimeout(200);
   for (const id of ['#plQ', '#plZoomIn', '#plSel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), false, 'a viewer can use ' + id);
   for (const id of ['#plNew', '#plDel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), true, 'a viewer cannot use ' + id);
-  await v.click('#setBtn'); await v.click('#setTabs [data-st=types]'); await v.waitForTimeout(200);
+  await v.click('#setBtn'); await openSetTab(v, 'types'); await v.waitForTimeout(200);
   assert.equal(await v.isDisabled('#tfType'), false, 'a viewer can look at another type\'s fields');
-  await v.click('#setTabs [data-st=locations]'); await v.waitForTimeout(200);
+  await openSetTab(v, 'locations'); await v.waitForTimeout(200);
   assert.equal(await v.isDisabled('#nsName'), true, 'a viewer cannot add a site');
   await v.keyboard.press('Escape');
 
   const a = await login('admin', 'adminpass123');
   // icon labels
-  await a.click('#setBtn'); await a.click('#setTabs [data-st=types]'); await a.waitForTimeout(200);
+  await a.click('#setBtn'); await openSetTab(a, 'types'); await a.waitForTimeout(200);
   assert.ok((await a.locator('.icondd-list').first().locator('.icondd-item span').allTextContents()).includes('PLC / Controller'), 'the PLC icon has a name');
-  await a.click('#setTabs [data-st=users]'); await a.waitForTimeout(200);
+  await openSetTab(a, 'users'); await a.waitForTimeout(200);
   assert.match(await a.getAttribute('#nuPw', 'placeholder'), /min\. 12/, 'the password hint gives the real minimum');
   await a.click('#setClose');
   // loc '' object page
@@ -75,7 +76,7 @@ try {
   await a.click('[data-tab=rack]'); await a.waitForTimeout(200);
   // map focus drag
   await ev(a, async () => { const c = await import('/js/01-core.js'); c.rels.push({id:'rx1', from:'o2', to:'o1', kind:'connected', port: 3}, {id:'rx2', from:'o5', to:'o1', kind:'connected', port: 5}, {id:'rx3', from:'o4', to:'o3', kind:'attached', port:null}); c.st.mapAttached = true; });
-  await a.click('[data-tab=map]'); await a.waitForTimeout(300);
+  await ev(a, async () => { const c = await import('/js/01-core.js'); c.st.tab = 'map'; (await import('/js/07-render.js')).view(); }); await a.waitForTimeout(300);
   await a.selectOption('#mapFocus', 'o2'); await a.waitForTimeout(400);
   const before = await a.locator('.mnode').count();
   const nb = await a.locator('.mnode').first().boundingBox();

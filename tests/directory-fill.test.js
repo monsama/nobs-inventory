@@ -150,7 +150,7 @@ test('computer accounts the inventory does not have are listed, and added on req
   const o = s.objs.find(x => x.id === added[0]);
   assert.equal(o.name, 'NB-20'); assert.equal(o.type, 'notebook'); assert.equal(o.code, 'INV-0004');
   assert.equal(o.os, 'Windows 11 Enterprise (10.0.22631)'); assert.equal(o.domain, 'corp.ch');
-  assert.deepEqual(o.src, { os: 'ad', domain: 'ad' }, 'marked as from AD, so Lansweeper and Intune can replace the values');
+  assert.deepEqual(o.src, { name: 'ad', os: 'ad', domain: 'ad' }, 'marked as from AD (its name too), so Lansweeper and Intune can replace the values');
   assert.equal(o.inAd, true); assert.deepEqual(o.ad, { logon: '2026-10-20', created: '2024-01-02' }); assert.deepEqual(o.adGroups, ['GPO-Laptops']);
   assert.match(s.history[o.id][0].msg, /Added from Active Directory by Ana/);
   assert.deepEqual(s.adUnmatched.map(d => d.name), ['SRV-NEW'], 'an added one leaves the list');

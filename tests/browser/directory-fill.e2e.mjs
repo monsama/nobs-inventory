@@ -6,7 +6,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
-import { until, storedBy } from './until.mjs';
+import { until, storedBy, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -109,7 +109,7 @@ try {
 
   // Settings: both switches are on by default and are saved when turned off
   await p.evaluate(async () => (await import('/js/04-settings.js')).openSettings());
-  await p.click('#setTabs [data-st=directory]');
+  await openSetTab(p, 'directory');
   await p.waitForSelector('#lk_fillAd');
   assert.equal(await p.isChecked('#lk_fillAd'), true);
   await p.uncheck('#lk_fillAd');
@@ -117,7 +117,7 @@ try {
   assert.equal(await p.inputValue('#intake_ad'), 'review', 'new devices from AD wait in To review by default');
   await p.selectOption('#intake_ad', 'direct');
   await stored(st => st.intake && st.intake.ad === 'direct');
-  await p.click('#setTabs [data-st=entra]');
+  await openSetTab(p, 'entra');
   await p.waitForSelector('#gFill');
   assert.equal(await p.isChecked('#gFill'), true);
   await p.uncheck('#gFill');

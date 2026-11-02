@@ -66,3 +66,30 @@ test('the weekly e-mail lists maintenance overdue or due in the next two weeks',
   assert.match(m.text, /AC-1: Change the filter, due 10\.11\.2026/);
   assert.ok(!/Later/.test(m.text));
 });
+
+test('a device is in use, in stock or retired: Not in use and In repair from before are taken as In stock', async () => {
+  const { migrateState } = await import('../server/migrate.js');
+  const s = { ...blankState(), objs: [
+    { id: 'a', code: 'INV-1', type: 'pc', name: 'A', status: 'unused', loc: '' }, { id: 'b', code: 'INV-2', type: 'pc', name: 'B', status: 'repair', loc: '' },
+    { id: 'c', code: 'INV-3', type: 'pc', name: 'C', status: 'active', loc: '' }] };
+  assert.equal(migrateState(s), true);
+  assert.deepEqual(s.objs.map(o => o.status), ['stock', 'stock', 'active']);
+  s.objs[2].status = 'repair';
+  assert.doesNotThrow(() => checkState(s), 'a save that still sends the old one');
+  assert.equal(s.objs[2].status, 'stock');
+  s.objs[2].status = 'lost';
+  assert.throws(() => checkState(s), /unknown status/);
+});
+
+test('a device added from AD or Graph before its name had a source gets it from its first history entry', async () => {
+  const { migrateState } = await import('../server/migrate.js');
+  const s = { ...blankState(), objs: [
+    { id: 'a', code: 'INV-1', type: 'pc', name: 'PC-AD', status: 'active', loc: '', src: { os: 'ad' } },
+    { id: 'g', code: 'INV-2', type: 'pc', name: 'PC-G', status: 'active', loc: '' },
+    { id: 'h', code: 'INV-3', type: 'pc', name: 'PC-H', status: 'active', loc: '' }],
+    history: { a: [{ t: '02.11.2026 08:00', msg: 'Saved by Admin' }, { t: '01.11.2026 06:00', msg: 'Added from Active Directory by the sync' }],
+      g: [{ t: '01.11.2026 06:00', msg: 'Found in Microsoft Entra or Intune: waiting in To review' }], h: [{ t: '01.11.2026 06:00', msg: 'Added by Admin' }] } };
+  assert.equal(migrateState(s), true);
+  assert.deepEqual(s.objs.map(o => o.src && o.src.name), ['ad', 'graph', undefined]);
+  assert.equal(s.objs[0].src.os, 'ad', 'what it had stays');
+});

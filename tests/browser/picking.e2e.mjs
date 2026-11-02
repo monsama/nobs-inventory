@@ -46,7 +46,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).st.open.length === 4);
   assert.deepEqual(await core(async () => (await import('/js/01-core.js')).st.open), names);
   // the same pick in the Table, which can open them too
-  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('#bkOpen');
+  await p.click('#tabsbar [data-tab=table]'); await p.waitForSelector('#bkAct');
   assert.match(await p.textContent('#toolbar'), /4 selected/);
   // Ctrl+A picks every card shown, Escape takes the pick back
   await p.click('#tabsbar [data-tab=cards]');

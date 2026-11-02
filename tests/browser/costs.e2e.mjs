@@ -20,14 +20,14 @@ saveState(db, { ...s0, locs: ['Bern / Lager', 'Luzern / Büro'],
     { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', loc: 'Bern / Lager', ports: 24, sfp: 4, ovr: {}, feed: null },
     { id: 'o2', code: 'INV-0002', type: 'pc', name: 'PC-1', status: 'active', loc: 'Bern / Lager', software: sw(1), warranty: day(-5), ovr: {}, feed: null },
     { id: 'o3', code: 'INV-0003', type: 'pc', name: 'PC-2', status: 'active', loc: 'Luzern / Büro', software: sw(2), price: 1290, ovr: {}, feed: null },
-    { id: 'o4', code: 'INV-0004', type: 'pc', name: 'PC-3', status: 'repair', loc: 'Luzern / Büro', software: sw(3), ovr: {}, feed: null },
+    { id: 'o4', code: 'INV-0004', type: 'pc', name: 'PC-3', status: 'stock', loc: 'Luzern / Büro', software: sw(3), ovr: {}, feed: null },
   ], rels: [], history: {} });
 
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
-await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none in previews */ } });
+await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-all-fields', '1'); } catch { /* none in previews */ } });
 const page = await ctx.newPage();
 page.on('dialog', d => d.accept());
 const errors = []; page.on('pageerror', e => errors.push(e.message));
@@ -110,7 +110,8 @@ try {
   await page.click('[data-tab=overview]'); await page.waitForSelector('.ov');
   const ov = await page.textContent('.ov');
   assert.match(ov, /Devices in use\s*3/);
-  assert.match(ov, /Warranty ended.*Contract notice due.*Licences over-used.*In repair/s);
+  assert.match(ov, /Warranty ended.*Contract notice due.*Licences over-used/s);
+  assert.ok(!/In repair|Not in use/.test(ov), 'two states and retired, nothing else');
   assert.match(ov, /Value of devices in use\s*CHF 2.?789\.50/);
   if (shots) await page.screenshot({ path: path.join(shots, 'overview.png') });
   await page.click('[data-ovw=ended]');

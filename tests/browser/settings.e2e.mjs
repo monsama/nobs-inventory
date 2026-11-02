@@ -1,6 +1,6 @@
 /* Browser test of Settings on a fresh server: every tab draws, and the admin can clear the inventory. */
 import { chromium } from 'playwright';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
@@ -25,17 +25,17 @@ try {
   await page.waitForFunction(() => /Admin/.test(document.querySelector('#whoBtn').textContent));
   await page.click('#setBtn');
   for (const tab of ['feed', 'directory', 'entra', 'locations', 'types', 'users', 'maintenance', 'log', 'about']) {
-    await page.click(`#setTabs [data-st=${tab}]`); await page.waitForTimeout(120);
+    await openSetTab(page, tab); await page.waitForTimeout(120);
     const len = (await page.locator('#setPane').innerHTML()).length;
     assert.ok(len > 100, `Settings tab "${tab}" is empty`);
   }
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   // Active Directory and Entra & Intune have a tab each; Feed and Users do not show them
-  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setLdap #lk_url');
+  await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap #lk_url');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Active Directory does not show Microsoft Graph');
-  await page.click('#setTabs [data-st=entra]'); await page.waitForSelector('#setGraph .panelbox');
+  await openSetTab(page, 'entra'); await page.waitForSelector('#setGraph .panelbox');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Entra & Intune does not show LDAP');
-  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('#setLdap #lk_url');
+  await openSetTab(page, 'directory'); await page.waitForSelector('#setLdap #lk_url');
   // connection security: StartTLS moves the address to ldap:// and port 389, TLS back; a company CA is added and removed
   await page.fill('#lk_url', 'ldaps://dc01.example.test:636'); await page.press('#lk_url', 'Tab');
   await page.waitForFunction(() => document.querySelector('#lk_security') && document.querySelector('#lk_security').value === '');
@@ -76,26 +76,26 @@ try {
   await page.waitForSelector('#lk_pw');
   // the schedule of a sync: Graph every 4 hours by default; changed here, saved to the server
   assert.equal(await page.inputValue('[data-sched-every="ldap"]'), '24');
-  await page.click('#setTabs [data-st=entra]'); await page.waitForSelector('[data-sched-every="graph"]');
+  await openSetTab(page, 'entra'); await page.waitForSelector('[data-sched-every="graph"]');
   assert.equal(await page.inputValue('[data-sched-every="graph"]'), '4');
   await page.selectOption('[data-sched-every="graph"]', '2');
   await page.waitForFunction(() => /every 2 hours from 06:00/.test(document.querySelector('#toast').textContent));
   await until(page, async () => { const r = await fetch('api/state', { credentials: 'same-origin' }); const d = await r.json(); return d.syncSchedule && d.syncSchedule.graph && d.syncSchedule.graph.every === 2; });
-  await page.click('#setTabs [data-st=directory]'); await page.waitForSelector('[data-sched-every="ldap"]');
+  await openSetTab(page, 'directory'); await page.waitForSelector('[data-sched-every="ldap"]');
   await page.selectOption('[data-sched-every="ldap"]', '0');
   assert.equal(await page.isHidden('[data-sched-at="ldap"]'), true, 'off has no start time');
-  await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#setFeed');
+  await openSetTab(page, 'feed'); await page.waitForSelector('#setFeed');
   /* Hover texts: every tab says what it holds, and so does the button that opens Settings. */
-  await page.waitForFunction(() => (document.querySelector('#setTabs [data-st=maintenance]').title || '').includes('Backups'));
+  await page.waitForFunction(() => (document.querySelector('#setTabs [data-sg=maintenance]').title || '').includes('backups'));
   assert.match(await page.getAttribute('#setBtn', 'title') || '', /\w/, 'the Settings button has a hover text');
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
-  await page.click('#setTabs [data-st=users]'); await page.waitForSelector('#setUsers');
+  await openSetTab(page, 'users'); await page.waitForSelector('#setUsers');
   // a dialog opened from Settings brings Settings back on the same tab, by Cancel as by OK
   await page.click('#setUsers [data-pw]'); await page.waitForSelector('#pwCancel');
   await page.click('#pwCancel'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');
   // Add subnet opens the editor, which spans the box; the device types ticked and the ranges added are saved
-  await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('#snNew');
+  await openSetTab(page, 'vlans'); await page.waitForSelector('#snNew');
   await page.click('#snNew'); await page.waitForSelector('.sn-edit[data-sub="new"]');
   const formW = await page.locator('.sn-edit').evaluate(e => e.getBoundingClientRect().width);
   const boxW = await page.locator('#setSubnets').evaluate(e => e.getBoundingClientRect().width);
@@ -118,11 +118,11 @@ try {
   await page.click('[data-sedit="0"]'); await page.fill('.sn-edit [data-sn]', 'Not this'); await page.click('.sn-edit [data-scancel]');
   assert.equal((await saved()).name, 'Office Bern', 'Cancel keeps the subnet as it was');
   // Settings sections open and close by their title and stay as they were left, also when the section draws itself again
-  await page.click('#setTabs [data-st=types]'); await page.waitForSelector('#setModels .hdr.sechdr');
+  await openSetTab(page, 'types'); await page.waitForSelector('#setModels .hdr.sechdr');
   await page.click('#setModels .hdr');
   assert.equal(await page.locator('#setModels').evaluate(e => e.classList.contains('collapsed')), true);
   assert.equal(await page.isVisible('#setModels .lrows'), false, 'a closed section hides its content');
-  await page.click('#setTabs [data-st=users]'); await page.click('#setTabs [data-st=types]'); await page.waitForSelector('#setModels .hdr.sechdr');
+  await openSetTab(page, 'users'); await openSetTab(page, 'types'); await page.waitForSelector('#setModels .hdr.sechdr');
   assert.equal(await page.locator('#setModels').evaluate(e => e.classList.contains('collapsed')), true, 'still closed when the tab is opened again');
   await page.click('#setModels .hdr');
   assert.equal(await page.isVisible('#setModels .lrows'), true);
@@ -138,14 +138,14 @@ try {
   assert.ok(!patchF.includes('ip') && patchF.includes('ports'), 'patch panel: ' + patchF.join(','));
   assert.ok(pcF.includes('ip') && pcF.includes('ports'), 'pc: ' + pcF.join(','));
   // push token: created in the app, shown once, a download is offered
-  await page.click('#setTabs [data-st=feed]'); await page.waitForSelector('#pushNew:not([disabled])');
+  await openSetTab(page, 'feed'); await page.waitForSelector('#pushNew:not([disabled])');
   await page.click('#pushNew'); await page.waitForSelector('#pushTok');
   assert.ok((await page.inputValue('#pushTok')).length >= 30, 'a token is shown after creating it');
   assert.equal(await page.isDisabled('#pushScript'), false, 'the script can be downloaded once a token exists');
   // clear the inventory: two clicks, devices gone, admin and settings kept
   saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-X', ovr: {}, feed: null }], rels: [], history: {} });
-  await page.click('#setTabs [data-st=feed]');
-  await page.click('#setTabs [data-st=maintenance]'); await page.click('#setReset'); await page.waitForSelector('#clrOk');
+  await openSetTab(page, 'feed');
+  await openSetTab(page, 'maintenance'); await page.click('#setReset'); await page.waitForSelector('#clrOk');
   await page.fill('#clrWord', 'clear'); assert.equal(await page.isDisabled('#clrOk'), true, 'lower case confirms');
   await page.fill('#clrWord', 'CLEAR'); await page.click('#clrOk');
   for (let t0 = Date.now(); loadState(db).objs.length && Date.now() - t0 < 8000;) await page.waitForTimeout(100);

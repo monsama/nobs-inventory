@@ -70,7 +70,7 @@ try {
   // many at once from the table
   await page.click('[data-tab=table]'); await page.waitForSelector('table.grid');
   await page.check('[data-sel=o2]'); await page.check('[data-sel=o3]');
-  await page.selectOption('#bkResp', 'internal:k1');
+  await page.selectOption('#bkAct', 'resp:internal:k1');
   await stored(st => st.objs.every(o => o.respIn === 'k1'));
   assert.deepEqual(loadState(db).objs.map(o => o.respIn || ''), ['k1', 'k1', 'k1']);
 

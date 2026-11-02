@@ -83,8 +83,9 @@ export const portRangeError = (t, p) => {
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
-/* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
-export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
+/* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
+   for the record). */
+export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
@@ -478,8 +479,9 @@ export function sourceOf(o, k){
   const s = o.src && o.src[k];
   if (s) return s;
   if (o.pick && o.pick[k] === 'hand') return 'hand';
-  if (FIELD_LABEL[k] && feedLinked(o) && (feedOwns(o, k) || (o.feed && o.feed.created))) return 'ls';
-  if (o.graph && o.graph.added && ['model', 'os', 'serial', 'user'].includes(k)) return 'graph';
+  /* A device a sync added: its name and serial number came from there too, not only the fields it keeps up to date. */
+  if (feedLinked(o) && ((FIELD_LABEL[k] && feedOwns(o, k)) || (o.feed && o.feed.created && (FIELD_LABEL[k] || k === 'name' || k === 'serial')))) return 'ls';
+  if (o.graph && o.graph.added && ['name', 'model', 'os', 'serial', 'user'].includes(k)) return 'graph';
   if (!o.feed && !(o.graph && o.graph.added)) return 'hand';
   return 'unknown';
 }

@@ -117,14 +117,14 @@ try {
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
     core.objs.push({ id: 'mon1', code: 'INV-9201', type: 'monitor', name: 'MON-1', status: 'active', loc, ovr: {}, feed: null });
     core.objs.push({ id: 'pcx', code: 'INV-9202', type: 'pc', name: 'PC-X', status: 'active', loc, ovr: {}, feed: null }); });
-  await p.click('#linkBtn'); await p.waitForSelector('#lkObj');
+  await p.evaluate(async () => (await import('/js/05-new-object.js')).linkObjModal()); await p.waitForSelector('#lkObj');
   await p.selectOption('#lkObj', 'mon1');
   assert.equal(await p.textContent('label[for="lkTo"]'), 'Attached to');
   assert.equal(await p.isVisible('#lkPort'), false, 'a monitor has no port');
   assert.ok(await p.$eval('#lkTo', s => [...s.options].some(o => o.value === 'pcx') && ![...s.options].some(o => o.value === 'sw0')), 'a monitor goes on a computer');
   await p.selectOption('#lkTo', 'pcx'); await p.click('#lkOk');
   assert.ok(await p.evaluate(async () => (await import('/js/01-core.js')).rels.some(r => r.from === 'mon1' && r.to === 'pcx' && r.kind === 'attached')));
-  await p.click('#linkBtn'); await p.waitForSelector('#lkObj');
+  await p.evaluate(async () => (await import('/js/05-new-object.js')).linkObjModal()); await p.waitForSelector('#lkObj');
   await p.selectOption('#lkObj', 'pcx');
   assert.equal(await p.textContent('label[for="lkTo"]'), 'Plug into');
   assert.equal(await p.isVisible('#lkPort'), true);
@@ -133,7 +133,7 @@ try {
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); const loc = core.objs[0].loc;
     core.objs.push({ id: 'vmx', code: 'INV-9203', type: 'server', kind: 'vm', name: 'VM-X', status: 'active', loc, ovr: {}, feed: null });
     core.objs.push({ id: 'hostx', code: 'INV-9204', type: 'server', name: 'HOST-X', status: 'active', loc, ovr: {}, feed: null }); });
-  await p.click('#linkBtn'); await p.waitForSelector('#lkObj');
+  await p.evaluate(async () => (await import('/js/05-new-object.js')).linkObjModal()); await p.waitForSelector('#lkObj');
   await p.selectOption('#lkObj', 'vmx');
   assert.equal(await p.textContent('label[for="lkTo"]'), 'Runs on');
   await p.selectOption('#lkTo', 'hostx'); await p.click('#lkOk');

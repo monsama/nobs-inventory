@@ -65,7 +65,7 @@ function costSummary(all){
     ${years.map((y, i) => `<div class="ov-tile"><span class="ov-tl">${y}</span><span class="ov-tv">${money(Math.round(per[i] * 100) / 100) || money(0)}</span><span class="ov-ts">${when[i]}</span></div>`).join('')}
     ${kinds.length ? `<div class="ov-tile"><span class="ov-tl">${y0} by kind</span>${kinds.map(([l, v]) => `<span class="ct-kind"><span>${esc(l)}</span><b>${money(Math.round(v * 100) / 100)}</b></span>`).join('')}</div>` : ''}
   </div>
-  <p class="note ct-sum-note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p>`;
+  <details class="how ct-sum-note"><summary>How the years are counted</summary><p class="note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p></details>`;
 }
 export function renderContracts(){
   const q = (st.ctQ || '').trim().toLowerCase();
@@ -80,9 +80,8 @@ export function renderContracts(){
   const due = contractsDue().length, late = contractsLate().length;
   $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
     <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
-    ${year ? `<span class="muted hide-n">Running contracts: <b>${money(year)}</b> per year</span>` : ''}<label class="muted hide-n" for="ctCur">Currency</label><input id="ctCur" maxlength="5" aria-label="Currency" value="${esc(COSTS.currency || 'CHF')}" style="width:64px" title="The currency of every price and cost" ${isAdmin() ? '' : 'disabled'}>${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
+    ${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
-  $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); };
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
     $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;

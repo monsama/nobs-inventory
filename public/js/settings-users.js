@@ -6,7 +6,7 @@ import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
 import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
-import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, SITES } from './01-core.js';
+import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
@@ -164,12 +164,19 @@ export function renderSetUsers(){
      status, role, and whether they have devices. */
   const q = String(st.userQ || '').trim().toLowerCase();
   const srcOf = u => ['ldap', 'lansweeper', 'entra'].includes(u.source) ? u.source : 'manual';
-  const shown = u => (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
+  /* Accounts (people who may sign in) and the people only known as device users (No access) are listed apart; a search
+     or a role filter looks through everybody. */
+  const noAccess = u => (u.role || 'viewer') === 'none';
+  const KINDS = {acc: ['Accounts', u => !noAccess(u)], ppl: ['People without access', noAccess], all: ['Everybody', () => true]};
+  if (!KINDS[st.userKind]) st.userKind = USERS.some(noAccess) ? 'acc' : 'all';
+  const kindOk = u => !!(String(st.userQ || '').trim() || st.userRole) || KINDS[st.userKind][1](u);
+  const shown = u => kindOk(u) && (!st.userDir || DIRS[st.userDir][1](u)) && (!st.userSrc || srcOf(u) === st.userSrc)
     && (!st.userStatus || (st.userStatus === 'active') === (u.active !== false)) && (!st.userRole || (u.role || 'viewer') === st.userRole)
     && (!st.userDevs || devicesOfUser(u.name) > 0)
     && (!q || [u.name, u.login, u.dept, u.profile && u.profile.mail, u.entra && u.entra.upn, ...(u.aliases || [])].some(v => v && String(v).toLowerCase().includes(q)));
   const nShown = USERS.filter(shown).length, filtering = !!(q || st.userDir || st.userSrc || st.userStatus || st.userRole || st.userDevs);
   const sel = (id, label, cur, opts) => `<select id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const kindTabs = USERS.some(noAccess) ? `<div class="settabs setsub ukinds" role="group" aria-label="Show">${Object.entries(KINDS).map(([k, [l, f]]) => `<button type="button" class="tab${st.userKind === k ? ' active' : ''}" data-ukind="${k}" aria-pressed="${st.userKind === k}">${l} <span class="cnt">${USERS.filter(f).length}</span></button>`).join('')}</div>` : '';
   const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
@@ -187,9 +194,9 @@ export function renderSetUsers(){
       <td>${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet</button>${devicesOfUser(u.name) ? `<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${esc(u.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}` : ''}</td>
       <td><button class="icon ghost" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'} aria-label="Remove user">×</button></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
-    <p class="note">Role: Admin can change everything, Editor changes the devices (of the sites you give them), Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p>
+    <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Editor changes the devices (of the sites you give them), Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
     ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
-    ${dupesHtml(devicesOfUser)}${filterBar}
+    ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:14%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:6%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:4%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th></th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
@@ -200,6 +207,7 @@ export function renderSetUsers(){
   /* The search redraws as one types; the field keeps the focus and the caret. */
   const uq = $('#uQ'); if (uq) uq.oninput = () => { st.userQ = uq.value; const at = uq.selectionStart; renderSetUsers(); const n = $('#uQ'); if (n){ n.focus(); n.setSelectionRange(at, at); } };
   [['uSrc', 'userSrc'], ['uStatus', 'userStatus'], ['uRole', 'userRole']].forEach(([id, k]) => { const e = $('#' + id); if (e) e.onchange = () => { st[k] = e.value; renderSetUsers(); }; });
+  root.querySelectorAll('[data-ukind]').forEach(b => b.onclick = () => { st.userKind = b.dataset.ukind; renderSetUsers(); });
   const uv = $('#uDevs'); if (uv) uv.onchange = () => { st.userDevs = uv.checked; renderSetUsers(); };
   root.querySelectorAll('#uClear, [data-uclear]').forEach(b => b.onclick = () => { st.userQ = st.userDir = st.userSrc = st.userStatus = st.userRole = ''; st.userDevs = false; renderSetUsers(); });
   wireDupes();
@@ -289,14 +297,16 @@ export function renderSetCompany(){
   const el = $('#setCompany'); if (!el) return;
   const edit = isAdmin();
   el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
-    <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
+    <p class="note">The name and logo on entry sheets, printed and as PDF (without them the sheets show NOBS Inventory), and the currency of every price and cost.</p>
     <div class="form" style="padding:10px 12px;grid-template-columns:170px minmax(0,1fr)">
       <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
       <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
         <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
         <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>
+      <label for="ctCur">Currency</label><div class="ctlrow"><input id="ctCur" maxlength="5" value="${esc(COSTS.currency || 'CHF')}" style="flex:none;width:90px" placeholder="CHF" ${edit ? '' : 'disabled'}><span class="muted">a short code such as CHF or EUR</span></div>
     </div><p class="note" id="coMsg" role="status" style="padding:0 12px 10px"></p></div>`;
   $('#coName').onchange = e => { COMPANY.name = e.target.value.trim(); queueServerSave(); toast('Company name saved'); };
+  $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); toast('Currency saved'); };
   $('#coPick').onclick = () => $('#coFile').click();
   const del = $('#coDel'); if (del) del.onclick = () => { COMPANY.logo = ''; queueServerSave(); renderSetCompany(); toast('Logo removed'); };
   $('#coFile').onchange = async e => {

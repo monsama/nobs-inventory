@@ -249,13 +249,13 @@ export function renderSetFeed(){
   if (edit && pushInfo === undefined) loadPushInfo();
   const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
     <div class="note" style="padding:10px 12px 6px">
-      <p style="margin:0 0 6px"><b>Setup on the Lansweeper server</b></p>
+      <details class="how" ${pushInfo ? '' : 'open'}><summary>Setup on the Lansweeper server</summary>
       <ol style="margin:0;padding-left:20px;line-height:1.6">
         <li>Create a token below and copy it. It is shown once, and it is the password the script uses for this inventory.</li>
         <li>Get the script from <a class="link" style="text-decoration:underline" href="https://github.com/monsama/nobs-inventory/blob/main/scripts/Lansweeper-Push.ps1" target="_blank" rel="noopener">GitHub (scripts/Lansweeper-Push.ps1)</a>, or use <b>Download script</b> below, which already has this address in it.</li>
         <li>In PowerShell on the Lansweeper server, run <code>.\Lansweeper-Push.ps1</code>. The first time it asks for this inventory's address and the token, checks both, keeps them, and sends the data. <code>-Setup</code> asks again; <code>-DryRun</code> only shows what it would send.</li>
       </ol>
-      <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p>
+      <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p></details>
     </div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span>
     ${pushStatus()}</div>
@@ -276,10 +276,10 @@ export function renderSetFeed(){
     </div>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('lansweeper', edit)}</div>
     <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
-  <div class="panelbox"><div class="hdr">CSV import <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></div>
+  <details class="panelbox fold ls-csv"><summary class="hdr">Advanced: import a CSV report <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></summary>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Report</label><div style="display:flex;gap:8px;align-items:center;min-width:0"><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Choose CSV file…<input id="feedUp" type="file" accept=".csv,text/csv" hidden ${ro}></label><span class="muted" id="feedUpName">A Lansweeper report saved as CSV</span></div></div>
-    <div class="note" style="padding:10px 12px">The server can also import this report by itself, on the Lansweeper schedule, from a file your administrator sets up.</div></div>`;
+    <div class="note" style="padding:10px 12px">The server can also import this report by itself, on the Lansweeper schedule, from a file your administrator sets up.</div></details>`;
   /* One source at a time: show the script push or the API panel, never both. */
   if ($('#lsPushPanel')) $('#lsPushPanel').hidden = st.lsSource === 'api';
   if ($('#lsApiPanel')) $('#lsApiPanel').hidden = st.lsSource !== 'api';

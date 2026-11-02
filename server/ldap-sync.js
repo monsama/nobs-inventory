@@ -217,7 +217,7 @@ export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}
     do { s.codeN = (s.codeN || 0) + 1; } while (codes.has('INV-' + String(s.codeN).padStart(4, '0')));
     do { s.seq = (s.seq || 100) + 1; } while (ids2.has('o' + s.seq));
     codes.add('INV-' + String(s.codeN).padStart(4, '0')); ids2.add('o' + s.seq);
-    const src = { ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}), ...(d.description ? { purpose: 'ad' } : {}) };
+    const src = { name: 'ad', ...(d.os ? { os: 'ad' } : {}), ...(d.domain ? { domain: 'ad' } : {}), ...(d.description ? { purpose: 'ad' } : {}) };
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: adType(s, d), name: d.name, serial: '', status: 'active',
       loc: '', feed: null, ...(d.os ? { os: d.os } : {}), ...(d.domain ? { domain: d.domain } : {}), ...(d.description ? { purpose: d.description } : {}), ...(Object.keys(src).length ? { src } : {}),
       inAd: true, ...(adOf(d) ? { ad: adOf(d) } : {}),

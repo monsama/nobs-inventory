@@ -1,4 +1,3 @@
-import { labelsModal } from './24-labels.js';
 import { closeModal, modal } from './19-modal.js';
 import { sourcesPanel } from './18-sources.js';
 import { accessoriesHtml, canAddPorts, comboNote, notesHtml, extraFields, fieldMenu, ipClash, propRow, savedAt, typeFieldsOf } from './17-fields.js';
@@ -8,6 +7,7 @@ import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } f
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { bindMaint, maintPanel } from './26-maintenance.js';
+import { handOutModal, takeBack } from './27-handout.js';
 import { bindPhotos, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
@@ -340,6 +340,16 @@ export function unplace(o){
   delete o.rack; delete o.u; delete o.h; delete o.ontop;
   followOnTop(o, prevRack);
 }
+/* Hand out or take back, the one thing done most with a device that people use: shown on those (and on any device
+   someone has), for someone who may change it. */
+const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios', 'monitor', 'sip', 'camera'];
+const handBtn = o => !canEdit() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
+  : o.uid || o.hotdesk ? `<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : '<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>';
+/* The fields a device page always shows, filled or not; the others show when they hold something, or all of them on request. */
+const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 'ip', 'os', 'purpose'];
+const ALL_KEY = 'ni-all-fields';
+const allFields = () => { try { return localStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
+const setAllFields = on => { try { if (on) localStorage.setItem(ALL_KEY, '1'); else localStorage.removeItem(ALL_KEY); } catch { /* not kept */ } };
 export function renderObj(o){
   const rs = relsOf(o);
   /* Network links first, then the attached devices, each under its own heading when both are there. */
@@ -368,6 +378,12 @@ export function renderObj(o){
   if (!nHidden && st.showHidden === o.id) st.showHidden = null;
   const reveal = nHidden > 0 && st.showHidden === o.id;
   if (!reveal) fields = fields.filter(f => !hiddenBy(f));
+  /* Short by default: the fields that say what and where a device is, and the others only where they hold something;
+     "Show all fields" lists the empty ones too (remembered in this browser). */
+  const valOf = f => (f[0].startsWith('custom.') ? (o.custom || {})[f[0].slice(7)] : o[f[0]]);
+  const emptyF = f => !KEY_FIELDS.includes(f[0]) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
+  const nEmpty = fields.filter(emptyF).length, allF = allFields();
+  if (!allF) fields = fields.filter(f => !emptyF(f));
   const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
   const row = f => {
     const h = hiddenBy(f), html = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
@@ -380,8 +396,8 @@ export function renderObj(o){
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
-    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${SERVER.on && !o.review ? '<button id="labelBtn">Label…</button>' : ''}${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
+    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>${handBtn(o)}
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="relMapBtn">Relationships</button><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
@@ -389,6 +405,7 @@ export function renderObj(o){
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         <label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
+        ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}
     </div>
@@ -665,8 +682,6 @@ export function renderObj(o){
       rerender = true;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
-    /* A device that is not in use is not kept in a rack: its units are freed, and devices on top of it come out too. */
-    if (o.status === 'unused' && o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' as not in use by ' + who()); unplace(o); }
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
@@ -700,6 +715,7 @@ export function renderObj(o){
   objView.querySelectorAll('details.fmenu').forEach(d => d.addEventListener('toggle', () => { if (d.open) objView.querySelectorAll('details.fmenu[open]').forEach(x => { if (x !== d) x.open = false; }); }));
   const fmReveal = $('#fmReveal');
   if (fmReveal) fmReveal.onclick = () => { st.showHidden = st.showHidden === o.id ? null : o.id; render(); };
+  const fmAll = $('#fmAll'); if (fmAll) fmAll.onclick = () => { setAllFields(!allFields()); render(); const b = $('#fmAll'); if (b) b.focus(); };
   objView.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => {
     const k = b.dataset.fk, act = b.dataset.fm, t = TYPES[o.type].label;
     const f = fields.find(x => x[0] === k), name = f ? f[1] : k;
@@ -762,9 +778,11 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
   $('#dupBtn').onclick = () => newObjModal({copy: o});
+  $('#relMapBtn').onclick = () => { st.mapFocus = o.id; st.tab = 'map'; render(); };
+  const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);
+  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBack([o]);
   /* Handing a device over: the entry sheet of the person who has it (their devices and a first password), from here. */
   const opb = $('#onPlanBtn'); if (opb) opb.onclick = () => showOnPlan(o);
-  const lb = $('#labelBtn'); if (lb) lb.onclick = () => labelsModal([o.id]);
   const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u, null, { only: o.id }); };
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
