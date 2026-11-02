@@ -91,6 +91,7 @@ try {
   assert.equal(await page.locator('#setGraph').count(), 0, 'Feed does not show Microsoft Graph');
   await openSetTab(page, 'users'); await page.waitForSelector('#setUsers');
   // a dialog opened from Settings brings Settings back on the same tab, by Cancel as by OK
+  await page.locator('#setUsers tr', { has: page.locator('[data-pw]') }).first().locator('.umenu > summary').click();
   await page.click('#setUsers [data-pw]'); await page.waitForSelector('#pwCancel');
   await page.click('#pwCancel'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');
