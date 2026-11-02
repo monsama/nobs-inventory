@@ -91,6 +91,7 @@ try {
 
   // the Overview tiles open the list
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'overview'; (await import('/js/07-render.js')).render(); });
+  await p.click('#ovStats > summary');
   await p.click('[data-ovintune="noncompliant"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['b']);
   // the Overview: how devices are joined, Intune, operating systems, and Windows 10 under Needs attention

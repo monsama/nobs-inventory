@@ -1740,3 +1740,9 @@ details.how[open]>summary{margin-bottom:4px}
 .ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
 .ukinds{border-top:1px solid var(--bd)}
 .sync-reload{border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}
+
+/* Simplify round 2 (0.9.89) */
+.ov-stats{margin-top:14px}
+.ov-stats>summary{cursor:pointer;padding:8px 2px;font-weight:600;color:var(--fg)}
+.ov-stats>summary .muted{font-weight:400;margin-left:6px;font-size:12.5px}
+.ov-stats[open]>summary{margin-bottom:10px}

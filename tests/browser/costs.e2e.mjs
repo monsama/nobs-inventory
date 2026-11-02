@@ -118,6 +118,9 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#view tbody tr').length === 1);
   assert.match(await page.textContent('#view tbody'), /PC-1/);
   await page.click('[data-tab=overview]');
+  // the counts are folded under Statistics, opened on request
+  assert.equal(await page.isVisible('[data-ovt=pc]'), false);
+  await page.click('#ovStats > summary');
   await page.click('[data-ovt=pc]');
   await page.waitForSelector('.card');
   assert.equal(await page.locator('.card').count(), 3, 'the PCs');

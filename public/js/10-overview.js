@@ -45,6 +45,9 @@ function startHtml(){
   return `<div class="panelbox start"><div class="hdr">Getting started <span class="cnt">${steps.filter(x => x[0]).length} of ${steps.length} done</span><button type="button" class="link" id="startHide" style="margin-left:auto">Hide</button></div>
     <ol class="start-list">${steps.map(row).join('')}${row(optional, steps.length)}</ol></div>`;
 }
+/* The counts by type, site, status and so on are folded under Statistics: what needs doing comes first. Kept open once opened. */
+const STATS_KEY = 'ni-ov-stats';
+const statsOpen = () => { try { return localStorage.getItem(STATS_KEY) === '1'; } catch { return false; } };
 export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');
@@ -151,6 +154,8 @@ export function renderOverview(){
         <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
           : `<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
+    </div>
+    <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">
       <div class="panelbox"><div class="hdr">Devices by type <span class="cnt">${compact(live.length)} not retired</span></div>${byType.length ? bars(byType, 'data-ovt') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
       ${bySite.length ? `<div class="panelbox"><div class="hdr">Devices by site${noLoc ? ` <span class="cnt">${compact(noLoc)} without location</span>` : ''}</div>${bars(bySite, 'data-ovl')}</div>` : ''}
       ${showJoin ? `<div class="panelbox"><div class="hdr">How devices are joined <span class="cnt">${compact(joinable.length)} computers and phones</span></div>
@@ -161,7 +166,8 @@ export function renderOverview(){
         ${intuneGroups.map(([title, rows]) => `<div class="side-sub ov-sub">${esc(title)}</div>${bars(rows, 'data-ovintune')}`).join('')}</div>` : ''}
       ${osRows.length ? `<div class="panelbox"><div class="hdr">Operating systems <span class="cnt">${compact(withOs)} of ${compact(live.length)} known</span></div>${bars(osRows.map(r => OS_ENDED.includes(r.key) ? { ...r, bad: 'no more updates from the maker' } : r), 'data-ovos')}</div>` : ''}
       <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
-    </div></div>`;
+    </div></details></div>`;
+  const ovs = $('#ovStats'); if (ovs) ovs.ontoggle = () => { try { if (ovs.open) localStorage.setItem(STATS_KEY, '1'); else localStorage.removeItem(STATS_KEY); } catch { /* not kept */ } };
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
   const go = (tab, set = {}) => { resetFilters(); Object.assign(st, { scope: null, rvSrc: '', rvKnown: false, rvOld: false, bulk: new Set() }, set); st.tab = tab; view(); };
   const v = $('#view');
