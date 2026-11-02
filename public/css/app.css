@@ -1767,3 +1767,4 @@ details.how[open]>summary{margin-bottom:4px}
 .umenu .menubox{min-width:190px;z-index:60}
 .umenu .menubox>a{padding:6px 10px}
 @media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
+.menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}
