@@ -6,7 +6,7 @@ import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
 import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
-import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, SITES } from './01-core.js';
+import { esc, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
@@ -297,14 +297,16 @@ export function renderSetCompany(){
   const el = $('#setCompany'); if (!el) return;
   const edit = isAdmin();
   el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
-    <p class="note">The name and logo on entry sheets, printed and as PDF. Without them the sheets show NOBS Inventory.</p>
+    <p class="note">The name and logo on entry sheets, printed and as PDF (without them the sheets show NOBS Inventory), and the currency of every price and cost.</p>
     <div class="form" style="padding:10px 12px;grid-template-columns:170px minmax(0,1fr)">
       <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
       <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
         <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
         <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>
+      <label for="ctCur">Currency</label><div class="ctlrow"><input id="ctCur" maxlength="5" value="${esc(COSTS.currency || 'CHF')}" style="flex:none;width:90px" placeholder="CHF" ${edit ? '' : 'disabled'}><span class="muted">a short code such as CHF or EUR</span></div>
     </div><p class="note" id="coMsg" role="status" style="padding:0 12px 10px"></p></div>`;
   $('#coName').onchange = e => { COMPANY.name = e.target.value.trim(); queueServerSave(); toast('Company name saved'); };
+  $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); toast('Currency saved'); };
   $('#coPick').onclick = () => $('#coFile').click();
   const del = $('#coDel'); if (del) del.onclick = () => { COMPANY.logo = ''; queueServerSave(); renderSetCompany(); toast('Logo removed'); };
   $('#coFile').onchange = async e => {
