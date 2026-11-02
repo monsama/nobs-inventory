@@ -83,12 +83,18 @@ try {
   assert.match(health, /Health\s*Something needs a look/);
   assert.match(health, /Check\s*Last backup\s*None yet/);
   assert.match(health, /Off\s*Lansweeper\s*Not set up/);
+  // the backups have a tab of their own: the Health row goes there, to Back up now
+  await p.click('[data-hlgo="Backups|Last backup"]');
+  await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'bkNew'));
+  assert.ok(await p.evaluate(() => !!document.querySelector('#setTabs [data-st=backups].active')));
   await p.click('#bkNew'); await p.waitForSelector('#setMaint .grid.mini td');
+  await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');
   await p.click('#hlAgain');
   await wait(async () => /OK\s*Last backup\s*less than an hour ago/.test(await p.textContent('#setMaint')));
   // each row goes to where it is dealt with: the restore test's button here, Lansweeper's tab, the log's errors
   await p.click('[data-hlgo="Backups|Restore test"]');
   await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'rtRun'));
+  await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');
   await p.click('[data-hlgo="Syncs|Lansweeper"]');
   await wait(() => p.evaluate(() => !!document.querySelector('#setTabs [data-st=feed].active')));
   await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');

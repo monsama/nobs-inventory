@@ -71,7 +71,7 @@ const TIPS = [
   ['.panelbox > .hdr.sechdr, details.fold > summary', 'Click to collapse or expand'],
   /* Settings. */
   ['[data-sg="sources"]', 'Where the data comes from: the field rules, Lansweeper, Active Directory, Entra & Intune'],
-  ['[data-sg="maintenance"]', 'Health, backups, mail, the log and the factory reset'],
+  ['[data-sg="maintenance"]', 'System health, backups, e-mail, the log and the factory reset'],
   ['[data-st="sources"]', 'Which source fills each field, and in which order'],
   ['[data-st="feed"]', 'Lansweeper: how its data comes in, what it may overwrite, and the type rules'],
   ['[data-st="directory"]', 'Sign-in with Active Directory, and the sync of its users and computer accounts'],
