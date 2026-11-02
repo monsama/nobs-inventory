@@ -59,6 +59,8 @@ try {
 
   // the device page sets the responsible
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o2'));
+  // nobody responsible yet: offered on the Add line, opened from there
+  await page.click('[data-xadd=resp]');
   await page.waitForSelector('[data-resp=external]');
   await page.selectOption('[data-resp=external]', 'k3');
   await stored(st => st.objs.find(o => o.id === 'o2').respEx === 'k3');

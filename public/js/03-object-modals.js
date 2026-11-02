@@ -8,7 +8,7 @@ import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBack } from './27-handout.js';
-import { bindPhotos, photosPanel } from './23-photos.js';
+import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
@@ -350,6 +350,23 @@ const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 
 const ALL_KEY = 'ni-all-fields';
 const allFields = () => { try { return localStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
 const setAllFields = on => { try { if (on) localStorage.setItem(ALL_KEY, '1'); else localStorage.removeItem(ALL_KEY); } catch { /* not kept */ } };
+/* The panels a device may have beside its fields (links, maintenance, photos, software, responsible, contracts): an empty
+   one is not drawn as a box of its own but offered on one Add line, and opens when its button is clicked. */
+function extras(o){
+  const edit = canEdit();
+  const parts = [
+    ['links', 'Link', deviceLinksPanel(o), !(o.urls || []).length && !(o.ip || o.dns)],
+    ['maint', 'Maintenance', o.review ? '' : maintPanel(o), !(o.maint || []).length],
+    ['photos', 'Photo', photosPanel(o), photoCount(o.id) === 0],
+    ['software', 'Software', SW_TYPES.includes(o.type) ? softwarePanel(o) : '', !(o.software || []).length],
+    ['resp', 'Responsible', deviceRespPanel(o), !o.respIn && !o.respEx],
+    ['contracts', 'Contract', deviceContractsPanel(o), !contractsOf(o).length],
+  ].filter(([, , html]) => html);
+  const folded = parts.filter(([k, , , empty]) => empty && !st.showPanels?.has(o.id + ':' + k));
+  const hide = (k, html) => html.replace(/^(\s*)<(div|details) class="panelbox/, `$1<$2 data-xpanel="${k}" hidden class="panelbox`);
+  return (edit && folded.length ? `<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => `<button type="button" data-xadd="${k}">+ ${l}</button>`).join('')}</div>` : '')
+    + parts.map(([k, , html]) => folded.some(f => f[0] === k) ? hide(k, html) : html).join('');
+}
 export function renderObj(o){
   const rs = relsOf(o);
   /* Network links first, then the attached devices, each under its own heading when both are there. */
@@ -411,12 +428,7 @@ export function renderObj(o){
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
-      ${deviceLinksPanel(o)}
-      ${o.review ? '' : maintPanel(o)}
-      ${photosPanel(o)}
-      ${SW_TYPES.includes(o.type) ? softwarePanel(o) : ''}
-      ${deviceRespPanel(o)}
-      ${deviceContractsPanel(o)}
+      ${extras(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
         <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px"><span class="rvlan">${x.r.vlan ? `<span class="chip" title="VLAN ${esc(vlanLabel(x.r.vlan))}">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span>` : `${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
@@ -429,6 +441,14 @@ export function renderObj(o){
       <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="cnt">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
     </div></div>`;
 
+  /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
+  $('#view').querySelectorAll('[data-xadd]').forEach(b => b.onclick = () => {
+    const k = b.dataset.xadd, el = $('#view').querySelector(`[data-xpanel="${k}"]`); if (!el) return;
+    (st.showPanels = st.showPanels || new Set()).add(o.id + ':' + k);
+    el.hidden = false; b.remove(); const bar = $('#xAdd'); if (bar && !bar.querySelector('[data-xadd]')) bar.remove();
+    const f = el.querySelector('input:not([type=file]):not([hidden]), select, textarea, button:not([disabled])'); if (f) f.focus();
+    el.scrollIntoView({ block: 'nearest' });
+  });
   bindSoftware(o);
   bindDeviceContracts(o);
   bindDeviceResp(o);

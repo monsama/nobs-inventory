@@ -32,7 +32,9 @@ try {
 
   // added on the device's page: what, every 6 months, first due ten days ago
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('u1'));
-  await p.waitForSelector('#mtPanel');
+  // no task yet: the panel is offered on the Add line
+  await p.waitForSelector('[data-xadd=maint]'); assert.equal(await p.isVisible('#mtPanel'), false);
+  await p.click('[data-xadd=maint]'); await p.waitForSelector('#mtPanel');
   assert.match(await p.textContent('#mtPanel'), /No recurring maintenance/);
   await p.click('#mtAdd'); await p.waitForSelector('#mtWhat');
   await p.fill('#mtWhat', 'Test the UPS battery'); await p.fill('#mtEvery', '6'); await p.selectOption('#mtUnit', 'm');

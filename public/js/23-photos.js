@@ -20,6 +20,8 @@ const label = p => p.caption || p.name || 'Photo';
 const thumbUrl = p => `api/images/${encodeURIComponent(p.id)}?size=thumb`;
 const fullUrl = p => `api/images/${encodeURIComponent(p.id)}`;
 
+/* How many photos a device has, once read (null before). */
+export const photoCount = id => { const c = CACHE.get(id); return c && !c.failed ? c.images.length : null; };
 export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = canEdit();
