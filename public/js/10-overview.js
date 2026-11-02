@@ -128,8 +128,9 @@ export function renderOverview(){
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock`, 'data-ovs="active"')}
       ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
       ${tile('Needs attention', compact(attention.length), attention.length ? (attention.length === 1 ? '1 topic: ' : `${attention.length} topics: `) + attention.map(a => a[2]).slice(0, 2).join(', ') + (attention.length > 2 ? '…' : '') : 'Nothing right now')}
-      ${tile('Contracts and licences', year ? money(year) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"')}
-      ${tile('Value of devices in use', priced ? money(value) : '—', priced ? `price known for ${compact(priced)} of ${compact(inUse.length)}` : 'Add prices on the devices')}
+      ${/* A tile with nothing to say is left out: no contracts or licences, no device with a price. */ ''}
+      ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? money(year) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
+      ${priced ? tile('Value of devices in use', money(value), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
     </div>
     <div class="ov-cols">
       <div class="panelbox"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
