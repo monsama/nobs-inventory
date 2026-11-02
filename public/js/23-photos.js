@@ -69,7 +69,11 @@ function redraw(o){
   const panel = $('#phPanel');
   if (!panel || openId !== o.id) return;
   /* Read for the first time and none there: the page is drawn again, where an empty Photos is offered on the Add line. */
-  if (photoCount(o.id) === 0 && !panel.dataset.xpanel && !(st.showPanels && st.showPanels.has(o.id + ':photos'))){ view(); return; }
+  if (photoCount(o.id) === 0 && !panel.dataset.xpanel && !(st.showPanels && st.showPanels.has(o.id + ':photos'))){
+    const had = document.activeElement && document.activeElement.id; view();
+    const f = had && document.getElementById(had); if (f) f.focus({ preventScroll: true });
+    return;
+  }
   const t = document.createElement('div'); t.innerHTML = photosPanel(o);
   const next = t.firstElementChild; if (!next) return;
   const cnt = panel.querySelector('.hdr .cnt'), cnt2 = next.querySelector('.hdr .cnt');
