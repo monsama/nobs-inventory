@@ -1531,7 +1531,6 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
 .stk-scanrow{display:flex;gap:8px;padding-top:10px}.stk-scanrow input{flex:1;min-width:0;height:40px;font-size:15px}
-.stk-cam{display:block;width:100%;max-height:60vh;background:#000;border-radius:6px;object-fit:cover}
 .stk-last{min-height:20px;margin:6px 0 0;font-size:13px}.stk-last .ok{color:var(--ok)}.stk-last .warn{color:var(--warn,#b45309)}
 .stk-tabs{display:flex;gap:4px;padding-top:10px}
 .stk-list{padding:4px 0 8px}

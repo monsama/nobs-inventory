@@ -35,7 +35,6 @@ test('a viewer limited to sites or to own devices gets nothing else', async () =
     // reports and labels hold the same devices only
     const rep = await fetch(`${srv.base}/api/reports/inventory?format=xlsx`, { headers: { cookie: bern.a.cookie } });
     assert.equal(rep.status, 200);
-    assert.equal((await srv.call('POST', '/api/labels', { cookie: bern.a.cookie, body: { ids: ['z1'] } })).status, 400, 'no label for another site');
     // own devices: confirmed and reported by their user only
     assert.equal((await srv.call('POST', '/api/my/devices/b2/confirm', { cookie: own.a.cookie })).status, 404);
     assert.equal((await srv.call('POST', '/api/my/devices/b1/confirm', { cookie: own.a.cookie })).status, 200);
