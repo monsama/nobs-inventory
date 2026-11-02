@@ -149,9 +149,9 @@ export function renderPlans(){
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         ${editArea && planMode === 'view' ? `<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${esc(editArea.name)}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
         ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
-        <button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
+        <details class="menu" id="plMenu"><summary>Plan…</summary><div class="menubox"><button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
-        <button id="plDel" class="danger-text">Delete plan</button>` : ''}
+        <button id="plDel" class="danger-text">Delete plan</button></div></details>` : ''}
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
@@ -306,7 +306,7 @@ export function planCanvas(plan){
   const src = planImgSrc(plan), layout = planLayout(plan);
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return `<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
-    ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
+    ${src ? `<img src="${esc(src)}" alt="Floor plan ${esc(plan.name)}" draggable="false">` : (plan.areas || []).length ? '' : `<div class="pl-noimg">No picture yet. Use Plan… → Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, `data-area-drag="${esc(a.id)}"`) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)).join('')}
     ${planParts.length ? areaShape(planParts, ' pending') : ''}
     ${layout.map(({o, box, area, ...pos}) => { return `<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${esc(o.id)}"${box ? ` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${tico(o.type, 'tico sm')}<span class="pl-code">${esc(o.name || o.code || '')}</span>${planRiders(o).length ? `<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${esc(o.name)}</b><span>${esc(TYPES[o.type] ? TYPES[o.type].label : '')}${o.model ? ' · ' + esc(o.model) : ''}</span><span class="muted">${esc([o.code, o.loc || 'No location'].filter(Boolean).join(' · '))}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${esc(o.id)}" aria-label="Remove ${esc(o.name)} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`; }).join('')}
