@@ -1735,8 +1735,8 @@ table.stack>tbody>tr>td{max-width:none}
 details.how{margin:6px 0}
 details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
 details.how[open]>summary{margin-bottom:4px}
-.u-how,.ds-how{margin:8px 12px}
+.panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
 .ds-adv{margin:8px 0 0}
-.ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--line)}
+.ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--bd)}
 .ukinds{border-top:1px solid var(--bd)}
 .sync-reload{border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}
