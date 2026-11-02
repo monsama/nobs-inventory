@@ -29,7 +29,15 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const st = () => p.evaluate(async () => { const { st } = await import('/js/01-core.js'); return { tab: st.tab, type: st.type, q: st.q, open: [...st.open] }; });
-  const tab = async t => { await p.click(`#tabsbar [data-tab="${t}"]`); await until(p, async t => (await import('/js/01-core.js')).st.tab === t, t); };
+  /* A tab, or the Cards | Table switch of the Devices tab. */
+  const tab = async t => {
+    if (['cards', 'table'].includes(t)){
+      /* From another view: the Devices tab opens the one used last, so make that the one wanted (one step back, not two). */
+      if (!(await p.locator(`[data-vsw="${t}"]`).count())){ await p.evaluate(async t => { const c = await import('/js/01-core.js'); (c.st.tabLast = c.st.tabLast || {}).devices = t; (await import('/js/02-views.js')).renderTabs(); }, t); await p.click('#tabsbar .tab:text-is("Devices")'); }
+      if (await p.locator(`[data-vsw="${t}"]:not(.on)`).count()) await p.click(`[data-vsw="${t}"]`);
+    } else await p.click(`#tabsbar [data-tab="${t}"]`);
+    await until(p, async t => (await import('/js/01-core.js')).st.tab === t, t);
+  };
 
   await tab('cards');
   await tab('table');

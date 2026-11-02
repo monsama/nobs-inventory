@@ -49,7 +49,7 @@ try {
     core.objs.find(o => o.id === 'o2').software = [{ name: 'Tool X', version: '1.2' }];
     core.objs.find(o => o.id === 'rt1').software = [{ name: 'Tool X', version: '9.9' }];
   });
-  await p.click('#tabsbar [data-tab=sw]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'sw');
   await p.click('tr[data-sw="Tool X"]');
   // the devices open in place, right under the package
   await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');

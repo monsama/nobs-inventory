@@ -40,7 +40,7 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
 
   // the device itself says it has a probable second record, on its card and its page, and resolves it from there
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   assert.match(await p.textContent('#cards .card[data-open="n35"] .rv-twin'), /Also as nb-35\.corp\.example/);
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));
   await p.waitForSelector('#twResolve');
@@ -62,7 +62,7 @@ try {
   await p.click('#toast .t-undo');
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.objs.some(o => o.id === 'd35') && !c.byId('n35').accessories && c.rels.find(r => r.id === 'a1').to === 'd35'; });
   // the Duplicates list picks it, and Merge works from the pick too
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.click('#dupList [data-twins]');
   // the card says what it probably is; its chip opens Resolve, with both side by side and what differs marked
   assert.match(await p.textContent('#cards .card[data-open="d35"] .rv-twin'), /Probably NB-35/);
@@ -77,7 +77,7 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('d35'));
   await p.waitForSelector('#twAgain'); await p.click('#twAgain');
   await stored(st => st.objs.find(o => o.id === 'd35').notTwin === undefined);
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.waitForSelector('#cards .card[data-open="d35"]');
   // picked from the Duplicates list: Resolve, as a dock
   await p.click('#cards .card[data-open="d35"] .cardtick');
@@ -92,7 +92,7 @@ try {
   await stored(st => { const d = st.objs.find(o => o.id === 'd35'); return d.review && !d.review.merged && !d.review.ignored && !d.excluded && !st.objs.find(o => o.id === 'n35').accessories; });
   await p.click('#toast .t-undo');
   await stored(st => st.objs.find(o => o.id === 'd35').review.merged === 'n35' && (st.objs.find(o => o.id === 'n35').accessories || []).length === 1);
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
 
   // the dock shows among the device's attachments, with its MAC address
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('n35'));

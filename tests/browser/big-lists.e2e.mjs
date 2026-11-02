@@ -29,7 +29,7 @@ try {
   await page.click('#cardsAll');
   assert.equal(await page.locator('.card').count(), N);
 
-  await page.click('[data-tab=table]'); await page.waitForSelector('table.grid');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await page.waitForSelector('table.grid');
   assert.equal(await page.locator('table.grid tbody tr').count(), 500, 'the first 500 rows');
   assert.ok(await page.isVisible('#tableAll'));
   // sorting and filtering a column work on every device, also those not drawn; still only the first 500 are drawn

@@ -34,7 +34,7 @@ try {
   const name = await p.evaluate(async () => (await import('/js/01-core.js')).byId('o1').name);
   assert.equal(await p.getAttribute('#objbar [data-tab=o1] .mono', 'title'), name, 'the full name as tooltip');
 
-  await p.click('#tabsbar [data-tab=cards]'); await p.click('.card[data-open=o2]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards'); await p.click('.card[data-open=o2]');
   await p.waitForSelector('#objbar [data-tab=o2].active');
   // a click on an open object's tab shows it; × closes it
   await p.click('#objbar [data-tab=o1]');
@@ -42,7 +42,7 @@ try {
   await p.click('#objbar [data-close=o2]');
   await until(p, async () => !(await import('/js/01-core.js')).st.open.includes('o2'));
   // Close all
-  await p.click('#tabsbar [data-tab=cards]'); await p.click('.card[data-open=o3]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards'); await p.click('.card[data-open=o3]');
   await p.waitForSelector('#closeAllTabs');
   await p.click('#closeAllTabs');
   await until(p, async () => (await import('/js/01-core.js')).st.open.length === 0);

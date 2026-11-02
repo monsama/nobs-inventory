@@ -45,7 +45,7 @@ try {
   await page.waitForSelector('.card');
 
   // the tab: internal first, then the partner with its two people
-  await page.click('[data-tab=contacts]'); await page.waitForSelector('.cn-card');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contacts'); await page.waitForSelector('.cn-card');
   assert.deepEqual(await page.locator('.cn-group > .hdr').evaluateAll(h => h.map(x => x.firstChild.textContent.trim())), ['Internal · Example AG', 'Muster IT AG']);
   assert.equal(await page.getAttribute('.cn-card:has-text("Sara Netz") a[href^="tel:"]', 'href'), 'tel:+41790000002');
   if (shots) await page.locator('#view').screenshot({ path: path.join(shots, 'contacts.png') });
@@ -70,14 +70,14 @@ try {
   if (shots) await page.locator('.panelbox:has(.resp)').screenshot({ path: path.join(shots, 'device-resp.png') });
 
   // many at once from the table
-  await page.click('[data-tab=table]'); await page.waitForSelector('table.grid');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await page.waitForSelector('table.grid');
   await page.check('[data-sel=o2]'); await page.check('[data-sel=o3]');
   await page.selectOption('#bkAct', 'resp:internal:k1');
   await stored(st => st.objs.every(o => o.respIn === 'k1'));
   assert.deepEqual(loadState(db).objs.map(o => o.respIn || ''), ['k1', 'k1', 'k1']);
 
   // deleting a contact takes it off its devices
-  await page.click('[data-tab=contacts]'); await page.waitForSelector('.cn-card');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contacts'); await page.waitForSelector('.cn-card');
   await page.click('.cn-card:has-text("Service desk") [data-cnedit]');
   await page.click('#cnDel');
   // asked in the app's own dialog first, which names the devices that lose it
@@ -100,7 +100,7 @@ try {
   assert.ok(loadState(db).contacts.some(c => c.name === 'Max Print' && c.company === 'Print AG' && c.kind === 'external'));
 
   // from the directory: picked people become internal contacts linked to them, Undo takes them away again
-  await page.click('[data-tab=contacts]'); await page.waitForSelector('#cnDir');
+  await page.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contacts'); await page.waitForSelector('#cnDir');
   await page.click('#cnDir'); await page.waitForSelector('#dirList .dir-row');
   await page.selectOption('#dirDept', 'IT');
   assert.equal(await page.locator('#dirList .dir-row').count(), 1);

@@ -164,7 +164,7 @@ try {
   assert.equal((await p.textContent('[data-rvpage=restore]')).trim(), '↩ Unignore');
   await p.click('[data-rvpage=restore]');
   await stored(st => { const o = st.objs.find(x => x.id === 'pold'); return o.review && !o.review.ignored && !o.excluded; });
-  await p.click('#tabsbar [data-tab=cards]');
+  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.click('#scopeList [data-scope=review]');
   await p.click(pold + ' .cardtick'); await p.click('#rvIgnore');
   await stored(st => st.objs.find(x => x.id === 'pold').review.ignored);

@@ -1750,3 +1750,9 @@ details.how[open]>summary{margin-bottom:4px}
 .more-filters>summary .muted{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;color:var(--linktext)}
 .xadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px dashed var(--bd);border-radius:var(--r-m)}
 .xadd>.muted{margin-right:4px}
+.vswitch{display:inline-flex;border:1px solid var(--bd);border-radius:var(--r-m);overflow:hidden;flex:none}
+.vswitch>button{border:0;border-radius:0;background:var(--btn);min-height:30px;padding:4px 12px}
+.vswitch>button+button{border-left:1px solid var(--bd)}
+.vswitch>button.on{background:var(--accent);color:#fff}
+.vswitch>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
+@media (pointer:coarse){.vswitch>button{min-height:40px}}
