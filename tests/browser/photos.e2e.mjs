@@ -33,6 +33,9 @@ const signIn = async (login, pw) => {
   await page.fill('#lgUser', login); await page.fill('#lgPw', pw); await page.click('#lgOk');
   await page.waitForSelector('.card');
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
+  /* Read, then shown: with photos as their panel; with none, offered on the Add line (opened here to add some). */
+  await page.waitForSelector('#phPanel:not([hidden]) .ph-grid:not(:has-text("Loading")), [data-xadd=photos]');
+  if (await page.locator('[data-xadd=photos]').count()) await page.click('[data-xadd=photos]');
   await page.waitForSelector('#phPanel .ph-grid:not(:has-text("Loading"))');
   return page;
 };

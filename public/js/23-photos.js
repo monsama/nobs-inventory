@@ -6,11 +6,11 @@
    metadata behind: the camera, the time and the GPS
    position stay on this computer. The server checks the picture again and keeps it apart from the inventory
    (server/device-images.js). */
-import { $, byId, esc, hist, now, toast } from './01-core.js';
+import { $, byId, esc, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
 import { canEdit, who } from './04-settings.js';
-import { SERVER, queueServerSave } from './07-render.js';
+import { SERVER, queueServerSave, view } from './07-render.js';
 
 const LONG_SIDE = 2560, THUMB_SIDE = 480, MAX_FILE = 40 * 1048576, MAX_SENT = 6 * 1048576;
 /* What the server said each device has, so a redraw of the page does not ask again. */
@@ -68,6 +68,8 @@ let openId = null;
 function redraw(o){
   const panel = $('#phPanel');
   if (!panel || openId !== o.id) return;
+  /* Read for the first time and none there: the page is drawn again, where an empty Photos is offered on the Add line. */
+  if (photoCount(o.id) === 0 && !panel.dataset.xpanel && !(st.showPanels && st.showPanels.has(o.id + ':photos'))){ view(); return; }
   const t = document.createElement('div'); t.innerHTML = photosPanel(o);
   const next = t.firstElementChild; if (!next) return;
   const cnt = panel.querySelector('.hdr .cnt'), cnt2 = next.querySelector('.hdr .cnt');
