@@ -33,7 +33,7 @@ const server = await new Promise(r => { const x = createApp({ db }).listen(0, '1
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const ctx = await browser.newContext({ viewport: { width: 1300, height: 900 } });
-await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); } catch { /* none in previews */ } });
+await ctx.addInitScript(() => { try { localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-more-filters', '1'); } catch { /* none in previews */ } });
 const page = await ctx.newPage();
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const shots = process.env.NI_SHOTS;

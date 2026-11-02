@@ -28,6 +28,8 @@ const GRAPH_TIPS = {
 };
 /* The views that show a list of devices, the inventory's or (st.scope) To review's. */
 const LIST_TABS = ['cards', 'table', 'map'];
+const MORE_KEY = 'ni-more-filters';
+const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
 export function renderSide(){
   /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
@@ -100,6 +102,15 @@ export function renderSide(){
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
   $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
+  /* Warranty, Lansweeper checks, duplicates and Entra & Intune under More filters: open while one of them filters, and
+     once opened (this browser). */
+  const mf = $('#moreFilters');
+  if (mf){
+    const on = mf.querySelectorAll('.item.sel').length;
+    $('#moreFiltersOn').textContent = on ? `${on} on` : '';
+    if (on || moreOpen()) mf.open = true;
+    mf.ontoggle = () => { try { if (mf.open) localStorage.setItem(MORE_KEY, '1'); else if (!mf.querySelector('.item.sel')) localStorage.removeItem(MORE_KEY); } catch { /* not kept */ } };
+  }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
   $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }

@@ -65,6 +65,9 @@ try {
   assert.match(await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))'), /joined to AD only/);
 
   // the sidebar group filters
+  // under More filters, folded until opened; a filter in it keeps it open and is counted on it
+  assert.equal(await p.evaluate(() => document.querySelector('#moreFilters').open), false);
+  await p.click('#moreFilters > summary');
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
   assert.equal(await count('secureboot'), '1', 'Secure Boot off, from Intune');
