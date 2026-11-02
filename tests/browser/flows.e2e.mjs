@@ -22,7 +22,7 @@ const watch = async (p) => { p.on('pageerror', e => errors.push(e.message)); ret
 const signIn = async (p) => { await p.goto(base + '/'); await p.waitForSelector('#lgUser'); await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); }); };
 
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } }); await ctx.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const p = await watch(await ctx.newPage());
   await signIn(p);
   const ids = await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.map(o => o.id)); });
@@ -84,7 +84,7 @@ try {
   await ctx.close();
 
   // The Users table has room for its columns, so the Password button is not cut off.
-  const ctxU = await browser.newContext({ viewport: { width: 1000, height: 800 } });
+  const ctxU = await browser.newContext({ viewport: { width: 1000, height: 800 } }); await ctxU.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const u = await watch(await ctxU.newPage());
   await signIn(u);
   await u.click('#setBtn'); await openSetTab(u, 'users');
@@ -93,7 +93,7 @@ try {
   await ctxU.close();
 
   // A new object is kept after a reload, and a user is added.
-  const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } }); await ctx2.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
   const q = await watch(await ctx2.newPage());
   await signIn(q);
   // Two objects may share a name: each has its own code.

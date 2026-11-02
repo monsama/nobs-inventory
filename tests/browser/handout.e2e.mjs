@@ -33,6 +33,11 @@ try {
   // a switch nobody carries: no hand out on it
   await open('s1'); await p.waitForSelector('#objTitle');
   assert.equal(await p.locator('#handOutBtn, #takeBackBtn').count(), 0);
+  // a device page is short: the empty fields only on request
+  assert.equal(await p.locator('#f_s1_mac').count(), 0, 'an empty MAC field is not shown');
+  assert.match(await p.textContent('#fmAll'), /Show all fields \(\d+ empty\)/);
+  await p.click('#fmAll'); await p.waitForSelector('#f_s1_mac');
+  await p.click('#fmAll'); await p.waitForSelector('#f_s1_mac', { state: 'detached' });
 
   // from the device: found by part of the name, handed out, in use with her
   await open('n1'); await p.waitForSelector('#handOutBtn');

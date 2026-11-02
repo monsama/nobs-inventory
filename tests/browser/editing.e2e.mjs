@@ -30,7 +30,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
 const errors = [];
 try {
-  const p = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
+  const p = await (async () => { const c = await browser.newContext({ viewport: { width: 1400, height: 900 } }); await c.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } }); return c.newPage(); })();
   p.on('pageerror', e => errors.push(e.message));
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
