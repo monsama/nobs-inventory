@@ -244,11 +244,12 @@ export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.include
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
-  /* Stocktake shows while one runs, or while it is the tab open (from the Overview). */
+  /* Stocktake shows while one runs, or while it is the tab open (from the Overview). Relationships only while it is open:
+     it is opened from a device (More → Relationships), centred on it. */
   if (!st.tabIds.includes('stocktake')) st.tabIds.push('stocktake');
   const stk = (st.stocktakes || []).some(t => !t.finished);
   if (!st.tabIds.includes('mine')) st.tabIds.unshift('mine');
-  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && tabAllowed(id) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake'));
+  const ids = st.tabIds.filter(id => (FIXED_TABS[id] || st.open.includes(id)) && tabAllowed(id) && (id !== 'review' || waiting || st.scope) && (id !== 'stocktake' || stk || st.tab === 'stocktake') && (id !== 'map' || st.tab === 'map'));
   /* Views (Cards, Table, ...) and the objects opened from them are two groups: the objects are marked with their type colour. */
   const views = ids.filter(id => FIXED_TABS[id]), objs = ids.filter(id => !FIXED_TABS[id]);
   const viewTab = id => `<button class="tab ${st.tab === id || (id === 'review' && st.scope && LIST_TABS.includes(st.tab)) ? 'active' : ''}" draggable="true" data-tab="${id}">${FIXED_TABS[id]}${id === 'review' && waiting ? ` <span class="tab-cnt">${waiting}</span>` : ''}</button>`;

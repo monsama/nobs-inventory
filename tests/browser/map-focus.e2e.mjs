@@ -74,6 +74,14 @@ try {
   await p.selectOption('#mapFocus', 'o1');
   await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.type = null; });
+  // From a device: More → Relationships opens the map centred on it; the tab shows only while the map is open
+  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
+  assert.equal(await p.locator('#tabsbar [data-tab=map]').count(), 0, 'no Relationships tab of its own');
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('o2')); await p.waitForSelector('#relMapBtn', { state: 'attached' });
+  await p.locator('details.menu', { has: p.locator('#relMapBtn') }).locator('summary').click();
+  await p.click('#relMapBtn'); await p.waitForSelector('#mapFocus');
+  assert.equal(await p.inputValue('#mapFocus'), 'o2');
+  assert.equal(await p.locator('#tabsbar [data-tab=map].active').count(), 1);
   assert.deepEqual(errors, [], 'page errors');
   console.log('relationships of one object: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

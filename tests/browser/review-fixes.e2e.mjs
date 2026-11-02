@@ -76,7 +76,7 @@ try {
   await a.click('[data-tab=rack]'); await a.waitForTimeout(200);
   // map focus drag
   await ev(a, async () => { const c = await import('/js/01-core.js'); c.rels.push({id:'rx1', from:'o2', to:'o1', kind:'connected', port: 3}, {id:'rx2', from:'o5', to:'o1', kind:'connected', port: 5}, {id:'rx3', from:'o4', to:'o3', kind:'attached', port:null}); c.st.mapAttached = true; });
-  await a.click('[data-tab=map]'); await a.waitForTimeout(300);
+  await ev(a, async () => { const c = await import('/js/01-core.js'); c.st.tab = 'map'; (await import('/js/07-render.js')).view(); }); await a.waitForTimeout(300);
   await a.selectOption('#mapFocus', 'o2'); await a.waitForTimeout(400);
   const before = await a.locator('.mnode').count();
   const nb = await a.locator('.mnode').first().boundingBox();
