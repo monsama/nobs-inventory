@@ -73,3 +73,46 @@ test('set up and sent from Settings: addresses checked, sent through the server,
     s2.close();
   } finally { process.env = before; await srv.close(); }
 });
+
+test('the mail server set in Settings: its password sealed, never sent back, dropped with a new host; the server\'s wins', async () => {
+  const before = { ...process.env };
+  delete process.env.NI_SMTP_HOST; delete process.env.NI_SMTP_PASSWORD; delete process.env.NI_SMTP_USER;
+  const sent = [];
+  const srv = await startServer();
+  try {
+    const app = createApp({ db: srv.db, sheetKey: Buffer.alloc(32, 7), mailTransport: { sendMail: async m => { sent.push(m); } } });
+    const s2 = await new Promise(r => { const x = app.listen(0, '127.0.0.1', () => r(x)); });
+    const base = `http://127.0.0.1:${s2.address().port}`;
+    const a = await signIn({ ...srv, base }, 'admin', 'adminpass123');
+    const call = (m, p, body) => fetch(base + p, { method: m, headers: { cookie: a.cookie, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then(async r => ({ status: r.status, json: await r.json().catch(() => ({})) }));
+    let d = (await call('GET', '/api/digest')).json;
+    assert.equal(d.smtp, false); assert.equal(d.mail.source, null);
+    assert.equal((await call('PUT', '/api/digest', { to: 'it@example.com', on: true })).status, 400, 'no mail server yet');
+    assert.equal((await call('PUT', '/api/smtp', { host: 'bad host', port: 587, security: 'starttls' })).status, 400);
+    assert.equal((await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 70000, security: 'starttls' })).status, 400);
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'inv@example.com', password: 'mail-secret-1', from: 'inv@example.com' })).json;
+    assert.equal(d.smtp, true); assert.equal(d.mail.source, 'app'); assert.ok(d.mail.passwordSet);
+    const everything = JSON.stringify([d, (await call('GET', '/api/digest')).json, (await call('GET', '/api/state')).json]);
+    assert.ok(!everything.includes('mail-secret-1'), 'the password is never sent to the page');
+    assert.ok(!JSON.stringify(srv.db.prepare('SELECT * FROM docs').all()).includes('mail-secret-1'), 'nor kept with the inventory');
+    // a test mail goes through the transport, from the sender set
+    assert.equal((await call('POST', '/api/smtp/test', { to: 'nope' })).status, 400);
+    assert.equal((await call('POST', '/api/smtp/test', { to: 'me@example.com' })).status, 200);
+    assert.deepEqual([sent[0].to, sent[0].from], ['me@example.com', 'inv@example.com']);
+    // saved again without a password: kept; another host without one: dropped
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'inv@example.com', from: 'other@example.com' })).json;
+    assert.ok(d.mail.passwordSet, 'kept for the same server');
+    d = (await call('PUT', '/api/smtp', { host: 'evil.example.net', port: 587, security: 'starttls', user: 'inv@example.com' })).json;
+    assert.equal(d.mail.passwordSet, '', 'not sent to another server');
+    assert.ok(!JSON.stringify(srv.db.prepare('SELECT * FROM audit').all()).includes('mail-secret'), 'never logged');
+    // removed
+    d = (await call('DELETE', '/api/smtp')).json;
+    assert.equal(d.smtp, false);
+    // the server's own mail server wins, and cannot be changed here
+    process.env.NI_SMTP_HOST = 'mail.server.example';
+    d = (await call('GET', '/api/digest')).json;
+    assert.deepEqual([d.mail.source, d.mail.host], ['server', 'mail.server.example']);
+    assert.equal((await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls' })).status, 409);
+    s2.close();
+  } finally { process.env = before; await srv.close(); }
+});

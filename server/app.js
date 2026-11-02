@@ -8,7 +8,7 @@ import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
-import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, smtpConfig } from './digest.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, sendTestMail, smtpConfig, smtpSettingsProblem } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
@@ -973,13 +973,52 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     const last = h.checks.find(c => c.name === 'Last backup'), copy = h.checks.find(c => c.name === 'Copy outside the server');
     return buildDigest(s, { link: set.link || process.env.NI_PUBLIC_URL || '', backups: last ? last.value : '', copy: copy && copy.state !== 'off' ? copy.value : '', health: h.checks });
   };
-  app.locals.sendDigest = async (now = new Date()) => { const m = digestNow(); await sendDigest(db, m, process.env, now, mailTransport); audit(db, null, `weekly e-mail sent (${m.count} item${m.count === 1 ? '' : 's'})`); return m; };
-  const digestInfo = () => ({ smtp: !!smtpConfig(), ...digestSettings(db), last: lastDigest(db) });
+  /* The mail server: the server's (NI_SMTP_*) or the one set here, its password kept sealed (app_secrets), never sent. */
+  const smtpSaved = () => { const v = settingOf(db, 'smtp'); return v && v.host ? { ...v, pass: getAppSecret(db, SECRET_KEY, 'smtpPassword') } : null; };
+  const smtpNow = () => smtpConfig(process.env, smtpSaved());
+  app.locals.smtpOn = () => !!smtpNow();
+  const smtpInfo = () => {
+    const c = smtpNow(), v = settingOf(db, 'smtp') || {};
+    if (c && c.source === 'server') return { source: 'server', host: c.host, port: c.port, user: c.auth ? c.auth.user : '', from: c.from };
+    return { source: c ? 'app' : null, host: v.host || '', port: v.port || 587, security: v.security || 'starttls', user: v.user || '', from: v.from || '', passwordSet: appSecretSetAt(db, 'smtpPassword') || '' };
+  };
+  app.put('/api/smtp', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      if (smtpConfig(process.env)) throw new HttpError(409, 'The mail server is set on the server (NI_SMTP_HOST): change it there.');
+      const b = req.body || {}, before = settingOf(db, 'smtp') || {};
+      const v = { host: String(b.host || '').trim(), port: Number(b.port), security: String(b.security || 'starttls'), user: String(b.user || '').trim(), from: String(b.from || '').trim() };
+      const p = smtpSettingsProblem(v); if (p) throw new HttpError(400, p);
+      const pw = typeof b.password === 'string' ? b.password : '';
+      if (pw.length > 500) throw new HttpError(400, 'The password is too long.');
+      writeDoc(db, 'setting', 'smtp', v);
+      /* The password goes with the server it was given for: another host or port, or no user, and it is dropped unless a
+         new one is given, so it cannot be sent to a server it was not meant for. */
+      if (pw) setAppSecret(db, SECRET_KEY, 'smtpPassword', pw);
+      else if (b.clearPassword || !v.user || before.host !== v.host || before.port !== v.port) dropAppSecret(db, 'smtpPassword');
+      audit(db, req.user.id, `mail server set: ${v.host}:${v.port} (${v.security})${v.user ? ', with sign-in' : ''}`);
+      res.json(digestInfo());
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/smtp', requireUser, requireAdmin, (req, res, next) => {
+    try {
+      db.prepare("DELETE FROM docs WHERE kind = 'setting' AND id = 'smtp'").run();
+      db.prepare("INSERT INTO revs (kind, id, rev) VALUES ('setting', 'smtp', 1) ON CONFLICT(kind, id) DO UPDATE SET rev = rev + 1").run();
+      dropAppSecret(db, 'smtpPassword');
+      audit(db, req.user.id, 'mail server removed');
+      res.json(digestInfo());
+    } catch (e) { next(e); }
+  });
+  app.post('/api/smtp/test', requireUser, requireAdmin, async (req, res, next) => {
+    try { await sendTestMail(smtpNow(), String((req.body || {}).to || '').trim(), mailTransport); audit(db, req.user.id, 'test e-mail sent'); res.json({ ok: true }); }
+    catch (e) { audit(db, req.user.id, 'test e-mail failed: ' + String(e.message || e).slice(0, 200)); next(new HttpError(400, String(e.message || e).slice(0, 300))); }
+  });
+  app.locals.sendDigest = async (now = new Date()) => { const m = digestNow(); await sendDigest(db, m, process.env, now, mailTransport, smtpNow()); audit(db, null, `weekly e-mail sent (${m.count} item${m.count === 1 ? '' : 's'})`); return m; };
+  const digestInfo = () => ({ smtp: !!smtpNow(), mail: smtpInfo(), ...digestSettings(db), last: lastDigest(db) });
   app.get('/api/digest', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json(digestInfo()));
   app.put('/api/digest', requireUser, requireAdmin, (req, res, next) => {
     try {
       const b = req.body || {}, cur = digestSettings(db);
-      if (b.on && !smtpConfig()) throw new HttpError(400, 'No mail server is set on the server: set NI_SMTP_HOST first.');
+      if ((b.on || b.reports) && !smtpNow()) throw new HttpError(400, 'No mail server is set: set it below first.');
       saveDigestSettings(db, { ...cur, ...b });
       const link = typeof b.link === 'string' && /^https?:\/\/[^\s"<>]{1,300}$/.test(b.link) ? b.link : cur.link;
       if (link) writeDoc(db, 'setting', 'digest', { ...settingOf(db, 'digest'), link });
@@ -1093,7 +1132,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
       /* At once to the admins, when turned on: after answering, so a slow mail server does not hold the page. */
       res.json({ ok: true });
-      sendReportMail(db, o, o.reported, process.env, mailTransport).then(sent => { if (sent) audit(db, null, `e-mail sent: problem reported on ${o.name}`); },
+      sendReportMail(db, o, o.reported, process.env, mailTransport, smtpNow()).then(sent => { if (sent) audit(db, null, `e-mail sent: problem reported on ${o.name}`); },
         e => audit(db, null, `e-mail about the problem on ${o.name} failed: ${String(e.message || e).slice(0, 200)}`));
     } catch (e) { next(e); }
   });

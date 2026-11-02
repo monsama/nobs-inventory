@@ -241,11 +241,44 @@ function wireTokens(){
 /* The weekly e-mail to the admins (server/digest.js): set up on the server (NI_SMTP_*), turned on and addressed here. */
 let DIGEST = null;
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/* The mail server, set here unless the server names one (NI_SMTP_*): host, port, security, sign-in and sender. The
+   password is sent once and kept sealed on the server; it is never shown again, only when it was set. */
+function mailHtml(m){
+  if (m.source === 'server') return `<details class="dg-mail"><summary>Mail server: ${esc(m.host)}:${m.port} <span class="muted">(set on the server)</span></summary><p class="note">It is set on the server (<span class="mono">NI_SMTP_HOST</span> and the others, see the README): change it there.${m.from ? ` Sent from ${esc(m.from)}.` : ''}</p>
+    <div class="bk-exrow"><input id="smTo" type="email" placeholder="Send a test to …" aria-label="Address for a test e-mail" style="flex:1"><button id="smTest">Send a test</button></div></details>`;
+  const sec = m.security || 'starttls';
+  return `<details class="dg-mail" ${m.source ? '' : 'open'}><summary>Mail server${m.source ? `: ${esc(m.host)}:${m.port}` : ': not set up'}</summary>
+    <div class="form" style="padding:8px 0 0">
+      <label for="smHost">Server</label><input id="smHost" value="${esc(m.host || '')}" placeholder="smtp.example.com" autocomplete="off">
+      <label for="smSec">Security</label><div class="bk-exrow"><select id="smSec">
+        <option value="starttls" ${sec === 'starttls' ? 'selected' : ''}>STARTTLS (port 587)</option>
+        <option value="tls" ${sec === 'tls' ? 'selected' : ''}>TLS from the start (port 465)</option>
+        <option value="none" ${sec === 'none' ? 'selected' : ''}>None, a relay in the network (port 25)</option></select>
+        <input id="smPort" type="number" min="1" max="65535" value="${esc(String(m.port || 587))}" aria-label="Port" style="width:90px"></div>
+      <label for="smUser">Sign in as</label><input id="smUser" value="${esc(m.user || '')}" placeholder="Empty: no sign-in" autocomplete="off">
+      <label for="smPw">Password</label><input id="smPw" type="password" autocomplete="new-password" placeholder="${m.passwordSet ? `Set on ${esc(pushDate(m.passwordSet))}: empty keeps it` : 'The password of that account'}">
+      <label for="smFrom">Sender</label><input id="smFrom" value="${esc(m.from || '')}" placeholder="inventory@example.com (empty: the sign-in name)">
+    </div>
+    <p class="note">The password is kept sealed on the server and never shown again. Changing the server or port asks for it again.</p>
+    <div class="bk-exrow"><input id="smTo" type="email" placeholder="Send a test to …" aria-label="Address for a test e-mail" style="flex:1"><button id="smTest" ${m.source ? '' : 'disabled'}>Send a test</button>${m.source ? '<button id="smDel" class="danger-text">Remove</button>' : ''}<button id="smSave" class="primary">Save mail server</button></div></details>`;
+}
+function wireMail(){
+  const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
+  const sec = $('#smSec'), port = $('#smPort');
+  if (sec) sec.onchange = () => { port.value = { starttls: 587, tls: 465, none: 25 }[sec.value]; };
+  const sv = $('#smSave');
+  if (sv) sv.onclick = () => call('PUT', 'api/smtp', { host: $('#smHost').value, port: Number(port.value), security: sec.value, user: $('#smUser').value, password: $('#smPw').value, from: $('#smFrom').value })
+    .then(j => { DIGEST = j; renderSetMaint(); toast('Mail server saved: send a test to check it'); }, e => toast(e.message));
+  const del = $('#smDel');
+  if (del) del.onclick = () => { if (!confirm('Remove the mail server? The weekly e-mail stops until one is set again.')) return; call('DELETE', 'api/smtp').then(j => { DIGEST = j; renderSetMaint(); toast('Mail server removed'); }, e => toast(e.message)); };
+  const t = $('#smTest');
+  if (t) t.onclick = () => { t.disabled = true; call('POST', 'api/smtp/test', { to: $('#smTo').value }).then(() => toast('Test e-mail sent: check the inbox'), e => toast(e.message)).finally(() => { t.disabled = false; }); };
+}
 function digestPanel(){
   const d = DIGEST; if (!d) return '';
   const l = d.last;
   return `<div class="panelbox"><div class="hdr">Weekly e-mail ${!d.smtp ? '<span class="chip kept">Not set up</span>' : d.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}</div>
-    <p class="note" style="padding:10px 12px">Once a week, a short list of what needs doing: warranties ending, contract notices due, people who left with devices, devices waiting in To review, the last backup, and what Health marks bad.${d.smtp ? '' : ' Optional: set the mail server on the server first (<span class="mono">NI_SMTP_HOST</span>, <span class="mono">NI_SMTP_PORT</span>, <span class="mono">NI_SMTP_USER</span>, <span class="mono">NI_SMTP_PASSWORD_FILE</span>, <span class="mono">NI_SMTP_FROM</span>; see the README).'}</p>
+    <p class="note" style="padding:10px 12px">Once a week, a short list of what needs doing: warranties ending, contract notices due, people who left with devices, devices waiting in To review, maintenance due, the last backup, and what Health marks bad.${d.smtp ? '' : ' Set the mail server below first.'}</p>
     ${d.smtp ? `<div class="form" style="padding:0 12px 10px">
       <label for="dgTo">Send to</label><input id="dgTo" placeholder="it@example.com, lead@example.com" value="${esc((d.to || []).join(', '))}">
       <label for="dgDay">When</label><div class="bk-exrow"><select id="dgDay">${DAYS.map((n, i) => `<option value="${i}" ${i === d.day ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="dgHour" aria-label="Hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === d.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select>
@@ -253,9 +286,10 @@ function digestPanel(){
       <span></span><label class="pchk" style="width:auto"><input type="checkbox" id="dgRep" ${d.reports ? 'checked' : ''}> Also send each problem a device's user reports, at once</label>
       </div>
       <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
-        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}</div>`;
+        <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}${mailHtml(d.mail || {})}</div>`;
 }
 function wireDigest(){
+  wireMail();
   const sv = $('#dgSave'); if (!sv) return;
   const body = () => ({ to: $('#dgTo').value, day: Number($('#dgDay').value), hour: Number($('#dgHour').value), on: $('#dgOn').checked, reports: $('#dgRep').checked, link: location.origin + location.pathname.replace(/[^/]*$/, '') });
   const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };

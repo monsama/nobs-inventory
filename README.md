@@ -210,7 +210,7 @@ The app uploads and never deletes in the cloud: set a lifecycle rule there for h
 
 ### Weekly e-mail (optional)
 
-Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), then in Settings → Maintenance → Weekly e-mail give the addresses, the day and hour, and use Preview and Send now once.
+Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in Settings → Maintenance → Weekly e-mail → Mail server (server, security, sign-in, password, sender; the password is kept sealed on the server, never shown again, and dropped when the server or port changes), or in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), which then wins. Then in Settings → Maintenance → Weekly e-mail give the addresses, the day and hour, and use Preview and Send now once.
 
 ## Development
 
