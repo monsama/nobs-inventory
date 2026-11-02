@@ -479,8 +479,9 @@ export function sourceOf(o, k){
   const s = o.src && o.src[k];
   if (s) return s;
   if (o.pick && o.pick[k] === 'hand') return 'hand';
-  if (FIELD_LABEL[k] && feedLinked(o) && (feedOwns(o, k) || (o.feed && o.feed.created))) return 'ls';
-  if (o.graph && o.graph.added && ['model', 'os', 'serial', 'user'].includes(k)) return 'graph';
+  /* A device a sync added: its name and serial number came from there too, not only the fields it keeps up to date. */
+  if (feedLinked(o) && ((FIELD_LABEL[k] && feedOwns(o, k)) || (o.feed && o.feed.created && (FIELD_LABEL[k] || k === 'name' || k === 'serial')))) return 'ls';
+  if (o.graph && o.graph.added && ['name', 'model', 'os', 'serial', 'user'].includes(k)) return 'graph';
   if (!o.feed && !(o.graph && o.graph.added)) return 'hand';
   return 'unknown';
 }

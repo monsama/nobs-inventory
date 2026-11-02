@@ -105,6 +105,14 @@ export function migrateState(s) {
   }
   /* People deactivated before 0.9.79 have no date they left: they get today, marked as at the latest then (leftBy), so
      the Overview says "left before" and the hand-back is due from now on, not from an unknown day. */
+  /* Before 0.9.88 a device added from Active Directory or Graph had no source noted for its name, so it read as typed
+     by hand (or unknown): its first history entry says where it came from. */
+  for (const o of s.objs || []) {
+    if (!o || !o.name || (o.src && o.src.name)) continue;
+    const first = ((s.history || {})[o.id] || []).slice(-1)[0], msg = first ? String(first.msg || '') : '';
+    const src = /^(Added from Active Directory|Found in Active Directory)/.test(msg) ? 'ad' : /^(Added from Microsoft Graph|Found in Microsoft Entra or Intune)/.test(msg) ? 'graph' : '';
+    if (src) { o.src = { ...(o.src || {}), name: src }; changed = true; }
+  }
   /* Before 0.9.88 a device could also be Not in use or In repair: both are In stock now (in use, in stock or retired). */
   for (const o of [...(s.objs || []), ...(s.review || [])]) if (o && ['unused', 'repair'].includes(o.status)) { o.status = 'stock'; changed = true; }
   for (const u of s.users || []) if (u && u.active === false && !u.leftAt) { u.leftAt = new Date().toISOString(); u.leftBy = true; changed = true; }

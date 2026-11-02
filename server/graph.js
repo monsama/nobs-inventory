@@ -494,6 +494,7 @@ export function addFromGraph(s, ids, who, now = new Date(), { review = false } =
     const o = { id: 'o' + s.seq, code: 'INV-' + String(s.codeN).padStart(4, '0'), type: graphType(s, d), name: d.name, serial: d.serial || '', status: 'active',
       loc: '', feed: null, ...(d.model ? { model: d.model } : {}), ...(d.os ? { os: d.os } : {}), ...(d.owner ? { user: d.owner } : {}),
       graph: { id: d.id, join: d.join, managed: d.managed, compliance: d.compliance, lastSync: d.lastSync, seen: at, added: true },
+      src: { name: 'graph', ...(d.serial ? { serial: 'graph' } : {}), ...(d.model ? { model: 'graph' } : {}), ...(d.os ? { os: 'graph' } : {}) },
       ...(review ? { review: { src: 'graph', at } } : {}) };
     s.objs.push(o);
     (s.history[o.id] ??= []).unshift({ t: at, msg: review ? 'Found in Microsoft Entra or Intune: waiting in To review' : `Added from Microsoft Graph by ${who}` });
