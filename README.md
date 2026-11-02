@@ -117,7 +117,7 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 
 ## Overview, costs, contracts and licences
 
-- **Overview** (first tab): devices in use, what needs attention (ended or ending warranties, contract notices due, over-used licences, devices in repair), yearly cost of running contracts and licences, the value of the devices in use, and devices by type, site and status. Every line opens the list behind it.
+- **Overview** (first tab): devices in use, what needs attention (ended or ending warranties, contract notices due, over-used licences), yearly cost of running contracts and licences, the value of the devices in use, and devices by type, site and status. Every line opens the list behind it.
 - **Device costs**: each device has Price, Supplier and Invoice no. under Properties. The Table can show them (Columns menu) and the CSV export includes them, with the purchase and warranty dates.
 - **Contracts** tab: maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
 - **Licences** (Software tab): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
