@@ -35,6 +35,8 @@ try {
   assert.match(menu, /Active Directory.*not run yet/s);
   assert.equal(await p.locator('#syncMenu [data-sync="lansweeper"]').count(), 0, 'a push cannot be started from here');
   assert.equal(await p.locator('#syncMenu [data-sync="all"]').count(), 0, 'one source to run: no Sync all');
+  assert.equal(await p.locator('#syncMenu #reloadBtn').count(), 1, 'Reload is in the Sync menu');
+  assert.equal(await p.locator('#tabsbar #reloadBtn').count(), 0, 'not a second button beside it');
 
   // a sync that fails: red button, the reason in the menu, a way to its settings
   await p.click('#syncMenu [data-sync="ldap"]');

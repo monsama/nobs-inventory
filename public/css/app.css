@@ -1739,3 +1739,4 @@ details.how[open]>summary{margin-bottom:4px}
 .ds-adv{margin:8px 0 0}
 .ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--linktext);border-top:1px solid var(--line)}
 .ukinds{border-top:1px solid var(--bd)}
+.sync-reload{border-top:1px solid var(--bd);margin-top:4px;padding-top:8px}

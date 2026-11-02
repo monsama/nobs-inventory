@@ -154,7 +154,7 @@ export function applyRole(){
   const ro = !canEdit();
   document.body.classList.toggle('readonly', ro);
   /* Someone who cannot add or link sees no buttons for it, rather than disabled ones. */
-  $('#newBtn').disabled = ro; $('#linkBtn').disabled = ro; $('#newBtn').hidden = ro; $('#linkBtn').hidden = ro;
+  $('#newBtn').disabled = ro; $('#newBtn').hidden = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   /* An editor changes devices, not the settings: Settings stays read only for them, as for a viewer. */

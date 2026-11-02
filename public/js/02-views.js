@@ -256,7 +256,7 @@ export function renderTabs(){
   /* To review sits on its own at the right end of the bar: an inbox, not one of the views. */
   /* Sync (admins) and To review sit on their own at the right end of the bar: actions and an inbox, not views. */
   /* Reload: what others (or a Lansweeper push) changed on the server, now, instead of at the next check. */
-  const reload = SERVER.on ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span class="tlbl">Reload</span></button>` : '';
+  const reload = SERVER.on && !syncButtonHtml() ? `<button type="button" id="reloadBtn" class="tab sync-btn" title="Reload: show what changed on the server since this page loaded"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg><span class="tlbl">Reload</span></button>` : '';
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');
   $('#tabsbar').innerHTML = views.filter(id => id !== 'review').map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + reload + sync
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');

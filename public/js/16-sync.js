@@ -58,7 +58,7 @@ function menuHtml(){
     return `<div class="sync-row"><div class="sync-what"><b>${s.label}</b>${status}</div>${btn}</div>`;
   };
   const runnable = list.filter(([, c]) => c).length;
-  return `${runnable > 1 ? `<button type="button" class="primary sync-all" data-sync="all" ${running ? 'disabled' : ''}>${running === 'all' ? 'Syncing…' : 'Sync all'}</button>` : ''}${list.map(line).join('')}`;
+  return `${runnable > 1 ? `<button type="button" class="primary sync-all" data-sync="all" ${running ? 'disabled' : ''}>${running === 'all' ? 'Syncing…' : 'Sync all'}</button>` : ''}${list.map(line).join('')}<div class="sync-row sync-reload"><div class="sync-what"><b>This page</b><span class="muted">what others changed since it loaded</span></div><button type="button" id="reloadBtn">Reload</button></div>`;
 }
 function closeMenu(){ const m = $('#syncMenu'); if (m) m.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', onKey, true); }
 const outside = e => { if (!e.target.closest('#syncMenu') && !e.target.closest('#syncBtn')) closeMenu(); };
