@@ -249,13 +249,13 @@ export function renderSetFeed(){
   if (edit && pushInfo === undefined) loadPushInfo();
   const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
     <div class="note" style="padding:10px 12px 6px">
-      <p style="margin:0 0 6px"><b>Setup on the Lansweeper server</b></p>
+      <details class="how" ${pushInfo ? '' : 'open'}><summary>Setup on the Lansweeper server</summary>
       <ol style="margin:0;padding-left:20px;line-height:1.6">
         <li>Create a token below and copy it. It is shown once, and it is the password the script uses for this inventory.</li>
         <li>Get the script from <a class="link" style="text-decoration:underline" href="https://github.com/monsama/nobs-inventory/blob/main/scripts/Lansweeper-Push.ps1" target="_blank" rel="noopener">GitHub (scripts/Lansweeper-Push.ps1)</a>, or use <b>Download script</b> below, which already has this address in it.</li>
         <li>In PowerShell on the Lansweeper server, run <code>.\Lansweeper-Push.ps1</code>. The first time it asks for this inventory's address and the token, checks both, keeps them, and sends the data. <code>-Setup</code> asks again; <code>-DryRun</code> only shows what it would send.</li>
       </ol>
-      <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p>
+      <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p></details>
     </div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span>
     ${pushStatus()}</div>

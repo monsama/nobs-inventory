@@ -40,6 +40,8 @@ const groupsOf = () => { const known = FIELD_GROUPS.flatMap(g => g[1]); const ot
 const globalOff = src => (src === 'graph' && st.fillGraph === false) || (src === 'ad' && st.fillAd === false);
 const list = names => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 /* What the order of field k means, in one plain sentence: who sets it, who only fills a gap, who is only shown. */
+/* The field-by-field table stays open while this page is open, once opened. */
+let advOpen = false;
 export function orderSentence(k, order, modes = st.fieldMode){
   const used = order.filter(x => !globalOff(x)), shown = SOURCES_OF(k).filter(x => !used.includes(x));
   if (!used.length) return `No source writes it: it is kept as typed.${shown.length ? ` ${list(shown.map(x => SHORT[x]))} ${shown.length === 1 ? 'is' : 'are'} shown beside the field.` : ''}`;
@@ -162,8 +164,8 @@ export function renderSetSources(){
   const matrix = `<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? '<th><span class="sr-only">Change</span></th>' : ''}</tr></thead>
     ${groupsOf().map(([name, keys]) => `<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${esc(name)}</th></tr>${keys.map(row).join('')}</tbody>`).join('')}</table>`;
   /* One explanation, used everywhere on this page. */
-  const fieldNote = `<div class="ds-explain"><p><b>How a field is filled:</b> a value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
-    <p><b>Updates</b>: the source keeps the field in step with what it reports. <b>Only if empty</b>: it writes the field only while it is empty and never replaces a value. A source that is <b>shown only</b> writes nothing; its value is beside the field on the device page, to pick there.${edit ? ' Changes apply at each source\'s next sync, after a preview of what they change.' : ''}</p></div>`;
+  const fieldNote = `<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
+    <p><b>Updates</b>: the source keeps the field in step with what it reports. <b>Only if empty</b>: it writes the field only while it is empty and never replaces a value. A source that is <b>shown only</b> writes nothing; its value is beside the field on the device page, to pick there.${edit ? ' Changes apply at each source\'s next sync, after a preview of what they change.' : ''}</p></div></details>`;
   /* Three common setups, each one click (with the preview and Undo). */
   const presets = edit ? `<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => `<button type="button" data-dspreset="${k}" title="${esc(tip)}">${esc(l)}</button>`).join('')}</div>` : '';
   const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${Object.keys(st.fieldOrder).length} field${Object.keys(st.fieldOrder).length === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
@@ -171,7 +173,7 @@ export function renderSetSources(){
     <dl class="ds-dl">${list.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>`).join('');
 
   root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">What each source brings into the inventory and how it is set up here now. This page is drawn from the same lists the syncs use, so it always shows what they do.</p><div class="ds-cards">${cards}</div></div>
-    <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote}${presets}<div class="ds-scroll">${matrix}</div>${reset}</div>
+    <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrix}</div>${reset}</details></div>
     <div class="panelbox"><div class="hdr">Beyond the fields</div><div class="ds-cards ds-wide">${extras}</div></div>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
@@ -184,6 +186,7 @@ export function renderSetSources(){
   });
   root.querySelectorAll('[data-dshand]').forEach(b => b.onclick = () => { resetFilters(); st.handField = b.dataset.dshand; st.scope = null; st.tab = 'table'; closeModal(); render(); });
   if (!edit) return;
+  const adv = $('#dsAdv'); if (adv) adv.ontoggle = () => { advOpen = adv.open; };
   root.querySelectorAll('[data-dsedit]').forEach(b => b.onclick = () => editOrder(b.dataset.dsedit, on));
   root.querySelectorAll('[data-dspreset]').forEach(b => b.onclick = () => {
     const [name] = PRESETS[b.dataset.dspreset], next = presetOf(b.dataset.dspreset);

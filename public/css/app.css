@@ -1730,3 +1730,11 @@ table.stack>tbody>tr>td{max-width:none}
 /* Settings: a group's own tabs, in a quieter row under the main ones. */
 .settabs.setsub{padding:4px 10px;background:var(--panel)}.settabs.setsub .tab{font-size:13px;min-height:0;padding:4px 10px}
 #setAbout{font-size:13px}
+
+/* Explanations and step lists folded behind their title (0.9.88) */
+details.how{margin:6px 0}
+details.how>summary{cursor:pointer;font-size:12.5px;color:var(--accent);padding:2px 0;width:max-content;max-width:100%}
+details.how[open]>summary{margin-bottom:4px}
+.u-how,.ds-how{margin:8px 12px}
+.ds-adv{margin:8px 0 0}
+.ds-adv>summary{cursor:pointer;padding:8px 12px;font-size:13px;color:var(--accent);border-top:1px solid var(--line)}
