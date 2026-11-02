@@ -1726,3 +1726,7 @@ table.stack>tbody>tr>td{max-width:none}
 .form>label:has(+ .sheet-pwopt),.form>label:has(+ div .pchk:first-child){align-self:start;padding-top:2px}
 .form2>label[for=mtNote],.form2>label[for=repNote]{align-self:start;padding-top:6px}
 .form2{grid-template-columns:110px minmax(0,1fr)}
+
+/* Settings: a group's own tabs, in a quieter row under the main ones. */
+.settabs.setsub{padding:4px 10px;background:var(--panel)}.settabs.setsub .tab{font-size:13px;min-height:0;padding:4px 10px}
+#setAbout{font-size:13px}

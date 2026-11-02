@@ -9,7 +9,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { eventually } from './until.mjs';
+import { eventually, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-photos-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -119,7 +119,7 @@ try {
   });
   assert.equal(big.mime, 'image/png');
   const before = db.prepare('SELECT SUM(bytes) AS b FROM device_images').get().b;
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=maintenance]');
+  await page.click('#setBtn'); await openSetTab(page, 'maintenance');
   await page.waitForSelector('#psRun');
   assert.match(await page.textContent('#psStatus'), /2 photos of devices and racks/);
   await page.click('#psRun');

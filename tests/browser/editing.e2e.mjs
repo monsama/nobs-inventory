@@ -6,7 +6,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -38,7 +38,7 @@ try {
   const core = f => p.evaluate(f);
 
   // a user's name and department; the device moves to the new name
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=users]');
+  await p.click('#setBtn'); await openSetTab(p, 'users');
   await p.fill('#setUsers [aria-label="Name of Beat Keller"]', 'Beat Keller-Frei'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').user === 'Beat Keller-Frei');
   await p.fill('#setUsers [aria-label="Department of Beat Keller-Frei"]', 'Logistik'); await p.keyboard.press('Tab');
@@ -46,7 +46,7 @@ try {
   assert.equal(await p.locator('#setUsers [aria-label="Name of Administrator"]').count(), 1, 'a manual admin can be renamed too');
 
   // a domain's name; the object moves with it
-  await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('[data-dname="0"]');
+  await openSetTab(p, 'vlans'); await p.waitForSelector('[data-dname="0"]');
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
   // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest

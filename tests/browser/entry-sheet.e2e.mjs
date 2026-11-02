@@ -7,6 +7,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { openSetTab } from './until.mjs';
 import { pdfText } from '../pdf-text.js';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-sheet-'));
@@ -37,7 +38,7 @@ try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=users]');
+  await page.click('#setBtn'); await openSetTab(page, 'users');
   // the company: its name and logo go on the sheets instead of NOBS Inventory; an SVG logo is kept as a PNG
   await page.fill('#coName', 'Example AG'); await page.locator('#coName').press('Tab');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';

@@ -5,7 +5,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState } from '../../server/state.js';
 import { seedBasics } from '../helpers.js';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -25,14 +25,14 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   // Object types: add a text field for PCs.
   await p.click('#setBtn');
-  await p.click('#setTabs [data-st=types]');
+  await openSetTab(p, 'types');
   await p.waitForSelector('#tfType');
   await p.selectOption('#tfType', 'pc');
   await p.fill('#tfLabel', 'Asset tag');
   await p.click('#tfAdd');
   await until(p, async () => (await import('/js/01-core.js')).TYPE_FIELDS.pc?.[0]?.key === 'asset_tag');
   // Domains are defined once in Settings and picked from a dropdown on the PC.
-  await p.click('#setTabs [data-st=vlans]'); await p.waitForSelector('#dmName');
+  await openSetTab(p, 'vlans'); await p.waitForSelector('#dmName');
   await p.fill('#dmName', 'corp.test'); await p.click('#dmAdd');
   await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.test'));
   await p.click('#setClose');
@@ -45,7 +45,7 @@ try {
   for (let i = 0; i < 150 && (loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag !== 'AT-42'; i++) await new Promise(r => setTimeout(r, 100));
   assert.equal((loadState(db).objs.find(o => o.id === 'o2').custom || {}).asset_tag, 'AT-42', 'the value is saved when the field is left');
   // Built-in fields: a PC's Firmware is renamed BIOS and its Disks are hidden; the object page shows that.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]'); await p.waitForSelector('#tfType');
+  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('#tfType');
   await p.selectOption('#tfType', 'pc');
   await p.fill('[data-flab="fw"]', 'BIOS'); await p.press('[data-flab="fw"]', 'Tab');
   await until(p, async () => (await import('/js/01-core.js')).FIELD_LAYOUT.pc?.labels?.fw === 'BIOS');
@@ -68,7 +68,7 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('ph1'));
   await p.waitForSelector('#f_ph1_mac');
   assert.equal(await p.locator('#f_ph1_ip').count(), 0, 'a phone starts without its IP address');
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=types]'); await p.waitForSelector('#tfType');
+  await p.click('#setBtn'); await openSetTab(p, 'types'); await p.waitForSelector('#tfType');
   await p.selectOption('#tfType', 'pc');
   const row = k => p.locator(`.tf-row:has([data-flab="${k}"])`);
   assert.match(await row('boot').textContent(), /Only while Lansweeper is on/);

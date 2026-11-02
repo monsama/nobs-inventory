@@ -6,7 +6,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-phone-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -52,7 +52,7 @@ try {
   }
   await p.click('#setBtn');
   for (const tab of ['feed', 'directory', 'locations', 'vlans', 'types', 'users', 'maintenance', 'log', 'about']) {
-    await p.click(`#setTabs [data-st=${tab}]`).catch(() => {});
+    await openSetTab(p, tab).catch(() => {});
     await p.waitForTimeout(150);
     const extra = await sideways();
     if (extra > 1) problems.push(`settings ${tab}: ${extra}px wider than the screen`);

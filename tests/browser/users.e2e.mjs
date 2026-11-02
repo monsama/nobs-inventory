@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-e2e-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -38,7 +39,7 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForFunction(() => /Admin/.test(document.querySelector('#whoBtn').textContent));
 
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=users]');
+  await page.click('#setBtn'); await openSetTab(page, 'users');
   const rows = await page.locator('#setUsers tbody tr').count();
   assert.equal(rows, 3, 'three users are listed');
   await page.locator('[data-role="1"]').selectOption('admin');

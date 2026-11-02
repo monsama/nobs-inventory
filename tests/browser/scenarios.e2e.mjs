@@ -10,7 +10,7 @@ import { seedBasics } from '../helpers.js';
 import { loadState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-scen-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -108,7 +108,7 @@ try {
   assert.ok(await state(p, async () => { const c = await import('/js/01-core.js'); return c.objs.filter(o => o.name === 'CSV-A').length === 1 && c.byName('CSV-A').model === 'Model A2'; }), 'the CSV row did not update the device');
 
   // LDAP: without a server address the test and sync are off; an address saved here is used by the server.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=directory]');
+  await p.click('#setBtn'); await openSetTab(p, 'directory');
   assert.equal(await p.isDisabled('#ldapSync'), true, 'the LDAP sync is on without a server address');
   await p.fill('#lk_url', 'ldaps://127.0.0.1:1'); await p.press('#lk_url', 'Tab');
   await waitServer(() => loadState(db).ldap && loadState(db).ldap.url === 'ldaps://127.0.0.1:1', 'the LDAP address');
@@ -118,7 +118,7 @@ try {
   await p.click('#setClose');
 
   // Feed: a Lansweeper export creates an object; a second export with a new IP updates it.
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=feed]');
+  await p.click('#setBtn'); await openSetTab(p, 'feed');
   const csv1 = path.join(dir, 'feed1.csv');
   fs.writeFileSync(csv1, 'AssetName,Serial,IPAddress,OS\nFEED-PC-1,SN-FEED-1,10.1.1.5,Windows 11\n');
   await p.setInputFiles('#feedUp', csv1);

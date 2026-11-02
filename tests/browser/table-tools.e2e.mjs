@@ -7,7 +7,7 @@ import { bootstrap } from '../../server/index.js';
 import { seedBasics } from '../helpers.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-tools-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -24,7 +24,7 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
 
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=about]');
+  await p.click('#setBtn'); await openSetTab(p, 'about');
   await p.waitForSelector('.btnlike[href*="buymeacoffee"]');
   assert.equal(await p.evaluate(() => !!document.querySelector('.btnlike[href*="buymeacoffee"] svg')), true, 'the coffee button has no icon');
   assert.equal(await p.evaluate(() => getComputedStyle(document.querySelector('.btnlike[href*="buymeacoffee"]')).textDecorationLine), 'none', 'the coffee button is underlined');

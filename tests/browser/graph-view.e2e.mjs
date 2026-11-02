@@ -7,7 +7,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
-import { until } from './until.mjs';
+import { until, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 import { eventually } from './until.mjs';
@@ -121,7 +121,7 @@ try {
 
   // Settings: a Graph record that fits two devices here is listed there
   await p.click('#clearF');
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=entra]');
+  await p.click('#setBtn'); await openSetTab(p, 'entra');
   await p.waitForSelector('#gaList');
   assert.match(await p.textContent('#gaList'), /Kiosk.*name.*INV-k1 KIOSK.*INV-k2 kiosk/s);
   assert.equal(await p.inputValue('#intake_graph'), 'review', 'new devices from Graph wait in To review by default');

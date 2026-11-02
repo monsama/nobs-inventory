@@ -24,15 +24,22 @@ export * from './settings-types.js';
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 /* What everyone sets up first comes first; the sources (each optional) after them. */
 export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['log','Log'],['about','About']];
+/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and the log under Maintenance, each
+   group with a row of its own; About is a link at the foot. */
+const SET_GROUPS = { sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Maintenance'], ['log', 'Log']] };
+const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['maintenance','Maintenance']];
+export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
   resetSubnetEdit();
   modal(`<div class="mh">Settings</div>
-    <div class="settabs" id="setTabs">${SET_TABS.map(([k,l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
+    <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? `<button class="tab" data-sg="${k}">${l}</button>` : `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
+      ${Object.entries(SET_GROUPS).map(([g, list]) => `<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
-  $('#setTabs').addEventListener('click', e => { const t = e.target.closest('[data-st]'); if (!t) return; st.setTab = t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; });
+    <div class="mf"><button type="button" class="link" id="setAbout" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
+  const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? g.dataset.sg : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
+  $('#setTabs').addEventListener('click', go); $('#setAbout').addEventListener('click', go);
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();
@@ -57,7 +64,10 @@ export function collapsibleSections(root, prefix){
   apply();
 }
 export function renderSetPane(){
+  const grp = setGroupOf(st.setTab);
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
+  document.querySelectorAll('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
+  document.querySelectorAll('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
   const html = {

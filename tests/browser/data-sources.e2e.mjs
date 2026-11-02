@@ -6,7 +6,7 @@ import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import { AD_FILL, GRAPH_FILL, LS_FIELDS, LS_FILL } from '../../public/js/sync-map.js';
-import { until, storedBy } from './until.mjs';
+import { until, storedBy, openSetTab } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -34,7 +34,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await p.click('#setBtn'); await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   // one row per field any sync knows
   const fields = new Set([...LS_FIELDS, ...Object.keys(LS_FILL), ...Object.keys(GRAPH_FILL), ...Object.keys(AD_FILL), 'loc']);
   assert.equal(await p.locator('.ds-matrix tbody tr:not(.ds-grp)').count(), fields.size);
@@ -62,11 +62,11 @@ try {
   await p.waitForSelector('#fbar');
   assert.match(await p.textContent('#fbar'), /Changed by Lansweeper on/);
   assert.equal(await p.locator('table.grid tbody tr').count(), 2);
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await p.click('#setBtn'); await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   // a setting changed on the Lansweeper tab shows here at once
-  await p.click('#setTabs [data-st=feed]'); await p.waitForSelector('[data-pol=disk]');
+  await openSetTab(p, 'feed'); await p.waitForSelector('[data-pol=disk]');
   await p.check('[data-pol=disk]');
-  await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   assert.equal(await chain('Disks'), '1Lansweeper › 2Entra & Intune');
   // Change…: the sources as a list, moved up and down, what it means said as it changes
   const reorderOs = async () => {
@@ -97,10 +97,10 @@ try {
   await p.click('#dsSave'); await p.waitForSelector('.ds-matrix');
   await stored(st => JSON.stringify((st.fieldOrder || {}).ip) === '[]' && st.policy.ip === false);
   assert.equal(await chain('IP address'), 'Kept as typed shown only: Lansweeper');
-  await p.click('#setTabs [data-st=feed]'); await p.waitForSelector('[data-pol=ip]');
+  await openSetTab(p, 'feed'); await p.waitForSelector('[data-pol=ip]');
   assert.equal(await p.isChecked('[data-pol=ip]'), false);
   await p.check('[data-pol=ip]');
-  await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   assert.equal(await chain('IP address'), '1Lansweeper');
   // one field back to its default, from its dialog; then all of them
   await row('IP address').locator('[data-dsedit]').click(); await p.click('#dsDefault');
@@ -126,7 +126,7 @@ try {
   // a value set by hand: counted on its row, opened as a list, given back to the sources (with Undo)
   saveState(db, { ...loadState(db), objs: loadState(db).objs.map(o => o.id === 'e' ? { ...o, os: 'Typed', src: { os: 'hand' } } : o) });
   await p.reload(); await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await p.click('#setBtn'); await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   await p.click('[data-dshand=os]');
   await p.waitForSelector('[data-handback]');
   assert.match(await p.textContent('body'), /Set by hand: Operating system/);
@@ -134,9 +134,9 @@ try {
   await stored(st => st.objs.find(o => o.id === 'e').src?.os !== 'hand');
   await p.click('#toast .t-undo');
   await stored(st => st.objs.find(o => o.id === 'e').src?.os === 'hand');
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=sources]'); await p.waitForSelector('.ds-matrix');
+  await p.click('#setBtn'); await openSetTab(p, 'sources'); await p.waitForSelector('.ds-matrix');
   // Settings → Locations lists the location texts of the sources; one used as a new room places its devices there, Undo takes it back
-  await p.click('#setTabs [data-st=locations]'); await p.waitForSelector('#adLocs');
+  await openSetTab(p, 'locations'); await p.waitForSelector('#adLocs');
   assert.match(await p.textContent('#adLocs'), /Raum 3\.12\s*AD\s*2/);
   assert.match(await p.textContent('#adLocs'), /bern \/ eg\s*AD\s*1\s*Is a room here/);
   assert.match(await p.textContent('#adLocs'), /HQ \/ Lager\s*Lansweeper\s*1/);

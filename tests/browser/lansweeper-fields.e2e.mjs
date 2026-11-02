@@ -7,6 +7,7 @@ import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
+import { openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-lsfields-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -62,7 +63,7 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').warranty === '2030-01-31');
 
   // Settings: a subnet the adapters report is offered, and Use fills in the form
-  await page.click('#setBtn'); await page.click('#setTabs [data-st=vlans]'); await page.waitForSelector('.sn-suggest');
+  await page.click('#setBtn'); await openSetTab(page, 'vlans'); await page.waitForSelector('.sn-suggest');
   assert.match(await page.textContent('.sn-suggest'), /172\.21\.108\.0\/24.*3 devices.*Bern Lager/s);
   await page.click('[data-snuse="0"]');
   // Use opens the editor filled in: name, gateway, the device types seen there, and a range per kind of address seen

@@ -8,7 +8,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { eventually } from './until.mjs';
+import { eventually, openSetTab } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-editor-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -35,7 +35,7 @@ const stored = () => loadState(db);
 try {
   // the admin makes Eva an editor of Bern
   const a = await page('admin', 'adminpass123');
-  await a.click('#setBtn'); await a.click('#setTabs [data-st=users]');
+  await a.click('#setBtn'); await openSetTab(a, 'users');
   const i = await a.evaluate(async () => (await import('/js/04-settings.js')).USERS.findIndex(u => u.id === 'u-ed'));
   await a.locator(`[data-role="${i}"]`).selectOption('editor');
   /* Made an editor: which sites is asked at once. */
@@ -91,7 +91,7 @@ try {
   await p.click('#nOk');
   await eventually(() => stored().objs.some(o => o.name === 'NB-NEW' && o.loc === 'Bern / OG'));
   // Settings: read only, but for adding a room in her own site
-  await p.click('#setBtn'); await p.click('#setTabs [data-st=locations]');
+  await p.click('#setBtn'); await openSetTab(p, 'locations');
   await p.waitForSelector('#setPane input, #setPane button');
   assert.match(await p.textContent('.ro-banner'), /Read only\.[\s\S]*add rooms in your sites/);
   const open = await p.$$eval('#setPane input:not([type=search]):enabled, #setPane select:enabled', l => l.map(e => e.id));
