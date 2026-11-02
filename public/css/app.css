@@ -1693,4 +1693,4 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .dg-mail{padding:10px 12px;border-top:1px solid var(--bd2)}
 .dg-mail summary{cursor:pointer;font-weight:600}
 .dg-mail .form,.dg-mail .bk-exrow{max-width:760px}
-.dg-mail #smSec{width:auto;flex:1}
+.dg-mail #smPort{max-width:120px}

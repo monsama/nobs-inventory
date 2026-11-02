@@ -250,11 +250,11 @@ function mailHtml(m){
   return `<details class="dg-mail" ${m.source ? '' : 'open'}><summary>Mail server${m.source ? `: ${esc(m.host)}:${m.port}` : ': not set up'}</summary>
     <div class="form" style="padding:8px 0 0">
       <label for="smHost">Server</label><input id="smHost" value="${esc(m.host || '')}" placeholder="smtp.example.com" autocomplete="off">
-      <label for="smSec">Security</label><div class="bk-exrow"><select id="smSec">
+      <label for="smSec">Security</label><select id="smSec">
         <option value="starttls" ${sec === 'starttls' ? 'selected' : ''}>STARTTLS (port 587)</option>
         <option value="tls" ${sec === 'tls' ? 'selected' : ''}>TLS from the start (port 465)</option>
         <option value="none" ${sec === 'none' ? 'selected' : ''}>None, a relay in the network (port 25)</option></select>
-        <input id="smPort" type="number" min="1" max="65535" value="${esc(String(m.port || 587))}" aria-label="Port" style="width:90px"></div>
+      <label for="smPort">Port</label><input id="smPort" type="number" min="1" max="65535" value="${esc(String(m.port || 587))}">
       <label for="smUser">Sign in as</label><input id="smUser" value="${esc(m.user || '')}" placeholder="Empty: no sign-in" autocomplete="off">
       <label for="smPw">Password</label><input id="smPw" type="password" autocomplete="new-password" placeholder="${m.passwordSet ? `Set on ${esc(pushDate(m.passwordSet))}: empty keeps it` : 'The password of that account'}">
       <label for="smFrom">Sender</label><input id="smFrom" value="${esc(m.from || '')}" placeholder="inventory@example.com (empty: the sign-in name)">
