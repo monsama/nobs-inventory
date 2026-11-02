@@ -49,9 +49,9 @@ try {
   assert.equal(heads[heads.indexOf('Name') + 1], 'Location', 'the column of the check comes next to Name: ' + heads.join(', '));
   if (shots) await p.screenshot({ path: path.join(shots, 'quality.png') });
   await p.click('#qfixSel');
-  await until(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'bkLoc'));
+  await until(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'bkAct'));
   assert.match(await p.textContent('.pick-n'), /2 selected/);
-  await p.selectOption('#bkLoc', 'Bern / OG');
+  await p.selectOption('#bkAct', 'loc:Bern / OG');
   await until(() => p.evaluate(async () => (await import('/js/01-core.js')).objs.filter(o => o.loc === 'Bern / OG').length === 2));
 
   // the check taken off: the Table's own layout is back, Location not next to Name any more

@@ -701,14 +701,14 @@ const withSource = (o, c, html) => {
 /* Listed by a data-quality check, the Table helps fix it: the column the check is about comes next to Name (shown even
    when hidden), and a bar offers to select them all for the bulk action that fixes it. [column, bulk control, what to do] */
 const QUALITY_FIX = {
-  noloc: ['loc', 'bkLoc', 'select them and move them to their location'],
-  noresp: ['resp', 'bkResp', 'select them and set their responsible'],
+  noloc: ['loc', 'bkAct', 'select them and move them to their location'],
+  noresp: ['resp', 'bkAct', 'select them and set their responsible'],
   noserial: ['serial', null, 'open each and add its serial number'],
-  nouser: ['user', 'bkStatus', 'give each its user, or select them and set them to In stock'],
-  unseen: ['seen', 'bkStatus', 'check where they are; select the ones gone and set them to Retired'],
+  nouser: ['user', 'bkAct', 'give each its user, or select them and set them to In stock'],
+  unseen: ['seen', 'bkAct', 'check where they are; select the ones gone and set them to Retired'],
   unconfirmed: ['loc', null, 'find them in the next stocktake, or confirm each on its page'],
-  leaver: ['user', 'bkStatus', 'select them and take them back into stock, or give them to someone else'],
-  addisabled: ['status', 'bkStatus', 'select the ones no longer used and set their status'],
+  leaver: ['user', 'bkAct', 'select them and take them back into stock, or give them to someone else'],
+  addisabled: ['status', 'bkAct', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],
   conflict: [null, null, 'open each and pick the value to keep'],
   reported: [null, null, 'open each, look at the problem and mark it as done'],
@@ -722,7 +722,10 @@ export function renderTable(){
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><select id="bkLoc" aria-label="Move selected to location"><option value="">Move to location…</option>${myLocs().map(l => `<option>${esc(l)}</option>`).join('')}</select><select id="bkStatus" aria-label="Set status of selected"><option value="">Set status…</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}<option value="__back">Take back into stock (no user)</option></select>${CONTACTS.list.length && canEdit() ? `<select id="bkResp" aria-label="Set the responsible of the selected"><option value="">Responsible…</option>${Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l}">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('')}</select>` : ''}<button id="bkClear">Clear selection</button></div>` : ''}`;
+${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>
+<optgroup label="Move to location">${myLocs().map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
+<optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
+${CONTACTS.list.length && canEdit() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindListFilter(); bindScopeActs(list);
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
@@ -734,30 +737,28 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   $('#csvImp').onclick = importCsvModal;
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
-  const bk = $('#bkLoc'); if (bk) bk.onchange = () => {
-    if (!bk.value) return;
+  const bulkLoc = to => {
     const snap = snapshot([...st.bulk].map(byId));
     let moved = 0;
     st.bulk.forEach(id => {
-      const o = byId(id); if (!o || o.loc === bk.value) return;
+      const o = byId(id); if (!o || o.loc === to) return;
       moved++;
       if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc');
-      o.loc = bk.value; markHand(o, 'loc'); o.handAt = new Date().toISOString();
-      hist(o, now(), 'Moved to ' + bk.value + ' (bulk)');
+      o.loc = to; markHand(o, 'loc'); o.handAt = new Date().toISOString();
+      hist(o, now(), 'Moved to ' + to + ' (bulk)');
     });
-    toastUndo(moved === n ? `${n} moved to ${bk.value}` : `${moved} moved to ${bk.value}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
+    toastUndo(moved === n ? `${n} moved to ${to}` : `${moved} moved to ${to}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
   };
-  const bs = $('#bkStatus'); if (bs) bs.onchange = () => {
-    if (!bs.value) return;
+  const bulkStatus = v => {
     /* Take back: in stock, and nobody has it any more (a person who left gives their devices back). */
-    const back = bs.value === '__back', to = back ? 'stock' : bs.value;
+    const back = v === '__back', to = back ? 'stock' : v;
     const snap = snapshot([...st.bulk].map(byId));
     st.bulk.forEach(id => { const o = byId(id); const had = o.user; o.status = to;
       if (back && (o.uid || o.hotdesk)){ o.uid = null; delete o.hotdesk; hist(o, now(), `Taken back into stock from ${had} (bulk)`); } else hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
     toastUndo(n + (back ? ' taken back into stock' : ' set to ' + STATUS[to].label), () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
-  const br = $('#bkResp'); if (br) br.onchange = () => {
-    const [kind, id] = br.value.split(':'); if (!kind) return;
+  const bulkResp = v => {
+    const [kind, id] = v.split(':'); if (!kind) return;
     let changed = 0;
     const snap = snapshot([...st.bulk].map(byId));
     st.bulk.forEach(x => { const o = byId(x); if (o && setResponsible(o, kind, id)) changed++; });
@@ -766,6 +767,11 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   /* All the listed devices (those past the first rows drawn too), then the control that fixes them has the focus. */
   const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
+  /* One menu for what is done with the selected: open them, move them, set their status or responsible. */
+  const ba = $('#bkAct'); if (ba) ba.onchange = () => {
+    const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1);
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
+  };
   const idx = relIndex();   /* one index of the relations for all rows */
   let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
   /* A data-quality check's column, or the columns a list from the Overview asks for (the replacement plan: purchase,
