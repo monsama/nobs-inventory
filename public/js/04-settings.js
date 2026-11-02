@@ -167,7 +167,9 @@ export function ensureUser(name, source = 'manual'){
     /* Lansweeper names a device's user by login (kaufmannm): that is the person's login, so the directory and Entra find
        them by it, as the server's feed does. A full name ("Anna Muster") or a login someone has already stays a name. */
     const isLogin = source === 'lansweeper' && /^[\p{L}\p{N}_.@'-]{1,64}$/u.test(name) && !USERS.some(x => (x.login || '').toLowerCase() === low);
-    u = {id:userId(), login: isLogin ? name : '', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u);
+    /* Someone only named as a device's user by Lansweeper gets no access, as when the server's feed adds them: the
+       directory sync would otherwise let them sign in with their AD password. An admin gives a role where it is wanted. */
+    u = {id:userId(), login: isLogin ? name : '', name, dept:'', role: source === 'lansweeper' ? 'none' : 'viewer', groups:[], source, active:true}; USERS.push(u);
   }
   return u;
 }
