@@ -664,8 +664,6 @@ export function renderObj(o){
       rerender = true;
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
-    /* A device that is not in use is not kept in a rack: its units are freed, and devices on top of it come out too. */
-    if (o.status === 'unused' && o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' as not in use by ' + who()); unplace(o); }
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();

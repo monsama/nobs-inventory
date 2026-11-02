@@ -14,7 +14,7 @@ export const REPORTS = {
   handback: ['Hand-back list', 'The devices a person has, to tick off when they are handed back', true],
 };
 export const GROUPS = { site: 'Site', loc: 'Location', dept: 'Department', type: 'Type', none: 'No grouping' };
-const STATUS_LABEL = { active: 'In use', stock: 'In stock', unused: 'Not in use', repair: 'In repair', retired: 'Retired' };
+const STATUS_LABEL = { active: 'In use', stock: 'In stock', retired: 'Retired' };
 
 /* The options a report may be asked for, made safe: unknown values fall back to the defaults. */
 export function reportOptions(q = {}, today = new Date()) {

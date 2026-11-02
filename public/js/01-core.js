@@ -83,8 +83,9 @@ export const portRangeError = (t, p) => {
 };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
-/* Not in use: still in the inventory and on plans, but no longer used, e.g. taken out of its rack. Retired is kept for the record. */
-export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, unused:{label:'Not in use',cls:'warn'}, repair:{label:'In repair',cls:'warn'}, retired:{label:'Retired',cls:'bad'}};
+/* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
+   for the record). */
+export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, retired:{label:'Retired',cls:'bad'}};
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];

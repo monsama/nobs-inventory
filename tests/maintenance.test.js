@@ -66,3 +66,17 @@ test('the weekly e-mail lists maintenance overdue or due in the next two weeks',
   assert.match(m.text, /AC-1: Change the filter, due 10\.11\.2026/);
   assert.ok(!/Later/.test(m.text));
 });
+
+test('a device is in use, in stock or retired: Not in use and In repair from before are taken as In stock', async () => {
+  const { migrateState } = await import('../server/migrate.js');
+  const s = { ...blankState(), objs: [
+    { id: 'a', code: 'INV-1', type: 'pc', name: 'A', status: 'unused', loc: '' }, { id: 'b', code: 'INV-2', type: 'pc', name: 'B', status: 'repair', loc: '' },
+    { id: 'c', code: 'INV-3', type: 'pc', name: 'C', status: 'active', loc: '' }] };
+  assert.equal(migrateState(s), true);
+  assert.deepEqual(s.objs.map(o => o.status), ['stock', 'stock', 'active']);
+  s.objs[2].status = 'repair';
+  assert.doesNotThrow(() => checkState(s), 'a save that still sends the old one');
+  assert.equal(s.objs[2].status, 'stock');
+  s.objs[2].status = 'lost';
+  assert.throws(() => checkState(s), /unknown status/);
+});

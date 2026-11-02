@@ -53,7 +53,7 @@ export function renderOverview(){
   /* Running only: a contract or licence that has ended, or not started yet, costs nothing now. */
   const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
   const value = inUse.reduce((t, o) => t + (typeof o.price === 'number' ? o.price : 0), 0), priced = inUse.filter(o => typeof o.price === 'number').length;
-  const repair = objs.filter(o => o.status === 'repair').length, stock = objs.filter(o => o.status === 'stock').length;
+  const stock = live.filter(o => o.status === 'stock').length;
   const nOld = LS_ON() ? live.filter(o => scanOld(o)).length : 0;
   /* Operating systems, by family; those no longer updated also need attention. */
   const osRows = Object.entries(live.reduce((m, o) => { const f = osFamily(o); if (f) m[f] = (m[f] || 0) + 1; return m; }, {}))
@@ -110,7 +110,6 @@ export function renderOverview(){
     [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
     ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', `data-ovos="${esc(fam)}"`]),
-    [repair, 'warn', 'In repair', repair === 1 ? 'device' : 'devices', 'data-ovs="repair"'],
     certAttention() || [0],
   ].filter(a => a[0] > 0);
   /* The certificate is read once; the overview is drawn again when it is known, if it is still shown. */
@@ -126,7 +125,7 @@ export function renderOverview(){
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
   $('#view').innerHTML = `<div class="ov">${startHtml()}
     <div class="ov-kpis">
-      ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock · ${compact(live.length - inUse.length - stock)} other`, 'data-ovs="active"')}
+      ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock`, 'data-ovs="active"')}
       ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
       ${tile('Needs attention', compact(attention.length), attention.length ? (attention.length === 1 ? '1 topic: ' : `${attention.length} topics: `) + attention.map(a => a[2]).slice(0, 2).join(', ') + (attention.length > 2 ? '…' : '') : 'Nothing right now')}
       ${tile('Contracts and licences', year ? money(year) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"')}
