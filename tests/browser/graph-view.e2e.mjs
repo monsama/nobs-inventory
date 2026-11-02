@@ -24,7 +24,7 @@ saveState(db, { ...s0, locs: ['HQ'], sites: ['HQ'],
     /* Found by the Graph sync, waiting in To review */
     { id: 'm9o', code: 'INV-0901', type: 'ios', name: 'iPhone Ana', serial: 'F2LX', model: 'Apple iPhone 15', os: 'iOS 18.1', user: 'Ana Muster', status: 'active', loc: '', ovr: {}, feed: null,
       graph: { id: 'm9', join: 'Registered', managed: 'mdm', compliance: 'compliant', lastSync: recent, lastCheckIn: recent, seen: '26.10.2026 06:00', added: true }, review: { src: 'graph', at: '26.10.2026 06:00' } },
-    { ...pc('a', 'PC-OK'), os: 'Windows 11 Pro', graph: { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' } },
+    { ...pc('a', 'PC-OK'), os: 'Windows 11 Pro', graph: { join: 'Entra joined', managed: 'mdm', compliance: 'compliant', encrypted: 'yes', secureBoot: 'off', secureBootAt: '2026-10-30', ownerName: 'Ana Muster', owner: 'ana@contoso.ch', os: 'Windows 10.0.22631', lastCheckIn: recent, seen: '26.10.2026 06:00' } },
     { ...pc('b', 'PC-BAD'), os: 'Windows 10 Pro', graph: { join: 'Domain joined', managed: 'mdm', compliance: 'noncompliant', encrypted: 'no', lastCheckIn: old, seen: '26.10.2026 06:00' } },
     { ...pc('c', 'PC-NONE'), inAd: true },
     /* Listed twice in Entra (an old record from before a reinstall); gone from Entra since the last sync; a name used twice here. */
@@ -55,6 +55,7 @@ try {
   await p.waitForSelector('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   const panel = await p.textContent('.panelbox:has(.hdr:has-text("Entra & Intune"))');
   for (const t of ['Entra joined', 'Joined to Microsoft Entra only', 'Managed', 'Compliant', 'Encrypted', 'Ana Muster', 'Windows 10.0.22631']) assert.ok(panel.includes(t), 'panel: ' + t);
+  assert.match(panel.replace(/\s+/g, ' '), /Secure Boot ?Off · reported 30\.10\.2026/);
   if (process.env.NI_SHOTS) await p.locator('.panelbox:has(.hdr:has-text("Entra & Intune"))').screenshot({ path: path.join(process.env.NI_SHOTS, 'graph-panel.png') });
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('b'));
   await p.waitForSelector('text=over 30 days ago');
@@ -66,6 +67,7 @@ try {
   // the sidebar group filters
   const count = k => p.textContent(`#grList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await count('noncompliant'), await count('unencrypted'), await count('stale'), await count('missing')], ['1', '1', '1', '2'], 'a device gone from Entra counts as not in it');
+  assert.equal(await count('secureboot'), '1', 'Secure Boot off, from Intune');
   // the duplicates have their own group, whatever found them
   const dup = k => p.textContent(`#dupList [data-intune="${k}"] .cnt`);
   assert.deepEqual([await dup('duplicates'), await dup('ambiguous')], ['1', '2']);

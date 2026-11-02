@@ -218,7 +218,46 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
     try { autopilot = await graphAll(token, `${GRAPH}/deviceManagement/windowsAutopilotDeviceIdentities`, fetchImpl, GRAPH_ORIGIN, 'Windows Autopilot'); }
     catch (e) { autopilotError = [401, 403].includes(e.upstream) ? `Autopilot was not read: the app needs the permission ${AUTOPILOT_PERMISSION}, type Application, with admin consent.` : 'Autopilot was not read: ' + e.message; }
   }
-  return { records: toRecords(devices, managed), users, peopleError, machines, defenderError, autopilot, autopilotError, fallback };
+  const records = toRecords(devices, managed);
+  /* Secure Boot, from Intune's health attestation of each Windows device: read only when Settings asks for it. */
+  let secureBootError = '';
+  if (cfg.secureBoot === 'on') {
+    try { addSecureBoot(records, await fetchSecureBoot(token, managed, fetchImpl)); }
+    catch (e) { secureBootError = 'Secure Boot was not read: ' + e.message; }
+  }
+  return { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback, secureBootError };
+}
+
+/* ---------- Secure Boot ----------
+   Graph gives a device's health attestation (deviceHealthAttestationState) only when that one device is asked for, not
+   in the list. The Windows devices Intune manages are asked in batches of 20 ($batch), with the permission the sync has
+   already (DeviceManagementManagedDevices.Read.All). A device that has not reported it yet stays unknown. */
+const BATCH = 20;
+export const secureBootOf = v => (/^(enabled|on|true)$/i.test(clean(v)) ? 'on' : /^(disabled|off|false)$/i.test(clean(v)) ? 'off' : '');
+export async function fetchSecureBoot(token, managed, fetchImpl = fetch) {
+  const ids = (managed || []).filter(m => managedBy(m.managementAgent) === 'Intune' && /windows/i.test(clean(m.operatingSystem)) && m.id).map(m => m.id);
+  const out = new Map();
+  let refused = 0;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const part = ids.slice(i, i + BATCH);
+    const body = { requests: part.map((id, n) => ({ id: String(n), method: 'GET', url: `/deviceManagement/managedDevices/${encodeURIComponent(id)}?$select=id,deviceHealthAttestationState` })) };
+    const r = await fetchImpl(`${GRAPH}/$batch`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
+    if (!r.ok) throw new HttpError(502, `Microsoft Graph answered ${r.status} for the device health.`);
+    const j = await r.json();
+    for (const x of j.responses || []) {
+      const id = part[Number(x.id)];
+      if (!id) continue;
+      if (x.status === 401 || x.status === 403) { refused++; continue; }
+      const h = x.status === 200 && x.body && x.body.deviceHealthAttestationState;
+      const v = h ? secureBootOf(h.secureBoot) : '';
+      if (v) out.set(id, { secureBoot: v, at: /^\d{4}-\d{2}-\d{2}/.test(clean(h.lastUpdateDateTime)) && !/^0001/.test(clean(h.lastUpdateDateTime)) ? clean(h.lastUpdateDateTime).slice(0, 10) : '' });
+    }
+  }
+  if (refused && !out.size) throw new HttpError(502, 'Microsoft Graph refused the device health (the app needs DeviceManagementManagedDevices.Read.All).');
+  return out;
+}
+export function addSecureBoot(records, found) {
+  for (const r of records) { const x = r.intuneId && found.get(r.intuneId); if (x) { r.secureBoot = x.secureBoot; if (x.at) r.secureBootAt = x.at; } }
 }
 
 /* ---------- people from Entra ----------
@@ -288,7 +327,7 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
 const graphOf = (r, at, added) => ({ id: r.graphId, aadId: r.aadId, ...(r.entraId ? { entraId: r.entraId } : {}), ...(r.intuneId ? { intuneId: r.intuneId } : {}), join: r.join, managed: r.managed, enrolled: r.enrolled, lastSync: r.lastSync,
   lastCheckIn: r.lastCheckIn || '', lastSignIn: r.lastSignIn || '', compliance: r.compliance, encrypted: r.encrypted, owner: r.owner,
   ownerName: r.ownerName || '', os: r.os || '', seen: at, ...(added ? { added: true } : {}), ...(r.disabled ? { disabled: true } : {}),
-  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised', 'enrollProfile', 'enrollType', 'certExpires', 'patch', 'carrier'].map(k => [k, r[k]]).filter(([, v]) => v)) });
+  ...Object.fromEntries(['free', 'imei', 'phone', 'ownership', 'category', 'autopilot', 'jailbroken', 'supervised', 'enrollProfile', 'enrollType', 'certExpires', 'patch', 'carrier', 'secureBoot', 'secureBootAt'].map(k => [k, r[k]]).filter(([, v]) => v)) });
 /* The fields Graph can give a device, with their names for the history. */
 /* The fields Intune fills in: one list with Settings → Data sources (public/js/sync-map.js). */
 const FILL = GRAPH_FILL;
@@ -533,7 +572,7 @@ export function graphFieldReport(records, fallback = false, now = new Date()) {
   return { at: now.toISOString(), managed: managed.length, fallback: !!fallback, fields: Object.fromEntries(Object.keys(FIELD_REPORT).map(k => [k, managed.filter(r => r[k]).length])) };
 }
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
-  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback } = await fetchGraphAll(cfg, now, fetchImpl);
+  const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback, secureBootError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);
   s.graphFields = graphFieldReport(records, fallback, now);
   const lens = historyLens(s);
@@ -549,6 +588,8 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   if (defenderError) counts.defenderError = defenderError;
   if (autopilot) Object.assign(counts, applyAutopilot(s, autopilot, now));
   if (autopilotError) counts.autopilotError = autopilotError;
+  if (cfg.secureBoot === 'on' && !secureBootError) counts.secureBoot = records.filter(r => r.secureBoot).length;
+  if (secureBootError) counts.secureBootError = secureBootError;
   noteChanges(s, 'graph', lens, now);
   autoBackup(db, 'before a Microsoft Graph sync', { daily: true });
   saveState(db, s);

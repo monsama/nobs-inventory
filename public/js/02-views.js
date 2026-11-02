@@ -23,6 +23,7 @@ const GRAPH_TIPS = {
   missing: 'Devices that Entra and Intune do not have, or no longer have since a sync',
   duplicates: 'Devices Entra has more than one record of (reinstalled, or hybrid joined and also registered): the old records can be deleted in Entra',
   notjoined: 'Computers and phones that are neither in Entra nor have a computer account in AD',
+  secureboot: 'Windows devices whose health attestation in Intune says Secure Boot is off (read when Settings → Entra & Intune turns it on)',
   ambiguous: 'Graph has a device whose serial number or name fits more than one device here, so it was put on none: give them distinct names or serial numbers',
 };
 /* The views that show a list of devices, the inventory's or (st.scope) To review's. */
@@ -651,6 +652,7 @@ export const TABLE_COLS = [
   {k:'replPrice', w:150, label:'Replacement price', cell: o => { const p = lifeOf(st.lifecycle, o.type).price; return `<td class="n">${p ? money(p) : ''}</td>`; }},
   /* The maintenance due next: its date first, so the column sorts by it. */
   {k:'maint', w:240, label:'Next maintenance', cell: o => { const m = nextTask(o); return `<td>${m ? `${esc(dayText(m.due))} <span class="muted">· ${esc(m.what)}</span>` : ''}</td>`; }},
+  {k:'secureBoot', w:120, label:'Secure Boot', cell: o => `<td>${o.graph && !o.graph.gone && o.graph.secureBoot ? (o.graph.secureBoot === 'on' ? 'On' : '<span class="wty soon">Off</span>') : ''}</td>`},
   {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
   {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
   {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
@@ -669,16 +671,16 @@ export const TABLE_COLS = [
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
-export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint'];
+export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot'];
 /* Columns added after a browser kept its choice: hidden there too until they are picked. */
-const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice'], 6: ['maint']};
+const LATER_COLS = {2: ['price', 'supplier', 'invoice'], 3: ['resp'], 4: ['urls'], 5: ['purchased', 'due', 'replPrice'], 6: ['maint'], 7: ['secureBoot']};
 export function hiddenCols(){
   if (!st.hiddenCols){
     try {
       st.hiddenCols = JSON.parse(localStorage.getItem('ni-hidden-cols')) || DEFAULT_HIDDEN_COLS;
       const seen = +localStorage.getItem('ni-cols-v') || 1;
       for (const [v, cols] of Object.entries(LATER_COLS)) if (seen < +v) st.hiddenCols = [...new Set([...st.hiddenCols, ...cols])];
-      localStorage.setItem('ni-cols-v', '6');
+      localStorage.setItem('ni-cols-v', '7');
     } catch { st.hiddenCols = DEFAULT_HIDDEN_COLS; }
   }
   return st.hiddenCols;

@@ -163,7 +163,14 @@ export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 export function ensureUser(name, source = 'manual'){
   const low = String(name).toLowerCase();
   let u = USERS.find(x => x.name === name) || USERS.find(x => x.login && x.login.toLowerCase() === low) || USERS.find(x => (x.aliases || []).some(a => a.toLowerCase() === low));
-  if (!u){ u = {id:userId(), login:'', name, dept:'', role:'viewer', groups:[], source, active:true}; USERS.push(u); }
+  if (!u){
+    /* Lansweeper names a device's user by login (kaufmannm): that is the person's login, so the directory and Entra find
+       them by it, as the server's feed does. A full name ("Anna Muster") or a login someone has already stays a name. */
+    const isLogin = source === 'lansweeper' && /^[\p{L}\p{N}_.@'-]{1,64}$/u.test(name) && !USERS.some(x => (x.login || '').toLowerCase() === low);
+    /* Someone only named as a device's user by Lansweeper gets no access, as when the server's feed adds them: the
+       directory sync would otherwise let them sign in with their AD password. An admin gives a role where it is wanted. */
+    u = {id:userId(), login: isLogin ? name : '', name, dept:'', role: source === 'lansweeper' ? 'none' : 'viewer', groups:[], source, active:true}; USERS.push(u);
+  }
   return u;
 }
 /* The person with an id, through a lookup of their place in USERS: every device's .user reads it, so going through all

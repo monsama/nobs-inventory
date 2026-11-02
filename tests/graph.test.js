@@ -305,3 +305,42 @@ test('Intune devices: a property Graph does not know (400) does not stop the syn
   assert.equal(fallback.records.length, 1, 'read again without the extras');
   assert.ok(asked.some(u => u.includes('/managedDevices') && !/jailBroken/.test(u)));
 });
+
+test('Secure Boot: asked of the Windows devices Intune manages, in batches of 20, only when Settings says so', async () => {
+  const { fetchGraphAll, applyGraph, secureBootOf } = await import('../server/graph.js');
+  assert.deepEqual(['enabled', 'Disabled', 'notApplicable', ''].map(secureBootOf), ['on', 'off', '', '']);
+  const reply = (status, json) => ({ ok: status === 200, status, json: async () => json });
+  const managed = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, azureADDeviceId: `aad-${i}`, deviceName: `PC-${i}`, serialNumber: `S${i}`, operatingSystem: 'Windows', managementAgent: 'mdm' }));
+  managed.push({ id: 'ios1', azureADDeviceId: 'aad-ios', deviceName: 'IPHONE', serialNumber: 'IOS', operatingSystem: 'iOS', managementAgent: 'mdm' });
+  const batches = [];
+  const fakeFetch = (refuse = false) => async (url, opts) => {
+    url = String(url);
+    if (url.includes('/oauth2/')) return reply(200, { access_token: 'GRAPH' });
+    if (url.endsWith('/$batch')) {
+      const b = JSON.parse(opts.body); batches.push(b.requests.length);
+      return reply(200, { responses: b.requests.map(r => {
+        const id = /managedDevices\/([^?]+)/.exec(r.url)[1];
+        if (refuse) return { id: r.id, status: 403, body: {} };
+        if (id === 'm3') return { id: r.id, status: 200, body: { id, deviceHealthAttestationState: { secureBoot: 'disabled', lastUpdateDateTime: '2026-10-30T07:00:00Z' } } };
+        if (id === 'm4') return { id: r.id, status: 200, body: { id, deviceHealthAttestationState: null } };
+        return { id: r.id, status: 200, body: { id, deviceHealthAttestationState: { secureBoot: 'enabled', lastUpdateDateTime: '2026-10-31T07:00:00Z' } } };
+      }) });
+    }
+    if (url.includes('/deviceManagement/managedDevices')) return reply(200, { value: managed });
+    return reply(200, { value: [] });
+  };
+  const off = await fetchGraphAll({ ...cfg, secureBoot: 'off' }, NOW, fakeFetch());
+  assert.equal(batches.length, 0, 'not asked when off'); assert.ok(off.records.every(r => !r.secureBoot));
+  const on = await fetchGraphAll({ ...cfg, secureBoot: 'on' }, NOW, fakeFetch());
+  assert.deepEqual(batches, [20, 5], 'the 25 Windows devices, not the iPhone');
+  const by = id => on.records.find(r => r.intuneId === id);
+  assert.deepEqual([by('m0').secureBoot, by('m0').secureBootAt, by('m3').secureBoot, by('m4').secureBoot, by('ios1').secureBoot], ['on', '2026-10-31', 'off', undefined, undefined]);
+  const s = { objs: [{ id: 'o3', name: 'PC-3', serial: 'S3', type: 'pc', status: 'active', ovr: {} }], history: {} };
+  applyGraph(s, on.records, NOW);
+  assert.deepEqual([s.objs[0].graph.secureBoot, s.objs[0].graph.secureBootAt], ['off', '2026-10-30']);
+  // refused: said, and the devices are synced all the same
+  batches.length = 0;
+  const no = await fetchGraphAll({ ...cfg, secureBoot: 'on' }, NOW, fakeFetch(true));
+  assert.match(no.secureBootError, /Secure Boot was not read: .*DeviceManagementManagedDevices\.Read\.All/);
+  assert.equal(no.records.length, 26);
+});

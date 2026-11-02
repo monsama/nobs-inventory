@@ -20,7 +20,7 @@ export function graphSummary(c){
     c.people ? `People: ${c.people.inEntra} in Entra${c.people.added ? `, ${c.people.added} added` : ''}${c.people.bound ? `, ${c.people.bound} devices given their user` : ''}${c.people.gone ? `, ${c.people.gone} no longer in Entra` : ''}.` : '',
     c.peopleError || '', c.defenderError || '',
     c.autopilot || c.autopilotNew ? `Autopilot: ${c.autopilot || 0} devices with a record${c.autopilotNew ? `, ${c.autopilotNew} registered but not set up yet, new in the inventory` : ''}.` : '',
-    c.autopilotError || ''].filter(Boolean).join(' ');
+    c.autopilotError || '', typeof c.secureBoot === 'number' ? `Secure Boot read for ${c.secureBoot} Windows ${c.secureBoot === 1 ? 'device' : 'devices'}.` : '', c.secureBootError || ''].filter(Boolean).join(' ');
 }
 /* Graph records that fit more than one device here, by serial number or name: put on none of them, listed to be fixed. */
 function ambiguousHtml(){
@@ -102,6 +102,11 @@ export async function renderSetGraph(){
         <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
           <option value="off" ${(g.autopilot || 'off') === 'off' ? 'selected' : ''}>Don't read Autopilot</option>
           <option value="on" ${g.autopilot === 'on' ? 'selected' : ''}>Read Windows Autopilot</option></select></div></li>
+      <li><div class="gs-head"><b>Secure Boot</b> <span class="muted">(optional)</span></div>
+        <p class="note">The sync can read whether Secure Boot is on, from Intune's health attestation of each Windows device it manages. Graph gives that only device by device, so the sync asks in batches of 20, which makes it a little longer. No other permission is needed. Shown on the device, with the filter Secure Boot off.</p>
+        <div class="form" style="padding:8px 0 0"><label for="gSecureBoot">Secure Boot</label><select id="gSecureBoot" ${edit ? '' : 'disabled'}>
+          <option value="off" ${(g.secureBoot || 'off') === 'off' ? 'selected' : ''}>Don't read Secure Boot</option>
+          <option value="on" ${g.secureBoot === 'on' ? 'selected' : ''}>Read Secure Boot</option></select></div></li>
       <li><div class="gs-head"><b>Sign-in with Microsoft</b> <span class="muted">(optional)</span></div>
         <p class="note">People sign in with their Microsoft account (with your Entra rules: multi-factor, conditional access) instead of a password here. They must be users of the inventory with a role, found by their Entra account, user principal name or e-mail; nobody new gets in this way. Passwords keep working. In the app registration, add this as a <b>Web</b> redirect URI (Authentication → Add a platform → Web):</p>
         <div class="gs-uri"><span class="mono" id="gSsoUri">${esc(location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/sso/callback')}</span><button type="button" class="mini" id="gSsoCopy">Copy</button></div>
@@ -144,6 +149,10 @@ export async function renderSetGraph(){
     toast(x.ok ? ($('#gSso').value === 'on' ? 'Saved: the sign-in offers Microsoft. Try it in a private window before you rely on it.' : 'Saved: sign-in with passwords only') : (x.j.error || 'Not saved.'));
   };
   $('#gSsoCopy').onclick = () => { navigator.clipboard?.writeText($('#gSsoUri').textContent).then(() => toast('Redirect URI copied'), () => toast('Select the address and copy it')); };
+  $('#gSecureBoot').onchange = async () => {
+    const x = await post('api/graph/settings', {secureBoot: $('#gSecureBoot').value});
+    toast(x.ok ? ($('#gSecureBoot').value === 'on' ? 'Saved: Secure Boot is read at the next sync' : 'Saved: Secure Boot is not read any more') : (x.j.error || 'Not saved.'));
+  };
   $('#gAutopilot').onchange = async () => {
     const x = await post('api/graph/settings', {autopilot: $('#gAutopilot').value});
     toast(x.ok ? ($('#gAutopilot').value === 'on' ? 'Saved: Autopilot is read at the next sync. Test connection checks its permission.' : 'Saved: Autopilot is not read any more') : (x.j.error || 'Not saved.'));

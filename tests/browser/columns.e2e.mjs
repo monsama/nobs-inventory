@@ -32,7 +32,7 @@ try {
   assert.ok(h.includes('Rack'), 'Rack did not appear: ' + h.join(','));
   await p.uncheck('[data-col="model"]');
   assert.ok(!(await heads()).includes('Model'), 'Model did not hide');
-  assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'model'], 'the choice was not remembered (the cost, Responsible, Links, replacement and maintenance columns are hidden until picked)');
+  assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot', 'model'], 'the choice was not remembered (the cost, Responsible, Links, replacement, maintenance and Secure Boot columns are hidden until picked)');
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });

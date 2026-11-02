@@ -14,14 +14,39 @@ const WARRANTY_SOON = 90;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
 const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 
-/* The mail server the server names, or null. Port 465 is TLS from the start; others use STARTTLS when offered. */
-export function smtpConfig(env = process.env) {
+/* The mail server: the one the server names (NI_SMTP_*), which wins, or else the one set in Settings → Maintenance
+   (saved: { host, port, security, user, from, pass }, the password kept sealed apart). null when neither. security is
+   starttls (the default, port 587), tls (from the start, port 465) or none (a relay inside the network, port 25). */
+export const SMTP_SECURITY = ['starttls', 'tls', 'none'];
+export function smtpConfig(env = process.env, saved = null) {
   const host = String(env.NI_SMTP_HOST || '').trim();
-  if (!host) return null;
-  const port = Number(env.NI_SMTP_PORT) || 587;
-  return { host, port, secure: port === 465, requireTLS: env.NI_SMTP_STARTTLS !== '0' && port !== 465 && port !== 25,
-    ...(env.NI_SMTP_USER ? { auth: { user: env.NI_SMTP_USER, pass: readSecret(env, 'NI_SMTP_PASSWORD') } } : {}),
-    from: String(env.NI_SMTP_FROM || env.NI_SMTP_USER || 'nobs-inventory@localhost').trim() };
+  if (host) {
+    const port = Number(env.NI_SMTP_PORT) || 587;
+    return { source: 'server', host, port, secure: port === 465, requireTLS: env.NI_SMTP_STARTTLS !== '0' && port !== 465 && port !== 25,
+      ...(env.NI_SMTP_USER ? { auth: { user: env.NI_SMTP_USER, pass: readSecret(env, 'NI_SMTP_PASSWORD') } } : {}),
+      from: String(env.NI_SMTP_FROM || env.NI_SMTP_USER || 'nobs-inventory@localhost').trim() };
+  }
+  if (!saved || !saved.host) return null;
+  const sec = SMTP_SECURITY.includes(saved.security) ? saved.security : 'starttls';
+  return { source: 'app', host: saved.host, port: Number(saved.port) || (sec === 'tls' ? 465 : sec === 'none' ? 25 : 587), secure: sec === 'tls', requireTLS: sec === 'starttls',
+    ...(saved.user ? { auth: { user: saved.user, pass: saved.pass || '' } } : {}), from: String(saved.from || saved.user || 'nobs-inventory@localhost').trim() };
+}
+/* What is wrong with a mail server set in Settings, or ''. */
+export function smtpSettingsProblem(v) {
+  if (!v || typeof v !== 'object') return 'The mail server is a record.';
+  if (typeof v.host !== 'string' || !/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i.test(v.host.trim())) return 'The mail server is a host name or an IP address, such as smtp.example.com.';
+  if (!Number.isInteger(v.port) || v.port < 1 || v.port > 65535) return 'The port is a number from 1 to 65535.';
+  if (!SMTP_SECURITY.includes(v.security)) return 'The security is STARTTLS, TLS or none.';
+  if (v.user !== undefined && (typeof v.user !== 'string' || v.user.length > 200 || /[\r\n]/.test(v.user))) return 'The user name is text of up to 200 characters.';
+  if (v.from !== undefined && v.from !== '' && (typeof v.from !== 'string' || v.from.length > 200 || !EMAIL.test(v.from))) return 'The sender is an e-mail address.';
+  return '';
+}
+const transportOf = cfg => nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
+/* A test mail, to see the server, its sign-in and the sender work. */
+export async function sendTestMail(cfg, to, transport = null) {
+  if (!cfg) throw new Error('No mail server is set.');
+  if (!EMAIL.test(String(to || '')) || String(to).length > 200) throw new Error('Give the address to send the test to.');
+  await (transport || transportOf(cfg)).sendMail({ from: cfg.from, to, subject: 'NOBS Inventory: test e-mail', text: 'This is a test from NOBS Inventory (Settings → Maintenance → Weekly e-mail). The mail server works.' });
 }
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 export const digestSettings = db => ({ on: false, to: [], day: 1, hour: 7, ...getDoc(db, 'digest', {}) });
@@ -75,12 +100,12 @@ ${backupLine.length ? `<p style="color:#555;margin-top:16px">${backupLine.map(es
 }
 
 /* Sends it (transport given in tests); the result is kept for Settings. */
-export async function sendDigest(db, mail, env = process.env, now = new Date(), transport = null) {
-  const cfg = smtpConfig(env), set = digestSettings(db);
+export async function sendDigest(db, mail, env = process.env, now = new Date(), transport = null, cfg = smtpConfig(env)) {
+  const set = digestSettings(db);
   try {
-    if (!cfg) throw new Error('No mail server is set on the server (NI_SMTP_HOST).');
+    if (!cfg) throw new Error('No mail server is set (Settings → Maintenance, or NI_SMTP_HOST on the server).');
     if (!set.to.length) throw new Error('No address to send to.');
-    const t = transport || nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
+    const t = transport || transportOf(cfg);
     await t.sendMail({ from: cfg.from, to: set.to.join(', '), subject: mail.subject, text: mail.text, html: mail.html });
     putDoc(db, 'digestRun', { at: now.toISOString(), ok: true, to: set.to.length, items: mail.count });
   } catch (e) {
@@ -102,11 +127,11 @@ export function buildReportMail(o, rep, link = '') {
 <p style="color:#777;font-size:12px">Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → Maintenance.</p></div>`;
   return { subject, text, html };
 }
-export async function sendReportMail(db, o, rep, env = process.env, transport = null) {
-  const cfg = smtpConfig(env), set = digestSettings(db);
+export async function sendReportMail(db, o, rep, env = process.env, transport = null, cfg = smtpConfig(env)) {
+  const set = digestSettings(db);
   if (!cfg || !set.reports || !set.to.length) return false;
   const m = buildReportMail(o, rep, set.link || env.NI_PUBLIC_URL || '');
-  const t = transport || nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
+  const t = transport || transportOf(cfg);
   await t.sendMail({ from: cfg.from, to: set.to.join(', '), subject: m.subject, text: m.text, html: m.html });
   return true;
 }
