@@ -63,6 +63,8 @@ export function collapsibleSections(root, prefix){
   new MutationObserver(apply).observe(root, {childList: true, subtree: true});
   apply();
 }
+/* The Lansweeper type names and type rules: under Advanced, kept open while Settings is, once opened. */
+let typeAdvOpen = false;
 export function renderSetPane(){
   const grp = setGroupOf(st.setTab);
   document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
@@ -71,7 +73,7 @@ export function renderSetPane(){
   const pane = $('#setPane');
   const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<div id="setTypeMap"></div><div id="setTypeRules"></div>',
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<details class="ls-adv" id="lsTypeAdv" ' + (typeAdvOpen ? 'open' : '') + '><summary>Advanced: Lansweeper type names and type rules</summary><div id="setTypeMap"></div><div id="setTypeRules"></div></details>',
     directory: '<div id="setLdap"></div>',
     entra: '<div id="setGraph"></div>',
     sources: '<div id="setSources"></div>',
@@ -85,6 +87,7 @@ export function renderSetPane(){
   }[st.setTab];
   /* Someone who is not an admin sees the settings to know them, not to change them: said once, at the top. */
   pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : `<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${canEdit() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + html;
+  const ta = $('#lsTypeAdv'); if (ta) ta.ontoggle = () => { typeAdvOpen = ta.open; };
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };

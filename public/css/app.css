@@ -1760,3 +1760,5 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:4px 0}
 .nmore>summary .muted{color:var(--muted);margin-left:4px}
 .nmore[open]>summary{margin-bottom:8px}
+.ls-adv{margin:0 0 14px}
+.ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
