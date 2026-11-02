@@ -7,6 +7,7 @@ import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } f
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { bindMaint, maintPanel } from './26-maintenance.js';
+import { handOutModal, takeBack } from './27-handout.js';
 import { bindPhotos, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
@@ -339,6 +340,11 @@ export function unplace(o){
   delete o.rack; delete o.u; delete o.h; delete o.ontop;
   followOnTop(o, prevRack);
 }
+/* Hand out or take back, the one thing done most with a device that people use: shown on those (and on any device
+   someone has), for someone who may change it. */
+const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios', 'monitor', 'sip', 'camera'];
+const handBtn = o => !canEdit() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
+  : o.uid || o.hotdesk ? `<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : '<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>';
 export function renderObj(o){
   const rs = relsOf(o);
   /* Network links first, then the attached devices, each under its own heading when both are there. */
@@ -379,7 +385,7 @@ export function renderObj(o){
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
-    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>
+    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>${handBtn(o)}
     <details class="menu"><summary>More</summary><div class="menubox"><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}<button id="delBtn">Retire…</button>${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
@@ -759,6 +765,8 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
   $('#dupBtn').onclick = () => newObjModal({copy: o});
+  const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);
+  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBack([o]);
   /* Handing a device over: the entry sheet of the person who has it (their devices and a first password), from here. */
   const opb = $('#onPlanBtn'); if (opb) opb.onclick = () => showOnPlan(o);
   const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u, null, { only: o.id }); };

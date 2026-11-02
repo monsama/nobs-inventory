@@ -15,6 +15,7 @@ import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, bindUser, canEdit, isAdmin, myLocs, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
+import { handOutToModal, takeBack } from './27-handout.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
@@ -173,7 +174,7 @@ export function renderFilterBar(){
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
-    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() && mine.some(o => o.status !== 'stock') ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() ? '<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>' : ''}${canEdit() && mine.length ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
   /* Values set by hand in one field: given back to the sources, which write them again at their next sync. */
   const hf = list && st.handField && canEdit() ? `<div class="fb-person fb-qfix"><b>Set by hand: ${esc(SYNC_FIELD_LABEL[st.handField] || st.handField)}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && QFIX && QUALITY_FIX[st.quality] && QUALITY[st.quality];
@@ -194,13 +195,9 @@ $('#fbar').addEventListener('click', e => {
   if (pa){
     const person = USERS.find(u => u.id === st.person); if (!person) return;
     if (pa.dataset.pact === 'sheet'){ sheetModal(person); return; }
+    if (pa.dataset.pact === 'give'){ handOutToModal(person); return; }
     /* Everything the person has goes back into stock, with nobody assigned: one Undo takes it all back. */
-    const list = objs.filter(o => o.uid === person.id && o.status !== 'retired');
-    const snap = snapshot(list);
-    for (const o of list){ o.status = 'stock'; o.uid = null; delete o.hotdesk; hist(o, now(), `Taken back into stock from ${person.name}`); }
-    queueServerSave();
-    toastUndo(`${list.length} ${list.length === 1 ? 'device' : 'devices'} of ${person.name} back in stock`, () => { restoreSnapshot(snap, 'Taking back undone'); queueServerSave(); view(); });
-    view(); return;
+    takeBack(objs.filter(o => o.uid === person.id && o.status !== 'retired')); return;
   }
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;
