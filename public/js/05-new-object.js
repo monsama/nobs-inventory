@@ -39,16 +39,17 @@ export function newObjModal(pre={}){
     <div class="mb"><div class="form" style="padding:0">
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
-      <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
-      <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
       <label for="nLoc">Location</label><select id="nLoc">${mySites() ? '' : '<option value="">No location</option>'}${myLocs().map(l => `<option>${esc(l)}</option>`).join('')}</select>
       ${LOCS.length ? '' : '<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>'}
-      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
       <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
+    </div><details class="nmore" id="nMore" ${c || pre.sw ? 'open' : ''}><summary>More details <span class="muted">model, serial number, user, where it is plugged in</span></summary><div class="form" style="padding:0">
+      <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
+      <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
+      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
-    </div><p class="note">The object gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
+    </div></details><p class="note">The object gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.name) $('#nName').value = pre.name;
@@ -74,6 +75,8 @@ export function newObjModal(pre={}){
   /* The open device is offered only when plugging into it is likely: one with ports, a patch panel, or the computer a
      new monitor goes on. A notebook open while a new PC is made is not where that PC is plugged in. */
   else if (!c && ctx && [...$('#nUp').options].some(x => x.value === ctx.id) && (LINK_OF($('#nType').value)?.kind !== 'connected' || hasPorts(ctx) || ctx.type === 'patch')) $('#nUp').value = ctx.id;
+  /* Plugged in somewhere already (from a free port, or the device open): the details where that shows are open. */
+  if ($('#nUp').value) $('#nMore').open = true;
   $('#nUp').addEventListener('change', () => portNote('nPort', ''));
   $('#nPort').addEventListener('input', () => portNote('nPort', ''));
   /* The status follows the user until it is chosen here: a computer or phone nobody has yet is in stock, one given to
@@ -88,6 +91,7 @@ export function newObjModal(pre={}){
   $('#nName').focus();
   $('#nCancel').onclick = closeModal;
   $('#nOk').onclick = () => {
+    if ($('#nUp').value || $('#nPort').value) $('#nMore').open = true;
     const name = $('#nName').value.trim();
     if (!name){ $('#nName').focus(); $('#nName').placeholder = 'A name is needed, e.g. ZH-PC-0151'; return; }
     const upId = $('#nUp').value;

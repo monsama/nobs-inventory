@@ -1756,3 +1756,7 @@ details.how[open]>summary{margin-bottom:4px}
 .vswitch>button.on{background:var(--accent);color:#fff}
 .vswitch>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
 @media (pointer:coarse){.vswitch>button{min-height:40px}}
+.nmore{margin-top:10px}
+.nmore>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:4px 0}
+.nmore>summary .muted{color:var(--muted);margin-left:4px}
+.nmore[open]>summary{margin-bottom:8px}

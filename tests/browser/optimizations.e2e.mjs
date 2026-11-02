@@ -87,7 +87,7 @@ try {
 
   // a new object: a notebook for nobody goes into stock, given to someone it is in use
   await p.evaluate(async () => (await import('/js/05-new-object.js')).newObjModal({ type: 'notebook' }));
-  await p.waitForSelector('#nUser');
+  await p.click('#nMore > summary'); await p.waitForSelector('#nUser');
   assert.equal(await p.inputValue('#nStatus'), 'stock');
   await p.selectOption('#nUser', 'u-anna');
   assert.equal(await p.inputValue('#nStatus'), 'active');

@@ -61,7 +61,7 @@ try {
   // A new object plugged into a port from the New object dialog (port 15 is free in the sample).
   await p.click('#newBtn'); await p.waitForSelector('#nName');
   await p.fill('#nName', 'SCEN-SIP-1'); await p.selectOption('#nType', 'sip');
-  await p.selectOption('#nUp', await idOf(p, 'SW-ZH-2OG-01')); await p.fill('#nPort', '15'); await p.click('#nOk');
+  await p.click('#nMore > summary'); await p.selectOption('#nUp', await idOf(p, 'SW-ZH-2OG-01')); await p.fill('#nPort', '15'); await p.click('#nOk');
   assert.ok(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].rels.some(r => r.from === __mods[0].byName('SCEN-SIP-1').id && r.port === 15)); }), 'the new object was not plugged into port 15');
 
   // Delete a relation from the object page.

@@ -22,7 +22,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
-  const open = async () => { await p.evaluate(async () => (await import('/js/05-new-object.js')).newObjModal()); await p.waitForSelector('#nType'); };
+  const open = async () => { await p.evaluate(async () => (await import('/js/05-new-object.js')).newObjModal()); await p.waitForSelector('#nType'); /* model, serial, user and where it is plugged in are under More details */ await p.click('#nMore > summary'); };
   const typeOf = id => p.evaluate(async id => (await import('/js/01-core.js')).byId(id).type, id);
   const offered = () => p.$$eval('#nUp option', os => os.map(o => o.value).filter(Boolean));
   await open();
