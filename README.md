@@ -104,6 +104,8 @@ When Entra lists one device more than once (an old record after a reinstall, or 
 - A person from LDAP or added by hand is never changed by Entra; one from Lansweeper only gets an empty name or department filled in. The LDAP sync and a directory sign-in take over a person Entra added, as one from Lansweeper.
 - Without the permission the devices sync as before, and the sync says why people were not read.
 
+**Secure Boot** (optional, in Settings → Entra & Intune): the sync also reads whether Secure Boot is on, from Intune's health attestation of each Windows device it manages. Graph gives that only device by device, so the sync asks in batches of 20 (`$batch`) with the permission it already has (`DeviceManagementManagedDevices.Read.All`). The device shows Secure Boot on or off with the day it was reported, the sidebar has the filter *Secure Boot off*, and the Table a Secure Boot column. A device that has not reported it yet stays unknown.
+
 On the Cards tab, tick **AD · Entra · Intune** to see on each computer and phone whether it has a computer account in Active Directory (from the LDAP sync, or hybrid joined), how it is in Microsoft Entra ID (formerly Azure AD: joined, hybrid or registered) and whether Intune manages it, coloured by compliance. The choice is kept in the browser. It is offered once Graph is set up or the LDAP sync has found computer accounts.
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.

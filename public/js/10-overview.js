@@ -77,7 +77,7 @@ export function renderOverview(){
   /* Intune, in three groups: how many are managed, their compliance, and what to clean up. */
   const intuneGroups = SYNC.graph ? [
     ['Management', ['managed', 'unmanaged']],
-    ['Compliance', ['compliant', 'grace', 'noncompliant', 'unencrypted']],
+    ['Compliance', ['compliant', 'grace', 'noncompliant', 'unencrypted', 'secureboot']],
     ['To clean up', ['stale', 'duplicates', 'missing', 'ambiguous']],
   ].map(([title, keys]) => [title, keys.map(k => ({ key: k, label: GRAPH_FILTERS[k][0], n: live.filter(GRAPH_FILTERS[k][2]).length })).filter(r => r.n)]).filter(g => g[1].length) : [];
   /* Data quality: how many devices are complete, and what the others lack. */
@@ -108,7 +108,7 @@ export function renderOverview(){
     [due.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${due.slice(0, 3).map(c => c.name).join(', ')}${due.length > 3 ? '…' : ''}`, 'data-ovtab="contracts"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
-    ...(SYNC.graph ? ['noncompliant', 'unencrypted'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
+    ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
     ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', `data-ovos="${esc(fam)}"`]),
     [repair, 'warn', 'In repair', repair === 1 ? 'device' : 'devices', 'data-ovs="repair"'],
     certAttention() || [0],

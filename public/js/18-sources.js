@@ -1,7 +1,7 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
 import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_ON, SYNC, byId, complianceChip, dayText, defenderState, esc, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
-import { dateTimeText } from './dates.js';
+import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 
 /* The days of a device in Lansweeper and here, each saying whose it is: Lansweeper's last scan that worked, the last one it
@@ -74,6 +74,7 @@ export function graphPanel(o){
       ${row('Intune', isIntune(g.managed) ? `Managed${g.enrolled ? ' since ' + esc(graphTime(g.enrolled).slice(0, 10)) : ''}` : `Not managed${otherManager(g.managed) ? ` <span class="muted">· ${esc(otherManager(g.managed))}</span>` : ''}`)}
       ${isIntune(g.managed) ? row('Compliance', complianceChip(g.compliance)) : ''}
       ${row('Encryption', enc)}
+      ${row('Secure Boot', g.secureBoot === 'on' ? `<span class="chip ok">On</span>${g.secureBootAt ? `<span class="muted"> · reported ${esc(dateText(g.secureBootAt))}</span>` : ''}` : g.secureBoot === 'off' ? `<span class="chip warn">Off</span>${g.secureBootAt ? `<span class="muted"> · reported ${esc(dateText(g.secureBootAt))}</span>` : ''}` : '')}
       ${g.jailbroken === 'yes' ? row('Jailbroken', '<span class="chip warn">Yes</span> <span class="muted">· Intune reports the phone as jailbroken or rooted</span>') : ''}
       ${row('Supervised', g.supervised === 'yes' ? 'Yes <span class="muted">· an Apple device under full management</span>' : '')}
       ${row('Category', esc(g.category || ''))}

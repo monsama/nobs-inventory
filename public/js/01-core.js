@@ -300,6 +300,8 @@ const inGraph = o => !!o.graph && !o.graph.gone && o.status !== 'retired';
 export const GRAPH_FILTERS = {
   noncompliant: ['Not compliant', 'bad', o => inGraph(o) && ['noncompliant', 'error'].includes(o.graph.compliance)],
   unencrypted: ['Not encrypted', 'warn', o => inGraph(o) && o.graph.encrypted === 'no'],
+  /* Read only when Settings → Entra & Intune asks for it (Intune's health attestation of a Windows device). */
+  secureboot: ['Secure Boot off', 'warn', o => inGraph(o) && o.graph.secureBoot === 'off', true],
   stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => inGraph(o) && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => (!o.graph || !!o.graph.gone) && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
   /* Records disabled in Entra are not duplicates to clean up: Entra keeps them switched off before they are deleted. */
