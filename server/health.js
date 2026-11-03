@@ -69,7 +69,9 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
   /* Syncs: each one set up, its last run and its schedule. */
   const runs = s.syncRuns || {}, plan = scheduleOf(s);
   const names = { lansweeper: 'Lansweeper', ldap: 'Active Directory', graph: 'Entra & Intune' };
+  const switchedOff = { lansweeper: s.useLansweeper === false, ldap: s.useAd === false, graph: s.useGraph === false };
   for (const src of ['lansweeper', 'ldap', 'graph']) {
+    if (switchedOff[src]) { add('Syncs', names[src], 'off', 'Off', src === 'lansweeper' ? 'Turned off in Settings.' : 'Turned off in Settings: not synced, the data already here stays. Sign-in is not affected.'); continue; }
     if (!on[src]) { add('Syncs', names[src], 'off', 'Not set up'); continue; }
     const r = runs[src], every = plan[src] && plan[src].every;
     const late = r && every && now - Date.parse(r.at) > 2 * every * 36e5 + 36e5;

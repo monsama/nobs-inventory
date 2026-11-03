@@ -1,5 +1,5 @@
 /* The Sync button at the right of the tab bar, beside To review: runs a sync by hand (all at once, or one of them) and
-   says when each last ran and how it went. Admins only; a source not set up is not offered. Lansweeper is run from
+   says when each last ran and how it went. Admins only; a source not set up or switched off is not offered. Lansweeper is run from
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
 import { $, esc, st, toast } from './01-core.js';
 import { isAdmin } from './04-settings.js';
@@ -16,8 +16,8 @@ let running = '';   /* the source being synced now, or 'all' */
 export function sources(){
   const out = [];
   if (st.useLansweeper !== false) out.push(['lansweeper', st.lsSource === 'api' && !!SERVER.lansweeper]);
-  if (SERVER.ldap || (st.ldap && st.ldap.url)) out.push(['ldap', true]);
-  if (SERVER.graph) out.push(['graph', true]);
+  if (st.useAd !== false && (SERVER.ldap || (st.ldap && st.ldap.url))) out.push(['ldap', true]);
+  if (st.useGraph !== false && SERVER.graph) out.push(['graph', true]);
   return out;
 }
 export const runOf = src => (st.syncRuns || {})[src] || null;

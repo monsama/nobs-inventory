@@ -113,6 +113,9 @@ export let PLANS = [];
 export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 export const LS_ON = () => st.useLansweeper !== false;
+/* Whether the AD and the Entra & Intune syncs run (Settings → Active Directory, Entra & Intune). Sign-in does not depend on it. */
+export const AD_ON = () => st.useAd !== false;
+export const GRAPH_ON = () => st.useGraph !== false;
 /* Lansweeper in use here: switched on, and set up or having sent something. A new inventory that never had it shows no
    Lansweeper status or filters, however the switch stands. */
 export const LS_USED = () => LS_ON() && (!!(st.lansweeper && (st.lansweeper.endpoint || st.lansweeper.site)) || st.lsSource === 'api' || !!(SYNC && (SYNC.run || SYNC.lansweeper)) || objs.some(o => o.feed) || REVIEW.some(o => o.feed));

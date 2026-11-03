@@ -1,0 +1,254 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NOBS Inventory API",
+    "version": "1",
+    "summary": "Read-only access to the inventory for other tools.",
+    "description": "The token API of NOBS Inventory (server/api-routes.js): devices, contracts, licences and, for a token made with them, people. Every route only reads. An admin makes and revokes the tokens in Settings → Users → Access; a token is shown once and sent as `Authorization: Bearer nobs_…`. A token is no session: the rest of the app's API stays closed to it. Wrong tokens count against the address, like wrong sign-ins: after too many, the address gets 429 for 15 minutes. Answers are not cached (`Cache-Control: no-store`). The CSV lists start with a byte order mark, so Excel reads them as UTF-8; a cell that starts with = + - @ is written with a leading apostrophe."
+  },
+  "servers": [{ "url": "/", "description": "This inventory" }],
+  "security": [{ "token": [] }],
+  "tags": [
+    { "name": "Devices", "description": "The devices of the inventory, not those waiting in To review." },
+    { "name": "Costs", "description": "Contracts and licences." },
+    { "name": "People", "description": "Only for a token made with people." },
+    { "name": "About", "description": "This description." }
+  ],
+  "paths": {
+    "/api/v1/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "operationId": "listDevices",
+        "summary": "List the devices",
+        "description": "The devices of the inventory, filtered by the parameters given. With a token made with people, each device also names its user and their department.",
+        "parameters": [
+          { "$ref": "#/components/parameters/format" },
+          { "name": "status", "in": "query", "description": "Only devices with this status.", "schema": { "type": "string", "enum": ["active", "stock", "retired"] } },
+          { "name": "type", "in": "query", "description": "Only devices of this type, by its key (pc, notebook, server, switch, monitor, … or a type added in Settings).", "schema": { "type": "string" }, "example": "notebook" },
+          { "name": "q", "in": "query", "description": "Only devices whose inventory number, name, serial number, model, IP or MAC address contains this text (not case-sensitive).", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The devices.",
+            "content": {
+              "application/json": { "schema": { "type": "object", "required": ["count", "devices"], "properties": { "count": { "type": "integer" }, "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } } } } },
+              "text/csv": { "schema": { "type": "string" }, "description": "With format=csv. Columns: id, code, name, typeLabel, model, serial, status, location, ip, mac, os, purchased, warranty, and user, department for a token made with people." }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NoToken" },
+          "429": { "$ref": "#/components/responses/Throttled" }
+        }
+      }
+    },
+    "/api/v1/devices/{code}": {
+      "get": {
+        "tags": ["Devices"],
+        "operationId": "getDevice",
+        "summary": "One device",
+        "description": "One device by its inventory number, its id or its serial number.",
+        "parameters": [
+          { "name": "code", "in": "path", "required": true, "description": "Inventory number (INV-0001), id or serial number.", "schema": { "type": "string" }, "example": "INV-0001" }
+        ],
+        "responses": {
+          "200": { "description": "The device.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Device" } } } },
+          "401": { "$ref": "#/components/responses/NoToken" },
+          "404": { "description": "No such device, or it waits in To review.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "$ref": "#/components/responses/Throttled" }
+        }
+      }
+    },
+    "/api/v1/contracts": {
+      "get": {
+        "tags": ["Costs"],
+        "operationId": "listContracts",
+        "summary": "List the contracts",
+        "description": "Each contract's terms, its next end and notice date, and the devices it covers. No notes, no contacts.",
+        "parameters": [{ "$ref": "#/components/parameters/format" }],
+        "responses": {
+          "200": {
+            "description": "The contracts.",
+            "content": {
+              "application/json": { "schema": { "type": "object", "required": ["count", "contracts"], "properties": { "count": { "type": "integer" }, "contracts": { "type": "array", "items": { "$ref": "#/components/schemas/Contract" } } } } },
+              "text/csv": { "schema": { "type": "string" }, "description": "With format=csv. Columns: id, name, kind, supplier, ref, start, end, renewMonths, noticeMonths, noticeBy, state, cost, per, devices (the inventory numbers, separated by spaces)." }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NoToken" },
+          "429": { "$ref": "#/components/responses/Throttled" }
+        }
+      }
+    },
+    "/api/v1/licences": {
+      "get": {
+        "tags": ["Costs"],
+        "operationId": "listLicences",
+        "summary": "List the licences",
+        "description": "Each licence's seats, how many devices have the software, its cost and end.",
+        "parameters": [{ "$ref": "#/components/parameters/format" }],
+        "responses": {
+          "200": {
+            "description": "The licences.",
+            "content": {
+              "application/json": { "schema": { "type": "object", "required": ["count", "licences"], "properties": { "count": { "type": "integer" }, "licences": { "type": "array", "items": { "$ref": "#/components/schemas/Licence" } } } } },
+              "text/csv": { "schema": { "type": "string" }, "description": "With format=csv. Columns: id, name, seats, used, free, over, cost, per, end." }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NoToken" },
+          "429": { "$ref": "#/components/responses/Throttled" }
+        }
+      }
+    },
+    "/api/v1/people": {
+      "get": {
+        "tags": ["People"],
+        "operationId": "listPeople",
+        "summary": "List the people",
+        "description": "The people the inventory knows: name, department, whether active, when they left, and how many devices they have. Only for a token made with people. No logins, no e-mail addresses.",
+        "parameters": [{ "$ref": "#/components/parameters/format" }],
+        "responses": {
+          "200": {
+            "description": "The people.",
+            "content": {
+              "application/json": { "schema": { "type": "object", "required": ["count", "people"], "properties": { "count": { "type": "integer" }, "people": { "type": "array", "items": { "$ref": "#/components/schemas/Person" } } } } },
+              "text/csv": { "schema": { "type": "string" }, "description": "With format=csv. Columns: id, name, department, active, left, devices." }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NoToken" },
+          "403": { "description": "The token was made without people.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "$ref": "#/components/responses/Throttled" }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": ["About"],
+        "operationId": "getOpenApi",
+        "summary": "This description",
+        "description": "This OpenAPI document. No token needed: it holds no data.",
+        "security": [],
+        "responses": {
+          "200": { "description": "The OpenAPI document.", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "token": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "nobs_…",
+        "description": "An API token made by an admin in Settings → Users → Access. It starts with nobs_ and is shown once."
+      }
+    },
+    "parameters": {
+      "format": {
+        "name": "format",
+        "in": "query",
+        "description": "csv for a CSV file instead of JSON.",
+        "schema": { "type": "string", "enum": ["csv"] }
+      }
+    },
+    "responses": {
+      "NoToken": {
+        "description": "No token, or not a valid one (revoked, mistyped).",
+        "headers": { "WWW-Authenticate": { "schema": { "type": "string", "const": "Bearer" } } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Throttled": {
+        "description": "Too many wrong tokens from this address: try again in 15 minutes.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string", "description": "What went wrong, in a sentence." } }
+      },
+      "Device": {
+        "type": "object",
+        "required": ["id", "code", "name", "type", "typeLabel", "model", "serial", "status", "location", "ip", "mac", "os", "purchased", "warranty", "intune"],
+        "properties": {
+          "id": { "type": "string" },
+          "code": { "type": "string", "description": "Inventory number.", "examples": ["INV-0001"] },
+          "name": { "type": "string" },
+          "type": { "type": "string", "description": "The type's key.", "examples": ["notebook"] },
+          "typeLabel": { "type": "string", "description": "The type's name as the page shows it." },
+          "model": { "type": "string" },
+          "serial": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "stock", "retired"] },
+          "location": { "type": "string", "description": "Site / room.", "examples": ["Bern / EG"] },
+          "ip": { "type": "string" },
+          "mac": { "type": "string" },
+          "os": { "type": "string" },
+          "purchased": { "type": "string", "description": "Purchase date (YYYY-MM-DD), or empty." },
+          "warranty": { "type": "string", "description": "End of the warranty (YYYY-MM-DD), or empty." },
+          "user": { "type": "string", "description": "The device's user. Only for a token made with people." },
+          "department": { "type": "string", "description": "The user's department. Only for a token made with people." },
+          "intune": {
+            "description": "What Intune said at the last sync, or null for a device Intune does not know.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["compliance", "encrypted", "lastCheckIn"],
+                "properties": {
+                  "compliance": { "type": "string", "description": "Intune's compliance state (compliant, noncompliant, …), or empty." },
+                  "encrypted": { "type": "string", "enum": ["yes", "no", ""] },
+                  "lastCheckIn": { "type": "string", "description": "Last contact with Intune (ISO 8601), or empty." }
+                }
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "Contract": {
+        "type": "object",
+        "required": ["id", "name", "kind", "supplier", "ref", "start", "end", "renewMonths", "noticeMonths", "noticeBy", "state", "cost", "per", "devices"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "type": "string", "enum": ["Maintenance", "Support", "Lease", "Subscription", "Licence", "Extended warranty", "Other"] },
+          "supplier": { "type": "string" },
+          "ref": { "type": "string", "description": "The supplier's contract number." },
+          "start": { "type": "string", "description": "YYYY-MM-DD, or empty." },
+          "end": { "type": "string", "description": "The next end (after renewals), YYYY-MM-DD, or empty for no end." },
+          "renewMonths": { "type": "integer", "description": "Renews itself by this many months; 0 for not." },
+          "noticeMonths": { "type": "integer", "description": "Months of notice; 0 for none." },
+          "noticeBy": { "type": "string", "description": "The last day to give notice, YYYY-MM-DD, or empty." },
+          "state": { "type": "string", "enum": ["open", "ok", "soon", "late", "ended"], "description": "open: no end; soon: the notice or the end is within 60 days; late: the notice date has passed; ended: it has ended." },
+          "cost": { "type": "number" },
+          "per": { "type": "string", "enum": ["year", "month", "once"] },
+          "devices": { "type": "array", "items": { "type": "string" }, "description": "The inventory numbers of the devices it covers." }
+        }
+      },
+      "Licence": {
+        "type": "object",
+        "required": ["id", "name", "seats", "used", "free", "over", "cost", "per", "end"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "seats": { "type": "integer" },
+          "used": { "type": "integer", "description": "Devices in use or in stock that have the software." },
+          "free": { "type": "integer", "description": "Seats left; negative when more are used than bought." },
+          "over": { "type": "boolean" },
+          "cost": { "type": "number" },
+          "per": { "type": "string", "enum": ["year", "month", "once"] },
+          "end": { "type": "string", "description": "YYYY-MM-DD, or empty." }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "required": ["id", "name", "department", "active", "devices"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "department": { "type": "string" },
+          "active": { "type": "boolean", "description": "false for someone who left the directory." },
+          "left": { "type": "string", "description": "When they left (YYYY-MM-DD). Only for someone who left." },
+          "devices": { "type": "integer", "description": "Devices they are the user of, not counting retired ones." }
+        }
+      }
+    }
+  }
+}

@@ -109,13 +109,14 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
           try { log('feed sync', runFeedFile(db, env.NI_FEED_CSV, now)); } catch (e) { log('feed sync failed:', e.message); audit(db, null, 'feed file sync failed: ' + e.message); }
         }
       }
-      if (due('ldap')) {
+      /* AD and Entra switched off in Settings are skipped; their sign-in is not the scheduler's business. */
+      if (due('ldap') && cur.useAd !== false) {
         const lc = ldapConfig ? ldapConfig() : null;
         if (lc) {
           try { log('ldap sync', await runRecorded(db, 'ldap', () => syncLdapUsers(db, lc))); } catch (e) { log('ldap sync failed:', e.message); audit(db, null, 'LDAP sync failed: ' + e.message); }
         }
       }
-      if (due('graph')) {
+      if (due('graph') && cur.useGraph !== false) {
         const gc = graphConfig ? graphConfig() : null;
         if (gc) {
           try { const c = await runRecorded(db, 'graph', () => syncGraph(db, gc, now)); log('graph sync', c); audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(c)); } catch (e) { log('graph sync failed:', e.message); audit(db, null, 'Microsoft Graph sync failed: ' + e.message); }

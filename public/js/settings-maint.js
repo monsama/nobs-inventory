@@ -9,6 +9,7 @@ import { $, esc, st, toast } from './01-core.js';
 import { dateTimeText } from './dates.js';
 import { CERT, certAttention, certPanel, loadCert, wireCertPanel } from './certificate.js';
 import { forgetPhotos, prepare } from './23-photos.js';
+import { liveOpen } from './live.js';
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['settings', 'Settings'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
@@ -230,7 +231,10 @@ function healthPanel(){
   if (!HEALTH) return '<div class="panelbox"><div class="hdr">Health</div><p class="note" style="padding:12px">Checking…</p></div>';
   /* The page's own certificate is checked by the page (Certificate below): its state is counted here too. */
   const att = certAttention();
-  const checks = [...HEALTH.checks, ...(att ? [{ area: 'Certificates', name: 'This page (HTTPS)', state: att[1] === 'bad' ? 'bad' : 'warn', value: att[2], note: att[3] || '' }] : [])];
+  /* So is its live channel (live.js): the server cannot know about one page. Not connected, the page polls instead. */
+  const live = liveOpen() ? { state: 'ok', value: 'Connected', note: 'Changes by others show here within seconds.' }
+    : { state: 'off', value: 'Not connected', note: 'Changes by others show within a minute. Behind a proxy, check that it does not buffer /api/events.' };
+  const checks = [...HEALTH.checks, { area: 'Server', name: 'Live updates (this page)', ...live }, ...(att ? [{ area: 'Certificates', name: 'This page (HTTPS)', state: att[1] === 'bad' ? 'bad' : 'warn', value: att[2], note: att[3] || '' }] : [])];
   const worst = checks.some(c => c.state === 'bad') ? 'bad' : checks.some(c => c.state === 'warn') ? 'warn' : 'ok';
   const areas = [...new Set(checks.map(c => c.area))];
   const head = { ok: 'Everything is in order', warn: 'Something needs a look', bad: 'Something needs action' }[worst];

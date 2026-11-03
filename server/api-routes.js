@@ -1,11 +1,17 @@
 /* The read-only API for other tools: the tokens an admin makes and revokes (Settings → Users → API access), and
    /api/v1 (devices, contracts, licences, people), read with Authorization: Bearer nobs_…. Split out of app.js. */
+import fs from 'node:fs';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
 import { audit } from './db.js';
 import { HttpError } from './errors.js';
 import { loadState } from './state.js';
 
+/* The description of the token API (OpenAPI 3.1), written by hand next to the routes: keep it in step with them. */
+const OPENAPI = JSON.parse(fs.readFileSync(new URL('./openapi.json', import.meta.url), 'utf8'));
+
 export function registerApiRoutes(app, { db, requireUser, requireAdmin, throttle }) {
+  /* For tools that read OpenAPI. No token: it holds no data. */
+  app.get('/api/openapi.json', (req, res) => res.set('Cache-Control', 'no-cache').json(OPENAPI));
   /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */
   app.get('/api/tokens', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json({ tokens: listApiTokens(db) }));
   app.post('/api/tokens', requireUser, requireAdmin, (req, res, next) => {

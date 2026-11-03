@@ -84,7 +84,7 @@ try {
   const health = await p.textContent('#setMaint');
   assert.match(health, /Health\s*Something needs a look/);
   assert.match(health, /Check\s*Last backup\s*None yet/);
-  assert.match(health, /Off\s*Lansweeper\s*Not set up/);
+  assert.match(health, /Off\s*Lansweeper\s*Off/, 'switched off in Settings');
   // the backups have a tab of their own: the Health row goes there, to Back up now
   await p.click('[data-hlgo="Backups|Last backup"]');
   await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'bkNew'));
@@ -93,6 +93,8 @@ try {
   await openSetTab(p, 'maintenance'); await p.waitForSelector('.hl-list');
   await p.click('#hlAgain');
   await wait(async () => /OK\s*Last backup\s*less than an hour ago/.test(await p.textContent('#setMaint')));
+  // the page's own live channel (live.js), which only the page knows
+  assert.match(await p.textContent('#setMaint'), /OK\s*Live updates \(this page\)\s*Connected/);
   // each row goes to where it is dealt with: the restore test's button here, Lansweeper's tab, the log's errors
   await p.click('[data-hlgo="Backups|Restore test"]');
   await wait(() => p.evaluate(() => document.activeElement && document.activeElement.id === 'rtRun'));

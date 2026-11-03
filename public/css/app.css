@@ -1444,6 +1444,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-st-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.src-st-act .note{min-width:0;overflow-wrap:anywhere}
 .src-switch{font-weight:600}
 .src-offnote{padding:4px 2px 12px}
+.src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
 .ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}

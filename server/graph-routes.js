@@ -93,6 +93,8 @@ export function registerGraphRoutes(app, ctx) {
   });
   app.post('/api/graph/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
+      /* Switched off in Settings: not run, and not recorded as a run. Sign-in with Microsoft is not affected. */
+      if (loadState(db).useGraph === false) throw new HttpError(403, 'The Entra & Intune sync is turned off in Settings → Entra & Intune. Sign-in with Microsoft is not affected.');
       const g = cfgGraph();
       const counts = await runRecorded(db, 'graph', () => { if (!g) throw graphMissing(); return syncGraph(db, g, new Date(), graphFetch); });
       audit(db, null, 'Microsoft Graph sync: ' + JSON.stringify(counts));
