@@ -54,17 +54,17 @@ try {
   // 1. the filters in force show over the list, each taken off on its own
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'cards');
   await p.click('#typeList [data-type=notebook]');
-  await p.fill('#listQ', 'NB-0002');
+  await p.fill('#search', 'NB-0002'); await p.press('#search', 'Escape');
   await p.waitForSelector('#fbar:not([hidden])');
   assert.match(await p.textContent('#fbar'), /Type: Notebook.*Filter: “NB-0002”.*Clear all/s);
-  assert.equal(await core(() => document.activeElement.id), 'listQ', 'typing keeps the cursor in the filter');
+  assert.equal(await core(() => document.activeElement.id), 'search', 'typing keeps the cursor in the filter');
   assert.equal(await p.locator('#typeList .item.sel[data-type=""]').count(), 0, '"All objects" is not marked while a filter is on');
   await p.click('#fbar [data-fx=type]');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null);
   assert.match(await p.textContent('#fbar'), /Filter/);
   await p.click('#fbar [data-fx=q]');
   await p.waitForSelector('#fbar[hidden]', { state: 'attached' });
-  assert.equal(await p.inputValue('#listQ'), '');
+  assert.equal(await p.inputValue('#search'), '');
 
   // 6. the search at the top looks through everything, whatever the filters, and lists what it finds by kind;
   //    Enter opens the first hit, and the object's name takes the focus
@@ -74,11 +74,12 @@ try {
   await p.fill('#search', 'SRV-APP');
   await p.waitForSelector('#gsList:not([hidden]) li[data-i]');
   assert.match(await p.textContent('#gsList'), /Devices\s*SRV-APP/, 'a server is found though Notebook is picked on the left');
-  assert.equal(await core(async () => (await import('/js/01-core.js')).st.q), '', 'the search does not filter the lists');
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.q), 'SRV-APP', 'on a list, the same field filters the list too (one field)');
   await p.press('#search', 'Enter');
   await p.waitForSelector('#objTitle');
   assert.equal(await core(() => document.activeElement.id), 'objTitle');
   assert.equal(await p.inputValue('#search'), '', 'the field is cleared once a hit is opened');
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.q), '', 'and the list filter with it');
   await core(async () => { const c = await import('/js/01-core.js'); c.st.type = null; });
   // people, contacts, contracts and rooms are found too, each opening where it lives
   const gs = async (q, group, name) => { await p.fill('#search', q); await p.waitForSelector(`#gsList li[data-i]:has-text("${name}")`); assert.match(await p.textContent('#gsList'), new RegExp(group)); await p.click(`#gsList li[data-i]:has-text("${name}")`); };

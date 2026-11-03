@@ -84,7 +84,8 @@ export function renderContracts(){
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
-    $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;
+    $('#view').innerHTML = `<div class="empty">No contracts yet.${isAdmin() ? ' <button type="button" class="primary" id="ctNewEmpty">New contract</button>' : ''}</div>`;
+    const ne = $('#ctNewEmpty'); if (ne) ne.onclick = () => contractModal(null);
     return;
   }
   $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
@@ -117,16 +118,17 @@ export function contractModal(c, preset = []){
       <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${esc(cur.name)}" placeholder="e.g. Switch maintenance HPE">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
       <label for="ctSupplier">Supplier</label>${comboHtml(`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${esc(cur.supplier || '')}" placeholder="Type or pick a company">`, 'ctSupplier')}
+      <label for="ctCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
+      <label for="ctEnd">Ends</label>${dateFieldHtml('id="ctEnd"', cur.end || '')}
+      <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
+      <label for="ctDevQ">Devices</label><div><input id="ctDevQ" type="search" placeholder="Find a device to add…" aria-label="Find a device" style="width:100%"><div class="ct-devs" id="ctDevs"></div></div>
+    </div><details class="nmore" id="ctMore" ${cur.ref || cur.start || (cur.contacts || []).length || cur.note ? 'open' : ''}><summary>More details <span class="muted">contract number, start, renewal, contacts, note</span></summary><div class="form" style="padding:0">
       <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
       <label for="ctStart">Starts</label>${dateFieldHtml('id="ctStart"', cur.start || '')}
-      <label for="ctEnd">Ends</label>${dateFieldHtml('id="ctEnd"', cur.end || '')}
       <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => `<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`).join('')}</select></div>
-      <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
-      <label for="ctCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
       <label for="ctAddContact">Contacts</label><div><div class="ct-people" id="ctPeople"></div><select id="ctAddContact" aria-label="Add a contact from Contacts"></select></div>
       <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
-      <label for="ctDevQ">Devices</label><div><input id="ctDevQ" type="search" placeholder="Find a device to add…" aria-label="Find a device" style="width:100%"><div class="ct-devs" id="ctDevs"></div></div>
-    </div><p class="note" id="ctErr" role="status"></p></div>
+    </div></details><p class="note" id="ctErr" role="status"></p></div>
     <div class="mf">${isNew ? '' : '<button id="ctDel" class="danger-text">Delete</button>'}<div class="grow"></div><button id="ctCancel">Cancel</button><button id="ctOk" class="primary">Save</button></div>`, 'wide');
   /* The devices covered come first, then those that match the search, at most 60. */
   const devs = () => {
@@ -170,6 +172,7 @@ export function contractModal(c, preset = []){
     const name = $('#ctName').value.trim();
     if (!name) return err('Give the contract a name.');
     const badDay = ['#ctStart', '#ctEnd'].find(id => dateBad($(id)));
+    if (badDay === '#ctStart') $('#ctMore').open = true;
     if (badDay){ toast('Write the day as dd.mm.yyyy.', 'err'); $(badDay).focus(); return; }
     const start = dateValue($('#ctStart')), end = dateValue($('#ctEnd'));
     if (start && end && end < start){ $('#ctEnd').focus(); return err('It ends before it starts.'); }

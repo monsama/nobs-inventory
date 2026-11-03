@@ -32,7 +32,7 @@ try {
   await p.click('#tfAdd');
   await until(p, async () => (await import('/js/01-core.js')).TYPE_FIELDS.pc?.[0]?.key === 'asset_tag');
   // Domains are defined once in Settings and picked from a dropdown on the PC.
-  await openSetTab(p, 'vlans'); await p.waitForSelector('#dmName');
+  await openSetTab(p, 'domains'); await p.waitForSelector('#dmName');
   await p.fill('#dmName', 'corp.test'); await p.click('#dmAdd');
   await until(p, async () => (await import('/js/01-core.js')).DOMAINS.some(d => d.name === 'corp.test'));
   await p.click('#setClose');

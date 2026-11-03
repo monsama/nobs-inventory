@@ -46,7 +46,7 @@ try {
   assert.equal(await p.locator('#setUsers [aria-label="Name of Administrator"]').count(), 1, 'a manual admin can be renamed too');
 
   // a domain's name; the object moves with it
-  await openSetTab(p, 'vlans'); await p.waitForSelector('[data-dname="0"]');
+  await openSetTab(p, 'domains'); await p.waitForSelector('[data-dname="0"]');
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
   // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
@@ -95,7 +95,7 @@ try {
       { cidr: '10.100.100.0/24', devices: 3, gateway: '192.168.1.1', dns: [], name: '' },
       { cidr: '10.10.30.0/25', devices: 2, gateway: '10.10.30.1', dns: [] },
     ];
-    c.st.setTab = 'vlans'; (await import('/js/04-settings.js')).openSettings();
+    c.st.setTab = 'subnets'; (await import('/js/04-settings.js')).openSettings();
   });
   await p.waitForSelector('#snUseAll');
   assert.match(await p.textContent('#snUseAll'), /Use all 3/);
@@ -151,7 +151,7 @@ try {
   // the sidebar: a search stays on while switching types and looks within the type; a type clicked again shows all
   assert.equal(await p.locator('#searchAll').count(), 0, 'no separate All devices option');
   await core(async () => { const c = await import('/js/01-core.js'); (await import('/js/19-modal.js')).closeModal(); c.st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
-  await p.fill('#listQ', 'SW-'); await p.waitForTimeout(200);
+  await p.fill('#search', 'SW-'); await p.press('#search', 'Escape'); await p.waitForTimeout(200);
   const cards = () => p.$$eval('#view .card', cs => cs.map(c => c.dataset.open).sort());
   assert.deepEqual(await cards(), ['s1', 's2'], 'both switches match');
   await p.click('#typeList [data-type=pc]');
@@ -160,7 +160,7 @@ try {
   assert.deepEqual(await cards(), ['s1', 's2']);
   await p.click('#typeList [data-type=switch]');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.type), null, 'a type clicked again goes back to all');
-  await p.fill('#listQ', ''); await p.waitForTimeout(150);
+  await p.fill('#search', ''); await p.waitForTimeout(150);
 
   // leaving Settings, also with Escape, draws the view behind it again: a renamed type shows on the cards at once
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'cards'; c.st.setTab = 'types'; (await import('/js/04-settings.js')).openSettings(); });

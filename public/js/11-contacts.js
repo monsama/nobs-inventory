@@ -76,7 +76,7 @@ export function renderContacts(){
   $('#cnKind').onchange = e => { st.cnKind = e.target.value; renderContacts(); };
   const box = $('#cnQ'); box.oninput = () => { st.cnQ = box.value; renderContacts(); const b = $('#cnQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
-    $('#view').innerHTML = `<div class="empty">No contacts yet. Add your own IT people and the people at your IT partners (service provider, supplier support), or import them from a CSV file or vCards, then name on each device who is responsible for it, internally and externally.</div>`;
+    $('#view').innerHTML = `<div class="empty">No contacts yet: your own IT people and the people at your IT partners. Add them, or import a CSV or vCards.</div>`;
     return;
   }
   /* The company's own people first, then each partner company in order, those without a company last. */

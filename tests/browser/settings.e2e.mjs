@@ -96,7 +96,7 @@ try {
   await page.click('#pwCancel'); await page.waitForSelector('#setUsers');
   assert.equal(await page.locator('#setLdap').count(), 0, 'Users does not show LDAP');
   // Add subnet opens the editor, which spans the box; the device types ticked and the ranges added are saved
-  await openSetTab(page, 'vlans'); await page.waitForSelector('#snNew');
+  await openSetTab(page, 'subnets'); await page.waitForSelector('#snNew');
   await page.click('#snNew'); await page.waitForSelector('.sn-edit[data-sub="new"]');
   const formW = await page.locator('.sn-edit').evaluate(e => e.getBoundingClientRect().width);
   const boxW = await page.locator('#setSubnets').evaluate(e => e.getBoundingClientRect().width);

@@ -51,6 +51,9 @@ try {
   await page.fill('#ctName', 'Switch maintenance');
   await page.fill('#ctSupplier', 'HPE');
   await page.fill('#ctEnd', day(70));
+  // renewal, contract number, contacts and note are under More details
+  assert.equal(await page.isVisible('#ctRenew'), false);
+  await page.click('#ctMore > summary');
   await page.selectOption('#ctRenew', '12');
   await page.fill('#ctNotice', '1');
   await page.fill('#ctCost', '1200');
@@ -88,7 +91,7 @@ try {
   await page.waitForSelector('#ctAddDev');
   assert.match(await page.textContent('.obj'), /Contracts\s*1.*Switch maintenance.*Give notice by/s);
   await page.click('#ctAddDev');
-  await page.fill('#ctName', 'Leased switch'); await page.selectOption('#ctKind', 'lease'); await page.selectOption('#ctRenew', '0');
+  await page.fill('#ctName', 'Leased switch'); await page.selectOption('#ctKind', 'lease'); await page.click('#ctMore > summary'); await page.selectOption('#ctRenew', '0');
   assert.equal(await page.isChecked('[data-ctdev=o1]'), true, 'the device the contract was started from is in it');
   await page.click('#ctOk');
   await page.waitForFunction(async () => (await import('/js/01-core.js')).COSTS.contracts.length === 2);

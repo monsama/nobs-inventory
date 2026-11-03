@@ -26,6 +26,17 @@ try {
   let h = await heads();
   assert.ok(!h.includes('Rack'), 'Rack is shown by default: ' + h.join(','));
   await p.click('#colMenu > summary');
+  // a column set in one click: Network shows the IP and MAC, not the model
+  await p.click('[data-colpreset=network]');
+  h = await heads();
+  assert.ok(h.includes('IP') && h.includes('MAC') && !h.includes('Model'), 'the Network set: ' + h.join(','));
+  assert.equal(await p.getAttribute('[data-colpreset=network]', 'aria-pressed'), 'true');
+  await p.click('[data-colpreset=basic]');
+  h = await heads();
+  assert.ok(h.includes('Model') && h.includes('Serial') && !h.includes('MAC'), 'the Basic set: ' + h.join(','));
+  // each column on its own, under Choose columns (back to the defaults first)
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(v.DEFAULT_HIDDEN_COLS); v.renderTable(); document.querySelector('#colMenu').open = true; });
+  await p.click('#colPick > summary');
   await p.check('[data-col="rack"]');
   assert.equal(await p.evaluate(() => document.querySelector('#colMenu').open), true, 'the menu closed after a change');
   h = await heads();

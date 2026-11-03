@@ -34,6 +34,10 @@ try {
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js'), import('/js/07-render.js')]); __mods[0].st.tab = 'plans'; __mods[1].render(); });
   await p.waitForSelector('#plList');
+  // the list beside the plan folds away and comes back (an admin starts with it shown)
+  assert.equal(await p.getAttribute('#plSideBtn', 'aria-pressed'), 'true');
+  await p.click('#plSideBtn'); await p.waitForSelector('#plList', { state: 'hidden' });
+  await p.click('#plSideBtn'); await p.waitForSelector('#plList');
   assert.equal(await p.locator('#plList .pl-item').count(), 7, 'the devices not on the plan are not listed');
   await p.click('#plArea');
   const box = await p.locator('#plCanvas').boundingBox();

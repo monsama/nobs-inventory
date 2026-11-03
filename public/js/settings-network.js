@@ -57,7 +57,7 @@ let snEdit = null, snDraft = null;
 export const resetSubnetEdit = () => { snEdit = null; snDraft = null; };
 /* The subnets of the network. Each row is checked when it is changed, and a row that is not right is kept as typed, with the reason. */
 export function renderSetSubnets(){
-  const root = $('#setSubnets');
+  const root = $('#setSubnets'); if (!root) return;
   if (!root) return;
   const edit = isAdmin();
   if (!edit) snEdit = null;
@@ -135,6 +135,7 @@ export function renderSetSubnets(){
 }
 /* VLANs are one list for the whole inventory. A connection picks one from it, so a VLAN is named once. */
 export function renderSetVlans(){
+  if (!$('#setVlans')) return;
   const cnt = $('#vlCnt'); if (cnt) cnt.textContent = VLANS.length;
   const usedBy = vid => rels.filter(r => r.vlan === vid).length;
   const subnetsOn = vid => SUBNETS.filter(n => n.vid === vid).length;
@@ -163,10 +164,10 @@ export function renderSetVlans(){
   };
   $('#vlAdd').onclick = add;
   $('#vlName').onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); add(); } };
-  renderSetDomains();
 }
 /* Domains are one list for the whole inventory; an object's domain is picked from it. */
 export function renderSetDomains(){
+  if (!$('#setDomains')) return;
   const usedBy = d => objs.filter(o => o.domain === d.name).length;
   const counts = new Map();
   for (const o of objs) if (o.domain && o.status !== 'retired' && !DOMAINS.some(d => d.name.toLowerCase() === o.domain.toLowerCase())) counts.set(o.domain, (counts.get(o.domain) || 0) + 1);

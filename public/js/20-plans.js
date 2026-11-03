@@ -137,6 +137,11 @@ export function locateOnPlan(plan, o, x, y){
   o.loc = areaLoc(plan, a); markHand(o, 'loc');
   return a.name;
 }
+/* The list of devices not on the plan: beside the plan for those who place devices, folded away for the others (the
+   plan gets the room); either way a button shows or hides it, remembered in this browser. */
+const SIDE_KEY = 'ni-pl-side';
+const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? canEdit() : v === '1'; } catch { return canEdit(); } };
+const setSideOpen = on => { try { localStorage.setItem(SIDE_KEY, on ? '1' : '0'); } catch { /* not kept */ } };
 export function renderPlans(){
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
@@ -152,11 +157,12 @@ export function renderPlans(){
         <details class="menu" id="plMenu"><summary>Plan…</summary><div class="menubox"><button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
         <button id="plDel" class="danger-text">Delete plan</button></div></details>` : ''}
+        <button type="button" id="plSideBtn" aria-pressed="${sideOpen()}" title="Show or hide the list of devices not on this plan">${sideOpen() ? 'Hide device list' : 'Device list'}</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>
       ${plan ? `<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
-  const body = plan ? `<div class="pl-body">
+  const body = plan ? `<div class="pl-body${sideOpen() ? '' : ' side-off'}">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
         <div class="pl-q"><input id="plQ" type="search" placeholder="Find devices…  /" aria-label="Find devices: marks them on the plan and narrows this list" value="${esc(st.q)}">
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => `<option value="${k}" ${st.plType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
@@ -168,6 +174,7 @@ export function renderPlans(){
   $('#view').innerHTML = `<div class="plans">${bar}${body}</div>`;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));
+  on('#plSideBtn', () => { setSideOpen(!sideOpen()); renderPlans(); });
   const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planParts = []; planZoom = 1; renderPlans(); };
   on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; planParts = []; planEditArea = null; renderPlans(); });
   on('#plAreaAdd', () => { planMode = 'area'; planPlace = null; planParts = []; renderPlans(); });

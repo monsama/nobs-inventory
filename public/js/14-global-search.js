@@ -1,7 +1,6 @@
-/* The search at the top: always through everything, whatever the filters on the left, the tab or the list filters say.
+/* The search at the top: always through everything, whatever the filters on the left or the tab say.
    It finds devices, people, contacts, contracts and rooms and lists them under the field, grouped; a hit opens where it
-   lives, and the view the person is in stays as it is. The lists narrow themselves with the filter field in their own
-   toolbar (st.q), not with this one. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
+   lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
 import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS } from './04-settings.js';
 import { openObj } from './02-views.js';
@@ -83,17 +82,27 @@ function mark(i){
 function pick(i){
   const r = items[i]; if (!r) return;
   close(); box.value = ''; box.blur();
+  if (st.q) st.q = '';
   r.go();
 }
 
 box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'); box.setAttribute('aria-expanded', 'false'); box.setAttribute('aria-autocomplete', 'list');
-box.addEventListener('input', show);
+/* On a list (Cards, Table, Relationships) the same field also narrows the list as one types (st.q, shown as a Filter
+   chip over it): one field, not two. Escape closes the hits and keeps the filter; a second Escape clears both. */
+const LIST = ['cards', 'table', 'map'];
+const onList = () => LIST.includes(st.tab);
+box.addEventListener('input', () => { if (onList()){ st.q = box.value; render({ save: false }); } show(); });
+/* The field shows the list's filter while on a list, and is empty elsewhere (unless one is typing in it). */
+export function syncSearchBox(){
+  if (document.activeElement === box) return;
+  box.value = onList() ? st.q : '';
+}
 box.addEventListener('focus', () => { if (box.value.trim()) show(); });
 box.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' && items.length){ e.preventDefault(); mark((active + 1) % items.length); }
   else if (e.key === 'ArrowUp' && items.length){ e.preventDefault(); mark((active - 1 + items.length) % items.length); }
   else if (e.key === 'Enter'){ e.preventDefault(); pick(active < 0 ? 0 : active); }
-  else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); if (!list.hidden) close(); else { box.value = ''; box.blur(); } }
+  else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); if (!list.hidden) close(); else { box.value = ''; box.blur(); if (onList() && st.q){ st.q = ''; render({ save: false }); } } }
 });
 /* A click on a hit opens it; mousedown keeps the field from losing the focus first, which would close the list. */
 list.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (!li) return; e.preventDefault(); pick(+li.dataset.i); });

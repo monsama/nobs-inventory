@@ -9,13 +9,13 @@
  --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
  --shadow:0 4px 16px rgba(0,0,0,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
  --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
  --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#33404d;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+ --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
  --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
  --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
  --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
@@ -1768,3 +1768,17 @@ details.how[open]>summary{margin-bottom:4px}
 .umenu .menubox>a{padding:6px 10px}
 @media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
 .menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}
+
+/* Simplify round 3 (0.9.90) */
+/* A field's ⋯ menu shows on the row under the mouse or with the focus, not on every row at once (always on touch). */
+@media (hover:hover) and (pointer:fine){
+  .form.props .ctlrow>details.fmenu>summary{opacity:0;transition:opacity .12s}
+  .form.props .ctlrow:hover>details.fmenu>summary,.form.props .ctlrow:focus-within>details.fmenu>summary,.form.props details.fmenu[open]>summary,.form.props details.fmenu>summary:focus-visible{opacity:1}
+}
+.colmenu{min-width:240px;padding:8px}
+.colpresets{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.colpresets>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
+.colpick>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:6px 2px 2px}
+.colpick-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;padding-top:6px}
+.pl-body.side-off{grid-template-columns:minmax(0,1fr)}
+.pl-body.side-off>.pl-side{display:none}
