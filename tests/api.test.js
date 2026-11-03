@@ -716,7 +716,7 @@ test('a settings change is logged with what changed, before and after; secrets a
     const log = (await srv.call('GET', '/api/log', { cookie: a.cookie })).json.entries;
     const fo = log.find(e => e.action === 'setting changed: field sources');
     assert.ok(fo, 'one line per setting'); assert.equal(fo.who, 'Administrator');
-    assert.deepEqual(fo.detail.changes, [{ path: 'os', before: '—', after: '["ad","graph","ls"]' }]);
+    assert.deepEqual(fo.detail.changes, [{ path: 'os', before: '-', after: '["ad","graph","ls"]' }]);
     assert.deepEqual(log.find(e => e.action === 'setting changed: locations').detail.changes, [{ path: '', added: ['HQ / Lager', 'HQ / EG'] }]);
     assert.ok(!log.some(e => /map layout/.test(e.action)), 'the map layout is a preference, not logged');
     assert.ok(!log.some(e => /^saved: settings/.test(e.action)), 'no second line for the same save');

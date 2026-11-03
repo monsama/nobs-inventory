@@ -47,7 +47,7 @@ try {
   await p.click('.mine-row [data-myreport]'); await p.fill('#myRep', 'The battery is swollen'); await p.click('#myRepOk');
   await until(() => p.evaluate(async () => (await import('/js/01-core.js')).objs[0].reported?.text === 'The battery is swollen'));
   await p.waitForSelector('.mine-note');
-  assert.match(await p.textContent('.mine-row'), /Reported – IT is on it[\s\S]*battery is swollen/);
+  assert.match(await p.textContent('.mine-row'), /Reported - IT is on it[\s\S]*battery is swollen/);
   // a view she does not get (a shortcut, an old link) brings her back to My devices
   await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'map'; (await import('/js/07-render.js')).view(); });
   assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.tab), 'mine');

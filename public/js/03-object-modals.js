@@ -545,7 +545,7 @@ export function renderObj(o){
     }
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
     /* A model typed here is kept in the list, so the other devices can choose it. */
-    if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
+    if (o.model && o.model !== '\u2014' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
     const shownValue = (k, v) => k === 'status' && STATUS[v] ? STATUS[v].label : v;
     const labelOf = k => (fields.find(f => f[0] === k) || [])[1] || FIELD_LABEL[k] || k;

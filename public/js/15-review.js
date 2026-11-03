@@ -238,7 +238,7 @@ export function resolveModal(list){
     ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? html`<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
     const a = String(f(o) || ''), b = String(f(t) || '');
-    return html`<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? html` class="dup-diff"` : ''}><th>${l}</th><td>${a || '—'}</td><td>${b || '—'}</td></tr>`;
+    return html`<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? html` class="dup-diff"` : ''}><th>${l}</th><td>${a || '-'}</td><td>${b || '-'}</td></tr>`;
   })}</tbody></table>`
     : html`<ul class="dup-list">${list.slice(0, 12).map(x => html`<li><b>${x.name}</b> → ${dupOf(x).name}</li>`)}${list.length > 12 ? html`<li>and ${list.length - 12} more</li>` : ''}</ul>`;
   const def = dns ? 'dock' : 'same';

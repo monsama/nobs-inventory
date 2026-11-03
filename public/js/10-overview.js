@@ -141,7 +141,7 @@ export function renderOverview(){
       ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
       ${tile('Needs attention', compact(attention.length), attention.length ? (attention.length === 1 ? '1 topic: ' : `${attention.length} topics: `) + attention.map(a => a[2]).slice(0, 2).join(', ') + (attention.length > 2 ? '…' : '') : 'Nothing right now')}
       ${/* A tile with nothing to say is left out: no contracts or licences, no device with a price. */ ''}
-      ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? rawHtml(money(year)) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
+      ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? rawHtml(money(year)) : '-', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
       ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
     </div>
     <div class="ov-cols">

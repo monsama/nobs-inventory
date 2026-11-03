@@ -76,7 +76,7 @@ export function buildReport(s, opts, today = new Date()) {
     const dev = (m, note) => { const d = now(m.id); return [m.code || d.code || '', m.name || d.name || '', typeLabel(d.type), d.serial || '', person(d), m.loc || d.loc || '', note]; };
     return {
       title: t.name, count: r.total,
-      subtitle: `${t.scope || 'Everywhere'} · started ${dateText(t.started.slice(0, 10))} by ${t.by || '—'}, finished ${dateText(t.finished.slice(0, 10))} by ${t.finishedBy || '—'} · ${r.confirmed} of ${r.total} confirmed, ${r.missing.length} missing, ${r.moved.length} moved, ${r.unknown.length} not in the inventory`,
+      subtitle: `${t.scope || 'Everywhere'} · started ${dateText(t.started.slice(0, 10))} by ${t.by || '-'}, finished ${dateText(t.finished.slice(0, 10))} by ${t.finishedBy || '-'} · ${r.confirmed} of ${r.total} confirmed, ${r.missing.length} missing, ${r.moved.length} moved, ${r.unknown.length} not in the inventory`,
       columns: cols,
       groups: [
         { name: 'Missing', rows: r.missing.map(m => dev(m, 'Not found')) },
@@ -122,7 +122,7 @@ export function buildReport(s, opts, today = new Date()) {
 
   /* Costs in one calendar year: each contract and licence by the months it runs in it, and the devices bought in it. */
   const Y = String(o.year);
-  const span = c => [dateText(day(c.start)), c.renew > 0 ? 'renews' : dateText(day(c.end))].filter(Boolean).join(' – ');
+  const span = c => [dateText(day(c.start)), c.renew > 0 ? 'renews' : dateText(day(c.end))].filter(Boolean).join(' - ');
   const per = c => c.per === 'once' ? 'once' : c.per === 'month' ? 'per month' : 'per year';
   const contracts = (s.contracts || []).map(c => [c, costInYear(c, o.year)]).filter(([, n]) => n > 0).sort(([a], [b]) => byName(a.name, b.name))
     .map(([c, n]) => [c.name || '', CONTRACT_KINDS[c.kind] || c.kind || 'Contract', c.supplier || '', span(c), `${c.cost} ${per(c)}`, yearlyCost(c) || '', n]);

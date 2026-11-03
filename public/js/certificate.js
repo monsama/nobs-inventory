@@ -38,9 +38,9 @@ export function certPanel(){
   const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
   return `<div class="panelbox" id="certPanel"><div class="hdr">HTTPS certificate <span class="chip ${cls}">${word}</span></div>
     <dl class="kv cert-kv">
-      ${row('Opened as', esc(c.host || '—') + (c.matches === false ? ' <span class="chip bad">not in the certificate</span>' : ''))}
-      ${row('For', c.names.map(n => `<span class="mono">${esc(n)}</span>`).join(', ') || '—')}
-      ${row('Issued by', esc(c.issuer || '—') + (c.selfSigned ? ' <span class="chip warn">self-signed</span>' : ''))}
+      ${row('Opened as', esc(c.host || '-') + (c.matches === false ? ' <span class="chip bad">not in the certificate</span>' : ''))}
+      ${row('For', c.names.map(n => `<span class="mono">${esc(n)}</span>`).join(', ') || '-')}
+      ${row('Issued by', esc(c.issuer || '-') + (c.selfSigned ? ' <span class="chip warn">self-signed</span>' : ''))}
       ${row('Valid', `${esc(dateText(c.validFrom))} to <b>${esc(dateText(c.validTo))}</b> <span class="muted">(${esc(left(c.daysLeft))})</span>`)}
     </dl>
     ${c.selfSigned ? '<p class="note" style="padding:0 12px 10px">Self-signed, as made at the install: browsers warn until the company certificate is installed.</p>' : ''}

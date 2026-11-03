@@ -73,7 +73,7 @@ export function readContactFile(text, fileName = '') {
 const KIND_WORDS = { internal: ['internal', 'intern', 'interne', 'interner', 'eigene', 'own', 'staff'], external: ['external', 'extern', 'externe', 'externer', 'partner', 'it partner', 'supplier', 'lieferant'] };
 const kindOf = v => Object.keys(KIND_WORDS).find(k => KIND_WORDS[k].includes(norm(v))) || '';
 const clean = v => String(v ?? '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
-/* A phone number as people write it, kept as written apart from spaces and the dashes Word makes ("–"). */
+/* A phone number as people write it, kept as written apart from spaces and the dashes Word makes ("-"). */
 const cleanPhone = v => clean(v).replace(/[‐-―]/g, '-');
 
 /* The contact a row describes, or why it cannot be one. The name is the whole name, or first and last name together;
@@ -96,12 +96,12 @@ const keyOf = c => norm(c.name) + '|' + norm(c.company);
 const mailKey = c => c.email ? norm(c.email) + '|' + norm(c.name) : '';
 
 /* What an import of these rows would do, row by row:
-   new — no such contact yet;
-   update — the same person (same name and company, or same e-mail and name) with something new; empty cells keep
+   new - no such contact yet;
+   update - the same person (same name and company, or same e-mail and name) with something new; empty cells keep
      what the contact has, so a file with fewer columns never wipes anything;
-   same — nothing new;
-   duplicate — an earlier row of the file is the same person;
-   error — the row cannot be a contact (the problem says why).
+   same - nothing new;
+   duplicate - an earlier row of the file is the same person;
+   error - the row cannot be a contact (the problem says why).
    The same e-mail on two people (a team mailbox) does not make them one. */
 export function planImport(existing, rows, mapping, defaultKind = 'external') {
   const byKey = new Map(), byMail = new Map();

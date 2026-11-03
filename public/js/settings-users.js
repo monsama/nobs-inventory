@@ -185,7 +185,7 @@ export function renderSetUsers(){
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
     <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}</div>`;
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => html`<tr>
-      ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}<td class="mono">${u.login || '—'}</td>
+      ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}<td class="mono">${u.login || '-'}</td>
       ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
       <td><span class="usrcs">${rawHtml(sourceChips(u))}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>

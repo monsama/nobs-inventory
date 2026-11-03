@@ -41,7 +41,7 @@ export function migrateState(s) {
   }
   /* Notes are one text box again (0.9.72): the entries of before (a title, a text and a link each) become its lines. */
   for (const o of s.objs) if (o.entries !== undefined) {
-    const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' — ')).filter(Boolean);
+    const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' - ')).filter(Boolean);
     const all = [typeof o.notes === 'string' ? o.notes.trim() : '', ...lines].filter(Boolean).join('\n');
     /* The box takes 20000 characters; more than that (old entries could hold far more) is said in the server's log, and
        the start takes a backup before saving a migration (server/index.js), where the whole text stays. */
@@ -92,9 +92,9 @@ export function migrateState(s) {
     if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) { t.svgView = '0 0 24 24'; changed = true; }
     if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) { t.color = '#5a6b7d'; changed = true; }
   }
-  /* Before 0.9.28 a new object without a model was saved with '—' as its model, which then showed up in the model list. */
-  for (const o of s.objs || []) if (o && o.model === '—') { o.model = ''; changed = true; }
-  if (Array.isArray(s.models) && s.models.includes('—')) { s.models = s.models.filter(m => m !== '—'); changed = true; }
+  /* Before 0.9.28 a new object without a model was saved with a long dash (U+2014) as its model, which then showed up in the model list. */
+  for (const o of s.objs || []) if (o && o.model === '\u2014') { o.model = ''; changed = true; }
+  if (Array.isArray(s.models) && s.models.includes('\u2014')) { s.models = s.models.filter(m => m !== '\u2014'); changed = true; }
   /* Before 0.9.28 a person from Lansweeper had its login (Lansweeper's Username) as the name and no login. The login
      goes where it belongs; the name stays until Lansweeper or the directory gives the full one. */
   const logins = new Set((s.users || []).map(u => String(u.login || '').toLowerCase()).filter(Boolean));

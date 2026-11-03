@@ -54,7 +54,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const auto = cur ? null : subnetFor(o);
     const sn = SUBNETS.find(n => n.cidr === cur) || auto;
     /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
-    const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
+    const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '-')} · DNS ${esc((sn.dns || []).join(', ') || '-')}">VLAN ${sn.vid}</span>` : '';
     ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(subnetLabel(auto))} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(subnetLabel(n))}</option>`).join('')}</select>${vlanChip}`;
   }
   else if (kind === 'domain'){
@@ -245,7 +245,7 @@ export function comboNote(input){
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
   const near = closeModel(v, names);
   note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
-  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model – added to the list when saved.';
+  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model - added to the list when saved.';
   show(true);
 }
 document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });

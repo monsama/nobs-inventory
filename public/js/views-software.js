@@ -36,13 +36,13 @@ const swPackages = () => {
   const map = {};
   objs.forEach(o => (o.software || []).forEach(p => {
     const r = (map[p.name] ??= {name: p.name, counts: {}, devices: []});
-    const v = p.version || '—';
+    const v = p.version || '-';
     r.counts[v] = (r.counts[v] || 0) + 1;
     if (!r.devices.includes(o)) r.devices.push(o);
   }));
   return Object.values(map).map(r => ({...r, versions: Object.entries(r.counts).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, {numeric: true}))}));
 };
-const versionOf = (d, name) => ((d.software || []).find(x => x.name === name) || {}).version || '—';
+const versionOf = (d, name) => ((d.software || []).find(x => x.name === name) || {}).version || '-';
 const swChevron = rawHtml('<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 function swDetailHtml(r){
   const common = r.versions[0][0], mixed = r.versions.length > 1;

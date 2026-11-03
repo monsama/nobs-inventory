@@ -233,7 +233,7 @@ export async function loadPushInfo(){
   const r = await fetch('api/feed/push-token', {credentials: 'same-origin'});
   if (r.ok){ const j = await r.json(); pushInfo = j.info; pushLast = j.last; if ($('#setFeed')) renderSetFeed(); }
 }
-/* A date for people: "22.10.2026 18:03", '—' when there is none. */
+/* A date for people: "22.10.2026 18:03", '-' when there is none. */
 export const pushDate = dateTimeText;
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){

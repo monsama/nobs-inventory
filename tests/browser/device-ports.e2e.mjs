@@ -82,7 +82,7 @@ try {
   await p.fill('#pgName', 'Uplinks'); await p.fill('#pgFrom', '7'); await p.fill('#pgTo', '8'); await p.fill('#pgKind', 'SFP+');
   await p.click('#pgAdd');
   await until(p, async () => ((await import('/js/01-core.js')).objs.find(o => o.id === 'rt1').portGroups || []).length === 1);
-  assert.match(await p.textContent('#view .panelbox:has(#pgAdd)'), /Uplinks[\s\S]*Ports Gi0\/7–Gi0\/8 · SFP\+/, 'the group is listed with its ports and kind');
+  assert.match(await p.textContent('#view .panelbox:has(#pgAdd)'), /Uplinks[\s\S]*Ports Gi0\/7-Gi0\/8 · SFP\+/, 'the group is listed with its ports and kind');
   await p.fill('#pgName', 'Clash'); await p.fill('#pgFrom', '8'); await p.fill('#pgTo', '8');
   await p.click('#pgAdd');
   await until(p, async () => /already in a group/.test(document.querySelector('#toast').textContent));
