@@ -85,7 +85,7 @@ export const portRangeError = (t, p) => {
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
    for the record). */
-export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, retired:{label:'Retired',cls:'bad'}};
+export const STATUS = {active:{label:'In use',cls:'ok'}, stock:{label:'In stock',cls:''}, retired:{label:'Retired',cls:'gone'}};
 export const LOCS = [];
 /* The VLANs of the whole inventory, from Settings. A connection picks one of them. */
 export const VLANS = [];
