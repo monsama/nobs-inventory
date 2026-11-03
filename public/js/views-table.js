@@ -13,6 +13,8 @@ import { hiddenHits, bindHiddenHits, renderFilterBar } from './02-views.js';
 import { bindScopeActs, pickedInPool, scopeActs, tableBulkBar, bindTableBulk } from './views-bulk.js';
 import { alsoIn, SHOW_FIRST } from './views-cards.js';
 import { exportCsv, importCsvModal } from './views-csv.js';
+import { bindSaveView, saveViewBtn } from './views-saved.js';
+import { remapTable } from './saved-views.js';
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
@@ -118,7 +120,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? '<button id="csvImp">Import CSV…</button>' : ''}${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${tableBulkBar(list, n)}`;
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? '<button id="csvImp">Import CSV…</button>' : ''}${saveViewBtn()}${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${tableBulkBar(list, n)}`;
   if (colOpen) $('#colMenu').open = true;
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -135,6 +137,7 @@ export function renderTable(){
   });
   $('#csvBtn').onclick = () => exportCsv(list);
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
+  bindSaveView();
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   bindTableBulk(n);
   const idx = relIndex();   /* one index of the relations for all rows */
@@ -159,14 +162,7 @@ export function renderTable(){
   /* The filters, sort, widths and order are kept by column position. When a column is shown or hidden the positions
      move, so each is carried to where its column is now (by the column's key), and one whose column is gone is dropped. */
   const keys = shown.map(c => c.k);
-  if (TBL['view:table:0'] && Array.isArray(tv.keys) && tv.keys.join() !== keys.join()){
-    const to = ci => +ci === 0 ? 0 : keys.indexOf(tv.keys[+ci - 1]) + 1 || null;   /* 0 is the tick box */
-    const move = obj => Object.fromEntries(Object.entries(obj || {}).map(([ci, v]) => [to(ci), v]).filter(([ci]) => ci !== null));
-    tv.filters = move(tv.filters); tv.widths = move(tv.widths);
-    if (tv.sort) tv.sort = to(tv.sort.ci) === null ? null : { ...tv.sort, ci: to(tv.sort.ci) };
-    if (Array.isArray(tv.order)){ const kept = tv.order.map(to).filter(ci => ci !== null); tv.order = [...kept, ...keys.map((_, i) => i + 1).filter(ci => !kept.includes(ci))]; }
-  }
-  if (TBL['view:table:0']) tv.keys = keys;
+  if (TBL['view:table:0']) remapTable(tv, keys);
   /* A column order of one's own: the column of the data-quality check still goes right after Name. */
   if (after.length && Array.isArray(tv.order)){
     let prev = keys.indexOf('name') + 1;

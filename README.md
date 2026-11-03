@@ -122,6 +122,8 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 - **Filters:** types, locations and status on the left; warranty, Lansweeper checks, duplicates and Entra & Intune under More filters.
 - **A device page** shows its key fields and the ones that hold something; *Show all fields* lists the empty ones too. Links, maintenance, photos, software, responsibles and contracts a device does not have yet are offered on one *Add* line.
 - **Table columns:** Columns → Basic, Network, Lifecycle or Costs, or each column under *Choose columns…*. Select rows for one *Actions…* menu (open, move, status, responsible).
+- **Saved views:** *Save view…* (admins) keeps the filters, search, columns, column filters and sort under a name. Views are listed on the left for every user; one click brings a view back. Admins rename and delete them there.
+- **CSV import** (Table → *Import CSV…*, admins): choose or paste a file (the delimiter is found), map each column to a field (guessed from its heading and remembered in the browser), then check each row: problems are listed, and a device already here (same serial number, else name, else MAC address) is skipped or has only its empty fields filled. One Undo takes the import back.
 - **Settings:** Locations, Users, Device types, Network (VLANs, Subnets, Domains), Data sources (Fields, Lansweeper, Active Directory, Entra & Intune) and System (Health, Backups, E-mail, Log). Press **?** for the keyboard shortcuts.
 
 ## Overview, costs, contracts and licences

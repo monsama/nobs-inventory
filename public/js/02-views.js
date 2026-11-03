@@ -12,6 +12,7 @@ import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBackModal } from './27-handout.js';
 import { reviewStale } from './15-review.js';
 import { QUALITY_FIX, qfix } from './views-table.js';
+import { renderSavedViews } from './views-saved.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -108,8 +109,12 @@ export function renderSide(){
   }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
   $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
+  /* The saved views (views-saved.js). */
+  renderSavedViews();
 }
 $('#side').addEventListener('click', e => {
+  /* A saved view is opened, renamed or deleted by views-saved.js. */
+  if (e.target.closest('#viewList')) return;
   const more = e.target.closest('[data-alltypes]');
   if (more){ st.sideAllTypes = more.dataset.alltypes === '1'; renderSide(); return; }
   const b = e.target.closest('.item'); if (!b) return;
@@ -395,3 +400,4 @@ export * from './views-cards.js';
 export * from './views-table.js';
 export * from './views-bulk.js';
 export * from './views-csv.js';
+export * from './views-saved.js';

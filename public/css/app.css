@@ -329,6 +329,12 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .item .sw{width:10px;height:10px;border-radius:2px;flex:none}
 .item.sub{padding-left:28px}
 .sidegroup{padding:4px 0 8px;border-bottom:1px solid var(--bd2)}
+/* A saved view in the sidebar: the view, and for admins Rename and Delete, shown on hover or focus. */
+.svrow{display:flex;align-items:center;padding-right:4px}
+.svrow .item{flex:1;min-width:0}
+.svrow .icon{width:24px;height:24px;flex:none;opacity:0}
+.svrow:hover .icon,.svrow:focus-within .icon{opacity:1}
+@media (hover:none){.svrow .icon{opacity:1}}
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}

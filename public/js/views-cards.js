@@ -8,6 +8,7 @@ import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
 import { mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 import { emptyHtml, hiddenHits, bindHiddenHits } from './02-views.js';
 import { pickBar, bindScopeActs, pickedInPool, bindPickBar } from './views-bulk.js';
+import { bindSaveView, saveViewBtn } from './views-saved.js';
 /* ---------- cards ---------- */
 /* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
 export function relSummary(rs){
@@ -112,8 +113,8 @@ export function renderCardsBody(){
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
-    <div class="grow"></div>${pickBar(list)}`;
-  bindScopeActs(list);
+    ${saveViewBtn() ? `<span class="tbsep"></span>${saveViewBtn()}` : ''}<div class="grow"></div>${pickBar(list)}`;
+  bindScopeActs(list); bindSaveView();
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
