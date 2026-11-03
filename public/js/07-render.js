@@ -22,6 +22,7 @@ import { syncSearchBox } from './14-global-search.js';
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
 const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
+let lastTab = null;
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
@@ -44,6 +45,10 @@ export function render({ save = true } = {}){
   else if (st.tab === 'stocktake') renderStocktake();
   else if (st.tab === 'mine') renderMine();
   else renderObj(byId(st.tab));
+  /* Another view slides in a little, so the eye follows the change (not for a redraw of the same view; the CSS leaves
+     it out for those who ask the system for less motion). */
+  const v = $('#view'); if (v && lastTab !== st.tab){ v.classList.remove('tab-in'); void v.offsetWidth; v.classList.add('tab-in'); }
+  lastTab = st.tab;
   viewSwitch(); syncSearchBox();
   renderFilterBar();
   fullTextTooltips();

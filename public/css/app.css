@@ -1861,3 +1861,6 @@ details.how[open]>summary{margin-bottom:4px}
 .ov-qbar.ok>span{background:var(--okdot)}.ov-qbar.warn>span{background:var(--warn)}.ov-qbar.bad>span{background:var(--danger)}
 .colhelp{min-height:0;height:auto;padding:0 3px;margin-left:2px;font-size:12px;font-weight:600}
 table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table.colours td:first-child{white-space:nowrap}
+/* A view that opens slides up a few pixels (07-render.js), only for those who have not asked for less motion. */
+@media (prefers-reduced-motion:no-preference){#view.tab-in{animation:tabIn .14s ease-out}}
+@keyframes tabIn{from{transform:translateY(4px)}to{transform:none}}
