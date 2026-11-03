@@ -49,8 +49,10 @@ export function handOutModal(ids){
   const draw = () => {
     const q = low($('#hoQ').value), found = people(q), exact = found.some(u => low(u.name) === q);
     $('#hoList').innerHTML = found.map(u => `<button type="button" class="ho-p${picked && picked.id === u.id ? ' sel' : ''}" data-hop="${esc(u.id)}" role="option" aria-selected="${picked && picked.id === u.id}"><b>${esc(u.name)}</b><span class="muted">${esc([u.login, u.dept].filter(Boolean).join(' · '))}</span></button>`).join('')
-      + (q && !exact ? `<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${esc($('#hoQ').value.trim())}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : '')
-      + (!found.length && !q ? '<p class="note">Type a name.</p>' : '');
+      /* A new person is a change to Settings → Users, which only an admin makes: an editor picks someone who is there. */
+      + (q && !exact && isAdmin() ? `<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${esc($('#hoQ').value.trim())}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : '')
+      + (!found.length && !q ? '<p class="note">Type a name.</p>' : '')
+      + (q && !found.length && !isAdmin() ? '<p class="note">Nobody by that name. An admin adds new people under Settings → Users.</p>' : '');
     $('#hoList').querySelectorAll('[data-hop]').forEach(b => b.onclick = () => { picked = USERS.find(u => u.id === b.dataset.hop); $('#hoQ').value = picked.name; draw(); });
     const nb = $('#hoList').querySelector('[data-honew]'); if (nb) nb.onclick = () => { picked = { isNew: true, name: $('#hoQ').value.trim() }; draw(); };
     $('#hoOk').disabled = !picked;

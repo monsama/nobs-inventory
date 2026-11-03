@@ -8,7 +8,7 @@ import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
-import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, sendTestMail, smtpConfig, smtpSettingsProblem } from './digest.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, sendTestMail, mailFailure, smtpConfig, smtpSettingsProblem } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
 import { stamp } from '../public/js/dates.js';
 import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
@@ -974,10 +974,11 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const pw = typeof b.password === 'string' ? b.password : '';
       if (pw.length > 500) throw new HttpError(400, 'The password is too long.');
       writeDoc(db, 'setting', 'smtp', v);
-      /* The password goes with the server it was given for: another host or port, or no user, and it is dropped unless a
-         new one is given, so it cannot be sent to a server it was not meant for. */
+      /* The password goes with the server, the security and the user it was given for: another host, port, security or
+         user (or none), and it is dropped unless a new one is given, so it cannot be sent somewhere, or in a way, it was
+         not meant for (a weaker security would let it go in clear text). */
       if (pw) setAppSecret(db, SECRET_KEY, 'smtpPassword', pw);
-      else if (b.clearPassword || !v.user || before.host !== v.host || before.port !== v.port) dropAppSecret(db, 'smtpPassword');
+      else if (b.clearPassword || !v.user || before.host !== v.host || before.port !== v.port || before.security !== v.security || before.user !== v.user) dropAppSecret(db, 'smtpPassword');
       audit(db, req.user.id, `mail server set: ${v.host}:${v.port} (${v.security})${v.user ? ', with sign-in' : ''}`);
       res.json(digestInfo());
     } catch (e) { next(e); }
@@ -993,7 +994,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   app.post('/api/smtp/test', requireUser, requireAdmin, async (req, res, next) => {
     try { await sendTestMail(smtpNow(), String((req.body || {}).to || '').trim(), mailTransport); audit(db, req.user.id, 'test e-mail sent'); res.json({ ok: true }); }
-    catch (e) { audit(db, req.user.id, 'test e-mail failed: ' + String(e.message || e).slice(0, 200)); next(new HttpError(400, String(e.message || e).slice(0, 300))); }
+    catch (e) { const why = mailFailure(e); audit(db, req.user.id, 'test e-mail failed: ' + why); next(new HttpError(400, why)); }
   });
   app.locals.sendDigest = async (now = new Date()) => { const m = digestNow(); await sendDigest(db, m, process.env, now, mailTransport, smtpNow()); audit(db, null, `weekly e-mail sent (${m.count} item${m.count === 1 ? '' : 's'})`); return m; };
   const digestInfo = () => ({ smtp: !!smtpNow(), mail: smtpInfo(), ...digestSettings(db), last: lastDigest(db) });

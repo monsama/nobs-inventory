@@ -44,9 +44,20 @@ export function smtpSettingsProblem(v) {
 const transportOf = cfg => nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
 /* A test mail, to see the server, its sign-in and the sender work. */
 export async function sendTestMail(cfg, to, transport = null) {
-  if (!cfg) throw new Error('No mail server is set.');
-  if (!EMAIL.test(String(to || '')) || String(to).length > 200) throw new Error('Give the address to send the test to.');
-  await (transport || transportOf(cfg)).sendMail({ from: cfg.from, to, subject: 'NOBS Inventory: test e-mail', text: 'This is a test from NOBS Inventory (Settings → Maintenance → Weekly e-mail). The mail server works.' });
+  if (!cfg) throw Object.assign(new Error('No mail server is set.'), { ours: true });
+  if (!EMAIL.test(String(to || '')) || String(to).length > 200) throw Object.assign(new Error('Give the address to send the test to.'), { ours: true });
+  await (transport || transportOf(cfg)).sendMail({ from: cfg.from, to, subject: 'NOBS Inventory: test e-mail', text: 'This is a test from NOBS Inventory (Settings → Maintenance → E-mail). The mail server works.' });
+}
+/* Why a test mail failed, in a few kinds only: the mail server's own answer is not passed on, since it would let the
+   test reach any host and port and read back what answers there (a service banner). */
+export function mailFailure(e) {
+  if (e && e.ours) return e.message;
+  const c = String((e && e.code) || ''), m = String((e && e.message) || '');
+  if (c === 'EAUTH') return 'The mail server refused the sign-in: check the user and the password.';
+  if (c === 'ETLS' || /TLS|SSL|certificate/i.test(m)) return 'The secure connection to the mail server failed: check the security setting and its certificate.';
+  if (['ECONNECTION', 'ECONNREFUSED', 'ETIMEDOUT', 'EDNS', 'ESOCKET', 'EHOSTUNREACH', 'ENOTFOUND', 'EPROTOCOL'].includes(c)) return 'The mail server could not be reached as a mail server: check the server, the port and the firewall.';
+  if (c === 'EENVELOPE') return 'The mail server refused the sender or the address.';
+  return 'The mail server did not accept the test e-mail.';
 }
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 export const digestSettings = db => ({ on: false, to: [], day: 1, hour: 7, ...getDoc(db, 'digest', {}) });

@@ -201,7 +201,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
   app.post('/api/images/:id/replace', requireUser, requireEditor, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
-      objectOf(r.obj_id, req);
+      const o = objectOf(r.obj_id, req);
       const p = pictureOf(req.body || {});
       if (p.data.length + p.thumb.length >= r.bytes + Buffer.from(r.thumb).length) throw new HttpError(409, 'The new picture is not smaller: the photo stays as it is.');
       const id = `img-${crypto.randomBytes(12).toString('hex')}`;
@@ -212,6 +212,8 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
         db.prepare('DELETE FROM device_images WHERE id = ?').run(r.id);
         db.exec('COMMIT');
       } catch (e) { db.exec('ROLLBACK'); throw e; }
+      /* In the log like adding and removing one: a photo swapped for another is seen. */
+      audit(db, req.user.id, `photo replaced on ${o && o.name ? o.name : r.obj_id}: ${r.name}`);
       res.json({ image: meta({ ...r, id, mime: p.mime, w: p.w, h: p.h, bytes: p.data.length }), before: r.bytes });
     } catch (e) { next(e); }
   });
