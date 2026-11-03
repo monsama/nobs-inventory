@@ -142,6 +142,17 @@ To renew: create a new certificate, upload it, click Use this one, test, then re
 
 Each device names one **internal** and one **external responsible**, on its page under Responsible, or for many devices at once in the table (select them, then Responsible…). The table has a Responsible column (under Columns), and Responsible can be a card line (Settings → Object types). A contact's "Responsible for n devices" opens those devices in the table. Deleting a contact takes it off its devices, with a line in their history. Contracts suggest the partner companies as suppliers. Contacts are in the backups.
 
+## Cabling: patch panels, wall outlets and patch cords
+
+Structured cabling runs switch port → patch cord → panel port → fixed cable → wall outlet → device, and is stored like this:
+
+- **Wall outlets** are not devices: they belong to the ports of a patch panel, as `outlets: { P04: { name: '2.OG-R12-04', loc: 'Site / Room' } }`. A name is unique across all panels; the room is optional.
+- **Patch cords** are relations of kind `patched`, from the panel and its port to a switch (or router, firewall) port: `{ from: panel, fromPort: 'P04', to: switch, port: 12, kind: 'patched' }`. A panel port has one cord, and a patched switch port counts as taken.
+- **A device on an outlet** is connected to the panel port behind it, as before (`connected`, port `P04`).
+- The panel's one `connected` link to a switch (its trunk, from before cords) still works: a port without a cord of its own goes that way.
+
+The panel page lists its ports with outlet, cord and device; a dot shows the state (green: all there, amber: a device that leads nowhere or a cord without an outlet, grey ring: unused). Admins edit a port in its dialog, name outlets from a pattern (`2.OG-R12-{n}`), patch a range of ports in one go, or import a patch list (CSV with panel, port, outlet, room, switch, switch port); each has one Undo. A device is plugged into an outlet by its name (New device, or Relations). Its Path to the network shows the outlet and the panel port; the switch's Ports view shows "via PP-01 P04 → outlet → device". The search finds outlet names. Lansweeper does not send switch ports here, so nothing is matched from it.
+
 ## Links on devices
 
 A device page has **Links**: its web interface, a share with its files, a remote console or documentation it hosts. Each link has a label and an address and opens in a new tab; Copy puts the address on the clipboard (useful for a share, which browsers often will not open). A device with an IP address offers its web interface (https:// or http:// with that address) in one click. Allowed are web pages (https, http), remote access (ssh, rdp, vnc, telnet), file transfer (ftp, sftp, smb) and Windows shares written as `\\server\share`; anything that could run in the page is refused, by the page and the server. The table has a Links column (under Columns), and Links can be a card line. Adding and removing a link is written in the device's history.

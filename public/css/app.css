@@ -834,11 +834,18 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .rack .unit .nm{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rack .unit .sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rackside{display:flex;flex-direction:column;gap:10px;min-width:240px;flex:1;max-width:420px}
-.pp{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:4px;padding:10px 12px}
-.pp div{border:1px solid var(--portbd);border-radius:2px;padding:3px 5px;font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--port);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
-.pp div b{display:block;color:var(--fg);font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
-.pp div.used{background:var(--used);border-color:var(--used);color:#fff}
-.pp div.used b{color:#fff}
+/* A patch panel's ports: a row each, with its state as a dot (green fine, amber needs a look, grey ring unused). */
+.pp-tools{flex-wrap:wrap}
+.pp-wrap{overflow-x:auto;max-height:min(70vh,900px);overflow-y:auto}
+.pp-table td{white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.pp-table td.n .dot{margin-right:4px;vertical-align:middle}
+.pp-table td.pp-act{width:1%;text-align:right}
+.pp-table td.pp-act button{height:24px;width:auto;padding:0 8px;font-size:12px}
+.pp-table tr[data-state=warn] td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.pp-prev{margin-top:10px}.pp-prev table{min-width:0;table-layout:auto}.pp-prev th:nth-child(n){width:auto}
+.ps-out{cursor:default}
+.via{white-space:normal}
+.via-note{margin:4px 0 0}
 
 /* relationship map */
 .mapwrap{position:absolute;inset:0;overflow:hidden;background:var(--bg);touch-action:none;user-select:none}
