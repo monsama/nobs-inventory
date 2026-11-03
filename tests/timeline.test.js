@@ -12,7 +12,7 @@ test('history lines: handed out, taken back, moved, status, retired, added', () 
   assert.equal(historyEvent({ msg: 'Anna no longer has it: taken into stock by Admin' }).kind, 'back');
   assert.equal(historyEvent({ msg: 'Lansweeper: Location changed from HQ / 1 to HQ / 2' }).text, 'Moved to HQ / 2');
   assert.equal(historyEvent({ msg: 'Location set to HQ / 3 from Active Directory (x) by Admin' }).text, 'Moved to HQ / 3');
-  assert.equal(historyEvent({ msg: 'Location changed from A to B: found there in Stocktake' }).text, 'Moved to B');
+  assert.equal(historyEvent({ msg: 'Location changed from A to B: found there in Inventory check' }).text, 'Moved to B');
   assert.deepEqual(historyEvent({ msg: 'Location changed', ...fieldNote('loc', 'A', 'B') }), { kind: 'move', tone: '', text: 'Moved to B' });
   assert.deepEqual(historyEvent({ msg: 'Status', ...fieldNote('status', 'active', 'stock') }), { kind: 'status', tone: '', text: 'In stock' });
   assert.equal(historyEvent({ msg: 'User', ...fieldNote('user', 'Anna', 'Beat') }).text, 'Handed out to Beat');

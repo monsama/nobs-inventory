@@ -8,8 +8,8 @@ export const REPORTS = {
   inventory: ['Inventory', 'Every device not retired, with its user, place and warranty'],
   lifecycle: ['Lifecycle and replacement', 'Devices by when they are due for replacement, from their purchase date'],
   costs: ['Costs per year', 'Contracts, licences and the devices bought in one calendar year'],
-  /* From the Stocktake view: one finished stocktake (opts.id). */
-  stocktake: ['Stocktake', 'What a stocktake found: missing, moved, not in the inventory, confirmed', true],
+  /* From the Inventory check view: one finished inventory check (opts.id). */
+  stocktake: ['Inventory check', 'What an inventory check found: missing, moved, not in the inventory, confirmed', true],
   /* From Settings → Users: the devices one person has (opts.id), to tick off as they are handed back when they leave. */
   handback: ['Hand-back list', 'The devices a person has, to tick off when they are handed back', true],
 };
@@ -68,7 +68,7 @@ export function buildReport(s, opts, today = new Date()) {
 
   if (o.kind === 'stocktake') {
     const t = (s.stocktakes || []).find(x => x.id === o.id && x.finished && x.result);
-    if (!t) return { title: 'Stocktake', subtitle: 'This stocktake is not finished, or no longer in the list.', columns: [{ label: 'Name' }], groups: [], count: 0 };
+    if (!t) return { title: 'Inventory check', subtitle: 'This inventory check is not finished, or no longer in the list.', columns: [{ label: 'Name' }], groups: [], count: 0 };
     const r = t.result, byId = new Map(live.map(d => [d.id, d]));
     const now = id => byId.get(id) || {};
     const conf = live.filter(d => d.verified && d.verified.st === t.id).sort((a, b) => byName(a.loc || '', b.loc || '') || byName(a.name, b.name));

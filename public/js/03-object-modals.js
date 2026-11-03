@@ -184,6 +184,8 @@ const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 
 const ALL_KEY = 'ni-all-fields';
 const allFields = () => { try { return localStorage.getItem(ALL_KEY) === '1'; } catch { return false; } };
 const setAllFields = on => { try { if (on) localStorage.setItem(ALL_KEY, '1'); else localStorage.removeItem(ALL_KEY); } catch { /* not kept */ } };
+/* Per open device, the extra panels that held something when its page was last drawn. */
+const shownFull = new Map();
 /* The panels a device may have beside its fields (links, maintenance, photos, software, responsible, contracts): an empty
    one is not drawn as a box of its own but offered on one Add line, and opens when its button is clicked. */
 function extras(o){
@@ -196,6 +198,12 @@ function extras(o){
     ['resp', 'Responsible', deviceRespPanel(o), !o.respIn && !o.respEx],
     ['contracts', 'Contract', deviceContractsPanel(o), !contractsOf(o).length],
   ].filter(([, , html]) => html);
+  /* A panel that held something and became empty while the page was open (the last photo removed, the last link
+     deleted…) stays where it is, now with its ×, instead of jumping back to the Add line. Photos still loading count
+     as neither full nor empty. */
+  const was = shownFull.get(o.id), full = new Set(parts.filter(([k, , , empty]) => !empty && !(k === 'photos' && photoCount(o.id) === null)).map(([k]) => k));
+  if (was) for (const [k, , , empty] of parts) if (empty && was.has(k)) (st.showPanels = st.showPanels || new Set()).add(o.id + ':' + k);
+  shownFull.set(o.id, full);
   const folded = parts.filter(([k, , , empty]) => empty && !st.showPanels?.has(o.id + ':' + k));
   const hide = (k, html) => html.replace(/^(\s*)<(div|details) class="panelbox/, `$1<$2 data-xpanel="${k}" hidden class="panelbox`);
   /* An empty panel that was opened from Add gets a × in its title that puts it back on the Add line. */

@@ -59,7 +59,7 @@ test('a report as a PDF and as an Excel workbook', async () => {
   assert.match(sheet, /<pane ySplit="1"/); assert.match(sheet, /<autoFilter ref="A1:H4"\/>/);
 });
 
-test('a stocktake as a report: missing, moved, not in the inventory, confirmed', async () => {
+test('an inventory check as a report: missing, moved, not in the inventory, confirmed', async () => {
   const { stocktakeResult, stocktakesProblem, verifiedProblem } = await import('../public/js/stocktake.js');
   const s = state();
   s.objs.push({ id: 'e', code: 'INV-0005', name: 'PC-E', type: 'pc', status: 'active', loc: 'Bern / EG' });

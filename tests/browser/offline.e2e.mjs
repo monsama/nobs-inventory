@@ -1,4 +1,4 @@
-/* Browser test of a stocktake without a connection: devices confirmed offline are kept on the device, survive the page
+/* Browser test of an inventory check without a connection: devices confirmed offline are kept on the device, survive the page
    being closed, and are saved once it is opened again with the connection back. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';

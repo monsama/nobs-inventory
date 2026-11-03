@@ -106,7 +106,7 @@ export const QUALITY_FIX = {
   noserial: ['serial', null, 'open each and add its serial number'],
   nouser: ['user', 'bkAct', 'give each its user, or select them and set them to In stock'],
   unseen: ['seen', 'bkAct', 'check where they are; select the ones gone and set them to Retired'],
-  unconfirmed: ['loc', null, 'find them in the next stocktake, or confirm each on its page'],
+  unconfirmed: ['loc', null, 'find them in the next inventory check, or confirm each on its page'],
   leaver: ['user', 'bkAct', 'select them and take them back into stock, or give them to someone else'],
   addisabled: ['status', 'bkAct', 'select the ones no longer used and set their status'],
   ownerdiff: ['user', null, 'open each and give it to the right person'],

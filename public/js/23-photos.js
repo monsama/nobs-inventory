@@ -10,7 +10,7 @@ import { evEl, $, byId, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
 import { isAdmin, who } from './04-settings.js';
-import { SERVER, queueServerSave } from './07-render.js';
+import { SERVER, queueServerSave, view } from './07-render.js';
 import { html } from './html.js';
 
 const LONG_SIDE = 2560, THUMB_SIDE = 480, MAX_FILE = 40 * 1048576, MAX_SENT = 6 * 1048576;
@@ -71,6 +71,16 @@ let openId = null;
 function redraw(o){
   const panel = $('#phPanel');
   if (!panel || openId !== o.id) return;
+  /* No photo left (or a first one added): the whole page is drawn again, so the panel gets or loses its × like the
+     other extras. */
+  const n = photoCount(o.id), hadX = !!panel.querySelector('[data-xhide]');
+  if (!panel.hidden && (n === 0) !== hadX && isAdmin()) {
+    /* Drawn again in the background (the photos come after the page): the focus stays where it was. */
+    const f = document.activeElement && document.activeElement.id;
+    view();
+    if (f && document.getElementById(f) && document.activeElement?.id !== f) document.getElementById(f).focus({ preventScroll: true });
+    return;
+  }
   const t = document.createElement('div'); t.innerHTML = photosPanel(o);
   const next = t.firstElementChild; if (!next) return;
   const cnt = panel.querySelector('.hdr .cnt'), cnt2 = next.querySelector('.hdr .cnt');

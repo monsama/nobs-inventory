@@ -11,7 +11,7 @@ import { loginModal } from './signin.js';
    and the state of the save in progress. Every change is sent to it; nothing is kept only in this browser. */
 export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};
 export const setSave = v => { SERVER.save = v; renderStatus(); };
-/* Without a connection (a stocktake in a basement, a phone between floors) what is not saved yet is also kept on this
+/* Without a connection (an inventory check in a basement, a phone between floors) what is not saved yet is also kept on this
    device, so closing the page or the phone dropping it loses nothing: after the next sign-in on it, by the same person,
    it goes back on top and is saved. Only this person's own unsaved changes; removed once saved or on sign-out. */
 const OFFLINE_KEY = 'ni-offline';

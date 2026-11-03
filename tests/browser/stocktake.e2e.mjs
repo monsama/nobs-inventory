@@ -1,4 +1,4 @@
-/* Stocktake: start one for a site, confirm by ticking and by scanning, move a device found elsewhere, note something
+/* Inventory check: start one for a site, confirm by ticking and by scanning, move a device found elsewhere, note something
    unknown, finish with what is missing, and the lists as files. The device page says when it was confirmed. Sign in
    with Microsoft: the button and what the sign-in says when it did not work. */
 import { chromium } from 'playwright';
@@ -41,7 +41,7 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => !!(await import('/js/01-core.js')).st.meId);
 
-  // start a stocktake of the Bern site from the Overview: three devices (not the retired one, not Zürich)
+  // start an inventory check of the Bern site from the Overview: three devices (not the retired one, not Zürich)
   await p.click('#tabsbar [data-tab=overview]'); await p.click('#ovStock'); await p.waitForSelector('#stkPlace');
   await p.selectOption('#stkPlace', 'Bern');
   assert.equal(await p.textContent('#stkCount'), '3 devices');
@@ -81,7 +81,7 @@ try {
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('c'));
   await p.waitForSelector('[data-verify=c]'); await p.click('[data-verify=c]');
   await wait(() => !!obj('c').verified && !obj('c').verified.st);
-  // the Overview counts devices not confirmed for a year once a stocktake is done
+  // the Overview counts devices not confirmed for a year once an inventory check is done
   await p.click('#tabsbar [data-tab=overview]'); await p.waitForSelector('.ov-q');
   assert.match(await p.textContent('.panelbox:has(.ov-q)'), /1\s*Not confirmed on site for 12 months/, 'PC-B only');
   assert.deepEqual(errors, []);

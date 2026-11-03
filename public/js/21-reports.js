@@ -8,7 +8,7 @@ import { html } from './html.js';
 import { GROUPS, REPORTS } from './reports.js';
 
 let last = { kind: 'inventory', group: 'site', years: 5, year: new Date().getFullYear(), person: '' };
-/* The hand-back list is picked here too, with its person; the stocktake report comes from the Stocktake view. */
+/* The hand-back list is picked here too, with its person; the inventory check report comes from the Inventory check view. */
 const SHOWN = k => !REPORTS[k][2] || k === 'handback';
 
 /* ids: the devices the Table lists now, to report on only those (the inventory and the lifecycle). */

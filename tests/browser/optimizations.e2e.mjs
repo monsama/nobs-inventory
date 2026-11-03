@@ -1,7 +1,7 @@
 /* Browser test of the optimizations: a new object gets a user and a status; the Table listed by a data-quality check
    brings its column next to Name and selects all for the fixing action; the sidebar only shows on lists; Settings
    tables are cards on a phone; the Reports dialog offers only the listed devices and the hand-back list by person; a
-   finished stocktake shows its missing devices in the Table. */
+   finished inventory check shows its missing devices in the Table. */
 import { chromium } from 'playwright';
 import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
@@ -19,7 +19,7 @@ const dev = (id, name, extra = {}) => ({ id, code: 'INV-' + id, type: 'notebook'
 saveState(db, { ...s0, history: {}, locs: ['Bern / EG', 'Bern / OG'],
   users: [...s0.users, { id: 'u-anna', login: '', name: 'Anna Muster', dept: 'Sales', source: 'manual', role: 'none', active: true }],
   objs: [dev('a1', 'NB-ANNA', { uid: 'u-anna' }), dev('n1', 'NB-NOLOC-1', { loc: '' }), dev('n2', 'NB-NOLOC-2', { loc: '' }), dev('m1', 'NB-GONE')],
-  stocktakes: [{ id: 'st1', name: 'Stocktake test', scope: 'Bern', started: '2026-10-01T08:00:00Z', by: 'admin', finished: '2026-10-01T09:00:00Z', finishedBy: 'admin',
+  stocktakes: [{ id: 'st1', name: 'Inventory check test', scope: 'Bern', started: '2026-10-01T08:00:00Z', by: 'admin', finished: '2026-10-01T09:00:00Z', finishedBy: 'admin',
     result: { total: 2, confirmed: 1, missing: [{ id: 'm1', name: 'NB-GONE', code: 'INV-m1', loc: 'Bern / EG' }], moved: [], unknown: [] } }] });
 const until = (check, ms = 8000) => eventually(check, ms);
 
@@ -83,7 +83,7 @@ try {
   await until(() => p.evaluate(async () => (await import('/js/01-core.js')).st.tab === 'table'));
   const rows = await p.$$eval('#view table.grid[data-data] tbody tr', trs => trs.map(t => t.dataset.open));
   assert.deepEqual(rows, ['m1']);
-  assert.match(await p.textContent('#fbar'), /Missing in Stocktake test/);
+  assert.match(await p.textContent('#fbar'), /Missing in Inventory check test/);
 
   // a new object: a notebook for nobody goes into stock, given to someone it is in use
   await p.evaluate(async () => (await import('/js/05-new-object.js')).newObjModal({ type: 'notebook' }));

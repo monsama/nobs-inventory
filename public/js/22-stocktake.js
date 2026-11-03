@@ -1,4 +1,4 @@
-/* The Stocktake view: walk a site or a room and confirm the devices that are there, by ticking them or by scanning (or
+/* The Inventory check view: walk a site or a room and confirm the devices that are there, by ticking them or by scanning (or
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
@@ -17,7 +17,7 @@ let FILTER = 'open', LAST = '';
 const placeName = scope => scope || 'Everywhere';
 const userName = o => { const u = o.uid && USERS.find(x => x.id === o.uid); return (u && u.name) || o.user || ''; };
 
-/* Confirms a device on site (in stocktake t, if any), keeping the confirmation before it for Undo; from: where it was
+/* Confirms a device on site (in inventory check t, if any), keeping the confirmation before it for Undo; from: where it was
    recorded before it was moved here. */
 function confirm(o, t, from){
   const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
@@ -31,42 +31,42 @@ function unconfirm(o){
   if (!o.verified) delete o.verified;
 }
 
-/* Draws the Stocktake tab: the stocktake running, or a new one to start, with the list of earlier ones below. Wires
-   them, keeps the focus in the scan field and lets an earlier stocktake be removed from the list (with Undo). */
+/* Draws the Inventory check tab: the inventory check running, or a new one to start, with the list of earlier ones below. Wires
+   them, keeps the focus in the scan field and lets an earlier inventory check be removed from the list (with Undo). */
 export function renderStocktake(){
   const t = activeStocktake(), edit = isAdmin();
   /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
   const scanning = document.activeElement && document.activeElement.id === 'stkScan';
-  $('#toolbar').innerHTML = html`<b>Stocktake</b><span class="muted">${t ? `${t.name} · ${placeName(t.scope)}` : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
+  $('#toolbar').innerHTML = html`<b>Inventory check</b><span class="muted">${t ? `${t.name} · ${placeName(t.scope)}` : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
   $('#view').innerHTML = html`<div class="stk">${t ? activeHtml(t, edit) : startHtml(edit)}${historyHtml()}</div>`;
   if (t) wireActive(t, edit); else wireStart(edit);
   if (scanning && $('#stkScan')) $('#stkScan').focus();
   $$('[data-stkdel]').forEach(b => b.onclick = () => {
     const was = st.stocktakes;
     st.stocktakes = st.stocktakes.filter(x => x.id !== b.dataset.stkdel); queueServerSave(); renderStocktake();
-    toastUndo('Stocktake removed from the list', () => { st.stocktakes = was; queueServerSave(); renderStocktake(); });
+    toastUndo('Inventory check removed from the list', () => { st.stocktakes = was; queueServerSave(); renderStocktake(); });
   });
 }
 
-/* No stocktake running: how current the confirmations are, and a new one by place. */
+/* No inventory check running: how current the confirmations are, and a new one by place. */
 function startHtml(edit){
   const live = objs.filter(o => o.status !== 'retired');
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
   const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
-  return html`<div class="panelbox"><div class="hdr">New stocktake</div>
-    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} A stocktake lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
+  return html`<div class="panelbox"><div class="hdr">New inventory check</div>
+    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} An inventory check lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
     ${edit ? html`<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select>
-      <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Stocktake ${dateText(today())}"></div>
-      <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the stocktake</button><span class="muted" id="stkCount"></span></div>` : html`<p class="note stk-pad">An admin starts a stocktake.</p>`}</div>`;
+      <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Inventory check ${dateText(today())}"></div>
+      <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the inventory check</button><span class="muted" id="stkCount"></span></div>` : html`<p class="note stk-pad">An admin starts an inventory check.</p>`}</div>`;
 }
-/* Wires starting a stocktake (admin only): the device count for the place picked, and Start, which adds the
-   stocktake, saves it and puts the focus in the scan field. */
+/* Wires starting an inventory check (admin only): the device count for the place picked, and Start, which adds the
+   inventory check, saves it and puts the focus in the scan field. */
 function wireStart(edit){
   if (!edit) return;
   const count = () => { $('#stkCount').textContent = `${stocktakeDevices(objs, $('#stkPlace').value).length} devices`; };
   $('#stkPlace').onchange = count; count();
   $('#stkStart').onclick = () => {
-    const scope = $('#stkPlace').value, name = $('#stkName').value.trim() || `Stocktake ${placeName(scope)} ${dateText(today())}`;
+    const scope = $('#stkPlace').value, name = $('#stkName').value.trim() || `Inventory check ${placeName(scope)} ${dateText(today())}`;
     st.stocktakes = [{ id: 'st' + Date.now().toString(36), name: name.slice(0, 120), scope, started: new Date().toISOString(), by: who() }, ...(st.stocktakes || [])].slice(0, 50);
     queueServerSave(); FILTER = 'open'; renderStocktake();
     /* Ready to scan at once. */
@@ -74,7 +74,7 @@ function wireStart(edit){
   };
 }
 
-/* A stocktake running: progress, the scan field and the devices by room, open ones first. */
+/* An inventory check running: progress, the scan field and the devices by room, open ones first. */
 function activeHtml(t, edit){
   /* Devices of another place found here and left where they are count too (as when it is finished), listed by their room. */
   const inPlace = stocktakeDevices(objs, t.scope), list = [...inPlace, ...objs.filter(o => confirmedIn(o, t.id) && !inPlace.includes(o))];
@@ -93,7 +93,7 @@ function activeHtml(t, edit){
     <div class="stk-tabs stk-pad">${[['open', 'Still open', list.length - done], ['done', 'Confirmed', done], ['all', 'All', list.length]].map(([k, l, n]) => html`<button class="tab ${FILTER === k ? 'active' : ''}" data-stkf="${k}">${l} <span class="tab-cnt">${n}</span></button>`)}</div>
     <div class="stk-list">${rooms.length ? rooms.map(r => html`<div class="side-sub stk-room">${r || 'No location'}</div>${shown.filter(o => (o.loc || '') === r).sort((a, b) => a.name.localeCompare(b.name)).map(row)}`)
       : html`<p class="note stk-pad">${FILTER === 'open' ? 'Every device here is confirmed.' : 'Nothing here yet.'}</p>`}</div>
-    ${edit ? html`<div class="addrel stk-pad"><span class="grow"></span><button id="stkCancel" class="danger-text">Cancel the stocktake…</button></div>` : ''}</div>`;
+    ${edit ? html`<div class="addrel stk-pad"><span class="grow"></span><button id="stkCancel" class="danger-text">Cancel the inventory check…</button></div>` : ''}</div>`;
 }
 /* Wires the running stocktake: the Still open, Confirmed and All tabs for everyone; for an admin also ticking a
    device, the scan field (Enter looks it up), Finish and Cancel, which takes back the confirmations made in it. */
@@ -109,12 +109,12 @@ function wireActive(t, edit){
   scan.onkeydown = e => { if (e.key !== 'Enter') return; e.preventDefault(); const v = scan.value.trim(); scan.value = ''; if (v) found(t, v); };
   $('#stkFinish').onclick = () => finishModal(t);
   $('#stkCancel').onclick = () => {
-    modal(html`<div class="mh">Cancel the stocktake?</div><div class="mb"><p class="note">${t.name} is removed, and so are the confirmations made in it. Devices moved in it stay where they are now.</p></div>
-      <div class="mf"><button id="stcNo">Keep it</button><button id="stcYes" class="danger-text">Cancel the stocktake</button></div>`, 'sm');
+    modal(html`<div class="mh">Cancel the inventory check?</div><div class="mb"><p class="note">${t.name} is removed, and so are the confirmations made in it. Devices moved in it stay where they are now.</p></div>
+      <div class="mf"><button id="stcNo">Keep it</button><button id="stcYes" class="danger-text">Cancel the inventory check</button></div>`, 'sm');
     $('#stcNo').onclick = closeModal;
     $('#stcYes').onclick = () => {
       for (const o of objs) if (confirmedIn(o, t.id)) { o.verified = o.verified.prev ? { ...o.verified.prev } : undefined; if (!o.verified) delete o.verified; }
-      st.stocktakes = st.stocktakes.filter(x => x.id !== t.id); LAST = ''; closeModal(); queueServerSave(); render(); toast('Stocktake cancelled');
+      st.stocktakes = st.stocktakes.filter(x => x.id !== t.id); LAST = ''; closeModal(); queueServerSave(); render(); toast('Inventory check cancelled');
     };
   };
 }
@@ -138,7 +138,7 @@ function found(t, v){
   const o = uniq[0];
   if (confirmedIn(o, t.id)) return say(`${o.name} is already confirmed.`);
   if (inScope(o, t.scope)) { confirm(o, t); queueServerSave(); return say(html`✓ <b>${o.name}</b> confirmed${o.loc ? ` in ${o.loc}` : ''}.`, 'ok'); }
-  /* Recorded elsewhere: move it here (to which room, when the stocktake is a whole site), or confirm it where it is. */
+  /* Recorded elsewhere: move it here (to which room, when the inventory check is a whole site), or confirm it where it is. */
   const rooms = LOCS.filter(l => inScope({ loc: l }, t.scope));
   modal(html`<div class="mh">${o.name} is recorded elsewhere</div>
     <div class="mb"><p class="note">The inventory has it ${o.loc ? html`in <b>${o.loc}</b>` : 'without a location'}, not in ${placeName(t.scope)}. Was it found here?</p>
@@ -152,13 +152,13 @@ function found(t, v){
   };
 }
 
-/* Finish: what is missing, moved and unknown, kept with the stocktake; the lists as PDF or Excel afterwards. */
+/* Finish: what is missing, moved and unknown, kept with the inventory check; the lists as PDF or Excel afterwards. */
 function finishModal(t){
   const r = stocktakeResult(t, objs);
   modal(html`<div class="mh">Finish ${t.name}</div>
     <div class="mb"><div class="stk-sum"><div><b>${r.confirmed}</b><span>confirmed</span></div><div class="${r.missing.length ? 'bad' : ''}"><b>${r.missing.length}</b><span>missing</span></div><div><b>${r.moved.length}</b><span>moved here</span></div><div><b>${r.unknown.length}</b><span>not in the inventory</span></div></div>
       ${r.missing.length ? html`<p class="note">Not found: ${r.missing.slice(0, 12).map(m => m.name).join(', ')}${r.missing.length > 12 ? ` and ${r.missing.length - 12} more` : ''}. They stay as they are; the result lists them, to look for or to retire.</p>` : html`<p class="note">Every device was found.</p>`}</div>
-    <div class="mf"><button id="stfBack">Go on scanning</button><button id="stfOk" class="primary">Finish the stocktake</button></div>`, 'sm');
+    <div class="mf"><button id="stfBack">Go on scanning</button><button id="stfOk" class="primary">Finish the inventory check</button></div>`, 'sm');
   $('#stfBack').onclick = () => { closeModal(); setTimeout(() => $('#stkScan') && $('#stkScan').focus(), 0); };
   $('#stfOk').onclick = () => {
     t.finished = new Date().toISOString(); t.finishedBy = who(); t.result = stocktakeResult(t, objs);
@@ -168,11 +168,11 @@ function finishModal(t){
   };
 }
 
-/* The stocktakes done, newest first, with their lists. */
+/* The inventory checks done, newest first, with their lists. */
 function historyHtml(){
   const done = (st.stocktakes || []).filter(t => t.finished);
   if (!done.length) return '';
-  return html`<div class="panelbox"><div class="hdr">Done <span class="cnt">${done.length}</span></div><div style="overflow-x:auto"><table class="grid mini stack" style="min-width:640px"><thead><tr><th>Stocktake</th><th>Place</th><th>Finished</th><th class="n">Confirmed</th><th class="n">Missing</th><th class="n">Moved</th><th></th></tr></thead><tbody>
+  return html`<div class="panelbox"><div class="hdr">Done <span class="cnt">${done.length}</span></div><div style="overflow-x:auto"><table class="grid mini stack" style="min-width:640px"><thead><tr><th>Inventory check</th><th>Place</th><th>Finished</th><th class="n">Confirmed</th><th class="n">Missing</th><th class="n">Moved</th><th></th></tr></thead><tbody>
     ${done.map(t => html`<tr><td><b>${t.name}</b></td><td>${placeName(t.scope)}</td><td>${dateText(t.finished.slice(0, 10))} · ${t.finishedBy || ''}</td><td class="n">${t.result.confirmed} of ${t.result.total}</td><td class="n">${t.result.missing.length}</td><td class="n">${t.result.moved.length}</td>
       <td class="act"><div class="sheet-acts">${t.result.missing.length ? html`<button type="button" class="link" data-stkmiss="${t.id}" title="The devices not found, in the Table, to look for or set their status">Show missing</button> ` : ''}<a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${isAdmin() ? html` <button class="icon ghost" data-stkdel="${t.id}" aria-label="Remove ${t.name} from the list">×</button>` : ''}</div></td></tr>`)}</tbody></table></div></div>`;
 }
@@ -212,8 +212,8 @@ export function verifiedNote(o){
      marks it done. */
   const mine = !isAdmin() && o.uid && o.uid === st.meId;
   const rep = o.reported && !o.reported.done ? html`<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${o.reported.by} on ${dateText(o.reported.at.slice(0, 10))}: ${o.reported.text}${isAdmin() ? html` <button type="button" class="link" data-repdone="${o.id}">Done</button>` : ''}</p>` : '';
-  /* "Not confirmed on site yet" only once it says something: after a stocktake has been done (it was missed), or to the
-     device's own user, who can say they have it. Before any stocktake every device would carry it. */
+  /* "Not confirmed on site yet" only once it says something: after an inventory check has been done (it was missed), or to the
+     device's own user, who can say they have it. Before any inventory check every device would carry it. */
   if (d === null && !mine && !(st.stocktakes || []).some(x => x.finished)){
     const confirm = isAdmin() ? html`<p class="fieldnote stk-note quiet"><button type="button" class="link" data-verify="${o.id}">Confirm on site</button></p>` : '';
     return rep || confirm ? String(html`<span></span><div class="vnote">${confirm}${rep}</div>`) : '';

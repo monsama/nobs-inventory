@@ -60,8 +60,8 @@ export function migrateState(s) {
       .map(e => ({ ...e, msg: String(e.msg).slice(0, 5000), ...(e.t !== undefined ? { t: String(e.t) } : {}) }));
     if (!Array.isArray(h) || fixed.length !== h.length || fixed.some((e, i) => e.msg !== h[i].msg || e.t !== h[i].t)) { s.history[k] = fixed; changed = true; }
   }
-  /* A stocktake needs a name (checked since 0.9.73). */
-  for (const t of Array.isArray(s.stocktakes) ? s.stocktakes : []) if (t && typeof t.name === 'string' && !t.name.trim()) { t.name = 'Stocktake'; changed = true; }
+  /* An inventory check needs a name (checked since 0.9.73). */
+  for (const t of Array.isArray(s.stocktakes) ? s.stocktakes : []) if (t && typeof t.name === 'string' && !t.name.trim()) { t.name = 'Inventory check'; changed = true; }
   /* The attachments of a PC were one text; each line (or comma) is now an accessory. */
   for (const o of s.objs) if (typeof o.attach === 'string') {
     const names = o.attach.split(/[\n,]/).map(x => x.trim().slice(0, 120)).filter(Boolean);
