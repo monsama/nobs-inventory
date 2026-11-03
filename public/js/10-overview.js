@@ -37,7 +37,7 @@ function startHtml(){
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
     [USERS.length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
     [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'users', 'Set the name'],
-    [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New object'],
+    [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New device'],
   ];
   const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
   if (steps.every(x => x[0])) return '';
@@ -123,7 +123,7 @@ export function renderOverview(){
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
   /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'object' : 'objects'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
+  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'device' : 'devices'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
   $('#view').innerHTML = `<div class="ov">${startHtml()}

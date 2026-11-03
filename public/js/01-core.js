@@ -41,7 +41,7 @@ export const svg = (t, cls='i') => {
 };
 
 /* ---------- reference data ---------- */
-/* Object types are data: name, short name, colour and icon. Edited in Settings → Object types. */
+/* Object types are data: name, short name, colour and icon. Edited in Settings → Device types. */
 export const TYPES = {
   pc:{label:'PC', short:'PC', color:'#1565c0', icon:'pc'},
   notebook:{label:'Notebook', short:'NB', color:'#2563eb', icon:'laptop'},

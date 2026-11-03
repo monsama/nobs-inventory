@@ -23,11 +23,11 @@ export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 /* What everyone sets up first comes first; the sources (each optional) after them. */
-export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
-/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and the log under Maintenance, each
+export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Health'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
+/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and backups, e-mail and the log under System, each
    group with a row of its own; About is a link at the foot. */
-const SET_GROUPS = { vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'System'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
-const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['maintenance','Maintenance']];
+const SET_GROUPS = { vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
+const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['sources','Data sources'],['maintenance','System']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
@@ -79,7 +79,7 @@ export function renderSetPane(){
     sources: '<div id="setSources"></div>',
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
-    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
+    types: '<div class="panelbox"><div class="hdr">Device types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>', backups: '<div id="setMaint"></div>', mail: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
@@ -146,7 +146,7 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ?
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-/* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
+/* Looking, not changing: searches, view switches and zoom. Settings → Device types: tfType picks whose fields are shown. */
 export const RO_INPUT_OK = /^(search|mapFocus|mapOnly|mapLabels|cardJoin|cnKind|mapAttached|grp|portsDevice|rkSel|swCollapse|plSel|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
   const ro = !isAdmin();

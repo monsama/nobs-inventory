@@ -35,7 +35,7 @@ export function newObjModal(pre={}){
   const c = pre.copy;
   /* Opened on a device's page: that device's place, and it is offered to plug into when it can take the new one. */
   const ctx = byId(st.tab);
-  modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New object'}</div>
+  modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New device'}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">

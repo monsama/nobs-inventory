@@ -190,7 +190,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  /* All photos, for Make photos smaller (Settings → Maintenance): what each is, not the pictures. */
+  /* All photos, for Make photos smaller (Settings → System → Health): what each is, not the pictures. */
   app.get('/api/images', requireUser, requireAdmin, (req, res) => {
     res.set('Cache-Control', 'no-store').json({ images: db.prepare('SELECT id, obj_id, name, mime, w, h, bytes, LENGTH(thumb) AS tbytes FROM device_images ORDER BY bytes DESC').all() });
   });

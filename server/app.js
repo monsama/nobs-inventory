@@ -922,7 +922,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ entries: rows.map(r => ({ at: r.at, who: r.user_id ? (names.get(String(r.user_id)) || 'Unknown user') : 'Server', action: r.action, level: isError.test(r.action) ? 'error' : 'info', ...(r.detail ? { detail: detailOf(r.detail) } : {}) })) });
     } catch (e) { next(e); }
   });
-  /* Health (Settings → Maintenance): the server, backups, syncs, certificates and the log, each ok, warn, bad or off. */
+  /* Health (Settings → System → Health): the server, backups, syncs, certificates and the log, each ok, warn, bad or off. */
   const healthNow = () => {
       const s = loadState(db), g = cfgGraph();
       let graphCert = null;

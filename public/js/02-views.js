@@ -56,7 +56,7 @@ export function renderSide(){
   const typeBtn = ([k, v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${byType[k] || 0}</span></button>`;
   const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
   $('#typeList').innerHTML =
-    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All objects</span><span class="cnt">${pool.length}</span></button>` +
+    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>` +
     shown.map(typeBtn).join('') +
     (folded ? `<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
       : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? '<button class="side-more" data-alltypes="0">Fewer types</button>' : '');
@@ -244,12 +244,12 @@ document.addEventListener('click', async e => {
 function emptyHtml(){
   const n = REVIEW.filter(o => !o.review.ignored).length;
   return n ? `<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
-    : `<div class="empty">The inventory is empty.${isAdmin() ? ' <button type="button" class="primary" data-empty-new>New object</button>' : ''}</div>`;
+    : `<div class="empty">The inventory is empty.${isAdmin() ? ' <button type="button" class="primary" data-empty-new>New device</button>' : ''}</div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relationships', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
 /* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
@@ -1211,7 +1211,7 @@ export function renderMap(){
   const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
   $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
+    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All devices</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
@@ -1235,8 +1235,8 @@ export function renderMap(){
     return;
   }
   const nL = MAP.L.list.length, nE = MAP.L.edges.length;
-  $('#mapCount').textContent = `${nL} ${nL === 1 ? 'object' : 'objects'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
-  $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relationship map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
+  $('#mapCount').textContent = `${nL} ${nL === 1 ? 'device' : 'devices'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
+  $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relations map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
     <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
   /* A right click on a box shows only its relations (the same as Relations of in the toolbar). */
@@ -1277,8 +1277,8 @@ export function renderMap(){
   $('#mapExport').onclick = e => {
     e.target.closest('details').open = false;
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + mapExportSvg()], {type: 'image/svg+xml'});
-    const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'relationships.svg'});
-    document.body.appendChild(a); a.click(); a.remove(); toast('Exported relationships.svg');
+    const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'relations.svg'});
+    document.body.appendChild(a); a.click(); a.remove(); toast('Exported relations.svg');
   };
   mapApply();
   requestAnimationFrame(mapFit);

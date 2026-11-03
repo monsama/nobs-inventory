@@ -34,11 +34,11 @@ try {
   await p.waitForSelector('#mapFocus');
   const count = () => p.textContent('#mapCount');
   /* Attached devices are left out of the map until they are asked for. */
-  assert.match(await count(), /^3 objects · 2 relations/, 'the default map should show only the network: ' + await count());
+  assert.match(await count(), /^3 devices · 2 relations/, 'the default map should show only the network: ' + await count());
   await p.check('#mapAttached');
-  await p.waitForFunction(() => /^5 objects · 3 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^5 devices · 3 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.uncheck('#mapAttached');
-  assert.match(await count(), /^3 objects · 2 relations/, 'the map should hide attached devices again: ' + await count());
+  assert.match(await count(), /^3 devices · 2 relations/, 'the map should hide attached devices again: ' + await count());
   // With objects without relations shown, a device only attached to another (the monitor o4 on o5) stays hidden while
   // Attached devices is off, and shows when it is on.
   await p.uncheck('#mapOnly');
@@ -48,19 +48,19 @@ try {
   await p.check('#mapAttached');
   await p.waitForFunction(() => [...document.querySelectorAll('#mapSvg .mnode')].some(n => n.dataset.id === 'o4'), null, { timeout: 5000 });
   await p.uncheck('#mapAttached'); await p.check('#mapOnly');
-  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^3 devices · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.selectOption('#mapFocus', 'o1');
-  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^3 devices · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.equal(await p.locator('#mapSvg .mnode').count(), 3, 'more than the switch and its direct links are drawn');
   const shown = await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort());
   assert.deepEqual(shown, ['o1', 'o2', 'o3'], 'the wrong objects are drawn: ' + shown.join(','));
   // A PC whose only links are its monitors: its relations show the PC and the monitors, with "Attached devices" off.
   assert.equal(await p.isChecked('#mapAttached'), false);
   await p.selectOption('#mapFocus', 'o5');
-  await p.waitForFunction(() => /^2 objects · 1 relation/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^2 devices · 1 relation/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   assert.deepEqual(await p.$$eval('#mapSvg .mnode', ns => ns.map(n => n.dataset.id).sort()), ['o4', 'o5'], 'the PC and its monitor are drawn');
   await p.selectOption('#mapFocus', '');
-  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^3 devices · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   // A type filter: the filtered objects are drawn with the objects linked to them, so the switch's links show.
   const typeOf = id => p.evaluate(async id => (await import('/js/01-core.js')).byId(id).type, id);
   const t2 = await typeOf('o2');
@@ -72,7 +72,7 @@ try {
   await p.evaluate(async () => { const core = await import('/js/01-core.js'); core.st.type = 'no-such-type'; (await import('/js/02-views.js')).renderMap(); });
   await p.waitForSelector('#mapClr');
   await p.selectOption('#mapFocus', 'o1');
-  await p.waitForFunction(() => /^3 objects · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => /^3 devices · 2 relations/.test(document.querySelector('#mapCount').textContent), null, { timeout: 5000 });
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.type = null; });
   // From a device: More → Relationships opens the map centred on it; the tab shows only while the map is open
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'cards'; (await import('/js/07-render.js')).render(); });

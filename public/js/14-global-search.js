@@ -22,7 +22,7 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
 const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
   log: 'audit history errors', users: 'people roles viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
   feed: 'lansweeper sync', sources: 'fields policy', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
-const SET_PATH = { maintenance: 'Maintenance → System', backups: 'Maintenance → Backups', mail: 'Maintenance → E-mail', log: 'Maintenance → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
+const SET_PATH = { maintenance: 'System → Health', backups: 'System → Backups', mail: 'System → E-mail', log: 'System → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 const row = (i, icon, main, sub) => `<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${esc(main)}</span>${sub ? `<span class="gs-sub">${esc(sub)}</span>` : ''}</li>`;
 
