@@ -56,8 +56,15 @@ export function takeBackModal(list){
   const sites = new Set(live.map(o => String(o.loc || '').split(' / ')[0]).filter(Boolean)), site = sites.size === 1 ? [...sites][0] : '';
   const store = site && st.stockRooms && st.stockRooms[site];
   if (store && LOCS.includes(store)) last = store;
+  /* First choice: leave them where they are, naming that room. Then the store rooms (Settings → Locations), then the rest. */
+  const here = [...new Set(live.map(o => o.loc || ''))];
+  const stay = here.length === 1 ? (here[0] ? `Leave it where it is (${here[0]})` : 'Leave it where it is (no room)') : 'Leave each where it is';
+  const stores = [...new Set(Object.values(st.stockRooms || {}))].filter(l => LOCS.includes(l)).sort();
+  const others = LOCS.filter(l => !stores.includes(l));
+  const opt = l => html`<option value="${l}">${l}</option>`;
   modal(html`<div class="mh">Take back ${live.length === 1 ? live[0].name : `${live.length} devices`}</div><div class="mb">
-    ${locField('tbLoc')}
+    <label for="tbLoc" class="ho-l">Where</label><select id="tbLoc"><option value="">${stay}</option>${stores.length
+      ? html`<optgroup label="Store rooms">${stores.map(opt)}</optgroup><optgroup label="Other rooms">${others.map(opt)}</optgroup>` : LOCS.map(opt)}</select>
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
     <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
   if (last && LOCS.includes(last)) $('#tbLoc').value = last;
