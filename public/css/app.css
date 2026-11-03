@@ -3,6 +3,8 @@
    Colours are the NOBS SQL Editor's own tokens, so both tools read as one family. */
 /* One set of colours: light-dark() picks the light or the dark value by color-scheme, which follows the system unless
    the page sets data-theme (Settings: light or dark). The shadow and the chevron image are not colours and are set per scheme below. */
+/* The tokens are a layer of their own, under every rule of the page: a rule that sets a token wins wherever it stands. */
+@layer tokens{
 :root{color-scheme:light dark;
 /* The one space between the window edge and what lines up along it (top bar, tab bar, toolbar, views, status bar). */
 --gutter:12px;
@@ -26,6 +28,7 @@
 :root[data-theme="dark"]{color-scheme:dark}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}}
 :root[data-theme="dark"]{--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}
+}
 
 *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
