@@ -74,7 +74,13 @@ function redraw(o){
   /* No photo left (or a first one added): the whole page is drawn again, so the panel gets or loses its × like the
      other extras. */
   const n = photoCount(o.id), hadX = !!panel.querySelector('[data-xhide]');
-  if ((n === 0) !== hadX && isAdmin()) { view(); return; }
+  if (!panel.hidden && (n === 0) !== hadX && isAdmin()) {
+    /* Drawn again in the background (the photos come after the page): the focus stays where it was. */
+    const f = document.activeElement && document.activeElement.id;
+    view();
+    if (f && document.getElementById(f) && document.activeElement?.id !== f) document.getElementById(f).focus({ preventScroll: true });
+    return;
+  }
   const t = document.createElement('div'); t.innerHTML = photosPanel(o);
   const next = t.firstElementChild; if (!next) return;
   const cnt = panel.querySelector('.hdr .cnt'), cnt2 = next.querySelector('.hdr .cnt');
