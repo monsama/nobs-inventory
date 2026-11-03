@@ -507,9 +507,23 @@ export async function clearAll(){
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 export const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
+/* What the colours of states mean: the same everywhere (badges, dots, chips, bars). */
+export const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
+  ['warn', 'Amber', 'Needs a look: only registered in Entra, grace period, inactive, medium risk, ending soon'],
+  ['bad', 'Red', 'A problem: not compliant, high risk, ended, failed'],
+  ['off', 'Grey ring', 'Not there or off: not joined, not managed, not onboarded, in stock, a source turned off'],
+  ['gone', 'Grey', 'Done: retired']];
+export const coloursTable = () => `<table class="grid mini colours" style="min-width:0"><tbody>${COLOURS.map(([c, l, t]) => `<tr><td><span class="dot ${c}"></span> <b>${l}</b></td><td>${t}</td></tr>`).join('')}</tbody></table>
+  <p class="note">Blue marks links, the selection and actions, never a state.</p>`;
+export function coloursModal(){
+  modal(`<div class="mh">What the colours mean</div><div class="mb">${coloursTable()}</div>
+    <div class="mf"><button id="clClose" class="primary">Done</button></div>`, 'sm');
+  $('#clClose').onclick = closeModal;
+}
 export function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
-    ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table></div>
+    ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table>
+    <div class="hdr" style="margin-top:14px">Colours</div>${coloursTable()}</div>
     <div class="mf"><button id="scClose" class="primary">Done</button></div>`, 'sm');
   $('#scClose').onclick = closeModal;
 }

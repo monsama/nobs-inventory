@@ -1813,3 +1813,7 @@ details.how[open]>summary{margin-bottom:4px}
 .readonly .obj .form.props :is(input, select, textarea):disabled{background:transparent;border-color:transparent;box-shadow:none;padding-left:0;appearance:none;-webkit-appearance:none;resize:none}
 .readonly .obj .form.props .fsrc-slot,.readonly .obj .form.props .fm-slot{display:none}
 .readonly .obj .relist input.rport:disabled{background:transparent;border-color:transparent;padding-left:0}
+/* Data quality: the bar says how good it is, as every state does: green from 90 %, amber from 60 %, red below. */
+.ov-qbar.ok>span{background:var(--okdot)}.ov-qbar.warn>span{background:var(--warn)}.ov-qbar.bad>span{background:var(--danger)}
+.colhelp{min-height:0;height:auto;padding:0 3px;margin-left:2px;font-size:12px;font-weight:600}
+table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table.colours td:first-child{white-space:nowrap}

@@ -14,7 +14,7 @@ import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './0
 import { sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast, used } from './01-core.js';
-import { SERVER, queueServerSave, render, renderStatus } from './07-render.js';
+import { SERVER, coloursModal, queueServerSave, render, renderStatus } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -252,7 +252,7 @@ export function renderObj(o){
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row).join('')}
         ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory <button type="button" class="link colhelp" data-view data-colhelp title="What the colours mean" aria-label="What the colours mean">?</button></label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${edit || o.notes ? `<label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" data-view aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
@@ -630,6 +630,7 @@ export function renderObj(o){
     avAdd.addEventListener('keydown', e => { if (e.key === 'Enter' && avAdd.closest('.combo').querySelector('.combo-list').hidden){ e.preventDefault(); add(); } });
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
+  const ch = $('#view').querySelector('[data-colhelp]'); if (ch) ch.onclick = coloursModal;
   const dup = $('#dupBtn'); if (dup) dup.onclick = () => newObjModal({copy: o});
   $('#relMapBtn').onclick = () => { st.mapFocus = o.id; st.tab = 'map'; render(); };
   const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);
