@@ -95,10 +95,10 @@ export function renderRack(){
 /* ---------- object page ---------- */
 export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
-  const list = o.software || [];
+  const list = o.software || [], edit = isAdmin();
   return `<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
-    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th><th></th></tr></thead><tbody>
-    ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td><td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td></tr>`).join('')}
+    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? '<th></th>' : ''}</tr></thead><tbody>
+    ${list.map((p, i) => `<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.version || '')}</td>${edit ? `<td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${esc(p.name)}">×</button></td>` : ''}</tr>`).join('')}
     </tbody></table></div>` : '<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>'}
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`;
 }
@@ -424,8 +424,8 @@ export function renderObj(o){
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${edit || o.notes ? `<label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
-        ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
+        ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" data-view aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
+        ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" data-view aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}
     </div>
     <div class="col">

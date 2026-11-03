@@ -1809,3 +1809,7 @@ details.how[open]>summary{margin-bottom:4px}
 .jb.nc{--c:var(--muted)}
 .dot.gone{background:var(--muted)}
 .chip.gone{color:var(--muted);background:var(--panel2);border-color:var(--bd)}
+/* Someone who only reads sees a device's fields as text, not as greyed-out boxes. */
+.readonly .obj .form.props :is(input, select, textarea):disabled{background:transparent;border-color:transparent;box-shadow:none;padding-left:0;appearance:none;-webkit-appearance:none;resize:none}
+.readonly .obj .form.props .fsrc-slot,.readonly .obj .form.props .fm-slot{display:none}
+.readonly .obj .relist input.rport:disabled{background:transparent;border-color:transparent;padding-left:0}
