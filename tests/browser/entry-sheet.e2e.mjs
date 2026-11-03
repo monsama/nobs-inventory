@@ -38,13 +38,14 @@ try {
   await page.goto(base + '/'); await page.waitForSelector('#lgUser');
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
-  await page.click('#setBtn'); await openSetTab(page, 'users');
+  await page.click('#setBtn'); await openSetTab(page, 'company');
   // the company: its name and logo go on the sheets instead of NOBS Inventory; an SVG logo is kept as a PNG
   await page.fill('#coName', 'Example AG'); await page.locator('#coName').press('Tab');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="#c00"/></svg>';
   await page.setInputFiles('#coFile', { name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
   await page.waitForSelector('.company-logo img');
   assert.match(await page.getAttribute('.company-logo img', 'src'), /^data:image\/png;base64,/);
+  await openSetTab(page, 'users');
   const row = page.locator('#setUsers tr', { hasText: 'Anna Muster' });
   await row.locator('.umenu > summary').click(); await row.locator('[data-sheet]').click();
   await page.waitForSelector('#sheetMake');
