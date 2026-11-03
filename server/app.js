@@ -210,7 +210,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
       /* Entra groups in the token (when the app registration sends the groups claim): kept, and with the directory's
-         groups they give a role and sites (Settings → Users → Roles from groups). */
+         groups they give a role and sites (Settings → Users → Viewers from groups). */
       /* Without the groups claim (not set up, or more groups than a token holds) the Entra groups kept from before go: a
          role an Entra group gave is not kept on an old list. */
       {

@@ -116,5 +116,7 @@ test('a Lansweeper push whose user is the login of a directory person merges int
     assert.deepEqual(after.users.filter(u => /muster/i.test(u.name + u.login)).map(u => u.id), ['ldap-amuster']);
     assert.equal(after.objs[0].uid, 'ldap-amuster');
     assert.equal(srv.db.prepare('SELECT COUNT(*) AS n FROM credentials WHERE user_id = ?').get('ls-x').n, 0, 'the merged-away record keeps no password');
+    const log = srv.db.prepare("SELECT action FROM audit WHERE action LIKE 'people merged by a sync%'").all().map(r => r.action);
+    assert.deepEqual(log, ['people merged by a sync: anna.muster@corp.example (Lansweeper) into Anna Muster (AD), same login']);
   } finally { await srv.close(); }
 });

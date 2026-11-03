@@ -12,6 +12,7 @@ import { scheduleProblem } from '../public/js/schedule.js';
 import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
 import { groupRolesProblem } from '../public/js/group-roles.js';
 import { MERGED } from '../public/js/people-match.js';
+import { audit } from './db.js';
 import { lifecycleProblem } from '../public/js/lifecycle.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { liftOvr } from './fill.js';
@@ -536,7 +537,12 @@ export function saveState(db, s) {
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   writeDocs(db, s);
   /* People a sync merged (people-match.js): their entry sheets and sign-in follow them, as for a merge made by hand. */
-  for (const m of s[MERGED] || []) movePersonRows(db, m.keep, m.drop, m.hadLogin);
+  /* Each written to the log by name, so a merge a sync made can be found and, if wrong, undone from a backup. */
+  const SOURCE = { ldap: 'AD', entra: 'Entra', lansweeper: 'Lansweeper', manual: 'by hand' };
+  for (const m of s[MERGED] || []) {
+    movePersonRows(db, m.keep, m.drop, m.hadLogin);
+    audit(db, null, `people merged by a sync: ${m.dropName} (${SOURCE[m.dropSource] || m.dropSource}) into ${m.keepName} (${SOURCE[m.keepSource] || m.keepSource}), same login`);
+  }
   delete s[MERGED];
 }
 /* What belongs to a person outside the inventory's records, moved to the one kept when two are merged: the entry sheets;

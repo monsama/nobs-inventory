@@ -90,9 +90,9 @@ export function mergeSamePeople(s, stamp = '') {
     const keep = keepOf(live);
     for (const drop of live) {
       if (drop === keep || !['lansweeper', 'entra'].includes(drop.source) || skip.has(pairKey(keep.id, drop.id))) continue;
-      const hadLogin = !!keep.login;
+      const hadLogin = !!keep.login, what = { keep: keep.id, drop: drop.id, hadLogin, keepName: keep.name, dropName: drop.name, dropSource: drop.source, keepSource: keep.source };
       mergePeople(s, keep.id, drop.id, stamp); n++;
-      (s[MERGED] ||= []).push({ keep: keep.id, drop: drop.id, hadLogin });
+      (s[MERGED] ||= []).push(what);
     }
   }
   return n;
