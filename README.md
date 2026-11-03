@@ -183,6 +183,10 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
   - the department of the logged-on user, from the Active Directory users Lansweeper scans.
 - The user Lansweeper reports on a device is a login (its `Username`). A person it names is added under Settings → Users with that login and, from the Active Directory users Lansweeper scans, the full name and department; devices show the full name. Persons from before 0.9.28, whose name was the login, get it as their login on the first start. When the LDAP sync or a directory sign-in brings the same login, the directory takes over that person (same record, so their devices stay assigned); a local account with that login is never taken over.
 
+## API for other tools
+
+Monitoring, a helpdesk or Excel Power Query read the inventory with a token an admin makes in Settings → Users → Access: `GET /api/v1/devices` (and `/devices/{code}`, `/contracts`, `/licences`, and `/people` for a token made with people), JSON or `?format=csv`, with `Authorization: Bearer nobs_…`. Read only. The OpenAPI 3.1 description is at `/api/openapi.json` (no token needed, it holds no data; the file is `server/openapi.json`), linked from the same page.
+
 ## Updating
 
 `sudo ./scripts/update.sh` downloads the release (the archive and its checksum from GitHub), backs up, replaces the code files and starts the release image. It does not touch `.env`, `secrets/`, `certificates/`, `backup/` or the data volume. On a git clone it pulls `main` instead. The code from before the update is kept in `backup/code-before-update-*.tar.gz`.
