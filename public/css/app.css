@@ -1782,3 +1782,7 @@ details.how[open]>summary{margin-bottom:4px}
 .colpick-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;padding-top:6px}
 .pl-body.side-off{grid-template-columns:minmax(0,1fr)}
 .pl-body.side-off>.pl-side{display:none}
+
+/* Improvements (0.9.91) */
+.gs-list .gs-note{padding:6px 10px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--bd2);background:var(--panel)}
+.xnone{margin:0 0 12px;padding:8px 12px;border:1px dashed var(--bd);border-radius:var(--r-m)}

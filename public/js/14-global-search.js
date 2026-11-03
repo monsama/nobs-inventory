@@ -67,7 +67,9 @@ function show(){
     html += `<li class="gs-head" role="presentation">${esc(label)}${n > rows.length ? ` <span class="muted">· ${rows.length} of ${n}</span>` : ''}</li>`;
     for (const r of rows){ html += row(items.length, r.icon, r.main, r.sub); items.push(r); }
   }
-  list.innerHTML = html || `<li class="gs-none" role="presentation">Nothing found for “${esc(box.value.trim())}”.</li>`;
+  /* On a list the same text filters it too: said once at the top, so a shorter list is no surprise. */
+  const note = onList() ? '<li class="gs-note" role="presentation">Also filters this list · Esc closes these hits and keeps the filter</li>' : '';
+  list.innerHTML = note + (html || `<li class="gs-none" role="presentation">Nothing found for “${esc(box.value.trim())}”.</li>`);
   list.hidden = false;
   box.setAttribute('aria-expanded', 'true');
   if (items.length) mark(0);

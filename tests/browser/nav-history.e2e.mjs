@@ -75,6 +75,11 @@ try {
   await p.goBack(); await until(p, () => !document.querySelector('#mdl'));
   assert.equal((await st()).tab, 'cards', 'the view behind the dialog stays');
 
+  // V goes to the next view of the tab: Cards ↔ Table
+  await tab('cards');
+  await p.evaluate(() => document.activeElement && document.activeElement.blur());
+  await p.keyboard.press('v'); await until(p, async () => (await import('/js/01-core.js')).st.tab === 'table');
+  await p.keyboard.press('v'); await until(p, async () => (await import('/js/01-core.js')).st.tab === 'cards');
   assert.deepEqual(errors, [], 'no page errors');
   console.log('back and forward: all checks passed');
 } finally { await browser.close(); server.close(); }
