@@ -9,7 +9,7 @@ import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
-import { FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
+import { FIXED_TABS, closeObjTab, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
 import { closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
@@ -126,7 +126,7 @@ export function renderStatus(){
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
+const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog, or the open device'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
 /* What the colours of states mean: the same everywhere (badges, dots, chips, bars). */
 const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
   ['warn', 'Amber', 'Needs a look: only registered in Entra, grace period, inactive, medium risk, ending soon'],
@@ -152,6 +152,11 @@ document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (evEl(e).closest('input, textarea, select') || $('#mdl')) return;
   const key = e.key.toLowerCase();
+  /* Esc on an open device closes its tab, as its × does. A menu, popover or source note open over it closes first. */
+  if (e.key === 'Escape'){
+    if (!e.defaultPrevented && st.open.includes(st.tab) && !document.querySelector(':popover-open, #fsrcPop')){ e.preventDefault(); closeObjTab(st.tab); }
+    return;
+  }
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the search, which also filters the list open. */
   if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }

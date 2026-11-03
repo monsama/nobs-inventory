@@ -55,8 +55,11 @@ try {
   assert.ok(rooms.includes('Büro 2.OG'), 'the existing room is not offered: ' + rooms.join(' | '));
   await p.selectOption('#arRoom', 'Zürich HQ / Büro 2.OG');
   assert.equal(await p.inputValue('#arName'), 'Büro 2.OG', 'the area is not named after the room');
+  // a colour picked in the dialog is kept and drawn
+  await p.click('.ar-sw.ac-green');
   await p.click('#arOk');
-  await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas.some(a => a.room === 'Zürich HQ / Büro 2.OG'));
+  await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas.some(a => a.room === 'Zürich HQ / Büro 2.OG' && a.color === 'green'));
+  assert.equal(await p.locator('svg.pl-area.ac-green').count(), 1, 'the area is not drawn in its colour');
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }

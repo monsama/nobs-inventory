@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -90,13 +90,13 @@ export function cardHtml(o, idx, join = showJoin()){
   const s = STATUS[o.status];
   const picked = !!(st.bulk && st.bulk.has(o.id)), stale = !!o.review && reviewStale(o);
   return String(html`<button class="card${picked ? ' picked' : ''}${stale ? ' stale' : ''}" data-open="${o.id}" aria-pressed="${String(picked)}"${o.review ? html` aria-label="${o.name}: waiting in To review"` : ''}><span class="cardtick" title="Select (or Ctrl+click the card; Shift+click picks a range)" aria-hidden="true"></span>
-    <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><span class="nm">${o.name}</span>${rawHtml(markHtml(o))}</span><span class="model">${o.model}</span></div>
+    <div class="ch">${rawHtml(tico(o.type))}<div class="hd"><span class="nmrow"><span class="nm">${o.name}</span>${rawHtml(markHtml(o, false))}</span><span class="model">${o.model}</span></div>
       ${o.status !== 'active' ? html`<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => html`<dt>${k || rawHtml('&nbsp;')}</dt><dd${v ? '' : html` class="none"`}>${v ? rawHtml(v) : k ? '-' : rawHtml('&nbsp;')}</dd>`)}</dl>
     ${join ? rawHtml(joinBadges(o)) : ''}
     ${o.review && !o.review.ignored && isAdmin() ? html`<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${o.id}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? html`<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${o.id}" title="Fold it into ${mergeTarget(o).name}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${o.id}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? html`<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? html`<div class="rv-chips">${twinsChip(o)}</div>` : ''}
-    <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphChip(o))}<span class="grow"></span>${relSummary(rs)}</div>
+    <div class="cf"><span class="code">${o.code}</span>${rawHtml(cardSeen(o))}${rawHtml(handHtml(o))}${join && GRAPH_TYPES.includes(o.type) ? '' : rawHtml(graphChip(o))}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`);
 }
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept

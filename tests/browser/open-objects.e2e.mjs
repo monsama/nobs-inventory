@@ -47,6 +47,16 @@ try {
   await p.click('#closeAllTabs');
   await until(p, async () => (await import('/js/01-core.js')).st.open.length === 0);
   assert.equal(await p.isHidden('#objbar'), true, 'the row goes when the last object is closed');
+  // Esc on an open object closes it; Esc in a dialog over it closes only the dialog
+  await p.click('.card[data-open=o1]');
+  await until(p, async () => (await import('/js/01-core.js')).st.tab === 'o1');
+  await p.mouse.click(5, 5);
+  await p.keyboard.press('?'); await p.waitForSelector('#mdl');
+  await p.keyboard.press('Escape');
+  await until(p, async () => !document.getElementById('mdl'));
+  assert.equal(await p.evaluate(async () => (await import('/js/01-core.js')).st.tab), 'o1', 'Esc in a dialog leaves the object open');
+  await p.keyboard.press('Escape');
+  await until(p, async () => !(await import('/js/01-core.js')).st.open.includes('o1'));
   assert.deepEqual(errors, [], 'page errors');
   console.log('open objects row: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

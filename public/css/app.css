@@ -183,7 +183,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .pl-item.on{background:var(--panel2);font-weight:600}
 .pl-ghost{position:fixed;z-index:200;pointer-events:none;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
 body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
-.pl-area.droptarget .pl-area-fill{fill:rgba(37,99,235,.28)}
+.pl-area.droptarget .pl-area-fill{fill:color-mix(in srgb,var(--ac,var(--accent)) 28%,transparent)}
 .pl-area.droptarget .pl-area-edge{stroke-width:3}
 .pl-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .pl-none{padding:12px}
@@ -749,6 +749,15 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .tf-fixed{font-size:12px}
 .tf-note-k{font-size:12px;white-space:nowrap}
 .tf-row .fl-move button{height:24px;width:26px;padding:0}
+/* On a phone a field takes two lines: the arrows, its name and the bin on the first, its note, how many have it and
+   Shown on the second, so the name keeps its width. */
+@media (max-width:760px){
+  .tf-row{grid-template-columns:62px minmax(0,1fr) auto auto 30px;row-gap:2px;padding:6px}
+  .tf-row.tf-head{display:none}
+  .tf-row>:nth-child(2){grid-column:2/5;grid-row:1} .tf-row>:nth-child(6){grid-column:5;grid-row:1}
+  .tf-row>:nth-child(3){grid-column:2;grid-row:2;padding-left:7px;white-space:normal} .tf-row>:nth-child(4){grid-column:3;grid-row:2} .tf-row>:nth-child(5){grid-column:4;grid-row:2}
+  .tf-list>.tf-row:not(.tf-head)+.tf-row{border-top:1px solid var(--bd2);border-radius:0}
+}
 .tf-add{border-top:1px solid var(--bd2)}
 #setPane .panelbox>.hdr+.note:not(.lempty),#setPane .panelbox>.hdr+div>p.note:first-child:not(.lempty),.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
@@ -799,12 +808,10 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
 .mk-new{background:var(--accent);color:#fff}
-/* Edited by hand: a small pencil in the muted text colour, on the name's line; its title says what it means. */
-.mk-hand{display:inline-flex;align-items:center;margin-left:6px;color:var(--muted);vertical-align:middle;flex:none}
+/* Edited by hand: a quiet outlined word in the muted colour; its title says what it means. */
+.mk-hand{border:1px solid var(--bd);color:var(--muted);font-weight:500;line-height:14px;flex:none}
+.card .cf .mk-hand{margin-left:0}
 .card .nmrow{display:flex;align-items:center;min-width:0}
-.card .mk-hand{position:absolute;top:9px;right:10px;margin:0}
-.card .mk-hand svg{width:15px;height:15px}
-.card:has(.mk-hand) .ch{padding-right:34px}
 .card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
@@ -1223,7 +1230,6 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .card .jb{justify-content:center}
 /* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
-/* On a card the pencil sits in the top right corner, a little larger; the header keeps room for it. */
 .card{content-visibility:auto;contain-intrinsic-size:auto 150px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal;align-self:stretch;border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
 .card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
@@ -1306,9 +1312,19 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .pl-unpin{display:inline-flex;align-items:center;justify-content:center;height:16px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;width:0;margin-left:-6px;overflow:hidden;background:transparent;color:var(--muted);transition:width .1s}
 .pl-pin:hover .pl-unpin,.pl-pin:focus-visible .pl-unpin,.pl-pin:focus-within .pl-unpin{width:16px;margin-left:0}
 .pl-unpin:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
-.pl-area-fill{fill:color-mix(in srgb,var(--accent) 7%,transparent)}
-.pl-area-edge{fill:none;stroke:var(--accent);vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-width:1.5px}
-.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:7;background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--bd));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}
+.pl-area-fill{fill:color-mix(in srgb,var(--ac,var(--accent)) 10%,transparent)}
+.pl-area-edge{fill:none;stroke:var(--ac,var(--accent));vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-width:1.5px}
+.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:7;background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--ac,var(--accent)) 45%,var(--bd));border-left:4px solid var(--ac,var(--accent));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}
+/* Area colours: one class each, sets --ac for the fill, the outline and the name tag. Picked in the area dialogs. */
+.ac-blue{--ac:var(--accent)} .ac-green{--ac:light-dark(#16a34a,#4ade80)} .ac-teal{--ac:light-dark(#0d9488,#2dd4bf)}
+.ac-amber{--ac:light-dark(#d97706,#fbbf24)} .ac-orange{--ac:light-dark(#ea580c,#fb923c)} .ac-red{--ac:light-dark(#dc2626,#f87171)}
+.ac-pink{--ac:light-dark(#db2777,#f472b6)} .ac-purple{--ac:light-dark(#7c3aed,#a78bfa)} .ac-grey{--ac:light-dark(#64748b,#94a3b8)}
+.ar-colors{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ar-sw{position:relative;display:inline-flex;cursor:pointer;margin:0}
+.ar-sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.ar-sw span{width:22px;height:22px;border-radius:50%;background:var(--ac);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--bd)}
+.ar-sw input:checked+span{box-shadow:0 0 0 2px var(--fg)}
+.ar-sw input:focus-visible+span{outline:2px solid var(--accent);outline-offset:3px}
 .pl-area-tag .pl-acount{background:var(--panel2);color:var(--muted)}
 .pl-area-tag .pl-x{pointer-events:auto;position:static;border-radius:50%;background:transparent;color:var(--muted);width:16px;height:16px}
 .pl-area-tag .pl-x:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
@@ -1474,7 +1490,6 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
 .ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
-.ds-beyond-src{margin:6px 12px 12px}
 @media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
@@ -1793,6 +1808,8 @@ table.stack>tbody>tr>td{max-width:none}
 
 /* Explanations and step lists folded behind their title (0.9.88) */
 details.how{margin:6px 0}
+/* Directly in a panel: the panel's own 12px on both sides, as the notes and lists in it have. */
+.panelbox>details.how.ds-beyond-src{margin:6px 12px 12px}
 details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
 details.how[open]>summary{margin-bottom:4px}
 .panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}

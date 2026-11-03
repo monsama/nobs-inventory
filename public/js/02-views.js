@@ -300,7 +300,12 @@ export function renderTabs(){
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');
   /* A group shows once, where its first member stands in the order. */
   const shownViews = views.filter(id => id !== 'review' && (!TAB_GROUP_OF[id] || views.find(v => TAB_GROUP_OF[v] === TAB_GROUP_OF[id]) === id));
-  $('#tabsbar').innerHTML = shownViews.map(viewTab).join('') + (right ? '<span class="grow"></span>' : '') + reload + sync
+  /* A tab shown only while it is open (Relations, Stocktake with none running) comes after the others, so opening and
+     closing it moves no other tab. It is not dragged into the order either. */
+  const fleeting = id => id === 'map' || (id === 'stocktake' && !stk);
+  const tabsHtml = shownViews.filter(id => !fleeting(id)).map(viewTab).join('')
+    + shownViews.filter(fleeting).map(id => viewTab(id).replace(' draggable="true"', '')).join('');
+  $('#tabsbar').innerHTML = tabsHtml + (right ? '<span class="grow"></span>' : '') + reload + sync
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;
@@ -314,7 +319,7 @@ export function renderTabs(){
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
     el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('dragover'); });
     el.addEventListener('dragleave', () => el.classList.remove('dragover'));
-    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('dragover'); const src = e.dataTransfer.getData('text/plain'); if (src && src !== id) reorderTabs(src, id); });
+    el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('dragover'); const src = e.dataTransfer.getData('text/plain'); if (src && src !== id && el.draggable) reorderTabs(src, id); });
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); st.tab = id; view(); } });
     el.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
     el.addEventListener('auxclick', e => { if (e.button === 1 && st.open.includes(id)) closeObjTab(id); });
