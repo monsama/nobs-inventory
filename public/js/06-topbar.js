@@ -6,6 +6,8 @@ import { openObj, resetFilters } from './02-views.js';
 import { SOURCES, sources } from './16-sync.js';
 import { hideNotice, notices, shownNotices } from './notices.js';
 import { html } from './html.js';
+/* The notifications bell and its list, and the Table view's columns: widths, order, hidden columns, sorting and
+   per-column filters, kept per browser. */
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
 $('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});

@@ -22,6 +22,8 @@ import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
+/* Starting the server: the first admin account, the scheduler (syncs, backups, digest, mail of saved views, restore
+   test) and the HTTP server itself. */
 
 /* First start: one admin account, so someone can sign in and add the rest. Its password comes from
    NI_ADMIN_PASSWORD; without that a random one is printed once. An inventory that has an admin under another login

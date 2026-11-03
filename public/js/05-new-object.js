@@ -7,6 +7,8 @@ import { openObj } from './02-views.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
 import { findOutlet, outletLabel } from './cabling.js';
+/* The New device and Link device dialogs: type, name, place, what it plugs into (a switch port, a panel port or a
+   wall outlet), its person, and the checks before it is saved. */
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */
 /* A retired device is kept for the record, so it is not offered as something to connect to. */

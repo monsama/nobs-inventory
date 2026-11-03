@@ -97,5 +97,3 @@ export function mergeSamePeople(s, stamp = '') {
   }
   return n;
 }
-/* A person a source names by login or name, also by an alias a merge left (for the syncs). */
-export const matchesAlias = (u, v) => !!v && (u.aliases || []).some(a => low(a) === low(v) || loginCore(a) === loginCore(v));

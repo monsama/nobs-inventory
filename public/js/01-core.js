@@ -5,6 +5,8 @@ import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
 import { netChain } from './cabling.js';
+/* The page's shared core: the device types and their icons, the inventory in memory (objs, rels, users, settings in st),
+   field labels and rules, the colour chips and badges, toasts with Undo, and small helpers used by every view. */
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;

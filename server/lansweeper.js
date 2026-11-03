@@ -4,6 +4,8 @@ import { audit } from './db.js';
 import { feedChanged, mergeRecords } from './feed.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
+/* Lansweeper's cloud API (GraphQL): the connection settings, the asset query, and turning its records into the
+   inventory's own shape for the merge in feed.js. Read only. */
 
 export const DEFAULT_ENDPOINT = 'https://api.lansweeper.com/api/v2/graphql';
 const MAX_PAGES = 200;

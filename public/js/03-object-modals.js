@@ -26,6 +26,8 @@ import { timelinePanel, bindTimeline } from './29-timeline.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets, bindPatchPanel, patchPanel } from './24-patch.js';
 import { findOutlet, outletLabel, outletOf, panelPortNo } from './cabling.js';
+/* The device page: its fields, the panels beside them (links, maintenance, photos, software, responsibles, contracts,
+   relations, path to the network, history, timeline), and retiring or deleting a device. */
 /* ---------- object page ---------- */
 export { patchPanel };
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */

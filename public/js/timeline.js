@@ -7,7 +7,6 @@ import { contractStatus } from './costs.js';
 import { dueOf } from './lifecycle.js';
 import { stampTime } from './dates.js';
 
-export const TIMELINE_KINDS = ['buy', 'warranty', 'added', 'seen', 'user', 'back', 'move', 'status', 'maint', 'contract', 'replace', 'retired'];
 const STATUS_TEXT = { active: 'In use', stock: 'In stock', retired: 'Retired' };
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const pad = n => String(n).padStart(2, '0');
