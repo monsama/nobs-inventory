@@ -138,6 +138,9 @@ try {
 
   /* A viewer: the photo, no Add, no Remove. */
   const vp = await signIn('viewer', 'viewerpass123');
+  // what the device does not have is named in one line for someone who only reads
+  assert.match(await vp.textContent('#xNone'), /^No links,.* recorded\.$/);
+  assert.equal(await vp.locator('#xAdd').count(), 0);
   assert.equal((await vp.$$('.ph-thumb')).length, 2);
   assert.equal(await vp.$('#phAdd'), null);
   await vp.click('.ph-thumb'); await vp.waitForSelector('.ph-modal');

@@ -364,7 +364,11 @@ function extras(o){
   ].filter(([, , html]) => html);
   const folded = parts.filter(([k, , , empty]) => empty && !st.showPanels?.has(o.id + ':' + k));
   const hide = (k, html) => html.replace(/^(\s*)<(div|details) class="panelbox/, `$1<$2 data-xpanel="${k}" hidden class="panelbox`);
-  return (edit && folded.length ? `<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => `<button type="button" data-xadd="${k}">+ ${l}</button>`).join('')}</div>` : '')
+  /* Someone who only reads gets the empty ones named in one line instead. */
+  const NONE = { links: 'links', maint: 'maintenance', photos: 'photos', software: 'software', resp: 'responsible', contracts: 'contracts' };
+  const names = folded.map(([k]) => NONE[k]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] : names[0];
+  const none = !edit && folded.length ? `<p class="note xnone" id="xNone">No ${list} recorded.</p>` : '';
+  return none + (edit && folded.length ? `<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => `<button type="button" data-xadd="${k}">+ ${l}</button>`).join('')}</div>` : '')
     + parts.map(([k, , html]) => folded.some(f => f[0] === k) ? hide(k, html) : html).join('');
 }
 export function renderObj(o){

@@ -55,7 +55,7 @@ Certificates: each site can have a certificate of its own, so the inventory and 
 
 The script checks that the key belongs to the certificate, that it is valid and carries every name of the site (it warns otherwise and asks), keeps the old files in `proxy/certificates/old-*`, points the site's file at the new certificate (`proxy/certificates/sites/<site>.crt` and `.key`), checks the proxy's configuration with it and restarts the proxy. If the proxy refuses it, everything is put back. `--remove <site>` goes back to the default certificate; `default <bundle.pem>` replaces the default one (or the older form `<cert.pem> <key.pem> [chain.pem]`).
 
-Settings → Maintenance shows the certificate people get (names, issuer, valid until), read from the proxy; from 30 days before it ends, or when it is for another name, the Overview lists it under Needs attention.
+Settings → Maintenance → System shows the certificate people get (names, issuer, valid until), read from the proxy; from 30 days before it ends, or when it is for another name, the Overview lists it under Needs attention.
 
 
 Secrets live in `secrets/` and are mounted into the app container as files. They are never in `.env`, and `docker inspect` does not show them. Add the LDAP service password or the Lansweeper token by writing the value into the matching file in `secrets/`, then `docker compose restart app`.
@@ -77,36 +77,36 @@ Backups contain the database, `.env`, the Compose file, the proxy (`proxy/`: its
 ## Accounts and directory
 
 - Local accounts: each user with a login gets a password under Settings → Users → Password. Passwords are stored as salted scrypt hashes.
-- Connection security (Settings → Active Directory): TLS with `ldaps://` (port 636), StartTLS on `ldap://` (port 389, encrypted before anything is sent), or none, which sends passwords readable and has to be chosen knowingly (as before with `NI_LDAP_ALLOW_PLAIN=1`). `NI_LDAP_STARTTLS=1` picks StartTLS for settings from the environment.
+- Connection security (Settings → Data sources → Active Directory): TLS with `ldaps://` (port 636), StartTLS on `ldap://` (port 389, encrypted before anything is sent), or none, which sends passwords readable and has to be chosen knowingly (as before with `NI_LDAP_ALLOW_PLAIN=1`). `NI_LDAP_STARTTLS=1` picks StartTLS for settings from the environment.
 - A domain controller whose certificate still has a 1024-bit RSA key is refused ("key too weak"): renew it with a 2048-bit key. Until then, "Accept old certificates" in Settings lets the inventory connect (OpenSSL security level 1 instead of 2; the certificate is still checked against the CA and the name). Not recommended; switch it off once the certificate is renewed.
 - When the certificate is the problem, Test connection says what the server presented: for whom, issued by which CA, until when, with which key, and what to do.
 - A domain controller whose certificate your company's CA issued (AD Certificate Services) is trusted once that CA's certificate is added under CA certificate: export the root CA certificate as .cer (DER or Base-64). A server's own certificate is refused. `NI_LDAP_CA` (a file on the server) still works. Use the name the certificate is made for (`dc01.example.ch`), not an IP address.
 - Groups: give `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP` as the group's distinguished name (`CN=IT-Inventory,OU=Groups,DC=example,DC=ch`) to count people in groups nested inside it too; a plain name counts only direct membership. Plain `ldap://` addresses are refused unless `NI_LDAP_ALLOW_PLAIN=1`.
 - An address saved in Settings uses a directory port (389, 636, 3268 or 3269); another one has to be allowed on the server with `NI_LDAP_PORTS`. A server that does not answer is reported the same way whatever the reason, so the connection test cannot be used to look around the network.
-- Directory settings are edited in Settings → Active Directory and saved in the inventory: server, sign-in name, search base, groups, service account. The service account password can be saved there too: it is kept encrypted with the server's secret key in a table of its own, never shown again, and not in the inventory, backups or logs. A password in the server environment (`NI_LDAP_SERVICE_PASSWORD` or `NI_LDAP_SERVICE_PASSWORD_FILE`) takes precedence. The `NI_LDAP_*` variables still work as a fallback when nothing is saved.
+- Directory settings are edited in Settings → Data sources → Active Directory and saved in the inventory: server, sign-in name, search base, groups, service account. The service account password can be saved there too: it is kept encrypted with the server's secret key in a table of its own, never shown again, and not in the inventory, backups or logs. A password in the server environment (`NI_LDAP_SERVICE_PASSWORD` or `NI_LDAP_SERVICE_PASSWORD_FILE`) takes precedence. The `NI_LDAP_*` variables still work as a fallback when nothing is saved.
 - Active Directory sign-in: set `NI_LDAP_URL`, `NI_LDAP_BIND`, `NI_LDAP_BASE`, `NI_LDAP_GROUP` and `NI_LDAP_ADMIN_GROUP`. People sign in with their directory password, which is never stored. Only members of `NI_LDAP_GROUP` may sign in; members of `NI_LDAP_ADMIN_GROUP` are admins, everyone else is a viewer.
 - Sync schedule: each sync (Lansweeper API or report file, LDAP directory, Microsoft Graph) has its own interval and start time next to its Sync now button in Settings — off, every 1–12 hours, or daily. Defaults: Lansweeper and LDAP daily at 06:00, Microsoft Graph every 4 hours from 06:00. Syncs due at the same minute run in that order.
-- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs daily at 06:00 by default, or from Settings → Active Directory. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
+- Directory sync: set `NI_LDAP_SERVICE_DN` and `NI_LDAP_SERVICE_PASSWORD` for a read-only service account. The sync runs daily at 06:00 by default, or from Settings → Data sources → Active Directory. Users who left the directory are deactivated, not deleted, so their devices keep their owner.
 - Roles: admins change everything; editors change devices, their connections, history and stocktakes, but not the settings or the people; viewers read and filter but cannot save or import. A viewer or an editor can be limited to some sites (Settings → Users → Sees / Changes): the server then sends and accepts only those sites' devices. The server enforces all of this, not only the page.
 - Recurring maintenance: any device can have tasks (test the UPS battery every 6 months, update firmware every year). Each has its next due date; Done… keeps the day, who and a note and moves the next date on by the interval. The Overview lists what is overdue or due within 30 days, the Table has a Next maintenance column, and the weekly e-mail names what is overdue or due within two weeks.
-- Restore test: each Sunday at 03:30 the newest backup (the copy outside the server when that is on) is restored into memory, apart from the inventory, and counted. Health and Settings → Maintenance show the result; Test now runs it at once.
+- Restore test: each Sunday at 03:30 the newest backup (the copy outside the server when that is on) is restored into memory, apart from the inventory, and counted. Health and Settings → Maintenance → Backups show the result; Test now runs it at once.
 - Sessions: a user can be signed in from up to five browsers at once. A sixth sign-in ends the oldest session. A session ends after 12 hours, or after 2 hours without use.
 
 ## Microsoft Graph (Entra and Intune)
 
-Settings → Entra & Intune reads each device's Entra join status, Intune enrolment and compliance, matched by serial number, else by name. It only reads. The join types are Entra joined, Hybrid joined (Graph's ServerAd) and Entra registered; a device with a computer account in AD (read by the LDAP sync) that Entra does not have shows as AD joined only.
+Settings → Data sources → Entra & Intune reads each device's Entra join status, Intune enrolment and compliance, matched by serial number, else by name. It only reads. The join types are Entra joined, Hybrid joined (Graph's ServerAd) and Entra registered; a device with a computer account in AD (read by the LDAP sync) that Entra does not have shows as AD joined only.
 
 When Entra lists one device more than once (an old record after a reinstall, or a hybrid-joined PC that is also Entra registered), the current record is used: one heard of in the last 30 days, then the one Intune manages, then joined before registered. The others are listed on the device and under the sidebar filter *Duplicates in Entra*, to be deleted in Entra. A record whose serial number or name fits two devices of the inventory is put on neither and listed under *Name or serial used twice*. A device Entra no longer has is marked as gone and counts as not in Entra. Set it up in four steps, all shown in the app:
 
-**People from Entra** (optional, step 4 in Settings → Entra & Intune; needs `User.Read.All`, Application, with admin consent): the sync also reads Entra's members (no guests).
+**People from Entra** (optional, step 4 in Settings → Data sources → Entra & Intune; needs `User.Read.All`, Application, with admin consent): the sync also reads Entra's members (no guests).
 - *Mark the people who are in Entra* (the default) notes on each person whose login is an Entra user's on-premises login or user principal name that Entra knows them. Settings → Users then shows, per person, LDAP, Entra, both or neither, and can show only one of these groups.
 - *…and add the primary users of the devices* also adds the people Intune names as a device's primary user who are nobody here yet (source Entra), and gives them their devices. Their name, department and active state follow Entra.
 - A person from LDAP or added by hand is never changed by Entra; one from Lansweeper only gets an empty name or department filled in. The LDAP sync and a directory sign-in take over a person Entra added, as one from Lansweeper.
 - Without the permission the devices sync as before, and the sync says why people were not read.
 
-**Secure Boot** (optional, in Settings → Entra & Intune): the sync also reads whether Secure Boot is on, from Intune's health attestation of each Windows device it manages. Graph gives that only device by device, so the sync asks in batches of 20 (`$batch`) with the permission it already has (`DeviceManagementManagedDevices.Read.All`). The device shows Secure Boot on or off with the day it was reported, the sidebar has the filter *Secure Boot off*, and the Table a Secure Boot column. A device that has not reported it yet stays unknown.
+**Secure Boot** (optional, in Settings → Data sources → Entra & Intune): the sync also reads whether Secure Boot is on, from Intune's health attestation of each Windows device it manages. Graph gives that only device by device, so the sync asks in batches of 20 (`$batch`) with the permission it already has (`DeviceManagementManagedDevices.Read.All`). The device shows Secure Boot on or off with the day it was reported, the sidebar has the filter *Secure Boot off*, and the Table a Secure Boot column. A device that has not reported it yet stays unknown.
 
-On the Cards tab, tick **AD · Entra · Intune** to see on each computer and phone whether it has a computer account in Active Directory (from the LDAP sync, or hybrid joined), how it is in Microsoft Entra ID (formerly Azure AD: joined, hybrid or registered) and whether Intune manages it, coloured by compliance. The choice is kept in the browser. It is offered once Graph is set up or the LDAP sync has found computer accounts.
+In Devices → Cards, tick **AD · Entra · Intune** to see on each computer and phone whether it has a computer account in Active Directory (from the LDAP sync, or hybrid joined), how it is in Microsoft Entra ID (formerly Azure AD: joined, hybrid or registered) and whether Intune manages it, coloured by compliance. The choice is kept in the browser. It is offered once Graph is set up or the LDAP sync has found computer accounts.
 
 1. **Register an app in Entra**: Entra admin center → Applications → App registrations → New registration (single tenant, no redirect URI). Enter its Directory (tenant) ID and Application (client) ID in the app and click Save IDs.
 2. **Permissions**: in the app registration, API permissions → Add a permission → Microsoft Graph → Application permissions: `Device.Read.All` and `DeviceManagementManagedDevices.Read.All`, then Grant admin consent.
@@ -115,16 +115,25 @@ On the Cards tab, tick **AD · Entra · Intune** to see on each computer and pho
 
 To renew: create a new certificate, upload it, click Use this one, test, then remove the old one in the app and in Entra. `NI_GRAPH_TENANT`, `NI_GRAPH_CLIENT_ID`, `NI_GRAPH_CERT(_FILE)` and `NI_GRAPH_KEY(_FILE)` on the server still work and take precedence when all four are set.
 
+## Finding your way
+
+- **Tabs:** Overview, Devices (Cards and Table, switched above the list or with **V**), Floor plans, Ports, Racks and Contracts (Contracts, Software and Contacts, switched the same way). Relationships open from a device: More → Relationships, centred on it.
+- **Search:** the field at the top (Ctrl+K or /) finds devices, people, contacts, contracts and rooms. On Cards, Table and Relationships it also filters the list as you type, shown as a Filter chip over it; Esc closes the hits and keeps the filter, a second Esc clears it.
+- **Filters:** types, locations and status on the left; warranty, Lansweeper checks, duplicates and Entra & Intune under More filters.
+- **A device page** shows its key fields and the ones that hold something; *Show all fields* lists the empty ones too. Links, maintenance, photos, software, responsibles and contracts a device does not have yet are offered on one *Add* line.
+- **Table columns:** Columns → Basic, Network, Lifecycle or Costs, or each column under *Choose columns…*. Select rows for one *Actions…* menu (open, move, status, responsible).
+- **Settings:** Locations, Users, Object types, Network (VLANs, Subnets, Domains), Data sources (Fields, Lansweeper, Active Directory, Entra & Intune) and Maintenance (System, Backups, E-mail, Log). Press **?** for the keyboard shortcuts.
+
 ## Overview, costs, contracts and licences
 
-- **Overview** (first tab): devices in use, what needs attention (ended or ending warranties, contract notices due, over-used licences), yearly cost of running contracts and licences, the value of the devices in use, and devices by type, site and status. Every line opens the list behind it.
+- **Overview** (first tab): devices in use, what needs attention (ended or ending warranties, contract notices due, over-used licences), yearly cost of running contracts and licences, the value of the devices in use, and, folded under Statistics, devices by type, site, status and operating system. Every line opens the list behind it.
 - **Device costs**: each device has Price, Supplier and Invoice no. under Properties. The Table can show them (Columns menu) and the CSV export includes them, with the purchase and warranty dates.
-- **Contracts** tab: maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
-- **Licences** (Software tab): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
+- **Contracts** (the Contracts tab, with Software and Contacts beside it): maintenance, support, leases, subscriptions, licences and extended warranties, each with supplier, contract no., dates, cost (per year, per month or once) and the devices it covers. A contract that renews by itself runs on in terms (every month to every 3 years); its notice date is the notice period before the end of the current term. Notices due and contracts ending within 60 days are marked here and on the Overview. A device page lists the contracts that cover it and can add it to one. The currency (default CHF) is set in the Contracts toolbar.
+- **Licences** (Contracts → Software): seats per software. A licence counts the devices, not retired, whose software name contains the licence's name, so “Microsoft 365 Apps” counts every language and version. Over-use is marked on the licence and on the package row.
 
 ## Contacts and responsibles
 
-The **Contacts** tab holds the people who look after the devices: your own IT staff (internal) and the people at your IT partners (external: a service provider, a maker's support), each with role, e-mail, phone, mobile and a note (support hours, how to open a ticket). Internal people come first, then each partner company. E-mail and phone numbers are links, so they open the mail program or dial on a phone. An internal contact can be linked to one of the users.
+**Contracts → Contacts** holds the people who look after the devices: your own IT staff (internal) and the people at your IT partners (external: a service provider, a maker's support), each with role, e-mail, phone, mobile and a note (support hours, how to open a ticket). Internal people come first, then each partner company. E-mail and phone numbers are links, so they open the mail program or dial on a phone. An internal contact can be linked to one of the users.
 
 Each device names one **internal** and one **external responsible**, on its page under Responsible, or for many devices at once in the table (select them, then Responsible…). The table has a Responsible column (under Columns), and Responsible can be a card line (Settings → Object types). A contact's "Responsible for n devices" opens those devices in the table. Deleting a contact takes it off its devices, with a line in their history. Contracts suggest the partner companies as suppliers. Contacts are in the backups.
 
@@ -135,8 +144,8 @@ A device page has **Links**: its web interface, a share with its files, a remote
 ## Device types from Lansweeper
 
 A device from Lansweeper gets its type in this order:
-1. **Lansweeper type names** (Settings → Feed): an exact name, e.g. "DECT base" → VoIP phone.
-2. **Type rules** (Settings → Feed): each rule looks at the Lansweeper type, the model, the name, the chassis, or all of the type, model and name, and names a type when any of its words is there. The first rule that matches decides. The app ships with rules for notebooks (chassis and model names), cameras and recorders, PLCs and drives, and switch models, and for Lansweeper's own type names. They can be changed, switched off, reordered or added to; **Back to the defaults** returns to the shipped list.
+1. **Lansweeper type names** (Settings → Data sources → Lansweeper): an exact name, e.g. "DECT base" → VoIP phone.
+2. **Type rules** (Settings → Data sources → Lansweeper): each rule looks at the Lansweeper type, the model, the name, the chassis, or all of the type, model and name, and names a type when any of its words is there. The first rule that matches decides. The app ships with rules for notebooks (chassis and model names), cameras and recorders, PLCs and drives, and switch models, and for Lansweeper's own type names. They can be changed, switched off, reordered or added to; **Back to the defaults** returns to the shipped list.
 3. Windows' own role moves a computer between PC and server.
 
 Rules apply to new devices. **Apply to existing devices…** shows which devices from Lansweeper would get another type, and changes only the ticked ones. A type set by hand on a device is never changed.
@@ -153,13 +162,13 @@ Settings → Users → Entry sheet makes a sheet for a person's first day: their
 
 ## Lansweeper
 
-- Direct API: set `NI_LS_TOKEN`. The sync runs daily at 06:00 by default, and from Settings → Feed. Before the first real sync, check the asset query against your Lansweeper schema:
+- Direct API: set `NI_LS_TOKEN`. The sync runs daily at 06:00 by default, and from Settings → Data sources → Lansweeper. Before the first real sync, check the asset query against your Lansweeper schema:
 
       NI_LS_TOKEN=... npm run lansweeper:introspect -- AssetResources
 
   The query in `server/lansweeper.js` is written from public examples and has not been checked against a live tenant. Correct its field names there if introspection shows different ones.
-- Push from the Lansweeper server (no API needed, works with a local install): in Settings → Feed, click **Create token** (admin), then **Download script**. Copy `Lansweeper-Push.ps1` to the Lansweeper server and run it there as the user that installed Lansweeper: `.\Lansweeper-Push.ps1`. The first run asks for the inventory's address and the token, checks both (it offers to trust a certificate Windows does not know), keeps them, and pushes. Then `-RegisterTask` for a daily run. `-Setup` asks again; `-DryRun` only shows the data. The token is shown once; **Revoke** stops the script. The server also accepts a token set in `secrets/feed_token` (`NI_FEED_TOKEN`), but that is not needed.
-- Report file: upload a CSV under Settings → Feed, or set `NI_FEED_CSV=/feed/report.csv` with the report in `./feed`. Used when no token is set.
+- Push from the Lansweeper server (no API needed, works with a local install): in Settings → Data sources → Lansweeper, click **Create token** (admin), then **Download script**. Copy `Lansweeper-Push.ps1` to the Lansweeper server and run it there as the user that installed Lansweeper: `.\Lansweeper-Push.ps1`. The first run asks for the inventory's address and the token, checks both (it offers to trust a certificate Windows does not know), keeps them, and pushes. Then `-RegisterTask` for a daily run. `-Setup` asks again; `-DryRun` only shows the data. The token is shown once; **Revoke** stops the script. The server also accepts a token set in `secrets/feed_token` (`NI_FEED_TOKEN`), but that is not needed.
+- Report file: upload a CSV under Settings → Data sources → Lansweeper, or set `NI_FEED_CSV=/feed/report.csv` with the report in `./feed`. Used when no token is set.
 - Matching is by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.
 - Besides the device, the push reads what this Lansweeper version has (a column it lacks is skipped and logged):
   - the network adapter's subnet mask, gateway, DNS servers and DHCP. A gateway other than its subnet's is marked on the device, and subnets the adapters are in that the inventory does not list are offered under Settings → Network → Subnets, to add with one click;
@@ -189,7 +198,7 @@ Keep a copy of `secrets/sheet_key` apart from the server: it encrypts the entry 
 
 Use `sudo ./scripts/backup.sh` (see Operations): it copies the database with `VACUUM INTO`, which is consistent while the app runs. A plain file copy of `inventory.db` is not: the database runs in WAL mode, so recent changes may still be in `inventory.db-wal`. Otherwise stop the stack and copy the `nobs-inventory-data` volume.
 
-The backups in Settings → Maintenance hold the inventory (devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, settings and the sealed entry sheets). They do not hold passwords, the push token, the Graph private keys, the saved LDAP password or the log: for a move to a new server, use `scripts/backup.sh` and restore with `RESTORE_SECRETS=yes`.
+The backups in Settings → Maintenance → Backups hold the inventory (devices, relations, history, types, locations, networks, plans with their pictures, contracts, licences, settings and the sealed entry sheets). They do not hold passwords, the push token, the Graph private keys, the saved LDAP password or the log: for a move to a new server, use `scripts/backup.sh` and restore with `RESTORE_SECRETS=yes`.
 
 ### A copy outside the server (optional)
 
@@ -199,7 +208,7 @@ The app can write one encrypted file of the inventory each night (02:30) to a sh
 2. In `.env`: `NI_BACKUP_EXPORT_HOST=/mnt/backup-share/nobs` and `NI_BACKUP_EXPORT_DIR=/offsite`, then `docker compose up -d`.
 3. In Settings → Maintenance → Backups: set the password (at least 12 characters), turn on *Copy each night*, and use *Copy now* once. Health shows when the last copy was made.
 
-The files (`nobs-backup-YYYY-MM-DD-HHMM.nobsbak`) are AES-256-GCM encrypted with a key made from that password; the last 14 are kept (changeable). The password is kept encrypted on the server and is not in any backup: **keep it apart**, a copy cannot be read without it. Restore one in Settings → Maintenance → *Restore from file…*, or turn it back into a backup file on any computer: `node scripts/decrypt-backup.mjs nobs-backup-….nobsbak > backup.json`. Only the server decides the folder; the page cannot point it anywhere else.
+The files (`nobs-backup-YYYY-MM-DD-HHMM.nobsbak`) are AES-256-GCM encrypted with a key made from that password; the last 14 are kept (changeable). The password is kept encrypted on the server and is not in any backup: **keep it apart**, a copy cannot be read without it. Restore one in Settings → Maintenance → Backups → *Restore from file…*, or turn it back into a backup file on any computer: `node scripts/decrypt-backup.mjs nobs-backup-….nobsbak > backup.json`. Only the server decides the folder; the page cannot point it anywhere else.
 
 Instead of a share, or as well, the same file can go to cloud storage, named in `.env`:
 
@@ -210,7 +219,7 @@ The app uploads and never deletes in the cloud: set a lifecycle rule there for h
 
 ### Weekly e-mail (optional)
 
-Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in Settings → Maintenance → Weekly e-mail → Mail server (server, security, sign-in, password, sender; the password is kept sealed on the server, never shown again, and dropped when the server or port changes), or in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), which then wins. Then in Settings → Maintenance → Weekly e-mail give the addresses, the day and hour, and use Preview and Send now once.
+Once a week the admins can get a short list of what needs doing: warranties ending, contract notices due, people who left with devices out, devices waiting in To review, the last backup and what Health marks bad. Set the mail server in Settings → Maintenance → E-mail → Mail server (server, security, sign-in, password, sender; the password is kept sealed on the server, never shown again, and dropped when the server or port changes), or in `.env` (`NI_SMTP_HOST`, `NI_SMTP_PORT`, and if needed `NI_SMTP_USER`, `NI_SMTP_PASSWORD`, `NI_SMTP_FROM`, `NI_PUBLIC_URL`), which then wins. Then in Settings → Maintenance → E-mail give the addresses, the day and hour, and use Preview and Send now once.
 
 ## Development
 

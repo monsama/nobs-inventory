@@ -9,6 +9,7 @@ import { linkHref, linkKind } from './links.js';
 import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
+import { flushSearch } from './14-global-search.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
@@ -263,7 +264,7 @@ export function viewSwitch(){
   const m = TAB_GROUPS[g][1].filter(tabAllowed); if (m.length < 2) return;
   const tb = $('#toolbar'); if (!tb || tb.querySelector('.vswitch')) return;
   tb.insertAdjacentHTML('afterbegin', `<span class="vswitch" role="group" aria-label="${TAB_GROUPS[g][0]}">${m.map(id => `<button type="button" class="${id === st.tab ? 'on' : ''}" aria-pressed="${id === st.tab}" data-vsw="${id}">${FIXED_TABS[id]}</button>`).join('')}</span>`);
-  tb.querySelectorAll('[data-vsw]').forEach(b => b.onclick = () => { if (b.dataset.vsw !== st.tab){ st.tab = b.dataset.vsw; view(); } });
+  tb.querySelectorAll('[data-vsw]').forEach(b => b.onclick = () => { flushSearch(); if (b.dataset.vsw !== st.tab){ st.tab = b.dataset.vsw; view(); } });
 }
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
@@ -360,6 +361,7 @@ export function showTabMenu(e, id){
 document.addEventListener('click', hideTabMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTabMenu(); });
 const onTabClick = e => {
+  flushSearch();
   if (e.target.closest('#closeAllTabs')){ closeObjTabs(null); return; }
   const c = e.target.closest('[data-close]');
   if (c){ closeObjTab(c.dataset.close); return; }
