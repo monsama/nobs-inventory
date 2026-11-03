@@ -57,7 +57,7 @@ try {
   await page.screenshot({ path: path.join(dir, 'plans-phone.png') });
   console.log('phone screenshot: ' + path.join(dir, 'plans-phone.png'));
   assert.ok(saved.objs.find(o => o.name === 'PC-PLAN').planPos, 'the device is placed on the plan');
-  /* the × on the pin takes the device off the plan without starting a drag */
+  /* the × on the pin takes the device out of the area's room (the plan shows where devices are), without starting a drag */
   const pinBefore = await page.locator('.pl-pin:has-text("PC-PLAN")').boundingBox();
   // × shows on the pin under the pointer
   await page.hover('.pl-pin:has-text("PC-PLAN")');
@@ -66,10 +66,15 @@ try {
   await page.waitForTimeout(600);
   const after = loadState(db).objs.find(o => o.name === 'PC-PLAN');
   assert.equal(after.planPos, undefined, 'the device has no place on the plan after the × is clicked');
-  const inHistory = await page.evaluate(async id => { const core = await import('/js/01-core.js'); return (core.HISTORY[id] || []).some(h => /Removed from Ground floor/.test(h.msg)); }, after.id);
+  assert.equal(after.loc, '', 'the device is out of the room the plan showed it in');
+  const inHistory = await page.evaluate(async id => { const core = await import('/js/01-core.js'); return (core.HISTORY[id] || []).some(h => /Removed from Basel \/ Open office/.test(h.msg)); }, after.id);
   assert.ok(inHistory, 'the removal is in the history');
   assert.ok(pinBefore, 'the pin was there before the × was clicked');
   assert.equal(loadState(db).objs.filter(o => o.name === 'PC-PLAN').length, 1, 'the device itself is still in the inventory');
+  // the plan follows the location: back in the room, the device is on the plan again; there is no way to hide it there
+  await page.evaluate(async id => { const c = await import('/js/01-core.js'); c.byId(id).loc = 'Basel / Open office'; (await import('/js/20-plans.js')).renderPlans(); }, after.id);
+  await page.waitForSelector('.pl-pin:has-text("PC-PLAN")');
+  assert.equal(await page.locator('#plClear').count(), 0, 'Clear devices is gone');
   assert.equal(errors.length, 0, 'no page errors: ' + errors.join('; '));
   console.log('browser floor plans: all checks passed');
 } finally {
