@@ -1344,6 +1344,17 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .imp-table .imp-why{color:var(--badtext)!important}
 .imp-table td:last-child{white-space:normal}
 @media (max-width:760px){.imp-pick{grid-template-columns:minmax(0,1fr)}.imp-kind select{width:100%}}
+/* The CSV import wizard: its steps, and the preview table (Line, Name, What, Details). */
+.wiz-steps{display:flex;gap:6px;margin:0;padding:0;list-style:none;counter-reset:wiz;flex-wrap:wrap}
+.wiz-steps li{counter-increment:wiz;display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--bd2);border-radius:999px;font-size:12px;color:var(--muted)}
+.wiz-steps li::before{content:counter(wiz);display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--bd2);font-size:11px}
+.wiz-steps li.on{color:var(--fg);border-color:var(--accent);font-weight:600}
+.wiz-steps li.on::before{background:var(--accentbtn);color:var(--accentfg)}
+.wiz-steps li.done::before{content:"✓"}
+.csvprev-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.csvprev table{min-width:640px}
+.csvprev th:nth-child(1){width:56px}.csvprev th:nth-child(2){width:200px}.csvprev th:nth-child(3){width:118px}.csvprev th:nth-child(4){width:auto}
+.csvprev td select{width:auto;display:inline-block}
 /* Directory and sync marks, quiet: the box stays neutral and a small dot carries the state, in its colour. The words
    say the rest, so the colours are not needed to tell them apart. */
 .jb,.jb.on{border:1px solid var(--bd2);background:transparent}

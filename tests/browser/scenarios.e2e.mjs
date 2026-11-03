@@ -97,15 +97,17 @@ try {
   // CSV import through the dialog.
   await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table'); await p.click('#csvImp'); await p.waitForSelector('#csvText');
   await p.fill('#csvText', 'name,type,model\nCSV-A,pc,Model A\nCSV-B,sip,Model B');
+  await p.click('#csvNext'); await p.click('#csvNext');
   await p.waitForSelector('#csvGo:not([disabled])'); await p.click('#csvGo');
   assert.ok(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (!!__mods[0].byName('CSV-A') && !!__mods[0].byName('CSV-B')); }), 'the CSV rows were not imported');
-  // the same file again with a new model: the device is updated, not added twice
+  // the same device again: a duplicate, which fills only its empty fields, not added twice
   await p.click('#csvImp'); await p.waitForSelector('#csvText');
-  await p.fill('#csvText', 'name,type,model\nCSV-A,pc,Model A2');
-  await p.waitForSelector('#csvGo:not([disabled])');
-  assert.match(await p.textContent('#csvPrev'), /updates CSV-A: Model/);
-  await p.click('#csvGo');
-  assert.ok(await state(p, async () => { const c = await import('/js/01-core.js'); return c.objs.filter(o => o.name === 'CSV-A').length === 1 && c.byName('CSV-A').model === 'Model A2'; }), 'the CSV row did not update the device');
+  await p.fill('#csvText', 'name,type,model,serial\nCSV-A,pc,Model A2,SN-CSV-A');
+  await p.click('#csvNext'); await p.click('#csvNext');
+  assert.match(await p.textContent('#csvPrev'), /Same name as CSV-A/);
+  await p.selectOption('select[data-csvdup="2"]', 'update');
+  await p.waitForSelector('#csvGo:not([disabled])'); await p.click('#csvGo');
+  assert.ok(await state(p, async () => { const c = await import('/js/01-core.js'); return c.objs.filter(o => o.name === 'CSV-A').length === 1 && c.byName('CSV-A').serial === 'SN-CSV-A' && c.byName('CSV-A').model === 'Model A'; }), 'the CSV row did not fill the empty field only');
 
   // LDAP: without a server address the test and sync are off; an address saved here is used by the server.
   await p.click('#setBtn'); await openSetTab(p, 'directory');
