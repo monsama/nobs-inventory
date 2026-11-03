@@ -232,6 +232,7 @@ export function bindHiddenHits(){
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-empty-new]')) newObjModal(); });
 document.addEventListener('click', async e => {
   const b = e.target.closest && e.target.closest('#reloadBtn'); if (!b || b.disabled) return;
   b.disabled = true; b.classList.add('spinning');
@@ -242,7 +243,7 @@ document.addEventListener('click', async e => {
 function emptyHtml(){
   const n = REVIEW.filter(o => !o.review.ignored).length;
   return n ? `<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
-    : '<div class="empty">The inventory is empty. Add an object with New object, or connect a feed in Settings.</div>';
+    : `<div class="empty">The inventory is empty.${canEdit() ? ' <button type="button" class="primary" data-empty-new>New object</button>' : ''}</div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
@@ -1216,7 +1217,7 @@ export function renderMap(){
       ? (!found.length && hiddenHits()) || (found.length
         ? `<div class="empty">None of the ${found.length} objects in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
         : `<div class="empty">No object matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
-      : '<div class="empty">Nothing to draw. Objects with relations appear here. Untick "Only objects with relations", or link two objects on an object page.</div>';
+      : '<div class="empty">Nothing to draw yet: link two objects on a device\'s page.</div>';
     const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
     bindHiddenHits();
     bindMapToolbar();

@@ -84,7 +84,8 @@ export function renderContracts(){
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
-    $('#view').innerHTML = `<div class="empty">No contracts yet. Add maintenance, support, leases and subscriptions to see what they cost and when notice is due.</div>`;
+    $('#view').innerHTML = `<div class="empty">No contracts yet.${isAdmin() ? ' <button type="button" class="primary" id="ctNewEmpty">New contract</button>' : ''}</div>`;
+    const ne = $('#ctNewEmpty'); if (ne) ne.onclick = () => contractModal(null);
     return;
   }
   $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
