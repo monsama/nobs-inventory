@@ -17,6 +17,7 @@ import { newObjModal } from './05-new-object.js';
 import { renderPlans } from './20-plans.js';
 import { forgetPhotos } from './23-photos.js';
 import { syncSearchBox } from './14-global-search.js';
+import { renderBell } from './06-topbar.js';
 /* ---------- render, saving and signing in ---------- */
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
@@ -55,6 +56,7 @@ export function render({ save = true } = {}){
   bindFullTextOnHover();
   $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'device' : 'devices'}`;
   renderStatus();
+  renderBell(save);
   applyRole();
   noteNav();
   if (save) saveData();
@@ -445,6 +447,8 @@ export function applyState(d){
   st.useLansweeper = d.useLansweeper !== false; st.useAd = d.useAd !== false; st.useGraph = d.useGraph !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
   st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
+  /* For an admin: the last restore test and copy of the backups (for the bell), the last mail of each saved view. */
+  st.restoreTest = d.restoreTest || null; st.backupExportRun = d.backupExportRun || null; st.viewMailRuns = d.viewMailRuns && typeof d.viewMailRuns === 'object' ? d.viewMailRuns : {};
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));

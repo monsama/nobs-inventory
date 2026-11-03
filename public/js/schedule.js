@@ -40,3 +40,12 @@ export function nextRun(job, now = new Date()) {
 }
 /* How a schedule reads: "every 4 hours from 06:00", "daily at 06:00", "off". */
 export const scheduleText = job => !job.every ? 'off, only Sync now' : job.every === 24 ? `daily at ${job.at}` : `every ${job.every} ${job.every === 1 ? 'hour' : 'hours'} from ${job.at}`;
+/* How a source's last run stands against its schedule: 'none' (never ran), 'failed', 'late' (not run as often as planned:
+   more than two intervals and an hour since; a push comes when it comes, so it is never late) or 'ok'. Shared by Health
+   and the page's notifications. */
+export function syncState(run, job, now = Date.now()) {
+  if (!run) return 'none';
+  if (!run.ok) return 'failed';
+  const every = job && job.every;
+  return every && run.how !== 'push' && now - Date.parse(run.at) > 2 * every * 36e5 + 36e5 ? 'late' : 'ok';
+}

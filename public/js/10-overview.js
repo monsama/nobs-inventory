@@ -1,6 +1,7 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, toast, warrantyState } from './01-core.js';
+import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, toast } from './01-core.js';
+import { attention as attentionLists } from './notices.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
 import { MAINT_SOON_DAYS, dueTasks, everyText, todayDay } from './maintenance.js';
@@ -51,7 +52,9 @@ const statsOpen = () => { try { return localStorage.getItem(STATS_KEY) === '1'; 
 export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');
-  const wEnded = inUse.filter(o => warrantyState(o) === 'ended').length, wSoon = inUse.filter(o => warrantyState(o) === 'soon').length;
+  /* The same lists as the bell and the weekly e-mail (public/js/notices.js). */
+  const att = attentionLists({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts });
+  const wEnded = att.wEnded.length, wSoon = att.wSoon.length;
   const due = contractsDue(), over = licencesOver();
   /* Running only: a contract or licence that has ended, or not started yet, costs nothing now. */
   const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
@@ -87,7 +90,7 @@ export function renderOverview(){
   const qRows = Object.entries(QUALITY).map(([k, [label, hint, test]]) => ({ key: k, label, hint, n: live.filter(test).length })).filter(r => r.n);
   const complete = live.filter(o => !Object.values(QUALITY).some(q => q[2](o))).length;
   const qPct = live.length ? Math.round(complete / live.length * 100) : 100;
-  const waiting = REVIEW.filter(o => !o.review.ignored).length;
+  const waiting = att.review.length;
   /* People who left (deactivated) and still have devices that are not in stock or retired: the oldest first. */
   const held = new Map();
   for (const o of objs) if (o.uid && !['retired', 'stock'].includes(o.status)) held.set(o.uid, (held.get(o.uid) || 0) + 1);

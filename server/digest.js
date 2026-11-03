@@ -6,11 +6,10 @@
 import nodemailer from 'nodemailer';
 import { readSecret } from './secrets.js';
 import { writeDoc } from './db.js';
-import { contractStatus } from '../public/js/costs.js';
 import { dateText } from '../public/js/dates.js';
-import { dueTasks, todayDay } from '../public/js/maintenance.js';
+import { WARRANTY_SOON_DAYS, attention } from '../public/js/notices.js';
+import { MAIL_ADDRESS } from '../public/js/saved-views.js';
 
-const WARRANTY_SOON = 90;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
 const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 
@@ -41,7 +40,7 @@ export function smtpSettingsProblem(v) {
   if (v.from !== undefined && v.from !== '' && (typeof v.from !== 'string' || v.from.length > 200 || !EMAIL.test(v.from))) return 'The sender is an e-mail address.';
   return '';
 }
-const transportOf = cfg => nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
+export const transportOf = cfg => nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, requireTLS: cfg.requireTLS, ...(cfg.auth ? { auth: cfg.auth } : {}), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
 /* A test mail, to see the server, its sign-in and the sender work. */
 export async function sendTestMail(cfg, to, transport = null) {
   if (!cfg) throw Object.assign(new Error('No mail server is set.'), { ours: true });
@@ -50,16 +49,16 @@ export async function sendTestMail(cfg, to, transport = null) {
 }
 /* Why a test mail failed, in a few kinds only: the mail server's own answer is not passed on, since it would let the
    test reach any host and port and read back what answers there (a service banner). */
-export function mailFailure(e) {
+export function mailFailure(e, what = 'the test e-mail') {
   if (e && e.ours) return e.message;
   const c = String((e && e.code) || ''), m = String((e && e.message) || '');
   if (c === 'EAUTH') return 'The mail server refused the sign-in: check the user and the password.';
   if (c === 'ETLS' || /TLS|SSL|certificate/i.test(m)) return 'The secure connection to the mail server failed: check the security setting and its certificate.';
   if (['ECONNECTION', 'ECONNREFUSED', 'ETIMEDOUT', 'EDNS', 'ESOCKET', 'EHOSTUNREACH', 'ENOTFOUND', 'EPROTOCOL'].includes(c)) return 'The mail server could not be reached as a mail server: check the server, the port and the firewall.';
   if (c === 'EENVELOPE') return 'The mail server refused the sender or the address.';
-  return 'The mail server did not accept the test e-mail.';
+  return `The mail server did not accept ${what}.`;
 }
-const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+const EMAIL = MAIL_ADDRESS;
 export const digestSettings = db => ({ on: false, to: [], day: 1, hour: 7, ...getDoc(db, 'digest', {}) });
 export function saveDigestSettings(db, v) {
   const to = [...new Set((Array.isArray(v.to) ? v.to : String(v.to || '').split(/[\s,;]+/)).map(x => String(x).trim()).filter(Boolean))];
@@ -74,23 +73,20 @@ export const lastDigest = db => getDoc(db, 'digestRun', null);
 /* What the mail says, from the inventory as saved: { subject, text, html, count }. */
 export function buildDigest(s, { link = '', backups = null, copy = null, health = [] } = {}, today = new Date()) {
   const live = (s.objs || []).filter(o => !o.review && o.status !== 'retired');
-  const days = d => Math.floor((new Date(d + 'T23:59:59').getTime() - +today) / 864e5);
-  const wEnded = live.filter(o => o.status === 'active' && /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') && days(o.warranty) < 0);
-  const wSoon = live.filter(o => /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') && days(o.warranty) >= 0 && days(o.warranty) <= WARRANTY_SOON).sort((a, b) => a.warranty.localeCompare(b.warranty));
-  const due = (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => ['soon', 'late'].includes(x.st.state)).sort((a, b) => (a.st.days ?? 0) - (b.st.days ?? 0));
+  /* The same lists as the bell in the page (public/js/notices.js); maintenance due in the next two weeks, as the mail comes weekly. */
+  const { wEnded, wSoon, contracts: due, maint, reported, review: waiting } = attention(s, today, { maintWithin: 14 });
   const held = new Map();
   for (const o of live) if (o.uid && o.status !== 'stock') held.set(o.uid, (held.get(o.uid) || 0) + 1);
   const leavers = (s.users || []).filter(u => u.active === false && held.get(u.id));
-  const review = (s.objs || []).filter(o => o.review && !o.review.ignored).length;
-  const reported = live.filter(o => o.reported && !o.reported.done).sort((a, b) => String(a.reported.at).localeCompare(String(b.reported.at)));
+  const review = waiting.length;
   const sections = [];
   const list = (items, fmt, max = 10) => [...items.slice(0, max).map(fmt), ...(items.length > max ? [`… and ${items.length - max} more`] : [])];
   if (wEnded.length) sections.push([`Warranty ended on ${wEnded.length} device${wEnded.length === 1 ? '' : 's'} in use`, list(wEnded, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ended ${dateText(o.warranty)}`)]);
-  if (wSoon.length) sections.push([`Warranty ends within ${WARRANTY_SOON} days on ${wSoon.length} device${wSoon.length === 1 ? '' : 's'}`, list(wSoon, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ${dateText(o.warranty)}`)]);
+  if (wSoon.length) sections.push([`Warranty ends within ${WARRANTY_SOON_DAYS} days on ${wSoon.length} device${wSoon.length === 1 ? '' : 's'} in use`, list(wSoon, o => `${o.name}${o.code ? ` (${o.code})` : ''}: ${dateText(o.warranty)}`)]);
   if (due.length) sections.push([`Contract notice due on ${due.length} contract${due.length === 1 ? '' : 's'}`, list(due, x => `${x.c.name}: ${x.st.state === 'late' ? 'notice date passed' : 'give notice by'} ${dateText(x.st.noticeBy || x.st.end)}`)]);
   if (leavers.length) sections.push([`${leavers.length} ${leavers.length === 1 ? 'person' : 'people'} left with devices still out`, list(leavers, u => `${u.name}: ${held.get(u.id)} device${held.get(u.id) === 1 ? '' : 's'}${u.leftAt ? `, left ${u.leftBy ? 'before ' : ''}${dateText(u.leftAt.slice(0, 10))}` : ''}`)]);
-  /* Recurring maintenance overdue or due in the next two weeks (the mail comes weekly). */
-  const maint = dueTasks(s.objs, todayDay(today), 14), mLate = maint.filter(x => x.days < 0).length;
+  /* Recurring maintenance overdue or due in the next two weeks. */
+  const mLate = maint.filter(x => x.days < 0).length;
   if (maint.length) sections.push([`Maintenance: ${mLate ? `${mLate} overdue${maint.length > mLate ? `, ${maint.length - mLate} due within 14 days` : ''}` : `${maint.length} due within 14 days`}`,
     list(maint, x => `${x.o.name}${x.o.code ? ` (${x.o.code})` : ''}: ${x.m.what}, ${x.days < 0 ? 'overdue since' : 'due'} ${dateText(x.m.due)}`)]);
   if (reported.length) sections.push([`${reported.length} problem${reported.length === 1 ? '' : 's'} reported by users, not done yet`, list(reported, o => `${o.name}: ${o.reported.text} (${o.reported.by}, ${dateText(String(o.reported.at).slice(0, 10))})`)]);

@@ -30,6 +30,7 @@ import { registerSettingsRoutes } from './settings-routes.js';
 import { registerBackupRoutes } from './backup-routes.js';
 import { registerLiveEvents } from './live-events.js';
 import { registerLogRoutes } from './log-routes.js';
+import { registerViewMailRoutes } from './view-mail.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -199,6 +200,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   registerGraphRoutes(app, ctx);
   registerSheetRoutes(app, ctx);
   registerSettingsRoutes(app, ctx);
+  registerViewMailRoutes(app, ctx);
   registerBackupRoutes(app, ctx);
   registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailTransport, smtpNow });
   registerApiRoutes(app, { db, requireUser, requireAdmin, throttle });

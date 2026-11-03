@@ -2,7 +2,7 @@
    short value and what to do. The server and its database, free disk, backups, each sync and its schedule, the
    certificates that expire, and the errors in the log. Numbers and dates only: no secret, no data of a device or person. */
 import fs from 'node:fs';
-import { scheduleOf } from '../public/js/schedule.js';
+import { scheduleOf, syncState } from '../public/js/schedule.js';
 import { dateText, dateTimeText } from '../public/js/dates.js';
 import { backupStorage } from './backup-store.js';
 
@@ -73,12 +73,11 @@ export function healthReport(db, s, { version = '', on = {}, graphCert = null, p
   for (const src of ['lansweeper', 'ldap', 'graph']) {
     if (switchedOff[src]) { add('Syncs', names[src], 'off', 'Off', src === 'lansweeper' ? 'Turned off in Settings.' : 'Turned off in Settings: not synced, the data already here stays. Sign-in is not affected.'); continue; }
     if (!on[src]) { add('Syncs', names[src], 'off', 'Not set up'); continue; }
-    const r = runs[src], every = plan[src] && plan[src].every;
-    const late = r && every && now - Date.parse(r.at) > 2 * every * 36e5 + 36e5;
+    const r = runs[src], every = plan[src] && plan[src].every, state = syncState(r, plan[src], now);
     const push = src === 'lansweeper' && r && r.how === 'push';
-    add('Syncs', names[src], !r ? 'warn' : !r.ok ? 'bad' : late && !push ? 'warn' : 'ok',
+    add('Syncs', names[src], state === 'none' || state === 'late' ? 'warn' : state === 'failed' ? 'bad' : 'ok',
       !r ? 'Not run yet' : `${r.ok ? 'Last run' : 'Last run failed'} ${ago(r.at, now)}${push ? ' (push)' : ''}${every ? ` · runs ${every === 24 ? 'daily' : `every ${every} h`}` : ' · only by hand'}`,
-      !r ? 'Run it once with Sync now.' : !r.ok ? String(r.error || '').slice(0, 200) : late && !push ? 'It has not run as often as planned: is the server kept running?' : '');
+      !r ? 'Run it once with Sync now.' : !r.ok ? String(r.error || '').slice(0, 200) : state === 'late' ? 'It has not run as often as planned: is the server kept running?' : '');
   }
 
   /* Certificates that expire: the one the server signs in to Graph with, and the directory's CA. */

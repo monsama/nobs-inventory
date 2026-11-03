@@ -12,6 +12,8 @@ export function registerStateRoutes(app, ctx) {
   const { db, requireUser, requireAdmin } = ctx;
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
   const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
+  /* Who a saved view is mailed to is for admins too. */
+  const redactViews = list => Array.isArray(list) ? list.map(v => { if (!v || !v.mail) return v; const c = { ...v }; delete c.mail; return c; }) : list;
   const redactUser = ({ login, groups, groupDns, entraGroups, entraGroupsAt, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
   app.get('/api/state', requireUser, (req, res, next) => {
     /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
@@ -37,7 +39,7 @@ export function registerStateRoutes(app, ctx) {
           const send = (kind, id, data) => {
             const key = kind + '|' + id; if (seen.has(key)) return; seen.add(key);
             const r = rev.get(kind, id); if (r) revs[key] = r.rev;
-            if (data === null) dels.push([kind, id]); else puts.push([kind, id, admin ? data : kind === 'object' ? redactObj(data) : kind === 'user' ? redactUser(data) : data]);
+            if (data === null) dels.push([kind, id]); else puts.push([kind, id, admin ? data : kind === 'object' ? redactObj(data) : kind === 'user' ? redactUser(data) : kind === 'setting' && id === 'savedViews' ? redactViews(data) : data]);
           };
           for (const r of rows) {
             if (!admin && r.kind === 'setting' && ((CONNECTION_SETTINGS.includes(r.id) && r.id !== 'graphAmbiguous') || ADMIN_SETTINGS.includes(r.id))) continue;
@@ -77,6 +79,7 @@ export function registerStateRoutes(app, ctx) {
       for (const k of ADMIN_SETTINGS) delete s[k];
       /* Whether someone is in Entra stays; their sign-in name there (UPN) and Entra's id go, like the login. */
       s.objs = s.objs.map(redactObj);
+      s.savedViews = redactViews(s.savedViews);
       s.users = s.users.map(redactUser);
     }
     s.cseq = cseq;
