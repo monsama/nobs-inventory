@@ -1792,3 +1792,7 @@ details.how[open]>summary{margin-bottom:4px}
 .intake-row{display:grid;grid-template-columns:170px auto;justify-content:start;column-gap:10px}
 @media (max-width:760px){.intake-row{grid-template-columns:1fr}}
 .intake-row>label{color:var(--muted);font-size:12px}
+/* Path to the network: each dot on its device's row (not on the "connected to" line above it), the line ending on the last. */
+.ps-row{position:relative}
+.ps-dot{left:-22px;top:50%;transform:translateY(-50%)}
+.ps:last-child::before{height:auto;bottom:12px}
