@@ -50,18 +50,19 @@ export function openSettings(){
   if (at){ at.scrollIntoView({ inline: 'nearest', block: 'nearest' }); requestAnimationFrame(() => { if (document.contains(at)) at.focus({ preventScroll: true }); }); }
 }
 /* Every section of Settings opens and closes by its title, and stays as it was left (kept in this browser by its title).
-   The sections draw themselves again often, so the state is put back on each new title as it appears. */
+   The sections draw themselves again often, so the state is put back on each new title as it appears. A <details>
+   fold opens by itself and is left alone: with both on it, a click opened it and hid its content again at once. */
 export function collapsibleSections(root, prefix){
   const keyOf = h => prefix + (h.childNodes[0] ? h.childNodes[0].textContent : h.textContent).trim();
-  const apply = () => root.querySelectorAll('.panelbox > .hdr:not(.sechdr)').forEach(h => {
+  const apply = () => root.querySelectorAll('.panelbox:not(details) > .hdr:not(.sechdr)').forEach(h => {
     if (h.parentNode.parentElement.closest('.panelbox')) return;   /* a box inside a section opens with it */
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
     const closed = !!collapsedPanels()[keyOf(h)];
     h.parentNode.classList.toggle('collapsed', closed); h.setAttribute('aria-expanded', String(!closed));
   });
   const toggle = h => { const c = h.parentNode.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); rememberPanel(keyOf(h), c); };
-  root.addEventListener('click', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h); });
-  root.addEventListener('keydown', e => { const h = e.target.closest('.panelbox > .hdr.sechdr'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggle(h); } });
+  root.addEventListener('click', e => { const h = e.target.closest('.panelbox:not(details) > .hdr.sechdr'); if (h && !e.target.closest('button,input,select,a,label')) toggle(h); });
+  root.addEventListener('keydown', e => { const h = e.target.closest('.panelbox:not(details) > .hdr.sechdr'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggle(h); } });
   new MutationObserver(apply).observe(root, {childList: true, subtree: true});
   apply();
 }
