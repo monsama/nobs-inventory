@@ -102,6 +102,13 @@ test('the mail server set in Settings: its password sealed, never sent back, dro
     // saved again without a password: kept; another host without one: dropped
     d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'inv@example.com', from: 'other@example.com' })).json;
     assert.ok(d.mail.passwordSet, 'kept for the same server');
+    // a weaker security or another user on the same server: dropped too (it could go in clear text, or to another account)
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'inv@example.com', password: 'mail-secret-2', from: 'inv@example.com' })).json;
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'none', user: 'inv@example.com', from: 'inv@example.com' })).json;
+    assert.equal(d.mail.passwordSet, '', 'not kept when the security changes');
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'inv@example.com', password: 'mail-secret-3', from: 'inv@example.com' })).json;
+    d = (await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls', user: 'other@example.com', from: 'inv@example.com' })).json;
+    assert.equal(d.mail.passwordSet, '', 'not kept for another user');
     d = (await call('PUT', '/api/smtp', { host: 'evil.example.net', port: 587, security: 'starttls', user: 'inv@example.com' })).json;
     assert.equal(d.mail.passwordSet, '', 'not sent to another server');
     assert.ok(!JSON.stringify(srv.db.prepare('SELECT * FROM audit').all()).includes('mail-secret'), 'never logged');
@@ -115,4 +122,15 @@ test('the mail server set in Settings: its password sealed, never sent back, dro
     assert.equal((await call('PUT', '/api/smtp', { host: 'smtp.example.com', port: 587, security: 'starttls' })).status, 409);
     s2.close();
   } finally { process.env = before; await srv.close(); }
+});
+
+test('a failed test mail says what kind of failure, never what the far end answered', async () => {
+  const { mailFailure } = await import('../server/digest.js');
+  assert.match(mailFailure(Object.assign(new Error('Invalid login: 535'), { code: 'EAUTH' })), /refused the sign-in/);
+  assert.match(mailFailure(Object.assign(new Error('Invalid greeting. response=SSH-2.0-OpenSSH_9.6'), { code: 'EPROTOCOL' })), /could not be reached as a mail server/);
+  assert.ok(!/SSH/.test(mailFailure(Object.assign(new Error('Invalid greeting. response=SSH-2.0-OpenSSH_9.6'), { code: 'EPROTOCOL' }))));
+  assert.match(mailFailure(Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:25'), { code: 'ESOCKET' })), /could not be reached/);
+  assert.match(mailFailure(new Error('self-signed certificate')), /secure connection/);
+  assert.match(mailFailure(Object.assign(new Error('Give the address to send the test to.'), { ours: true })), /Give the address/);
+  assert.match(mailFailure(new Error('something odd')), /did not accept/);
 });

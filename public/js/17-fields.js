@@ -291,7 +291,8 @@ document.addEventListener('keydown', e => {
 });
 /* An open menu (a field's, or More in a toolbar) closes on a click beside it. */
 document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
-document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open]'); if (d){ d.open = false; d.querySelector('summary').focus(); } });
+/* Esc closes an open menu first, and only that. */
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open], details.menu[open]'); if (d){ e.preventDefault(); e.stopImmediatePropagation(); d.open = false; d.querySelector('summary').focus(); } }, true);
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
 export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
 /* Counts and sizes: emptying them is setting a number, so they are not offered to clear. */

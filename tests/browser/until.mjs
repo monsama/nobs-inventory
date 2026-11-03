@@ -39,7 +39,7 @@ export async function eventually(check, ms = 8000) {
 
 /* Opens a tab of Settings (open already): the sources and the log sit in a group of their own, About at the foot. */
 export async function openSetTab(p, tab) {
-  if (tab === 'about') return p.click('#setAbout');
+  if (tab === 'about') return p.click('#setAboutBtn');
   const group = { sources: 'sources', feed: 'sources', directory: 'sources', entra: 'sources', maintenance: 'maintenance', backups: 'maintenance', mail: 'maintenance', log: 'maintenance', vlans: 'vlans', subnets: 'vlans', domains: 'vlans' }[tab];
   if (group) await p.click(`#setTabs [data-sg=${group}]`);
   if (!group || tab !== group) await p.click(`#setTabs [data-st=${tab}]`);

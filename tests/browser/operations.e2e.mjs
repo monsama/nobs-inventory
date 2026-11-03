@@ -14,12 +14,14 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-ops-'));
 const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const old = new Date(Date.now() - 200 * 864e5).toISOString().slice(0, 10);
-saveState(db, { ...loadState(db), useLansweeper: false, sites: ['Bern'], locs: ['Bern / EG'], history: {},
+/* The people are there already, so loading the page changes nothing (no backup before the first change yet). */
+const s0 = loadState(db), person = (id, name) => ({ id, login: '', name, dept: '', role: 'viewer', groups: [], source: 'manual', active: true });
+saveState(db, { ...s0, users: [...s0.users, person('ua', 'Anna'), person('ub', 'Beat'), person('uc', 'Cleo')], useLansweeper: false, sites: ['Bern'], locs: ['Bern / EG'], history: {},
   objs: [
-    { id: 'a', code: 'INV-0001', type: 'notebook', name: 'NB-A', status: 'active', loc: 'Bern / EG', serial: 'S1', user: 'Anna', feed: null },
+    { id: 'a', code: 'INV-0001', type: 'notebook', name: 'NB-A', status: 'active', loc: 'Bern / EG', serial: 'S1', uid: 'ua', user: 'Anna', feed: null },
     { id: 'b', code: 'INV-0002', type: 'notebook', name: 'NB-B', status: 'active', serial: 'S2', feed: null },
-    { id: 'c', code: 'INV-0003', type: 'pc', name: 'PC-C', status: 'active', loc: 'Bern / EG', feed: null, user: 'Beat', inAd: true, ad: { logon: old } },
-    { id: 'd', code: 'INV-0004', type: 'pc', name: 'PC-D', status: 'active', loc: 'Bern / EG', serial: 'S4', user: 'Cleo', feed: null, os: 'Windows 11',
+    { id: 'c', code: 'INV-0003', type: 'pc', name: 'PC-C', status: 'active', loc: 'Bern / EG', feed: null, uid: 'ub', user: 'Beat', inAd: true, ad: { logon: old } },
+    { id: 'd', code: 'INV-0004', type: 'pc', name: 'PC-D', status: 'active', loc: 'Bern / EG', serial: 'S4', uid: 'uc', user: 'Cleo', feed: null, os: 'Windows 11',
       vals: { os: { ad: ['Windows 10', '2026-10-01'], graph: ['Windows 11', '2026-10-02'] } } },
   ] });
 const server = await new Promise(r => { const x = createApp({ db, diskSpace: () => ({ free: 200 * 2 ** 30, total: 500 * 2 ** 30 }) }).listen(0, '127.0.0.1', () => r(x)); });

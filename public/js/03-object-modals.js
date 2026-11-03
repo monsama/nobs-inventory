@@ -402,7 +402,7 @@ export function renderObj(o){
   /* Short by default: the fields that say what and where a device is, and the others only where they hold something;
      "Show all fields" lists the empty ones too (remembered in this browser). */
   const valOf = f => (f[0].startsWith('custom.') ? (o.custom || {})[f[0].slice(7)] : o[f[0]]);
-  const emptyF = f => !KEY_FIELDS.includes(f[0]) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
+  const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
   const nEmpty = fields.filter(emptyF).length, allF = allFields();
   if (!allF) fields = fields.filter(f => !emptyF(f));
   const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
@@ -425,7 +425,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        <label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
+        ${edit || o.notes ? `<label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}

@@ -16,7 +16,9 @@ const dev = (id, name, extra = {}) => ({ id, code: 'INV-' + id, type: 'notebook'
 const s0 = loadState(db);
 saveState(db, { ...s0, history: {}, sites: ['Bern'], locs: ['Bern / Lager'],
   users: [...s0.users, { id: 'u-anna', login: 'amuster', name: 'Anna Muster', dept: 'Sales', role: 'none', groups: [], source: 'manual', active: true }],
-  objs: [dev('n1', 'NB-01'), dev('n2', 'NB-02'), dev('n3', 'NB-03'), dev('s1', 'SW-CORE', { type: 'switch', status: 'active' })] });
+  objs: [dev('n1', 'NB-01'), dev('n2', 'NB-02'), dev('n3', 'NB-03'), dev('s1', 'SW-CORE', { type: 'switch', status: 'active' }),
+    /* named only by its user's name, as a Lansweeper record can be: the person is made and saved, the device linked */
+    dev('n4', 'NB-04', { status: 'active', user: 'Lea Lansweeper' })] });
 const stored = id => loadState(db).objs.find(o => o.id === id);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -28,6 +30,7 @@ try {
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await eventually(() => p.evaluate(async () => !!(await import('/js/01-core.js')).st.meId));
+  await eventually(() => { const st = loadState(db), u = st.users.find(x => x.name === 'Lea Lansweeper'); return u && stored('n4').uid === u.id; });
   const open = id => p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id);
 
   // a switch nobody carries: no hand out on it
@@ -41,7 +44,8 @@ try {
 
   // from the device: found by part of the name, handed out, in use with her
   await open('n1'); await p.waitForSelector('#handOutBtn');
-  assert.equal(await p.locator('.stk-note').count(), 0, 'no "Not confirmed on site yet" before any stocktake');
+  assert.equal(await p.locator('text=Not confirmed on site yet').count(), 0, 'no "Not confirmed on site yet" before any stocktake');
+  assert.equal(await p.locator('[data-verify="n1"]').count(), 1, 'but it can be confirmed on its own page');
   await p.click('#handOutBtn'); await p.waitForSelector('#hoQ');
   assert.equal(await p.isDisabled('#hoOk'), true, 'nobody picked yet');
   await p.fill('#hoQ', 'mus');

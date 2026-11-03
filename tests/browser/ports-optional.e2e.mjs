@@ -18,7 +18,7 @@ saveState(db, { ...loadState(db), objs: [
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
-const page = await (async () => { const c = await browser.newContext({ viewport: { width: 1300, height: 900 } }); await c.addInitScript(() => { try { localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } }); return c.newPage(); })();
+const page = await (await browser.newContext({ viewport: { width: 1300, height: 900 } })).newPage();   /* the default: only key and filled fields shown */
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const open = id => page.evaluate(async id => (await import('/js/02-views.js')).openObj(id), id);
 try {
