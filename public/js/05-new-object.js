@@ -1,7 +1,7 @@
 import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
-import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who, mySites, myLocs } from './04-settings.js';
+import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
 /* ---------- new object ---------- */
@@ -39,7 +39,7 @@ export function newObjModal(pre={}){
     <div class="mb"><div class="form" style="padding:0">
       <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
-      <label for="nLoc">Location</label><select id="nLoc">${mySites() ? '' : '<option value="">No location</option>'}${myLocs().map(l => `<option>${esc(l)}</option>`).join('')}</select>
+      <label for="nLoc">Location</label><select id="nLoc">${'<option value="">No location</option>'}${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
       ${LOCS.length ? '' : '<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>'}
       <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>

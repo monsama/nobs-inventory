@@ -9,13 +9,13 @@ test('groups match by name, distinguished name or ID, in any case', () => {
   assert.ok(!groupMatches({ group: 'CN=IT-Bern,OU=X,DC=corp' }, ['IT-Bern', 'CN=IT-Bern,OU=Other,DC=corp']), 'a DN matches only that group, not one of the same name elsewhere');
   assert.ok(groupMatches({ group: '0f6c…-id' }, ['0F6C…-ID']));
   assert.ok(!groupMatches({ group: 'IT' }, ['IT-Bern']));
-  assert.deepEqual(roleFromGroups([{ group: 'a', role: 'viewer' }, { group: 'b', role: 'editor', sites: ['Bern'] }], ['b', 'a']), { role: 'viewer', sites: [], group: 'a' }, 'the first rule counts');
+  assert.deepEqual(roleFromGroups([{ group: 'a', role: 'viewer' }, { group: 'b', role: 'viewer', sites: ['Bern'] }], ['b', 'a']), { role: 'viewer', sites: [], group: 'a' }, 'the first rule counts');
 });
 test('a rule gives and takes back; a hand-given role and admins stay', async () => {
-  const rules = [{ group: 'IT-Bern', role: 'editor', sites: ['Bern'] }];
+  const rules = [{ group: 'IT-Bern', role: 'viewer', sites: ['Bern'] }];
   const u = { role: 'none', own: true };
   assert.equal(applyGroupRole(u, rules, ['IT-Bern']), true);
-  assert.deepEqual(u, { role: 'editor', roleBy: 'IT-Bern', sites: ['Bern'] });
+  assert.deepEqual(u, { role: 'viewer', roleBy: 'IT-Bern', sites: ['Bern'] });
   assert.equal(applyGroupRole(u, rules, ['IT-Bern']), false, 'nothing changed');
   assert.equal(applyGroupRole(u, rules, []), true);
   assert.deepEqual(u, { role: 'none' });
@@ -26,6 +26,9 @@ test('a rule gives and takes back; a hand-given role and admins stay', async () 
   assert.deepEqual(freshEntraGroups({ entraGroups: ['g'], entraGroupsAt: new Date(Date.now() - 13 * 3600e3).toISOString() }), [], 'old Entra groups do not count');
   assert.deepEqual(freshEntraGroups({ entraGroups: ['g'], entraGroupsAt: new Date().toISOString() }), ['g']);
   const admin = { role: 'admin' }; applyGroupRole(admin, rules, ['IT-Bern']); assert.equal(admin.role, 'admin');
-  assert.equal(groupRolesProblem([{ group: 'x', role: 'admin' }]), 'A group gives the role editor or viewer.');
+  assert.equal(groupRolesProblem([{ group: 'x', role: 'admin' }]), 'A group gives the role viewer.');
+  const old = [{ group: 'x', role: 'editor' }];
+  assert.equal(groupRolesProblem(old), ''); assert.equal(old[0].role, 'viewer', 'a rule of an older version giving editor gives viewer');
+  assert.equal(roleFromGroups([{ group: 'x', role: 'editor' }], ['x']).role, 'viewer');
   assert.equal(groupRolesProblem([{ group: 'x', role: 'viewer', sites: ['Bern'] }]), '');
 });

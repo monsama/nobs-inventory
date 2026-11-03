@@ -20,7 +20,7 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
 /* The pages of Settings an admin looks for by another word: Backups by restore, E-mail by SMTP or digest … */
 const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
-  log: 'audit history errors', users: 'people roles editor viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
+  log: 'audit history errors', users: 'people roles viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
   feed: 'lansweeper sync', sources: 'fields policy', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
 const SET_PATH = { maintenance: 'Maintenance → System', backups: 'Maintenance → Backups', mail: 'Maintenance → E-mail', log: 'Maintenance → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));

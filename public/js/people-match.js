@@ -61,7 +61,7 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   if (!keep.profile && drop.profile) keep.profile = drop.profile;
   if (!keep.entra && drop.entra) keep.entra = drop.entra;
   if (!keep.login && drop.login) keep.login = drop.login;
-  const ROLE = { admin: 3, editor: 2, viewer: 1, none: 0 };
+  const ROLE = { admin: 2, viewer: 1, none: 0 };
   if ((ROLE[drop.role] ?? 0) > (ROLE[keep.role] ?? 0)) keep.role = drop.role;
   if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);

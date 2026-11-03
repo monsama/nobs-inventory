@@ -23,9 +23,9 @@ export async function syncLdapUsers(db, config) {
   const linked = [];
   for (const p of people) {
     const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase()) || s.users.find(x => ['lansweeper', 'entra'].includes(x.source) && (x.aliases || []).some(a => a.toLowerCase() === p.login.toLowerCase()));
-    /* The admin group makes admins. Anyone else has no access (none) until an admin gives them the viewer (or editor) role, which
+    /* The admin group makes admins. Anyone else has no access (none) until an admin gives them the viewer role, which
        the sync keeps; an admin who left the admin group has none again. */
-    const role = p.admin ? 'admin' : u && ['viewer', 'editor'].includes(u.role) ? u.role : 'none';
+    const role = p.admin ? 'admin' : u && u.role === 'viewer' ? 'viewer' : 'none';
     if (!u) {
       s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, ...(p.dept ? { dept: p.dept } : {}), groups: p.groups, source: 'ldap', active: true, role, ...profileOf(p) });
       counts.created++;

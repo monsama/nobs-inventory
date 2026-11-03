@@ -164,7 +164,7 @@ export function contractModal(c, preset = []){
   /* Enter in the device search takes what it found (not Save): the one match, or all of them. */
   $('#ctDevQ').addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); const all = $('#ctAddAll'); if (all) all.click(); });
   $('#ctCancel').onclick = closeModal;
-  /* Contracts are an admin's: anyone else sees one, read only (an editor's page would not save it). */
+  /* Contracts are an admin's: anyone else sees one, read only. */
   if (!isAdmin()) { $('#mdl').querySelectorAll('input, select, textarea, button').forEach(el => { if (el.id !== 'ctCancel' && !el.closest('.mh')) el.disabled = true; }); const ok = $('#ctOk'); if (ok) ok.hidden = true; const del = $('#ctDel'); if (del) del.hidden = true; $('#ctCancel').textContent = 'Close'; }
   if (!isNew) $('#ctDel').onclick = () => deleteContract(cur);
   $('#ctOk').onclick = () => {

@@ -2,7 +2,7 @@ import { applyDelta } from './delta.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
-import { USERS, applyRole, bindUser, canEdit, isAdmin, me, ownOnly, pushDate } from './04-settings.js';
+import { USERS, applyRole, bindUser, isAdmin, me, ownOnly, pushDate } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
@@ -108,7 +108,7 @@ export function renderStatus(){
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
   save.classList.toggle('hide-n', !S[0]);
   /* Someone who only reads saves nothing: the line would only be noise to them. */
-  save.hidden = !canEdit();
+  save.hidden = !isAdmin();
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
   updateSync();
   const last = SYNC.run ? {at: SYNC.run, days: daysSince(SYNC.run)} : null;
@@ -136,11 +136,11 @@ export function dropOffline(){ try { localStorage.removeItem(OFFLINE_KEY); } cat
 export const offlineKept = () => { try { const v = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); return v && v.user === st.meId ? v : null; } catch { return null; } };
 /* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
 function restoreOffline(){
-  const kept = offlineKept(); if (!kept || !canEdit()) return;
+  const kept = offlineKept(); if (!kept || !isAdmin()) return;
   /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
   const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
   if (stk) st.stocktakes = JSON.parse(stk.json);
-  /* Rooms an editor added there come back too (the server checks they are in their sites). */
+  /* Rooms added there come back too. */
   const locs = kept.puts.find(c => c.kind === 'setting' && c.id === 'locs');
   if (locs) for (const l of JSON.parse(locs.json)) if (!LOCS.includes(l)) LOCS.push(l);
   const n = replayLocal({ puts: kept.puts.filter(c => c.kind !== 'setting'), dels: kept.dels }, []) + (stk ? 1 : 0);
@@ -185,22 +185,19 @@ export function setBaseline(){
     fix.forEach(k => { if (!SERVER.base.has(k) && now.has(k)) SERVER.base.set(k, JSON.stringify(now.get(k).value)); });
   }, 0);
 }
-/* What an editor may save (the server checks the same, server/scope.js): devices, their connections and history, new
-   rooms and stocktakes. Other changes made on their page (a box moved on the map) are not sent, and go with the next
-   reload. */
-const EDITOR_SAVES = k => /^(object|rel|history)\|/.test(k) || k === 'setting|locs' || k === 'setting|stocktakes';
+/* Only an admin saves: a viewer's page sends nothing (what moved on their screen, a box on the map, goes with the next
+   reload). */
 export function pendingChanges(){
   const now = documents(), puts = [], dels = [];
-  const may = isAdmin() ? () => true : EDITOR_SAVES;
+  if (!isAdmin()) return {puts, dels};
   for (const [k, d] of now){
-    if (!may(k)) continue;
     const json = JSON.stringify(d.value);
     if (SERVER.base.get(k) === json) continue;
     const pref = d.kind === 'setting' && PREFERENCES.includes(d.id);
     puts.push({key:k, kind:d.kind, id:d.id, value:d.value, json, base: pref ? null : (SERVER.revs[k] ?? 0)});
   }
   for (const k of SERVER.base.keys()){
-    if (now.has(k) || !may(k)) continue;
+    if (now.has(k)) continue;
     const i = k.indexOf('|');
     dels.push({key:k, kind:k.slice(0, i), id:k.slice(i + 1), base: SERVER.revs[k] ?? 0});
   }
@@ -233,7 +230,7 @@ export function sendChanges(){
   return SERVER.inflight;
 }
 async function sendNow(){
-  if (!canEdit()) return;
+  if (!isAdmin()) return;
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
   SERVER.busy = true; setSave('saving');
@@ -314,7 +311,7 @@ export function refusedModal(items){
    restored inventory replaces everything here. */
 export async function reloadFromServer({ flush = true, skip = [], discard = false, data = null } = {}){
   let d = data;
-  if (flush && !discard && SERVER.base && canEdit()){
+  if (flush && !discard && SERVER.base && isAdmin()){
     if (SERVER.busy) await SERVER.inflight;
     const had = pendingChanges();
     await flushSave();
@@ -329,7 +326,7 @@ export async function reloadFromServer({ flush = true, skip = [], discard = fals
     keepServerCopy(d);
   }
   /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
-  const keep = !discard && SERVER.base && canEdit() ? pendingChanges() : null;
+  const keep = !discard && SERVER.base && isAdmin() ? pendingChanges() : null;
   applyState(d);
   SERVER.revs = d.revs || {};
   setBaseline();
@@ -385,7 +382,7 @@ export async function checkForChanges(){
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
-  if ((puts.length || dels.length) && canEdit()){ if (SERVER.save === 'offline') sendChanges(); return; }
+  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return; }
   let r;
   const delta = SERVER.copy && SERVER.cseq !== null;
   try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
@@ -442,7 +439,7 @@ export function applyState(d){
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
   /* People made here for devices that named a user only by name (a Lansweeper record, an older inventory): they, and the
-     devices now linked to them, are left out of the baseline so the next save sends them (an admin's; an editor's page
+     devices now linked to them, are left out of the baseline so the next save sends them (an admin's; a viewer's page
      keeps them as they are). */
   const hadUsers = new Set(USERS.map(u => u.id)), hadUid = new Set([...objs, ...REVIEW].filter(o => o.uid).map(o => o.id));
   objs.forEach(bindUser); REVIEW.forEach(bindUser);
@@ -524,7 +521,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the list's own filter where the view has one (Cards, Table, Relationships, Contracts …), else to the search. */
   if (e.key === '/'){ e.preventDefault(); const f = ['cards', 'table', 'map'].includes(st.tab) ? $('#search') : ($('#plQ') && $('#plQ').offsetParent ? $('#plQ') : null) || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
-  if (key === 'n' && canEdit()){ e.preventDefault(); newObjModal(); return; }
+  if (key === 'n' && isAdmin()){ e.preventDefault(); newObjModal(); return; }
   /* V: the next view of a tab that has a switch (Devices: Cards ↔ Table; Contracts: Contracts → Software → Contacts). */
   if (key === 'v'){ const b = [...document.querySelectorAll('[data-vsw]')], i = b.findIndex(x => x.dataset.vsw === st.tab); if (b.length > 1 && i >= 0){ e.preventDefault(); b[(i + 1) % b.length].click(); } return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];

@@ -11,7 +11,7 @@ import { contractsDue, licencesOver, money } from './09-costs.js';
 import { SERVER, queueServerSave, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, canEdit, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
+import { USERS, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
 /* Devices still out this many days after their person left are marked red. */
 const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
@@ -99,10 +99,10 @@ export function renderOverview(){
   const reports = objs.filter(o => o.reported && o.status !== 'retired');
   const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
   const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
-  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
+  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && isAdmin() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
   /* Recurring maintenance due within 30 days (overdue first), on devices in use. */
   const mtToday = todayDay(), mtDue = dueTasks(objs, mtToday), mtLate = mtDue.filter(x => x.days < 0);
-  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${canEdit() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
+  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${isAdmin() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],

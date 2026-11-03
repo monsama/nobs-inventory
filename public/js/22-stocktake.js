@@ -3,7 +3,7 @@
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
 import { $, LOCS, SITES, TYPES, esc, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
-import { USERS, canEdit, who, mySites, myLocs } from './04-settings.js';
+import { USERS, isAdmin, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
 import { queueServerSave, reloadFromServer, render } from './07-render.js';
@@ -31,7 +31,7 @@ function unconfirm(o){
 }
 
 export function renderStocktake(){
-  const t = activeStocktake(), edit = canEdit();
+  const t = activeStocktake(), edit = isAdmin();
   /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
   const scanning = document.activeElement && document.activeElement.id === 'stkScan';
   $('#toolbar').innerHTML = `<b>Stocktake</b><span class="muted">${t ? esc(`${t.name} · ${placeName(t.scope)}`) : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
@@ -49,10 +49,10 @@ export function renderStocktake(){
 function startHtml(edit){
   const live = objs.filter(o => o.status !== 'retired');
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
-  const limit = mySites(), places = [...SITES.filter(s => !limit || limit.includes(s)).map(s => [s, `${s} (site)`]), ...myLocs().map(l => [l, l])];
+  const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
   return `<div class="panelbox"><div class="hdr">New stocktake</div>
     <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} A stocktake lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
-    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace">${limit ? '' : '<option value="">Everywhere</option>'}${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
+    ${edit ? `<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Stocktake ${esc(dateText(today()))}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the stocktake</button><span class="muted" id="stkCount"></span></div>` : '<p class="note stk-pad">An admin starts a stocktake.</p>'}</div>`;
 }
@@ -166,7 +166,7 @@ function historyHtml(){
   if (!done.length) return '';
   return `<div class="panelbox"><div class="hdr">Done <span class="cnt">${done.length}</span></div><div style="overflow-x:auto"><table class="grid mini stack" style="min-width:640px"><thead><tr><th>Stocktake</th><th>Place</th><th>Finished</th><th class="n">Confirmed</th><th class="n">Missing</th><th class="n">Moved</th><th></th></tr></thead><tbody>
     ${done.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(placeName(t.scope))}</td><td>${esc(dateText(t.finished.slice(0, 10)))} · ${esc(t.finishedBy || '')}</td><td class="n">${t.result.confirmed} of ${t.result.total}</td><td class="n">${t.result.missing.length}</td><td class="n">${t.result.moved.length}</td>
-      <td class="act"><div class="sheet-acts">${t.result.missing.length ? `<button type="button" class="link" data-stkmiss="${esc(t.id)}" title="The devices not found, in the Table, to look for or set their status">Show missing</button> ` : ''}<a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${canEdit() ? ` <button class="icon ghost" data-stkdel="${esc(t.id)}" aria-label="Remove ${esc(t.name)} from the list">×</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div></div>`;
+      <td class="act"><div class="sheet-acts">${t.result.missing.length ? `<button type="button" class="link" data-stkmiss="${esc(t.id)}" title="The devices not found, in the Table, to look for or set their status">Show missing</button> ` : ''}<a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=pdf" download>PDF</a> <a class="link" href="api/reports/stocktake?id=${encodeURIComponent(t.id)}&format=xlsx" download>Excel</a>${isAdmin() ? ` <button class="icon ghost" data-stkdel="${esc(t.id)}" aria-label="Remove ${esc(t.name)} from the list">×</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
 /* My devices: the start of someone who sees only the devices given to them. One row per device, with what they do
@@ -202,15 +202,15 @@ export function verifiedNote(o){
   const text = d === null ? 'Not confirmed on site yet.' : `Confirmed on site ${dateText(v.at)}${v.by ? ` by ${v.by}` : ''}${t ? ` (${t.name})` : ''}.`;
   /* The device's own user (not an admin) confirms they have it and can report a problem; an admin sees the report and
      marks it done. */
-  const mine = !canEdit() && o.uid && o.uid === st.meId;
-  const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${canEdit() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
+  const mine = !isAdmin() && o.uid && o.uid === st.meId;
+  const rep = o.reported && !o.reported.done ? `<p class="fieldnote warn stk-note"><b>Problem reported</b> by ${esc(o.reported.by)} on ${esc(dateText(o.reported.at.slice(0, 10)))}: ${esc(o.reported.text)}${isAdmin() ? ` <button type="button" class="link" data-repdone="${esc(o.id)}">Done</button>` : ''}</p>` : '';
   /* "Not confirmed on site yet" only once it says something: after a stocktake has been done (it was missed), or to the
      device's own user, who can say they have it. Before any stocktake every device would carry it. */
   if (d === null && !mine && !(st.stocktakes || []).some(x => x.finished)){
-    const confirm = canEdit() ? `<p class="fieldnote stk-note quiet"><button type="button" class="link" data-verify="${esc(o.id)}">Confirm on site</button></p>` : '';
+    const confirm = isAdmin() ? `<p class="fieldnote stk-note quiet"><button type="button" class="link" data-verify="${esc(o.id)}">Confirm on site</button></p>` : '';
     return rep || confirm ? `<span></span><div class="vnote">${confirm}${rep}</div>` : '';
   }
-  return `<span></span><div class="vnote"><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${canEdit() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">${o.reported && !o.reported.done ? 'Report another problem…' : 'Report a problem…'}</button>` : ''}</p>${rep}${mine && o.reported && !o.reported.done ? `<p class="fieldnote stk-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} is with IT.</p>` : ''}${mine ? doneNote(o) : ''}</div>`;
+  return `<span></span><div class="vnote"><p class="fieldnote ${d === null || d > STOCKTAKE_DAYS ? 'warn' : 'ok'} stk-note">${esc(text)}${isAdmin() && d !== 0 ? ` <button type="button" class="link" data-verify="${esc(o.id)}">Confirm now</button>` : ''}${mine && d !== 0 ? ` <button type="button" class="link" data-mine="${esc(o.id)}">I have it</button>` : ''}${mine ? ` <button type="button" class="link" data-myreport="${esc(o.id)}">${o.reported && !o.reported.done ? 'Report another problem…' : 'Report a problem…'}</button>` : ''}</p>${rep}${mine && o.reported && !o.reported.done ? `<p class="fieldnote stk-note">Your report of ${esc(dateText(String(o.reported.at).slice(0, 10)))} is with IT.</p>` : ''}${mine ? doneNote(o) : ''}</div>`;
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {

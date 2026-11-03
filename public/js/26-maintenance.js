@@ -3,7 +3,7 @@
    Overview lists what is due, the weekly e-mail too. */
 import { $, esc, hist, now, toast } from './01-core.js';
 import { MAINT_MAX, MAINT_UNITS, addInterval, daysTo, doneTask, dueState, everyText, todayDay } from './maintenance.js';
-import { canEdit, who } from './04-settings.js';
+import { isAdmin, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
@@ -18,7 +18,7 @@ export function dueChip(m, today = todayDay()){
 }
 
 export function maintPanel(o){
-  const list = o.maint || [], edit = canEdit(), today = todayDay();
+  const list = o.maint || [], edit = isAdmin(), today = todayDay();
   const row = m => {
     const last = (m.log || [])[0];
     return `<div class="relrow mt-row"><span class="t"><b>${esc(m.what)}</b><span class="muted"> · ${esc(everyText(m))}</span>

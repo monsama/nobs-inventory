@@ -102,12 +102,12 @@ test('directory sync: adds people, follows role changes, deactivates people who 
     assert.equal(st.objs[0].uid, 'ldap-ben', 'their device still points at them');
     assert.equal(st.users.find(u => u.login === 'anna').role, 'none', 'out of the admin group: no access, until given a role');
     assert.equal(st.users.find(u => u.login === 'cla').role, 'admin');
-    // roles from groups: a group by name gives editor and its sites; out of it again, No access; admins left alone
-    st.groupRoles = [{ group: 'Inventory-Users', role: 'editor', sites: ['Bern'] }]; st.sites = ['Bern']; saveState(srv.db, st);
+    // roles from groups: a group by name gives viewer and its sites; out of it again, No access; admins left alone
+    st.groupRoles = [{ group: 'Inventory-Users', role: 'viewer', sites: ['Bern'] }]; st.sites = ['Bern']; saveState(srv.db, st);
     await syncLdapUsers(srv.db, cfg(`ldap://127.0.0.1:${dir.address().port}`));
     st = loadState(srv.db);
     const anna = st.users.find(u => u.login === 'anna');
-    assert.deepEqual([anna.role, anna.sites, anna.roleBy], ['editor', ['Bern'], 'Inventory-Users']);
+    assert.deepEqual([anna.role, anna.sites, anna.roleBy], ['viewer', ['Bern'], 'Inventory-Users']);
     assert.equal(st.users.find(u => u.login === 'cla').role, 'admin', 'the admin group wins');
     st.groupRoles = [{ group: 'CN=Other,OU=Groups,DC=test', role: 'viewer' }]; saveState(srv.db, st);
     await syncLdapUsers(srv.db, cfg(`ldap://127.0.0.1:${dir.address().port}`));

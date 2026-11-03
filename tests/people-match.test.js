@@ -73,10 +73,10 @@ test('merged on the server: sheets and sign-in go along, a backup first, and Lan
   } finally { await srv.close(); }
 });
 
-test('merging keeps the higher role, editor above viewer', async () => {
+test('merging keeps the higher role, admin above viewer', async () => {
   const { mergePeople } = await import('../public/js/people-match.js');
-  const s = { users: [{ id: 'k', name: 'Eva', role: 'editor', source: 'ldap' }, { id: 'd', name: 'Eva', role: 'viewer', source: 'lansweeper' }], objs: [] };
-  mergePeople(s, 'k', 'd'); assert.equal(s.users[0].role, 'editor');
-  const s2 = { users: [{ id: 'k', name: 'Eva', role: 'viewer', source: 'ldap' }, { id: 'd', name: 'Eva', role: 'editor', source: 'manual' }], objs: [] };
-  mergePeople(s2, 'k', 'd'); assert.equal(s2.users[0].role, 'editor');
+  const s = { users: [{ id: 'k', name: 'Eva', role: 'admin', source: 'ldap' }, { id: 'd', name: 'Eva', role: 'viewer', source: 'lansweeper' }], objs: [] };
+  mergePeople(s, 'k', 'd'); assert.equal(s.users[0].role, 'admin');
+  const s2 = { users: [{ id: 'k', name: 'Eva', role: 'viewer', source: 'ldap' }, { id: 'd', name: 'Eva', role: 'admin', source: 'manual' }], objs: [] };
+  mergePeople(s2, 'k', 'd'); assert.equal(s2.users[0].role, 'admin');
 });

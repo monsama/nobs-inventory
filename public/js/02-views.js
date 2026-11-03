@@ -13,7 +13,7 @@ import { flushSearch } from './14-global-search.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
-import { USERS, bindUser, canEdit, isAdmin, myLocs, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
+import { USERS, bindUser, isAdmin, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
 import { handOutToModal, takeBack } from './27-handout.js';
@@ -186,11 +186,11 @@ export function renderFilterBar(){
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
   const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
-    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${canEdit() ? '<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>' : ''}${canEdit() && mine.length ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${isAdmin() ? '<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>' : ''}${isAdmin() && mine.length ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
   /* Values set by hand in one field: given back to the sources, which write them again at their next sync. */
-  const hf = list && st.handField && canEdit() ? `<div class="fb-person fb-qfix"><b>Set by hand: ${esc(SYNC_FIELD_LABEL[st.handField] || st.handField)}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
+  const hf = list && st.handField && isAdmin() ? `<div class="fb-person fb-qfix"><b>Set by hand: ${esc(SYNC_FIELD_LABEL[st.handField] || st.handField)}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && QFIX && QUALITY_FIX[st.quality] && QUALITY[st.quality];
-  const qbar = !qf ? '' : `<div class="fb-person fb-qfix"><b>${esc(QUALITY[st.quality][0])}</b><span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && canEdit() ? `<button type="button" data-qfix="1" id="qfixSel">Select all ${QFIX.n}</button>` : ''}</div>`;
+  const qbar = !qf ? '' : `<div class="fb-person fb-qfix"><b>${esc(QUALITY[st.quality][0])}</b><span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? `<button type="button" data-qfix="1" id="qfixSel">Select all ${QFIX.n}</button>` : ''}</div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf;
   bar.innerHTML = who + qbar + hf + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
 }
@@ -244,7 +244,7 @@ document.addEventListener('click', async e => {
 function emptyHtml(){
   const n = REVIEW.filter(o => !o.review.ignored).length;
   return n ? `<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
-    : `<div class="empty">The inventory is empty.${canEdit() ? ' <button type="button" class="primary" data-empty-new>New object</button>' : ''}</div>`;
+    : `<div class="empty">The inventory is empty.${isAdmin() ? ' <button type="button" class="primary" data-empty-new>New object</button>' : ''}</div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
@@ -473,7 +473,7 @@ export function cardHtml(o, idx, join = showJoin()){
       ${o.status !== 'active' ? `<span class="chip ${s.cls}">${s.label}</span>` : ''}</div>
     <dl class="kv">${lines.map(([k,v]) => `<dt>${esc(k) || '&nbsp;'}</dt><dd${v ? '' : ' class="none"'}>${v || (k ? '—' : '&nbsp;')}</dd>`).join('')}</dl>
     ${join ? joinBadges(o) : ''}
-    ${o.review && !o.review.ignored && canEdit() ? `<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${esc(o.id)}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? `<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${esc(o.id)}" title="Fold it into ${esc(mergeTarget(o).name)}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${esc(o.id)}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
+    ${o.review && !o.review.ignored && isAdmin() ? `<span class="rv-acts"><span role="button" tabindex="0" class="rv-act yes" data-rvc="accept" data-rvid="${esc(o.id)}" title="Take it into the inventory">✓ Accept</span>${mergeTarget(o) ? `<span role="button" tabindex="0" class="rv-act" data-rvc="merge" data-rvid="${esc(o.id)}" title="Fold it into ${esc(mergeTarget(o).name)}; it is kept as ignored">Merge</span>` : ''}<span role="button" tabindex="0" class="rv-act no" data-rvc="ignore" data-rvid="${esc(o.id)}" title="Keep it out of the inventory and every sync">✕ Ignore</span></span>` : ''}
     ${o.review ? reviewChips(o, stale) : twinOf(o) ? `<div class="rv-chips">${twinChip(o)}</div>` : twinsOf(o).length ? `<div class="rv-chips">${twinsChip(o)}</div>` : ''}
     <div class="cf"><span class="code">${esc(o.code)}</span>${cardSeen(o)}${join && GRAPH_TYPES.includes(o.type) ? '' : graphChip(o)}<span class="grow"></span>${relSummary(rs)}</div>
   </button>`;
@@ -481,15 +481,15 @@ export function cardHtml(o, idx, join = showJoin()){
 /* On a device waiting in To review: which sync found it, Old when no source has seen it for long (left out of Accept
    all), the other sources that know it, and the device it is most likely a second record of. */
 const alsoIn = o => [o.review.src !== 'lansweeper' && o.feed && 'Lansweeper', o.review.src !== 'ad' && o.inAd && 'AD', o.review.src !== 'graph' && o.graph && 'Entra', o.defender && 'Defender'].filter(Boolean);
-const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : mergeTarget(o) ? `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${canEdit() ? ' Click to resolve.' : ''}">Already in inventory: ${esc(mergeTarget(o).name)}</span>` : ''}</div>`;
+const reviewChips = (o, stale) => `<div class="rv-chips"><span class="chip rv-src">${esc(REVIEW_SRC[o.review.src] || o.review.src)}</span>${alsoIn(o).length ? `<span class="chip rv-also" title="Other sources that know this device: one the directory knows is most likely real">also ${esc(alsoIn(o).join(' · '))}</span>` : ''}${stale ? `<span class="chip warn rv-old" title="No source has seen it for ${REVIEW_STALE_DAYS} days or more: likely gone">Old</span>` : ''}${twinOf(o) ? twinChip(o) : mergeTarget(o) ? `<span class="chip warn rv-twin"${isAdmin() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="A device of this name or serial number is in the inventory: accepting this one adds a second.${isAdmin() ? ' Click to resolve.' : ''}">Already in inventory: ${esc(mergeTarget(o).name)}</span>` : ''}</div>`;
 /* On the card of a probable second record: which device it most likely is; a click opens Resolve (15-review.js). */
 /* On the card of the device itself: its probable second records, so it is seen from both sides. */
-const twinsChip = o => { const l = twinsOf(o); return `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(l.map(x => x.id).join(','))}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${esc(l.map(x => x.name).join(', '))}.${canEdit() ? ' Click to resolve.' : ''}">${l.length === 1 ? `Also as ${esc(l[0].name)}` : `${l.length} possible duplicates`}</span>`; };
-const twinChip = o => `<span class="chip warn rv-twin"${canEdit() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Probably a second record of ${esc(twinOf(o).name)}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${canEdit() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
+const twinsChip = o => { const l = twinsOf(o); return `<span class="chip warn rv-twin"${isAdmin() ? ` data-resolve="${esc(l.map(x => x.id).join(','))}" role="button"` : ''} title="Most likely a second record of this device, e.g. from a docking station: ${esc(l.map(x => x.name).join(', '))}.${isAdmin() ? ' Click to resolve.' : ''}">${l.length === 1 ? `Also as ${esc(l[0].name)}` : `${l.length} possible duplicates`}</span>`; };
+const twinChip = o => `<span class="chip warn rv-twin"${isAdmin() ? ` data-resolve="${esc(o.id)}" role="button"` : ''} title="Probably a second record of ${esc(twinOf(o).name)}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${esc(twinOf(o).name)}</span>`;
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 function scopeActs(list, allAlso){
-  if (!st.scope || !canEdit()) return '';
+  if (!st.scope || !isAdmin()) return '';
   const n = st.bulk.size, ign = st.scope === 'ignored';
   /* Ignored ones: Unignore puts them back in To review; Accept takes them straight into the inventory (not a record merged
      into a device: that one is unmerged first, by Unignore). */
@@ -505,7 +505,7 @@ function scopeActs(list, allAlso){
    same name or serial number): say what they are, all at once; see 15-review.js. */
 const mergeable = () => [...(st.bulk || [])].map(byId).filter(o => o && dupOf(o));
 function mergeBtn(){
-  if (!canEdit()) return '';
+  if (!isAdmin()) return '';
   const m = mergeable().length;
   return m ? `<button id="rvResolve" title="Say what ${m === 1 ? 'it is' : 'they are'}: a dock's record, the same device, obsolete or no duplicate">Resolve ${m}…</button>` : '';
 }
@@ -776,9 +776,9 @@ export function renderTable(){
   $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>
-<optgroup label="Move to location">${myLocs().map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
+<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
-${CONTACTS.list.length && canEdit() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
+${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -1309,7 +1309,7 @@ export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
   if (!devs.length){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${canEdit() ? ' <button class="primary" id="portsNew">New switch</button>' : ''}</div>`;
+    $('#view').innerHTML = `<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${isAdmin() ? ' <button class="primary" id="portsNew">New switch</button>' : ''}</div>`;
     const b = $('#portsNew'); if (b) b.onclick = () => newObjModal({type: 'switch'});
     return;
   }

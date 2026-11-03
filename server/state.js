@@ -290,8 +290,9 @@ function checkStateRules(s, size = true) {
     /* A person added as a device's user (from Lansweeper, or typed on a device) has no sign-in, so no role was given: they are a viewer. */
     if (u.role === undefined) u.role = 'viewer';
     /* none: known to the inventory (it names their devices) but no access to it, until an admin gives a role. */
-    /* editor: changes devices (in their sites, when limited to some), not the settings or the people. */
-    if (!['admin', 'editor', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, editor, viewer or none.');
+    /* The editor role of older versions is gone: such a person reads, as a viewer. */
+    if (u.role === 'editor') u.role = 'viewer';
+    if (!['admin', 'viewer', 'none'].includes(u.role)) bad('A user\'s role must be admin, viewer or none.');
     if (u.active !== undefined && typeof u.active !== 'boolean') bad('Active must be yes or no.');
     if (u.leftAt !== undefined && (typeof u.leftAt !== 'string' || u.leftAt.length > 40 || !Date.parse(u.leftAt))) bad('When a person left must be a date.');
     if (u.leftBy !== undefined && typeof u.leftBy !== 'boolean') bad('When a person left must be a date.');

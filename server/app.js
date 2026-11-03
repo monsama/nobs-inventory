@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { audit, writeDoc } from './db.js';
 import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
-import { editorProblem, inScope, scopeKey, scopeOf, scopeState, siteOf } from './scope.js';
+import { inScope, scopeKey, scopeOf, scopeState } from './scope.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
 import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, sendTestMail, mailFailure, smtpConfig, smtpSettingsProblem } from './digest.js';
 import { mergePeople } from '../public/js/people-match.js';
@@ -140,8 +140,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     if (req.path === '/feed/push' && throttle.blocked(pushKeys)) return res.set('Connection', 'close').status(429).json({ error: 'Too many wrong feed tokens. Try again in 15 minutes.' });
     const ok = req.path === '/feed/push'
       ? feedTokenValid(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1], feedToken)
-      /* An editor sends photos of their sites' devices (up to 6 MB, server/device-images.js); nothing else this large. */
-      : currentUser(req)?.role === 'admin' || (currentUser(req)?.role === 'editor' && /^\/(objects\/[^/]+\/images|images\/[^/]+\/replace)$/.test(req.path));
+      : currentUser(req)?.role === 'admin';
     if (!ok && req.path === '/feed/push') throttle.recordFailure(pushKeys);
     if (ok) return next();
     res.set('Connection', 'close').status(401).json({ error: 'Sign in as an admin first.' });
@@ -158,7 +157,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   /* A deactivated user loses access at once, even with a session that is still open. */
   /* A user with the role none has no access either: a session they hold ends at the next request. */
   const currentUser = req => { const uid = sessionUserId(db, readCookie(req.headers.cookie, COOKIE)); const u = uid ? userDoc(uid) : null; return u && u.active !== false && u.role !== 'none' ? u : null; };
-  const me = u => ({ id: u.id, login: u.login, name: u.name, role: ['admin', 'editor'].includes(u.role) ? u.role : 'viewer' });
+  const me = u => ({ id: u.id, login: u.login, name: u.name, role: u.role === 'admin' ? 'admin' : 'viewer' });
   const COOKIE = cookieName(secureCookie);
   const cookie = (token, maxAge) => `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? '; Secure' : ''}`;
   /* A user record written outside a checked save (sign-in, own name). It never gives a login a second account: two would
@@ -310,7 +309,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
           /* The directory's department; with none there, one Entra or Lansweeper gave stays (deptFrom says whose). */
           const keepDept = !d.dept && user.dept && (['entra', 'lansweeper'].includes(user.deptFrom) || user.source === 'lansweeper');
           if (keepDept && !user.deptFrom) user.deptFrom = 'lansweeper';
-          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : ['viewer', 'editor'].includes(user.role) ? user.role : 'none' });
+          Object.assign(user, { name: d.name, dept: keepDept ? user.dept : d.dept, groups: d.groups, source: 'ldap', role: isAdmin ? 'admin' : user.role === 'viewer' ? 'viewer' : 'none' });
           if (d.dept) delete user.deptFrom;
           if (Array.isArray(d.groupDns) && d.groupDns.length) user.groupDns = d.groupDns; else delete user.groupDns;
           if (!isAdmin) applyGroupRole(user, settingOf(db, 'groupRoles'), groupsOf(user, d.groups, d.groupDns));
@@ -507,24 +506,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
 
   /* The page saves only what changed. See applyChanges for how a conflict is handled. */
-  /* Admins save anything; an editor devices, in their sites when limited to some (scope.js, editorProblem). */
-  const requireEditor = (req, res, next) => (['admin', 'editor'].includes(req.user.role) ? next() : next(new HttpError(403, 'Only an admin or an editor can change this.')));
-  app.post('/api/changes', requireUser, requireEditor, (req, res, next) => {
+  app.post('/api/changes', requireUser, requireAdmin, (req, res, next) => {
     try {
-      if (req.user.role === 'editor') {
-        const cur = loadState(db, { history: false }), sc = scopeOf(req.user);
-        /* An editor limited to sites sees only their sites' stocktakes: the others are kept as they are. */
-        if (sc) for (const c of (req.body && Array.isArray(req.body.puts) ? req.body.puts : [])) {
-          if (c && c.kind === 'setting' && c.id === 'stocktakes' && Array.isArray(c.value)) {
-            /* Another site's stocktake stays as stored, also when one sent claims its id. */
-            const theirs = (cur.stocktakes || []).filter(x => !(x.scope && sc.sites.includes(siteOf({ loc: x.scope })))), taken = new Set(theirs.map(x => x.id));
-            c.value = [...c.value.filter(x => x && !taken.has(x.id)), ...theirs]
-              .sort((a, b) => String(b.started || '').localeCompare(String(a.started || '')));
-          }
-        }
-        const why = editorProblem(req.body, cur, sc);
-        if (why) throw new HttpError(403, why);
-      }
       const guard = s => {
         if (!s.users.some(u => u.id === req.user.id)) throw new HttpError(400, 'Keep your own user in the list.');
         if (!s.users.some(u => u.role === 'admin' && u.active !== false)) throw new HttpError(400, 'At least one active admin is needed.');

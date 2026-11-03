@@ -1,7 +1,7 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
 import { $, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
-import { RACKABLE, TYPE_U, canEdit, isAdmin, mySites, rackCheck, siteOf, who } from './04-settings.js';
+import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
@@ -140,7 +140,7 @@ export function locateOnPlan(plan, o, x, y){
 /* The list of devices not on the plan: beside the plan for those who place devices, folded away for the others (the
    plan gets the room); either way a button shows or hides it, remembered in this browser. */
 const SIDE_KEY = 'ni-pl-side';
-const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? canEdit() : v === '1'; } catch { return canEdit(); } };
+const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? isAdmin() : v === '1'; } catch { return isAdmin(); } };
 const setSideOpen = on => { try { localStorage.setItem(SIDE_KEY, on ? '1' : '0'); } catch { /* not kept */ } };
 export function renderPlans(){
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
@@ -155,7 +155,7 @@ export function renderPlans(){
         ${editArea && planMode === 'view' ? `<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${esc(editArea.name)}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
         ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
         <details class="menu" id="plMenu"><summary>Plan…</summary><div class="menubox"><button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
-        ${canEdit() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
+        ${isAdmin() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
         <button id="plDel" class="danger-text">Delete plan</button></div></details>` : ''}
         <button type="button" id="plSideBtn" aria-pressed="${sideOpen()}" title="Show or hide the list of devices not on this plan">${sideOpen() ? 'Hide device list' : 'Device list'}</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
@@ -221,7 +221,7 @@ export function renderPlans(){
   $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
   /* A device can also be dragged from the list into an area: it is placed where it is dropped and gets the area's room. */
   $('#plList').onpointerdown = e => {
-    const b = e.target.closest('[data-plitem]'); if (!b || e.button !== 0 || !canEdit()) return;
+    const b = e.target.closest('[data-plitem]'); if (!b || e.button !== 0 || !isAdmin()) return;
     listDragDone = false;
     planListDrag = {id: b.dataset.plitem, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label: b.querySelector('.pl-n').textContent};
   };
@@ -233,7 +233,7 @@ export function renderPlans(){
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
     if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
-    if (planPlace && canEdit()){
+    if (planPlace && isAdmin()){
       if (!areaAt(plan, x, y)){ toast('A device goes inside an area. Draw the area first.'); return; }
       placeDevice(plan, planPlace, round1(x), round1(y));
     }
@@ -241,13 +241,13 @@ export function renderPlans(){
   /* A pin opens its device from the keyboard (Enter), and for someone who may only look; a pointer that may edit opens
      it on release instead (07: pointerup), so a drag does not also open it. */
   c.querySelectorAll('[data-pin]').forEach(p => p.onclick = e => { if (pinClicked || e.target.closest('[data-unpin]')) return; openObj(p.dataset.pin); });
-  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]') || !canEdit()) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
+  c.querySelectorAll('[data-pin]').forEach(p => p.onpointerdown = e => { if (e.target.closest('[data-unpin]') || !isAdmin()) return; e.stopPropagation(); planDrag = {id: p.dataset.pin, moved: false, x: 0, y: 0, orig: (byId(p.dataset.pin) || {}).planPos || null}; });
   /* × takes the device off the plan. Its place on the plan is cleared; the device itself stays in the inventory. */
   c.querySelectorAll('[data-unpin]').forEach(x => {
     x.onpointerdown = e => e.stopPropagation();
     x.onclick = e => {
       e.stopPropagation();
-      if (!canEdit()) return;
+      if (!isAdmin()) return;
       const o = byId(x.dataset.unpin); if (!o) return;
       /* A device shown because it is in this area's location leaves that location. Any other device is taken off the plan. */
       const pos = planPosOf(plan, o);
@@ -257,7 +257,7 @@ export function renderPlans(){
     };
   });
   /* Pins that cover each other are grouped; a device dragged out of a group's list is moved like one from the side list. */
-  groupPins(c, (id, e, label, onMove) => { if (!canEdit()) return; listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
+  groupPins(c, (id, e, label, onMove) => { if (!isAdmin()) return; listDragDone = false; planListDrag = {id, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label, onMove}; });
   c.querySelectorAll('[data-area]').forEach(b => b.onclick = e => { e.stopPropagation(); const a = plan.areas.find(x => x.id === b.dataset.area); if (a) areaRemoveModal(plan, a); });
   /* In view mode an area is moved by dragging it. The devices whose pins are inside it move with it. */
   c.querySelectorAll('[data-area-drag]').forEach(el => el.onpointerdown = e => {
@@ -332,9 +332,6 @@ export function renderPlanList(plan){
 export function placeDevice(plan, o, x, y, sure = false){
   /* A device at another site would move there: that is asked first, not done quietly. */
   const a = areaAt(plan, x, y), to = a && plan.site ? areaLocName(plan, a) : '', fromSite = String(o.loc || '').split(' / ')[0];
-  /* An editor limited to sites places devices only in their sites (the server would refuse the move). */
-  const limit = mySites();
-  if (limit && plan.site && !limit.includes(plan.site)){ toast(`${plan.site} is not one of your sites: an admin places devices there.`); return; }
   if (!sure && to && fromSite && plan.site && fromSite !== plan.site){
     modal(`<div class="mh">Move ${esc(o.name)} to ${esc(plan.site)}?</div><div class="mb"><p class="note">${esc(o.name)} is in <b>${esc(o.loc)}</b>. Placing it in the area ${esc(a.name)} of this plan sets its location to <b>${esc(to)}</b>.</p></div>
       <div class="mf"><button id="pmCancel">Cancel</button><button id="pmOk" class="primary">Move to ${esc(plan.site)}</button></div>`, 'sm');
