@@ -93,7 +93,18 @@ box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'
    chip over it): one field, not two. Escape closes the hits and keeps the filter; a second Escape clears both. */
 const LIST = ['cards', 'table', 'map'];
 const onList = () => LIST.includes(st.tab);
-box.addEventListener('input', () => { if (onList()){ st.q = box.value; render({ save: false }); } show(); });
+/* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
+let redraw = 0;
+box.addEventListener('input', () => {
+  if (onList()){ st.q = box.value; clearTimeout(redraw); redraw = setTimeout(flush, 150); }
+  show();
+});
+/* Escape or leaving the field draws the list at once (the filter chip and the browser history then say it). */
+export function flushSearch(){ flush(); }
+function flush(){ if (!redraw) return; clearTimeout(redraw); redraw = 0; if (onList()) render({ save: false }); }
+/* Leaving the field: a moment later, so a click on a tab is not lost to the list being drawn under it (a tab flushes
+   first by itself). */
+box.addEventListener('blur', () => setTimeout(flush, 200));
 /* The field shows the list's filter while on a list, and is empty elsewhere (unless one is typing in it). */
 export function syncSearchBox(){
   if (document.activeElement === box) return;
@@ -104,7 +115,7 @@ box.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' && items.length){ e.preventDefault(); mark((active + 1) % items.length); }
   else if (e.key === 'ArrowUp' && items.length){ e.preventDefault(); mark((active - 1 + items.length) % items.length); }
   else if (e.key === 'Enter'){ e.preventDefault(); pick(active < 0 ? 0 : active); }
-  else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); if (!list.hidden) close(); else { box.value = ''; box.blur(); if (onList() && st.q){ st.q = ''; render({ save: false }); } } }
+  else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); flush(); if (!list.hidden) close(); else { box.value = ''; box.blur(); if (onList() && st.q){ st.q = ''; render({ save: false }); } } }
 });
 /* A click on a hit opens it; mousedown keeps the field from losing the focus first, which would close the list. */
 list.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (!li) return; e.preventDefault(); pick(+li.dataset.i); });
