@@ -146,6 +146,17 @@ try {
   await vp.click('.ph-thumb'); await vp.waitForSelector('.ph-modal');
   assert.equal(await vp.$('#phDel'), null);
   assert.equal(await vp.$('#phCaption'), null);
+  /* The last photo removed: the panel stays, now with its × like any empty extra, and the × puts it back on Add. */
+  await vp.close();
+  for (let left = (await page.$$('.ph-thumb')).length; left > 0; left--) {
+    await page.click('.ph-thumb'); await page.waitForSelector('#phDel');
+    await page.click('#phDel'); await page.click('#phDel');
+    await page.waitForFunction(n => document.querySelectorAll('.ph-thumb').length < n, left);
+    if (await page.$('.ph-modal')) await page.click('#phClose');
+  }
+  await page.waitForSelector('[data-xhide=photos]');
+  await page.click('[data-xhide=photos]');
+  await page.waitForSelector('[data-xadd=photos]');
   assert.deepEqual(errors, []);
   console.log('photos: ok');
 } finally { await browser.close(); server.close(); db.close(); }
