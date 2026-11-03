@@ -1768,3 +1768,10 @@ details.how[open]>summary{margin-bottom:4px}
 .umenu .menubox>a{padding:6px 10px}
 @media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
 .menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}
+
+/* Simplify round 3 (0.9.90) */
+/* A field's ⋯ menu shows on the row under the mouse or with the focus, not on every row at once (always on touch). */
+@media (hover:hover) and (pointer:fine){
+  .form.props .ctlrow>details.fmenu>summary{opacity:0;transition:opacity .12s}
+  .form.props .ctlrow:hover>details.fmenu>summary,.form.props .ctlrow:focus-within>details.fmenu>summary,.form.props details.fmenu[open]>summary,.form.props details.fmenu>summary:focus-visible{opacity:1}
+}
