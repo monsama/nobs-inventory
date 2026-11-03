@@ -4,10 +4,11 @@ import { DELIMITER_NAME, DEVICE_FIELDS, guessDeviceMapping, planDeviceImport, re
 import { decodeText } from './contacts-import.js';
 import { parseDay } from './datefield.js';
 import { num } from './09-costs.js';
-import { HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, esc, hist, now, objs, toast } from './01-core.js';
+import { HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
 import { render } from './07-render.js';
 import { bindUser } from './04-settings.js';
 import { closeModal, modal } from './19-modal.js';
+import { html } from './html.js';
 /* CSV: a plain comma or semicolon file, first row is the header (public/js/csv.js decides which). */
 export { parseCsv };
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
@@ -32,9 +33,9 @@ const BY_LABEL = { serial: 'serial number', name: 'name', mac: 'MAC address' };
    number, else name, else MAC address) is skipped or fills that device's empty fields. One Undo takes it all back. */
 export function importCsvModal(){
   const w = { step: 1, text: '', fileName: '', headers: [], rows: [], mapping: [], plan: [], dup: {} };
-  modal(`<div class="mh">Import devices from CSV</div>
+  modal(html`<div class="mh">Import devices from CSV</div>
     <div class="mb csvwiz">
-      <ol class="wiz-steps" aria-label="Steps">${['File', 'Columns', 'Check and import'].map((l, i) => `<li data-wstep="${i + 1}">${l}</li>`).join('')}</ol>
+      <ol class="wiz-steps" aria-label="Steps">${['File', 'Columns', 'Check and import'].map((l, i) => html`<li data-wstep="${i + 1}">${l}</li>`)}</ol>
       <div id="csvBody" class="imp"></div>
     </div>
     <div class="mf"><span class="muted" id="csvSum"></span><div class="grow"></div><button id="csvCancel">Cancel</button><button id="csvBack" hidden>Back</button><button id="csvNext" class="primary" disabled>Next</button><button id="csvGo" class="primary" hidden disabled>Import</button></div>`, 'wide');
@@ -54,15 +55,15 @@ export function importCsvModal(){
   };
   /* (1) The file, or rows pasted: the delimiter found and how many rows, before going on. */
   const step1 = () => {
-    $('#csvBody').innerHTML = `<label class="imp-drop" id="csvDrop"><input type="file" id="csvFile" accept=".csv,.txt,text/csv"><span><b id="csvFileName">${esc(w.fileName || 'Choose a CSV file')}</b><span class="imp-or"> or drop it here</span></span>
+    $('#csvBody').innerHTML = html`<label class="imp-drop" id="csvDrop"><input type="file" id="csvFile" accept=".csv,.txt,text/csv"><span><b id="csvFileName">${w.fileName || 'Choose a CSV file'}</b><span class="imp-or"> or drop it here</span></span>
         <span class="muted">The first row holds the column headings; any names will do, the next step maps them. Comma, semicolon or tab; UTF-8 or Windows.</span></label>
       <label class="note" for="csvText">Or paste the rows</label>
-      <textarea id="csvText" rows="6" class="mono" placeholder="Hostname;Device type;Serial number;Room">${esc(w.text)}</textarea>
+      <textarea id="csvText" rows="6" class="mono" placeholder="Hostname;Device type;Serial number;Room">${w.text}</textarea>
       <div id="csvInfo" class="muted" aria-live="polite"></div>`;
     const info = () => {
       read();
       const ok = w.headers.length > 0 && w.rows.length > 0;
-      $('#csvInfo').innerHTML = !w.text.trim() ? '' : `Delimiter: <b id="csvDelim">${DELIMITER_NAME[csvDelimiter(w.text)]}</b> · ${w.headers.length} ${w.headers.length === 1 ? 'column' : 'columns'} · ${w.rows.length} ${w.rows.length === 1 ? 'row' : 'rows'}${ok ? '' : ' · a heading row and at least one row are needed'}`;
+      $('#csvInfo').innerHTML = !w.text.trim() ? '' : html`Delimiter: <b id="csvDelim">${DELIMITER_NAME[csvDelimiter(w.text)]}</b> · ${w.headers.length} ${w.headers.length === 1 ? 'column' : 'columns'} · ${w.rows.length} ${w.rows.length === 1 ? 'row' : 'rows'}${ok ? '' : ' · a heading row and at least one row are needed'}`;
       foot(ok, false);
     };
     const load = async f => {
@@ -82,12 +83,12 @@ export function importCsvModal(){
   /* (2) A field for each column, guessed from its heading (or as mapped last time); "Ignore" leaves it out. */
   const step2 = () => {
     const sample = i => (w.rows.find(r => String(r[i] || '').trim()) || [])[i] || '';
-    const opts = sel => `<option value="">Ignore</option>${Object.entries(DEVICE_FIELDS).map(([k, f]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${f.label}</option>`).join('')}`;
+    const opts = sel => html`<option value="">Ignore</option>${Object.entries(DEVICE_FIELDS).map(([k, f]) => html`<option value="${k}" ${sel === k ? 'selected' : ''}>${f.label}</option>`)}`;
     const has = f => w.mapping.includes(f);
-    $('#csvBody').innerHTML = `<div class="imp-h">Columns <span class="muted">${w.fileName ? esc(w.fileName) + ' · ' : ''}${w.rows.length} ${w.rows.length === 1 ? 'row' : 'rows'}</span></div>
-      <div class="imp-map">${w.headers.map((h, i) => `<label class="imp-col"><span class="imp-head" title="${esc(h)}">${esc(h || `Column ${i + 1}`)}</span>
-        <select data-csvcol="${i}" aria-label="Field for the column ${esc(h || `Column ${i + 1}`)}">${opts(w.mapping[i])}</select><span class="muted imp-sample" title="${esc(sample(i))}">${esc(sample(i)) || '—'}</span></label>`).join('')}</div>
-      <p class="note" id="csvMapNote">${!has('name') ? '<b>Pick the column with the name</b> to go on.' : !has('type') ? 'No column is the type: only rows that are devices here already can be imported.' : 'Each field comes from one column. The mapping is kept in this browser for the next file.'}</p>`;
+    $('#csvBody').innerHTML = html`<div class="imp-h">Columns <span class="muted">${w.fileName ? w.fileName + ' · ' : ''}${w.rows.length} ${w.rows.length === 1 ? 'row' : 'rows'}</span></div>
+      <div class="imp-map">${w.headers.map((h, i) => html`<label class="imp-col"><span class="imp-head" title="${h}">${h || `Column ${i + 1}`}</span>
+        <select data-csvcol="${i}" aria-label="Field for the column ${h || `Column ${i + 1}`}">${opts(w.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '—'}</span></label>`)}</div>
+      <p class="note" id="csvMapNote">${!has('name') ? html`<b>Pick the column with the name</b> to go on.` : !has('type') ? 'No column is the type: only rows that are devices here already can be imported.' : 'Each field comes from one column. The mapping is kept in this browser for the next file.'}</p>`;
     document.querySelectorAll('[data-csvcol]').forEach(s => s.onchange = () => {
       const i = +s.dataset.csvcol, f = s.value;
       /* A field comes from one column: picking it for this one takes it from the other. */
@@ -104,14 +105,14 @@ export function importCsvModal(){
     const dups = w.plan.filter(p => p.action === 'dup');
     const fills = dups.filter(p => w.dup[p.line] === 'update' && p.fill.length).length;
     const label = k => { const l = DEVICE_FIELDS[k].label; return /^[A-Z]{2}/.test(l) ? l : l.toLowerCase(); };
-    const what = p => p.action === 'error' ? '<span class="chip warn">Not imported</span>' : p.action === 'new' ? '<span class="chip ok">New</span>' : '<span class="chip info">Duplicate</span>';
-    const detail = p => p.action === 'error' ? `<span class="imp-why">${esc(p.errs.join('; '))}</span>`
-      : p.action === 'new' ? `<span class="muted">${esc(TYPES[p.v.type].label)}${p.v.loc ? ' · ' + esc(p.v.loc) : ''}</span>`
-      : `Same ${BY_LABEL[p.by]} as <b>${esc(p.match.name)}</b>. <select data-csvdup="${p.line}" aria-label="Line ${p.line}: what to do"><option value="skip">Skip</option><option value="update" ${w.dup[p.line] === 'update' ? 'selected' : ''} ${p.fill.length ? '' : 'disabled'}>Update empty fields only</option></select> <span class="muted">${p.fill.length ? 'empty there: ' + esc(p.fill.map(label).join(', ')) : 'nothing empty there to fill'}</span>`;
-    $('#csvBody').innerHTML = `<div class="csvprev-top"><div class="chip-row imp-counts" id="csvCounts"><span class="chip ok">${n('new')} new</span><span class="chip info">${dups.length} ${dups.length === 1 ? 'duplicate' : 'duplicates'}</span><span class="chip warn">${n('error')} with problems</span></div>
-      ${dups.length > 1 ? `<label class="muted">All duplicates <select id="csvDupAll"><option value="">—</option><option value="skip">Skip</option><option value="update">Update empty fields only</option></select></label>` : ''}</div>
+    const what = p => p.action === 'error' ? html`<span class="chip warn">Not imported</span>` : p.action === 'new' ? html`<span class="chip ok">New</span>` : html`<span class="chip info">Duplicate</span>`;
+    const detail = p => p.action === 'error' ? html`<span class="imp-why">${p.errs.join('; ')}</span>`
+      : p.action === 'new' ? html`<span class="muted">${TYPES[p.v.type].label}${p.v.loc ? ' · ' + p.v.loc : ''}</span>`
+      : html`Same ${BY_LABEL[p.by]} as <b>${p.match.name}</b>. <select data-csvdup="${p.line}" aria-label="Line ${p.line}: what to do"><option value="skip">Skip</option><option value="update" ${w.dup[p.line] === 'update' ? 'selected' : ''} ${p.fill.length ? '' : 'disabled'}>Update empty fields only</option></select> <span class="muted">${p.fill.length ? 'empty there: ' + p.fill.map(label).join(', ') : 'nothing empty there to fill'}</span>`;
+    $('#csvBody').innerHTML = html`<div class="csvprev-top"><div class="chip-row imp-counts" id="csvCounts"><span class="chip ok">${n('new')} new</span><span class="chip info">${dups.length} ${dups.length === 1 ? 'duplicate' : 'duplicates'}</span><span class="chip warn">${n('error')} with problems</span></div>
+      ${dups.length > 1 ? html`<label class="muted">All duplicates <select id="csvDupAll"><option value="">—</option><option value="skip">Skip</option><option value="update">Update empty fields only</option></select></label>` : ''}</div>
       <div class="imp-table csvprev" id="csvPrev"><table class="grid mini"><thead><tr><th>Line</th><th>Name</th><th>What</th><th>Details</th></tr></thead><tbody>
-      ${w.plan.map(p => `<tr class="imp-${p.action}" data-csvline="${p.line}"><td class="mono">${p.line}</td><td title="${esc(p.v.name || '')}">${esc(p.v.name || '—')}</td><td>${what(p)}</td><td>${detail(p)}</td></tr>`).join('')}
+      ${w.plan.map(p => html`<tr class="imp-${p.action}" data-csvline="${p.line}"><td class="mono">${p.line}</td><td title="${p.v.name || ''}">${p.v.name || '—'}</td><td>${what(p)}</td><td>${detail(p)}</td></tr>`)}
       </tbody></table></div>`;
     document.querySelectorAll('[data-csvdup]').forEach(s => s.onchange = () => { w.dup[s.dataset.csvdup] = s.value; step3(); });
     const all = $('#csvDupAll'); if (all) all.onchange = () => { if (!all.value) return; for (const p of dups) w.dup[p.line] = all.value === 'update' && p.fill.length ? 'update' : 'skip'; step3(); };

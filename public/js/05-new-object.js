@@ -4,6 +4,7 @@ import { closeModal, modal } from './19-modal.js';
 import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
+import { html } from './html.js';
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */
 /* A retired device is kept for the record, so it is not offered as something to connect to. */
@@ -66,7 +67,7 @@ export function newObjModal(pre={}){
     show('nUp', !!link); show('nPort', !!(link && link.port));
     if (link){
       document.querySelector('label[for="nUp"]').textContent = link.label;
-      $('#nUp').innerHTML = `<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => `<option value="${esc(o.id)}">${esc(o.name)}${TYPES[o.type] ? ' · ' + esc(TYPES[o.type].short) : ''}</option>`).join('')}`;
+      $('#nUp').innerHTML = html`<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => html`<option value="${o.id}">${o.name}${TYPES[o.type] ? ' · ' + TYPES[o.type].short : ''}</option>`)}`;
       if ([...$('#nUp').options].some(x => x.value === keep)) $('#nUp').value = keep;
     } else $('#nUp').value = '';
   };

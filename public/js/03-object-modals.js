@@ -13,7 +13,7 @@ import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
 import { menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast, used } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
@@ -23,23 +23,24 @@ import { sheetModal } from './08-sheets.js';
 import { editText, fieldNote } from './restore.js';
 import { bindHistory, historyPanel, refreshHistory } from './28-restore.js';
 import { timelinePanel, bindTimeline } from './29-timeline.js';
+import { html, rawHtml } from './html.js';
 /* ---------- object page ---------- */
 export function patchPanel(o){
   const ports = [];
   for (let n = 1; n <= o.ports; n++){
     const label = 'P' + pad2(n);
     const r = rels.find(r => r.to === o.id && r.port === label);
-    ports.push(`<div class="${r ? 'used' : ''}" title="${label}">${label}${r ? `<b>${esc(byId(r.from).name)}</b>` : ''}</div>`);
+    ports.push(html`<div class="${r ? 'used' : ''}" title="${label}">${label}${r ? html`<b>${byId(r.from).name}</b>` : ''}</div>`);
   }
   const trunk = rels.find(r => r.from === o.id && r.kind === 'connected');
-  return `<div class="panelbox"><div class="hdr">Ports <span class="cnt">${used(o)} of ${o.ports} in use${trunk ? ' · trunk to ' + esc(byId(trunk.to).name) + ' port ' + esc(portLabel(byId(trunk.to), trunk.port)) : ''}</span></div>
-    <div class="pp">${ports.join('')}</div></div>`;
+  return html`<div class="panelbox"><div class="hdr">Ports <span class="cnt">${used(o)} of ${o.ports} in use${trunk ? ' · trunk to ' + byId(trunk.to).name + ' port ' + portLabel(byId(trunk.to), trunk.port) : ''}</span></div>
+    <div class="pp">${ports}</div></div>`;
 }
 /* Deletes an object for good, with its relations and history. Retiring is the way to keep the record. */
 /* Retiring keeps the record: the object stays with its relations, ports and rack place, and is no longer offered as a target. */
 /* A person added while giving them a device: their name (and department), as in Settings → Users, without a sign-in. */
 function newPersonModal(o){
-  modal(`<div class="mh">New person for ${esc(o.name)}</div>
+  modal(html`<div class="mh">New person for ${o.name}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="npFirst">First name</label><input id="npFirst" maxlength="60" autocomplete="off">
       <label for="npLast">Last name</label><input id="npLast" maxlength="60" autocomplete="off">
@@ -70,19 +71,19 @@ function retireTies(o){
   const cts = contractsOf(o);
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
   return [
-    (o.uid || o.hotdesk) && ['user', `Take it from ${esc(o.user)}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
-    plugs.length && ['plug', `Unplug it from ${plugs.map(r => `${esc(byId(r.to).name)}${r.port != null ? ' port ' + esc(portLabel(byId(r.to), r.port)) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
-    attached.length && ['attached', `Detach ${attached.map(r => esc(byId(r.from).name)).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
-    plan && ['plan', `Take it off the floor plan ${esc(plan.name)}`, () => { delete o.planPos; }],
-    cts.length && isAdmin() && ['contracts', `Remove it from ${cts.map(c => esc(c.name)).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
-    resp.length && ['resp', `Remove ${resp.map(c => esc(c.name)).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
+    (o.uid || o.hotdesk) && ['user', html`Take it from ${o.user}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
+    plugs.length && ['plug', html`Unplug it from ${plugs.map(r => `${byId(r.to).name}${r.port != null ? ' port ' + portLabel(byId(r.to), r.port) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    attached.length && ['attached', html`Detach ${attached.map(r => byId(r.from).name).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    plan && ['plan', html`Take it off the floor plan ${plan.name}`, () => { delete o.planPos; }],
+    cts.length && isAdmin() && ['contracts', html`Remove it from ${cts.map(c => c.name).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
+    resp.length && ['resp', html`Remove ${resp.map(c => c.name).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
   ].filter(Boolean);
 }
 export function retireModal(o){
   const ties = retireTies(o);
-  modal(`<div class="mh">Retire ${esc(o.name)}?</div>
+  modal(html`<div class="mh">Retire ${o.name}?</div>
     <div class="mb"><p class="note">It stays in the inventory for the record, with its history, and is no longer offered when connecting something. You can bring it back by changing its status.${o.rack ? ' It is taken out of its rack.' : ''}</p>
-      ${ties.length ? `<div class="rt-ties"><div class="rt-h">Also, so nothing looks in use that is not:</div>${ties.map(([k, l]) => `<label class="pchk"><input type="checkbox" data-rt="${k}" checked> ${l}</label>`).join('')}</div>` : ''}
+      ${ties.length ? html`<div class="rt-ties"><div class="rt-h">Also, so nothing looks in use that is not:</div>${ties.map(([k, l]) => html`<label class="pchk"><input type="checkbox" data-rt="${k}" checked> ${l}</label>`)}</div>` : ''}
       <div class="form" style="padding:8px 0 0"><label for="rtWhy">Reason</label><input id="rtWhy" maxlength="200" placeholder="Optional, e.g. broken screen, replaced by ZH-NB-0210"></div></div>
     <div class="mf"><button id="rtCancel">Cancel</button><button id="rtOk" class="danger-text">Retire</button></div>`, 'sm');
   $('#rtCancel').onclick = closeModal;
@@ -95,7 +96,7 @@ export function retireModal(o){
     done.forEach(([, , run]) => run());
     const why = $('#rtWhy').value.trim();
     o.status = 'retired';
-    hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => new DOMParser().parseFromString(l, 'text/html').body.textContent.replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
+    hist(o, now(), 'Retired by ' + who() + (why ? ': ' + why : '') + (done.length ? ' · ' + done.map(([, l]) => new DOMParser().parseFromString(String(l), 'text/html').body.textContent.replace(/, so the port is free| \(.*\)$/g, '')).join('; ') : ''));
     closeModal();
     toastUndo(o.name + ' is retired' + (done.length ? ` (${done.length} link${done.length === 1 ? '' : 's'} cleared)` : ''), () => {
       restoreSnapshot(was, 'Retirement undone by ' + who());
@@ -114,21 +115,21 @@ function twinBanner(o){
   const tw = twinOf(o);
   /* The device itself says so too: its probable second records, to open or resolve from here. */
   const tws = twinsOf(o);
-  if (!tw && tws.length) return `<div class="rv-banner warn"><span>${tws.length === 1 ? `<b>${esc(tws[0].name)}</b> is most likely a second record of this device` : `${tws.length} records are most likely second records of this device: ${tws.map(x => `<b>${esc(x.name)}</b>`).join(', ')}`}${tws.some(x => x.review) ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? `<button type="button" id="twOpen">Open ${esc(tws[0].name)}</button>` : ''}${isAdmin() ? `<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
+  if (!tw && tws.length) return html`<div class="rv-banner warn"><span>${tws.length === 1 ? html`<b>${tws[0].name}</b> is most likely a second record of this device` : html`${tws.length} records are most likely second records of this device: ${tws.map((x, i) => html`${i ? ', ' : ''}<b>${x.name}</b>`)}`}${tws.some(x => x.review) ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? html`<button type="button" id="twOpen">Open ${tws[0].name}</button>` : ''}${isAdmin() ? html`<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
   if (!tw){
     const was = o.notTwin && twinOf(o, { marked: true });
-    return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${isAdmin() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
+    return was ? html`<div class="rv-banner"><span>Marked as not a duplicate of <b>${was.name}</b>.</span>${isAdmin() ? html`<button type="button" id="twAgain">Check again</button>` : ''}</div>` : '';
   }
   const can = isAdmin() && !o.review && mergeTarget(o) === tw;
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${isAdmin() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${esc(tw.name)} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
+  return html`<div class="rv-banner warn"><span>Probably a second record of <b>${tw.name}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${tw.name}</button>${isAdmin() ? html`<button type="button" id="twResolve">Resolve…</button>` : ''}${can ? html`<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${tw.name} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${tw.name}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
   const fromLs = !!o.feed && !o.excluded && o.feed.sys === 'Lansweeper';
-  modal(`<div class="mh">Delete ${esc(o.name)}?</div>
+  modal(html`<div class="mh">Delete ${o.name}?</div>
     <div class="mb"><p class="note">This removes the device, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
-    ${fromLs ? '<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>' : ''}</div>
-    <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? '<button id="pgExcl" class="primary">Retire and exclude</button>' : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
+    ${fromLs ? html`<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>` : ''}</div>
+    <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? html`<button id="pgExcl" class="primary">Retire and exclude</button>` : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
   const ex = $('#pgExcl');
   if (ex) ex.onclick = () => {
@@ -176,7 +177,7 @@ export function unplace(o){
    someone has), for someone who may change it. */
 const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios', 'monitor', 'sip', 'camera'];
 const handBtn = o => !isAdmin() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
-  : o.uid || o.hotdesk ? `<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : '<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>';
+  : o.uid || o.hotdesk ? html`<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : html`<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>`;
 /* The fields a device page always shows, filled or not; the others show when they hold something, or all of them on request. */
 const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 'ip', 'os', 'purpose'];
 const ALL_KEY = 'ni-all-fields';
@@ -199,15 +200,15 @@ function extras(o){
   /* Someone who only reads gets the empty ones named in one line instead. */
   const NONE = { links: 'links', maint: 'maintenance', photos: 'photos', software: 'software', resp: 'responsible', contracts: 'contracts' };
   const names = folded.map(([k]) => NONE[k]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] : names[0];
-  const none = !edit && folded.length ? `<p class="note xnone" id="xNone">No ${list} recorded.</p>` : '';
-  return none + (edit && folded.length ? `<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => `<button type="button" data-xadd="${k}">+ ${l}</button>`).join('')}</div>` : '')
-    + parts.map(([k, , html]) => folded.some(f => f[0] === k) ? hide(k, html) : html).join('');
+  const none = !edit && folded.length ? html`<p class="note xnone" id="xNone">No ${list} recorded.</p>` : '';
+  /* The panels are markup from their modules (strings), folded by a string edit. */
+  return html`${none}${edit && folded.length ? html`<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => html`<button type="button" data-xadd="${k}">+ ${l}</button>`)}</div>` : ''}${parts.map(([k, , panel]) => rawHtml(folded.some(f => f[0] === k) ? hide(k, String(panel)) : panel))}`;
 }
 export function renderObj(o){
   const rs = relsOf(o);
   /* Network links first, then the attached devices, each under its own heading when both are there. */
   const net = rs.filter(x => !isAttached(x.r.kind)), att = rs.filter(x => isAttached(x.r.kind)), byGroup = [...net, ...att];
-  const groupHead = i => (net.length && att.length && i === 0 ? '<div class="relgroup">Network</div>' : '') + (net.length && att.length && i === net.length ? '<div class="relgroup">Attached</div>' : '');
+  const groupHead = i => html`${net.length && att.length && i === 0 ? html`<div class="relgroup">Network</div>` : ''}${net.length && att.length && i === net.length ? html`<div class="relgroup">Attached</div>` : ''}`;
   let fields = typeFieldsOf(o.type);
   /* A type that usually has no ports (a PC, a printer) shows the port fields only for a device that has ports, or after
      More -> Add network ports. Setting the ports back to 0 hides them again. */
@@ -237,45 +238,47 @@ export function renderObj(o){
   const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
   const nEmpty = fields.filter(emptyF).length, allF = allFields();
   if (!allF) fields = fields.filter(f => !emptyF(f));
-  const edit = isAdmin(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
+  const edit = isAdmin(), menuSlot = edit ? html`<span class="fm-slot" aria-hidden="true"></span>` : '';
+  /* propRow gives a string of markup, marked as hidden by a string edit. */
   const row = f => {
-    const h = hiddenBy(f), html = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
-    return h ? html.replace('<label for=', `<label class="fm-hid" title="Hidden on ${h === 'device' ? 'this device' : 'every ' + esc(TYPES[o.type].label)}" for=`) : html;
+    const h = hiddenBy(f), prop = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
+    return rawHtml(h ? prop.replace('<label for=', () => String(html`<label class="fm-hid" title="Hidden on ${h === 'device' ? 'this device' : 'every ' + TYPES[o.type].label}" for=`)) : prop);
   };
   const chain = pathUp(o);
   /* The way up to the network: one row per device, with the relation and its port on the line between two rows. */
-  const netPath = `<ol class="netpath">${chain.map((n, i) => `<li class="ps${i === 0 ? ' me' : ''}">
-      ${i ? `<div class="ps-hop">${esc(KINDS[n.via.kind].fwd)}${n.via.port != null ? ` <b>${esc(portLabel(n.o, n.via.port))}</b>` : ''}</div>` : ''}
-      <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${tico(n.o.type, 'tico sm')}<span>${esc(n.o.name)}</span></button><span class="ps-type">${esc(TYPES[n.o.type].short)}</span>${i === 0 ? '<span class="ps-me">this device</span>' : ''}</div></li>`).join('')}</ol>`;
+  const netPath = html`<ol class="netpath">${chain.map((n, i) => html`<li class="ps${i === 0 ? ' me' : ''}">
+      ${i ? html`<div class="ps-hop">${KINDS[n.via.kind].fwd}${n.via.port != null ? html` <b>${portLabel(n.o, n.via.port)}</b>` : ''}</div>` : ''}
+      <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${rawHtml(tico(n.o.type, 'tico sm'))}<span>${n.o.name}</span></button><span class="ps-type">${TYPES[n.o.type].short}</span>${i === 0 ? html`<span class="ps-me">this device</span>` : ''}</div></li>`)}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
-  $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
-    ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>${handBtn(o)}
-    ${menuHtml('More', `<button id="relMapBtn">Relations map</button>${edit ? '<button id="dupBtn">Duplicate</button>' : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? '<hr class="msep">' + (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${edit ? '<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}`)}<span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
-  $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
+  const more = html`<button id="relMapBtn">Relations map</button>${edit ? html`<button id="dupBtn">Duplicate</button>` : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? html`<button id="addPortsBtn">Add network ports…</button>` : ''}${o.uid && SERVER.on && isAdmin() ? html`<button id="sheetBtn">Entry sheet for ${o.user}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? html`<hr class="msep">${o.excluded ? html`<button id="exclBtn">Include in sync</button>` : html`<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>`}` : ''}${edit ? html`<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>` : ''}`;
+  $('#toolbar').innerHTML = html`${rawHtml(tico(o.type))}<b class="mono" id="objTitle" tabindex="-1">${o.name}</b><span class="code">${o.code}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
+    ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div>${handBtn(o)}
+    ${rawHtml(menuHtml('More', more))}<span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
+  $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row).join('')}
-        ${rackFields(o)}
-        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory <button type="button" class="link colhelp" data-view data-colhelp title="What the colours mean" aria-label="What the colours mean">?</button></label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${edit || o.notes ? `<label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" data-view aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
-        ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" data-view aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
-      ${sourcesPanel(o)}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}
+        ${rawHtml(rackFields(o))}
+        ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? html`<label>Directory <button type="button" class="link colhelp" data-view data-colhelp title="What the colours mean" aria-label="What the colours mean">?</button></label><div class="ctlrow">${rawHtml(joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page'))}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? html`<label>Attachments</label><div class="ctlrow entries">${rawHtml(accessoriesHtml(o))}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${edit || o.notes ? html`<label for="objNotes">Notes</label><div class="ctlrow entries">${rawHtml(notesHtml(o, edit))}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
+        ${nEmpty ? html`<span></span><div><button type="button" class="link fm-reveal" id="fmAll" data-view aria-expanded="${String(allF)}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
+        ${nHidden ? html`<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" data-view aria-expanded="${String(reveal)}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
+      ${rawHtml(sourcesPanel(o))}
     </div>
     <div class="col">
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${extras(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px"><span class="rvlan">${x.r.vlan ? `<span class="chip" title="VLAN ${esc(vlanLabel(x.r.vlan))}">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span>` : `${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
+        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">No relations yet. Add one below.</p>`}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
-          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
+          <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => html`<option value="${v.vid}">${v.vid} · ${v.name}</option>`)}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
-      <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="cnt">none</span>'}</summary>
-        ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This device does not hang off anything.</span></div>'}
+      <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? html` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : html` <span class="cnt">none</span>`}</summary>
+        ${chain.length > 1 ? netPath : html`<div class="chain"><span class="muted">This device does not hang off anything.</span></div>`}
       </details>
-      ${timelinePanel(o)}
-      ${historyPanel(o)}
+      ${rawHtml(timelinePanel(o))}
+      ${rawHtml(historyPanel(o))}
     </div></div>`;
 
   /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
@@ -330,12 +333,12 @@ export function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = '<option value="">Choose a device…</option>' + targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => `<option value="${esc(t.id)}">${esc(t.name)} (${esc(TYPES[t.type].short)})</option>`).join('');
+    $('#arTo').innerHTML = html`<option value="">Choose a device…</option>${targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => html`<option value="${t.id}">${t.name} (${TYPES[t.type].short})</option>`)}`;
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
-  $('#arKind').innerHTML = Object.entries(KINDS).map(([k,v]) => `<option value="${k}" title="${esc(KIND_HINTS[k])}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`).join('');
+  $('#arKind').innerHTML = html`${Object.entries(KINDS).map(([k,v]) => html`<option value="${k}" title="${KIND_HINTS[k]}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`)}`;
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
   $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
@@ -349,9 +352,9 @@ export function renderObj(o){
     const size = g => `${g.to - g.from + 1} ports`;
     /* The choice is kept while the list is rebuilt, for example when the target changes. */
     const picked = $('#arLag').hidden ? '' : $('#arLag').value;
-    $('#arLag').innerHTML = '<option value="">Single port</option>' + lags.map(g => `<option value="${esc(g.name)}">${esc(g.name)} · ${size(g)}</option>`).join('');
+    $('#arLag').innerHTML = html`<option value="">Single port</option>${lags.map(g => html`<option value="${g.name}">${g.name} · ${size(g)}</option>`)}`;
     if (lags.some(g => g.name === picked)) $('#arLag').value = picked;
-    $('#arFromLag').innerHTML = own.map(g => `<option value="${esc(g.name)}">${esc(g.name)} · ${size(g)}</option>`).join('');
+    $('#arFromLag').innerHTML = html`${own.map(g => html`<option value="${g.name}">${g.name} · ${size(g)}</option>`)}`;
     $('#arLag').hidden = !lags.length;
     const usingLag = lags.length > 0 && !!$('#arLag').value;
     $('#arFromLag').hidden = !usingLag; $('#arPort').hidden = usingLag;
@@ -596,8 +599,8 @@ export function renderObj(o){
     if (act === 'clear'){
       const el = objView.querySelector(`[data-k="${CSS.escape(k)}"]`); if (!el) return;
       const fromFeed = (feedLinked(o) && LS_ON()) || (o.graph && o.graph.added) || o.ad ? !!FIELD_LABEL[k] : false;
-      modal(`<div class="mh">Clear ${esc(name)}?</div>
-        <div class="mb"><p class="note">The value of ${esc(name)} on ${esc(o.name)} is removed. The history keeps a note.${fromFeed ? ' No source fills it in again; pick Back to automatic at its source mark to let them.' : ''}</p></div>
+      modal(html`<div class="mh">Clear ${name}?</div>
+        <div class="mb"><p class="note">The value of ${name} on ${o.name} is removed. The history keeps a note.${fromFeed ? ' No source fills it in again; pick Back to automatic at its source mark to let them.' : ''}</p></div>
         <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Clear</button></div>`, 'sm');
       $('#fmCancel').onclick = closeModal;
       $('#fmOk').onclick = () => {
@@ -609,8 +612,8 @@ export function renderObj(o){
     }
     if (act === 'delete'){
       const key = k.slice(7), n = objs.filter(x => x.type === o.type && x.custom && x.custom[key] != null && x.custom[key] !== '').length;
-      modal(`<div class="mh">Delete the field ${esc(name)}?</div>
-        <div class="mb"><p class="note">${esc(name)} is removed from every ${esc(t)}.${n ? ` ${n} ${n === 1 ? 'device has' : 'devices have'} a value; the values are kept, and adding a field of the same name brings them back.` : ''}</p></div>
+      modal(html`<div class="mh">Delete the field ${name}?</div>
+        <div class="mb"><p class="note">${name} is removed from every ${t}.${n ? ` ${n} ${n === 1 ? 'device has' : 'devices have'} a value; the values are kept, and adding a field of the same name brings them back.` : ''}</p></div>
         <div class="mf"><button id="fmCancel">Cancel</button><button id="fmOk" class="danger-text">Delete field</button></div>`, 'sm');
       $('#fmCancel').onclick = closeModal;
       $('#fmOk').onclick = () => {
@@ -689,8 +692,8 @@ export function renderObj(o){
 
 /* The field policy as checkboxes. Same state in Settings and in the feed wizard. */
 /* Two groups: the fields of a device, and what else the feed brings (each with what it does as a tooltip). */
-export const policyGrid = () => `<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => `<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`).join('')}</div>
-  <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => `<label class="pchk" title="${esc(FEED_EXTRA_HINT[k])}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`).join('')}</div>`;
+export const policyGrid = () => String(html`<div class="pgrid">${Object.keys(FIELD_LABEL).map(k => html`<label class="pchk"><input type="checkbox" data-pol="${k}" ${st.policy[k]?'checked':''}> ${FIELD_LABEL[k]}</label>`)}</div>
+  <div class="pgrid pgrid-extra">${Object.keys(FEED_EXTRA).map(k => html`<label class="pchk" title="${FEED_EXTRA_HINT[k]}"><input type="checkbox" data-pol="${k}" ${st.policy[k] !== false ?'checked':''}> ${FEED_EXTRA[k]}</label>`)}</div>`);
 export function bindPolicy(root){
   root.querySelectorAll('[data-pol]').forEach(c => c.onchange = () => {
     const k = c.dataset.pol;

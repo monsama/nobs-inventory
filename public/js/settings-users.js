@@ -6,7 +6,8 @@ import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
 import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
-import { esc, menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
+import { menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
+import { html, rawHtml } from './html.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
@@ -18,11 +19,11 @@ export function sourceChips(u){
   const entraTip = !e ? '' : e.gone ? `Was in Microsoft Entra until ${e.gone}`
     : ['In Microsoft Entra' + (e.upn ? ' as ' + e.upn : ''), e.synced ? 'synced from the on-premises AD' : 'cloud only', e.enabled === false ? 'account disabled' : ''].filter(Boolean).join(', ');
   const entra = !e || (own && !e.gone && e.enabled !== false) ? ''
-    : e.gone ? `<span class="usrc-part muted">${own ? 'gone' : 'Entra gone'}</span>`
-    : e.enabled === false ? `<span class="usrc-part warn">${own ? 'disabled' : 'Entra disabled'}</span>`
-    : '<span class="usrc-part"><span class="sdot entra" aria-hidden="true"></span>Entra</span>';
+    : e.gone ? html`<span class="usrc-part muted">${own ? 'gone' : 'Entra gone'}</span>`
+    : e.enabled === false ? html`<span class="usrc-part warn">${own ? 'disabled' : 'Entra disabled'}</span>`
+    : html`<span class="usrc-part"><span class="sdot entra" aria-hidden="true"></span>Entra</span>`;
   const tip = [from[1], !own || e && (e.gone || e.enabled === false) ? entraTip : ''].filter(Boolean).join(' · ');
-  return `<span class="chip kept usrc" title="${esc(tip)}"><span class="usrc-part"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}</span>`;
+  return String(html`<span class="chip kept usrc" title="${tip}"><span class="usrc-part"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}</span>`);
 }
 const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
 /* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
@@ -38,10 +39,10 @@ function dupesHtml(devicesOfUser){
   DUPES = duplicateGroups(USERS, st.peopleNotSame || []).map(g => ({ ...g, people: g.ids.map(id => USERS.find(u => u.id === id)).filter(Boolean) })).filter(g => g.people.length > 1);
   if (!DUPES.length) return '';
   const who = u => [u.login, u.profile && u.profile.mail, u.entra && u.entra.upn].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
-  return `<details class="udupes" ${st.userDupesOpen === false ? '' : 'open'}><summary><b>Maybe the same person</b> <span class="chip warn">${DUPES.length}</span> <span class="muted">a shared login is merged at each sync; these only look alike</span></summary>
-    ${DUPES.map((g, gi) => { const keep = keepOf(g.people); return `<div class="udupe" data-dupe="${gi}"><div class="udupe-why">${esc(WHY[g.why])}</div>
-      ${g.people.map(u => `<label class="udupe-p"><input type="radio" name="dk${gi}" value="${esc(u.id)}" ${u.id === keep.id ? 'checked' : ''} ${u.source === 'ldap' || g.people.every(x => x.source !== 'ldap') ? '' : 'disabled'}> <span class="usrcs">${sourceChips(u)}</span> <b>${esc(u.name)}</b> <span class="muted">${esc(who(u))}${u.dept ? ' · ' + esc(u.dept) : ''} · ${devicesOfUser(u.name)} device${devicesOfUser(u.name) === 1 ? '' : 's'}${u.active === false ? ' · deactivated' : ''}</span></label>`).join('')}
-      <div class="udupe-acts"><span class="note">Keep the ticked one; the others are merged into it.</span><span class="grow"></span><button type="button" data-dnot="${gi}">Not the same</button><button type="button" class="primary" data-dmerge="${gi}">Merge</button></div></div>`; }).join('')}</details>`;
+  return html`<details class="udupes" ${st.userDupesOpen === false ? '' : 'open'}><summary><b>Maybe the same person</b> <span class="chip warn">${DUPES.length}</span> <span class="muted">a shared login is merged at each sync; these only look alike</span></summary>
+    ${DUPES.map((g, gi) => { const keep = keepOf(g.people); return html`<div class="udupe" data-dupe="${gi}"><div class="udupe-why">${WHY[g.why]}</div>
+      ${g.people.map(u => html`<label class="udupe-p"><input type="radio" name="dk${gi}" value="${u.id}" ${u.id === keep.id ? 'checked' : ''} ${u.source === 'ldap' || g.people.every(x => x.source !== 'ldap') ? '' : 'disabled'}> <span class="usrcs">${rawHtml(sourceChips(u))}</span> <b>${u.name}</b> <span class="muted">${who(u)}${u.dept ? ' · ' + u.dept : ''} · ${devicesOfUser(u.name)} device${devicesOfUser(u.name) === 1 ? '' : 's'}${u.active === false ? ' · deactivated' : ''}</span></label>`)}
+      <div class="udupe-acts"><span class="note">Keep the ticked one; the others are merged into it.</span><span class="grow"></span><button type="button" data-dnot="${gi}">Not the same</button><button type="button" class="primary" data-dmerge="${gi}">Merge</button></div></div>`; })}</details>`;
 }
 function wireDupes(){
   const d = document.querySelector('.udupes'); if (d) d.ontoggle = () => { st.userDupesOpen = d.open; };
@@ -78,10 +79,10 @@ const seesText = u => u.own ? 'Sees: own devices' : Array.isArray(u.sites) && u.
 function seesModal(u){
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
   const cur = u.own ? 'own' : Array.isArray(u.sites) && u.sites.length ? 'sites' : 'all';
-  modal(`<div class="mh">What ${esc(u.name)} sees</div><div class="mb">
+  modal(html`<div class="mh">What ${u.name} sees</div><div class="mb">
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="all" ${cur === 'all' ? 'checked' : ''}> Everything</label>
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="sites" ${cur === 'sites' ? 'checked' : ''} ${sites.length ? '' : 'disabled'}> Only the devices of these sites${sites.length ? '' : ' (add sites in Settings → Locations first)'}</label>
-    <div class="usees-sites">${sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-site="${esc(n)}" ${(u.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('')}</div>
+    <div class="usees-sites">${sites.map(n => html`<label class="pchk" style="width:auto"><input type="checkbox" data-site="${n}" ${(u.sites || []).includes(n) ? 'checked' : ''}> ${n}</label>`)}</div>
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="own" ${cur === 'own' ? 'checked' : ''}> Only their own devices: they can confirm they have them and report a problem</label>
     <p class="note">The server sends them nothing else: no other devices, their history, photos, reports or labels.</p></div>
     <div class="mf"><button id="seCancel">Cancel</button><button id="seOk" class="primary">Save</button></div>`, 'sm');
@@ -103,20 +104,20 @@ const groupRules = () => Array.isArray(st.groupRoles) ? st.groupRoles : [];
 function groupRolesHtml(){
   if (!isAdmin()) return '';
   const rules = groupRules(), by = g => USERS.filter(u => u.roleBy === g).length;
-  return `<div class="panelbox" id="groupRoles"><div class="hdr">Viewers from groups <span class="cnt">${rules.length || 'none'}</span></div>
+  return html`<div class="panelbox" id="groupRoles"><div class="hdr">Viewers from groups <span class="cnt">${rules.length || 'none'}</span></div>
     <p class="note">A person in one of these groups may sign in and look (as a viewer), limited to the sites of the first group that matches; checked at each directory sync and sign-in. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group. Out of every group again: No access.</p>
-    ${rules.length ? `<table class="grid mini stack"><thead><tr><th>Group</th><th>Sites</th><th>Viewers now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => `<tr>
-      <td class="mono">${esc(r.group)}</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : '<span class="muted">All</span>'}</td><td class="n">${by(r.group)}</td>
-      <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the group ${esc(r.group)}">Remove</button></div></td></tr>`).join('')}</tbody></table>` : ''}
+    ${rules.length ? html`<table class="grid mini stack"><thead><tr><th>Group</th><th>Sites</th><th>Viewers now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => html`<tr>
+      <td class="mono">${r.group}</td><td>${(r.sites || []).length ? r.sites.join(', ') : html`<span class="muted">All</span>`}</td><td class="n">${by(r.group)}</td>
+      <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the group ${r.group}">Remove</button></div></td></tr>`)}</tbody></table>` : ''}
     <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a group…</button></div></div>`;
 }
 function groupRuleModal(i){
   const rules = groupRules(), r = i === null ? { group: '', sites: [] } : rules[i];
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
-  modal(`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
-      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${esc(r.group)}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
-      <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => `<option value="${esc(g)}">`).join('')}</datalist>
-      <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${esc(n)}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('') : '<span class="muted">No sites yet: the rule gives all sites.</span>'}</div>
+  modal(html`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
+      <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${r.group}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
+      <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => html`<option value="${g}">`)}</datalist>
+      <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => html`<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${n}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${n}</label>`) : html`<span class="muted">No sites yet: the rule gives all sites.</span>`}</div>
     </div><p class="note" id="grSitesNote">No site ticked: all sites. It takes effect at the next directory sync or sign-in of each person.</p></div>
     <div class="mf"><button id="grCancel">Cancel</button><button id="grOk" class="primary">Save</button></div>`, 'sm');
   $('#grCancel').onclick = closeModal;
@@ -159,7 +160,7 @@ export function renderSetUsers(){
   /* Title, office, manager, phones and e-mail from the directory or Entra: the title and office under the name, all of it on hover. */
   const PROFILE = [['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['phone', 'Phone'], ['mobile', 'Mobile'], ['mail', 'E-mail']];
   const profileTip = u => u.profile ? PROFILE.filter(([k]) => u.profile[k]).map(([k, l]) => `\n${l}: ${u.profile[k]}`).join('') : '';
-  const profileLine = u => u.profile && (u.profile.title || u.profile.office) ? `<div class="usub">${esc([u.profile.title, u.profile.office].filter(Boolean).join(' · '))}</div>` : '';
+  const profileLine = u => u.profile && (u.profile.title || u.profile.office) ? html`<div class="usub">${[u.profile.title, u.profile.office].filter(Boolean).join(' · ')}</div>` : '';
   /* Search and filters: by name, login, department, e-mail or UPN (and the other names a merge kept); by source,
      status, role, and whether they have devices. */
   const q = String(st.userQ || '').trim().toLowerCase();
@@ -175,30 +176,30 @@ export function renderSetUsers(){
     && (!st.userDevs || devicesOfUser(u.name) > 0)
     && (!q || [u.name, u.login, u.dept, u.profile && u.profile.mail, u.entra && u.entra.upn, ...(u.aliases || [])].some(v => v && String(v).toLowerCase().includes(q)));
   const nShown = USERS.filter(shown).length, filtering = !!(q || st.userDir || st.userSrc || st.userStatus || st.userRole || st.userDevs);
-  const sel = (id, label, cur, opts) => `<select id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  const kindTabs = USERS.some(noAccess) ? `<div class="settabs setsub ukinds" role="group" aria-label="Show">${Object.entries(KINDS).map(([k, [l, f]]) => `<button type="button" class="tab${st.userKind === k ? ' active' : ''}" data-ukind="${k}" aria-pressed="${st.userKind === k}">${l} <span class="cnt">${USERS.filter(f).length}</span></button>`).join('')}</div>` : '';
-  const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
+  const sel = (id, label, cur, opts) => html`<select id="${id}" aria-label="${label}">${opts.map(([v, l]) => html`<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`)}</select>`;
+  const kindTabs = USERS.some(noAccess) ? html`<div class="settabs setsub ukinds" role="group" aria-label="Show">${Object.entries(KINDS).map(([k, [l, f]]) => html`<button type="button" class="tab${st.userKind === k ? ' active' : ''}" data-ukind="${k}" aria-pressed="${String(st.userKind === k)}">${l} <span class="cnt">${USERS.filter(f).length}</span></button>`)}</div>` : '';
+  const filterBar = html`<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${st.userQ || ''}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
     ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
-    <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? '<button type="button" class="link" id="uClear">Clear</button>' : ''}</div>`;
-  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => `<tr>
-      ${fromDirectory(u) ? `<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${esc(profileTip(u))}">${esc(u.name)}${profileLine(u)}</td>` : `<td><input data-uname="${i}" maxlength="80" value="${esc(u.name)}" aria-label="Name of ${esc(u.name)}"></td>`}<td class="mono">${esc(u.login || '—')}</td>
-      ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
-      <td><span class="usrcs">${sourceChips(u)}</span></td>
+    <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}</div>`;
+  const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => html`<tr>
+      ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}<td class="mono">${u.login || '—'}</td>
+      ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
+      <td><span class="usrcs">${rawHtml(sourceChips(u))}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
-      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? `<span class="chip kept ugrp" title="Given by the group ${esc(u.roleBy)} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</div></td>
+      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${u.name}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? html`<span class="chip kept ugrp" title="Given by the group ${u.roleBy} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? html`<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${seesText(u)}</button>` : ''}</div></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
-      <td class="umenu-c">${menuHtml('⋯', `
-        ${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Set password…</button>` : `<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
-        ${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? `<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${esc(u.name)} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}
-        <button class="danger-text" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'}>Remove</button>`, { cls: 'umenu', btn: `aria-label="More for ${esc(u.name)}" title="Password, entry sheet, remove"` })}</td></tr>`).join('');
-  $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
+      <td class="umenu-c">${rawHtml(menuHtml('⋯', html`
+        ${SERVER.on && u.source !== 'ldap' ? (u.login ? html`<button data-pw="${i}" title="Set this user's password">Set password…</button>` : html`<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
+        ${SERVER.on ? html`<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? html`<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${u.name} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}
+        <button class="danger-text" data-del="${i}" ${u.source === 'ldap' ? html`disabled title="Managed by LDAP"` : devicesOfUser(u.name) ? html`disabled title="Has devices. Move them first."` : html`title="Remove"`}>Remove</button>`, { cls: 'umenu', btn: String(html`aria-label="More for ${u.name}" title="Password, entry sheet, remove"`) }))}</td></tr>`);
+  $('#setUsers').innerHTML = html`<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
     <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Viewer can look (everything, some sites or only their own devices), No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
-    ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
+    ${dirOn || foundViewers().length ? html`<div class="addrel">${dirOn ? html`<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => html`<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`)}</select>` : ''}<span class="grow"></span>${foundViewers().length ? html`<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
-    ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
+    ${rows.length ? '' : html`<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>`}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
@@ -247,7 +248,7 @@ export function renderSetUsers(){
   if (na) na.onclick = () => {
     const list = foundViewers(), n = list.length, people = n === 1 ? '1 imported viewer' : `${n} imported viewers`;
     /* Asked in the app's own dialog, which says who is affected and who is not, and can be undone right after. */
-    modal(`<div class="mh">Remove access for ${people}?</div>
+    modal(html`<div class="mh">Remove access for ${people}?</div>
       <div class="mb"><p class="note">People imported from LDAP, Microsoft Entra or Lansweeper who have the role <b>Viewer</b> get <b>No access</b>: they can no longer sign in. Their devices and details stay.</p>
       <p class="note">Admins, people added here and your own account keep their access. You can give anyone Viewer again at any time.</p></div>
       <div class="mf"><button id="naCancel">Cancel</button><button id="naOk" class="danger-text">Remove access</button></div>`, 'sm');
@@ -294,14 +295,14 @@ export function renderSetUsers(){
 export function renderSetCompany(){
   const el = $('#setCompany'); if (!el) return;
   const edit = isAdmin();
-  el.innerHTML = `<div class="panelbox"><div class="hdr">Company</div>
+  el.innerHTML = html`<div class="panelbox"><div class="hdr">Company</div>
     <p class="note">The name and logo on entry sheets, printed and as PDF (without them the sheets show NOBS Inventory), and the currency of every price and cost.</p>
     <div class="form" style="padding:10px 12px;grid-template-columns:170px minmax(0,1fr)">
-      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${esc(COMPANY.name)}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
-      <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="Company logo">` : '<span class="muted">No logo</span>'}</span>
-        <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? `<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
+      <label for="coName">Company name</label><input id="coName" maxlength="80" value="${COMPANY.name}" placeholder="e.g. Example AG" ${edit ? '' : 'disabled'}>
+      <label>Logo</label><div class="ctlrow" style="align-items:center"><span class="company-logo">${COMPANY.logo ? html`<img src="${COMPANY.logo}" alt="Company logo">` : html`<span class="muted">No logo</span>`}</span>
+        <span class="unit" style="display:flex;gap:6px;align-items:center"><button id="coPick" ${edit ? '' : 'disabled'}>${COMPANY.logo ? 'Replace logo…' : 'Choose logo…'}</button>${COMPANY.logo ? html`<button id="coDel" class="icon ghost" title="Remove the logo" aria-label="Remove the logo" ${edit ? '' : 'disabled'}>×</button>` : ''}</span>
         <input id="coFile" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" hidden></div>
-      <label for="ctCur">Currency</label><div class="ctlrow"><input id="ctCur" maxlength="5" value="${esc(COSTS.currency || 'CHF')}" style="flex:none;width:90px" placeholder="CHF" ${edit ? '' : 'disabled'}><span class="muted">a short code such as CHF or EUR</span></div>
+      <label for="ctCur">Currency</label><div class="ctlrow"><input id="ctCur" maxlength="5" value="${COSTS.currency || 'CHF'}" style="flex:none;width:90px" placeholder="CHF" ${edit ? '' : 'disabled'}><span class="muted">a short code such as CHF or EUR</span></div>
     </div><p class="note" id="coMsg" role="status" style="padding:0 12px 10px"></p></div>`;
   $('#coName').onchange = e => { COMPANY.name = e.target.value.trim(); queueServerSave(); toast('Company name saved'); };
   $('#ctCur').onchange = e => { const v = e.target.value.trim().toUpperCase(); if (!/^[A-Z€$£¥]{1,5}$/.test(v)){ toast('The currency is a short code such as CHF or EUR.'); e.target.value = COSTS.currency; return; } COSTS.currency = v; queueServerSave(); render(); toast('Currency saved'); };
@@ -326,11 +327,11 @@ export function renderSetCompany(){
 }
 /* A manual user without a login: the login and the first password are set together, so the user can sign in at once. */
 export function userLoginModal(u){
-  modal(`<div class="mh">Login name for ${esc(u.name)}</div>
+  modal(html`<div class="mh">Login name for ${u.name}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="lgNew">Login name</label><input id="lgNew" class="mono" autocomplete="off">
       <label for="lgNewPw">Password</label><input id="lgNewPw" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
-    </div><p class="note" id="lgNewErr">The login and password let ${esc(u.name)} sign in.</p></div>
+    </div><p class="note" id="lgNewErr">The login and password let ${u.name} sign in.</p></div>
     <div class="mf"><button id="lgNewCancel">Cancel</button><button id="lgNewOk" class="primary">Save</button></div>`, 'sm');
   $('#lgNew').focus();
   $('#lgNewCancel').onclick = closeModal;
@@ -360,7 +361,7 @@ export function showDevicesOf(nameOrId){
   render();
 }
 export function passwordModal(u){
-  modal(`<div class="mh">Password for ${esc(u.name)}</div>
+  modal(html`<div class="mh">Password for ${u.name}</div>
     <div class="mb"><div class="form" style="padding:0"><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password" aria-describedby="pwHint"></div>
     <p class="note" id="pwHint">At least ${PW_MIN} characters, not a common password. The server stores only a salted hash.</p></div>
     <div class="mf"><button id="pwCancel">Cancel</button><button id="pwOk" class="primary">Set password</button></div>`, 'sm');

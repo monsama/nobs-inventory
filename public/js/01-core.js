@@ -1,4 +1,5 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { html } from './html.js';
 import { isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
@@ -642,7 +643,7 @@ export const UNDO = { epoch: 0 };
 /* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
 export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   const t = $('#toast'), epoch = UNDO.epoch; keepToastOnTop();
-  t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
+  t.innerHTML = html`<span>${msg}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
     t.classList.add('off'); clearTimeout(toast.h);

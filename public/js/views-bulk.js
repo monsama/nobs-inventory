@@ -2,11 +2,12 @@
 import { handOutModal } from './27-handout.js';
 import { setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
-import { scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, esc, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
+import { scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
 import { render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { confirmModal } from './19-modal.js';
 import { takeBackModal } from './27-handout.js';
+import { html, rawHtml } from './html.js';
 import { dupOf, resolveModal, reviewDo, reviewStale } from './15-review.js';
 import { openObj } from './02-views.js';
 import { renderCards } from './views-cards.js';
@@ -115,11 +116,11 @@ document.addEventListener('keydown', e => {
 });
 /* The Table's bar for the selected rows: in To review its actions; else one menu that opens, hands out, moves, or sets
    the status, the responsible or any field of them all. */
-export const tableBulkBar = (list, n) => `${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? '<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>' : ''}
-${isAdmin() ? `<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
-<optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
-${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
+export const tableBulkBar = (list, n) => String(html`${n && st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(scopeActs(list))}${rawHtml(mergeBtn())}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>${rawHtml(mergeBtn())}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? html`<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>` : ''}
+${isAdmin() ? html`<optgroup label="Move to location">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>
+<optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => html`<option value="status:${k}">${v.label}</option>`)}<option value="status:__back">Take back into stock (no user)</option></optgroup>
+${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => html`<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => html`<option value="resp:${k}:${c.id}">${contactLabel(c)}</option>`)}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`) : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`);
 export function bindTableBulk(n){
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bulkLoc = to => {

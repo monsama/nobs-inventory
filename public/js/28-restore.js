@@ -2,11 +2,12 @@
    its value before the change, saved as any edit and noted in the history, with Undo. A field changed again since is
    asked about first. Relations, merges, retiring, the user and the fields a sync writes have no Restore. */
 import { confirmModal } from './19-modal.js';
-import { FIELD_LABEL, HISTORY, STATUS, $, esc, feedOwns, fieldFixed, hist, now, setByHand, toastUndo } from './01-core.js';
+import { FIELD_LABEL, HISTORY, STATUS, $, feedOwns, fieldFixed, hist, now, setByHand, toastUndo } from './01-core.js';
 import { isAdmin, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
 import { bindTimeline, timelinePanel } from './29-timeline.js';
 import { applyPatch, fieldNote, fieldPatch, fieldRestore, fieldValue } from './restore.js';
+import { html } from './html.js';
 
 /* A sync writes the field now: a source picked for it, or the automatic order with no value kept by hand. Setting it back
    here would last only until the next sync, so it has no Restore; the source mark is where a field is fixed. */
@@ -21,8 +22,8 @@ const labelOf = h => (/^(.+?) (?:changed from|set to|cleared|restored from|back 
 const canRestore = (o, h) => isAdmin() && fieldRestore(h, o, k => syncOwned(o, k));
 export function historyPanel(o){
   const list = HISTORY[o.id] || [];
-  const btn = (h, i) => canRestore(o, h) ? `<button type="button" class="link hist-restore" data-hrestore="${i}" title="Set ${esc(labelOf(h))} back to ${esc(shown(h.f, h.from))}">Restore</button>` : '';
-  return `<details class="panelbox fold" id="histPanel" ${list.length ? 'open' : ''}><summary class="hdr">History${list.length ? '' : ' <span class="cnt">none</span>'}</summary>${list.length ? `<ul class="hist">${list.map((h, i) => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span>${btn(h, i)}</li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>`;
+  const btn = (h, i) => canRestore(o, h) ? html`<button type="button" class="link hist-restore" data-hrestore="${i}" title="Set ${labelOf(h)} back to ${shown(h.f, h.from)}">Restore</button>` : '';
+  return String(html`<details class="panelbox fold" id="histPanel" ${list.length ? 'open' : ''}><summary class="hdr">History${list.length ? '' : html` <span class="cnt">none</span>`}</summary>${list.length ? html`<ul class="hist">${list.map((h, i) => html`<li><time>${h.t}</time><span>${h.msg}</span>${btn(h, i)}</li>`)}</ul>` : html`<div class="chain"><span class="muted">No changes recorded yet.</span></div>`}</details>`);
 }
 /* Sets field k of o to v as an edit by hand would, with its line in the history. */
 function setField(o, k, v, msg){
@@ -41,7 +42,7 @@ export function restoreField(o, h){
     toastUndo(`${label} restored to ${shown(r.k, r.value)}`, () => setField(o, r.k, from, `${label} back to ${shown(r.k, from)} (restore undone)`));
   };
   if (!r.changedSince) return go();
-  confirmModal(`Restore ${label}?`, `${esc(label)} was changed again after ${esc(h.t)}.<br>Now: <b>${esc(shown(r.k, r.current))}</b><br>Restore: <b>${esc(shown(r.k, r.value))}</b>`, 'Restore', go, { primary: true });
+  confirmModal(`Restore ${label}?`, html`${label} was changed again after ${h.t}.<br>Now: <b>${shown(r.k, r.current)}</b><br>Restore: <b>${shown(r.k, r.value)}</b>`, 'Restore', go, { primary: true });
 }
 export function bindHistory(o){
   $('#view').querySelectorAll('[data-hrestore]').forEach(b => b.onclick = () => restoreField(o, (HISTORY[o.id] || [])[+b.dataset.hrestore]));

@@ -1,9 +1,10 @@
 /* A switch's ports: setup, front panel, groups and the port map (split out of 02-views.js, which re-exports it). */
-import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, esc, isUplink, objs, pfxOf, rels, st, tico, toast, used } from './01-core.js';
+import { portRangeError, seenChip, lagLinkOf, hasPorts, vlanLabel, $, STATUS, TYPES, byId, isUplink, objs, pfxOf, rels, st, tico, toast, used } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { isAdmin } from './04-settings.js';
 import { openObj } from './02-views.js';
+import { html, rawHtml } from './html.js';
 /* ---------- switch ports ---------- */
 /* Why a port setup cannot be saved, or null. Ports in use and port groups must stay inside the new count. */
 export function portSetupError(sw, ports, sfp){
@@ -19,7 +20,7 @@ export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
   if (!devs.length){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${isAdmin() ? ' <button class="primary" id="portsNew">New switch</button>' : ''}</div>`;
+    $('#view').innerHTML = html`<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${isAdmin() ? html` <button class="primary" id="portsNew">New switch</button>` : ''}</div>`;
     const b = $('#portsNew'); if (b) b.onclick = () => newObjModal({type: 'switch'});
     return;
   }
@@ -29,8 +30,8 @@ export function renderPorts(){
   const first = ['switch', 'patch', 'router', 'firewall'].map(t => devs.find(o => o.type === t)).find(Boolean);
   const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
   try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
-  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
+  $('#toolbar').innerHTML = html`<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => html`<option value="${s.id}">${s.name}${s.loc ? ' · ' + s.loc.split(' / ')[0] : ''}</option>`)}</select>
+    <span class="muted hide-n">${sw.model} · ${sw.ip}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
   /* A port picked on another device, or one no longer there after the count was lowered, is not this device's: no port
      is open, so nothing can be plugged in before the port exists. */
@@ -55,8 +56,8 @@ export function renderPorts(){
     /* A device with a single port has nothing to choose: its port is shown, but not selectable. */
     const single = (sw.ports || 0) + (sw.sfp || 0) === 1;
     const gi = (sw.portGroups || []).findIndex(g => p >= g.from && p <= g.to);
-    const grp = gi >= 0 ? ` grp${(sw.portGroups[gi].lag) ? ' lag' : ''}" style="--g:${groupColour(gi)}` : '';
-    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${grp}" data-port="${p}" ${single?'disabled':''} title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
+    const grp = gi >= 0 ? html` grp${(sw.portGroups[gi].lag) ? ' lag' : ''}" style="--g:${groupColour(gi)}` : '';
+    return html`<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${grp}" data-port="${p}" ${single?'disabled':''} title="${tip}" aria-label="${tip}">${p}</button>`;
   };
   const groups0 = sw.portGroups || [];
   /* A group being edited fills the form at the bottom; Save group writes it back in its place. */
@@ -88,33 +89,34 @@ export function renderPorts(){
     const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
       ['Description', d.purpose], ['Location', d.loc], ['Link', isUplink(x.r.kind) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')],
       ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
-    return `<dl class="kv portinfo">${rows.map(([k, v]) => `<dt>${k}</dt><dd${/IP|MAC/.test(k) ? ' class="mono"' : ''}>${esc(v)}</dd>`).join('')}${seenChip(d) ? `<dt>Last seen</dt><dd>${seenChip(d)}</dd>` : ''}</dl>`;
+    return html`<dl class="kv portinfo">${rows.map(([k, v]) => html`<dt>${k}</dt><dd${/IP|MAC/.test(k) ? html` class="mono"` : ''}>${v}</dd>`)}${seenChip(d) ? html`<dt>Last seen</dt><dd>${rawHtml(seenChip(d))}</dd>` : ''}</dl>`;
   };
-  const portsBody = () => `<div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
-      <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
-        <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
-      ${groups0.length ? `<div class="pgrouplegend">${groups0.map((g, i) => `<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${esc(g.name)} <span class="muted">${esc(pfxOf(sw) + g.from)}${g.to !== g.from ? '–' + esc(pfxOf(sw) + g.to) : ''}</span>${g.lag ? '<b>LAG</b>' : ''}</span>`).join('')}</div>` : ''}
-      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
+  const edge = html`<span class="edge">behind</span>`;
+  const portsBody = () => html`<div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
+      <div class="face"><div class="chassis"><span class="model">${sw.name}</span>
+        <div class="pgroups">${groups.map(g => html`<div class="pgroup">${g.map(portBtn)}</div>`)}<div class="pgroup sfp">${sfps.map(portBtn)}</div></div></div></div>
+      ${groups0.length ? html`<div class="pgrouplegend">${groups0.map((g, i) => html`<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${g.name} <span class="muted">${pfxOf(sw) + g.from}${g.to !== g.from ? '–' + pfxOf(sw) + g.to : ''}</span>${g.lag ? html`<b>LAG</b>` : ''}</span>`)}</div>` : ''}
+      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? html`<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
     </div>
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel" data-edit><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="${esc(portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor')}" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>${portInfo(x)}`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>`}</div>`}</div>` : ''}
+    ${st.portNo != null ? html`<div class="panelbox"><div class="hdr">Description of port ${pfxOf(sw) + st.portNo}</div><div class="addrel" data-edit><input id="pnDesc" maxlength="120" value="${(sw.portNotes || {})[st.portNo] || ''}" placeholder="${portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor'}" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
+    ${st.portNo != null ? html`<div class="panelbox"><div class="hdr">Port ${pfxOf(sw) + st.portNo}</div>${portDetail.length ? portDetail.map(x => html`<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map((n, i) => html`${i ? edge : ''}<button class="node" data-open="${n.o.id}">${rawHtml(tico(n.o.type,'tico sm'))}${n.o.name}</button>`)}</div>${portInfo(x)}`) : html`<div class="path">${selLag ? html`<span class="muted">Part of the LAG ${selLag.g.name}, linked to</span> <button class="node" data-open="${selLag.d.id}">${rawHtml(tico(selLag.d.type,'tico sm'))}${selLag.d.name}</button>` : selGroup && selGroup.lag ? html`<span class="muted">Part of the LAG ${selGroup.name}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : html`<span class="muted">Port is free.</span><button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>`}</div>`}</div>` : ''}
     <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
-      <div class="addrel" data-edit>${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
+      <div class="relist">${groups0.length ? groups0.map((g, i) => html`<div class="relrow"><span class="k">${g.name}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${pfxOf(sw) + g.from}${g.from === g.to ? '' : '–' + pfxOf(sw) + g.to}${g.kind ? ` · ${g.kind}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${g.name}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${g.name}">×</button></div>`) : html`<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>`}</div>
+      <div class="addrel" data-edit>${pgEditing ? html`<span class="muted">Edit ${pgEditing.name}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${pgEditing ? pgEditing.name : ''}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${pgEditing ? pgEditing.kind || '' : ''}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? html`<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>` : html`<button id="pgAdd">Add group</button>`}</div></div>
     <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
-        <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
+      ${rows.map(x => html`<tr><td class="n">${typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p}</td><td class="n"><a class="link" data-open="${x.d.id}">${x.d.name}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : TYPES[x.d.type].short}</td><td>${x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')}</td>
+        <td>${x.sub.map((s, i) => html`${i ? ', ' : ''}<a class="link mono" data-open="${s.d.id}">${s.d.name}</a>`)}</td></tr>`)}
     </tbody></table></div></div></div>`;
-  $('#view').innerHTML = `<div id="net">
+  $('#view').innerHTML = html`<div id="net">
     <div class="panelbox"><div class="hdr">Port setup</div>
       <div class="form" style="padding:10px 12px" data-edit>
         <label for="psPorts">Copper ports</label><input id="psPorts" type="number" min="0" max="1000" value="${sw.ports || 0}" style="width:180px">
         <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:180px">
-        <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${esc(sw.pfx || '')}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
+        <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${sw.pfx || ''}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
       </div>
-      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span></div>
+      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${(sw.pfx || '') + '12'}.</span></div>
     </div>
-    ${!sw.ports && !sw.sfp ? `<p class="note ports-none">${esc(sw.name)} has no ports yet. Enter the number of copper or SFP ports above.</p></div>` : portsBody()}`;
+    ${!sw.ports && !sw.sfp ? html`<p class="note ports-none">${sw.name} has no ports yet. Enter the number of copper or SFP ports above.</p></div>` : portsBody()}`;
 
   $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; view(); });
   const total = (sw.ports || 0) + (sw.sfp || 0);

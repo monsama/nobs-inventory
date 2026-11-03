@@ -1,9 +1,10 @@
 /* Dialogs: one at a time over the page (a native modal <dialog>), minimized to a chip in a tray; a dialog opened from
    Settings brings Settings back when it closes. */
-import { $, esc, fullTextTooltips, keepToastOnTop, toast } from './01-core.js';
+import { $, fullTextTooltips, keepToastOnTop, toast } from './01-core.js';
 import { applyRole } from './04-settings.js';
 import { checkForChanges, render } from './07-render.js';
 import { bindPolicy } from './03-object-modals.js';
+import { html, rawHtml } from './html.js';
 
 /* ---------- modals ---------- */
 /* A dialog opened from Settings (a password, a restore, a reset…) takes Settings' place; when it is closed, by OK or
@@ -12,7 +13,9 @@ let settingsOpener = null, backToSettings = false;
 export const setSettingsOpener = fn => { settingsOpener = fn; };
 /* A dialog whose result is to be seen in the inventory (Clear inventory) leaves Settings closed. */
 export const leaveSettings = () => { backToSettings = false; };
-export function modal(html, cls=''){
+/* body: html`` or a string of markup made by the app. */
+export function modal(body, cls=''){
+  const markup = String(body);
   /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
   const gone = $('#mdl.minimized'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
   if (/\bsettings\b/.test(cls)) backToSettings = false;
@@ -20,9 +23,9 @@ export function modal(html, cls=''){
   /* The control that opened the first dialog gets the focus back; one replaced while minimized does not keep it. */
   if (!$('#mdl') || gone) modalOpener = gone ? null : document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
-  const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
+  const title = ((markup.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
   keepToastOnTop(true);
-  $('#modalHost').innerHTML = `<dialog class="modal" id="mdl" aria-label="${esc(title)}"><div class="box ${cls}">${html}</div></dialog>`;
+  $('#modalHost').innerHTML = html`<dialog class="modal" id="mdl" aria-label="${title}"><div class="box ${cls}">${rawHtml(markup)}</div></dialog>`;
   const d = $('#mdl'), locked = /locked/.test(cls);
   /* The browser's top layer keeps Tab inside and the page behind inert. Escape asks to close (cancel), which goes
      through closeModal like the × does; one that must be answered stays. An Escape that closed something inside the
@@ -40,22 +43,21 @@ export function modal(html, cls=''){
   applyRole();
 }
 /* Asks before something is deleted, in the app's own small dialog: what goes, what it means, Cancel or the red button.
-   text is HTML: the caller escapes the names in it. */
+   text is HTML: html`` (or markup the caller escaped). */
 export function confirmModal(title, text, okLabel, onOk, { primary = false } = {}){
-  modal(`<div class="mh">${esc(title)}</div><div class="mb"><p class="note">${text}</p></div>
-    <div class="mf"><button id="cfCancel">Cancel</button><button id="cfOk" class="${primary ? 'primary' : 'danger-text'}">${esc(okLabel)}</button></div>`, 'sm');
+  modal(html`<div class="mh">${title}</div><div class="mb"><p class="note">${rawHtml(text)}</p></div>
+    <div class="mf"><button id="cfCancel">Cancel</button><button id="cfOk" class="${primary ? 'primary' : 'danger-text'}">${okLabel}</button></div>`, 'sm');
   $('#cfCancel').onclick = closeModal;
   $('#cfOk').onclick = () => { closeModal(); onOk(); };
 }
 /* Minimize, maximize and close in a dialog's top right corner, as in NOBS SQL Editor. A minimized dialog keeps what was
    typed in it and waits as a chip at the bottom right; opening another dialog takes its place. A sign-in dialog has none. */
-const WSVG = p => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+/* p: the icon's shapes, written here. */
+const WSVG = p => html`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${rawHtml(p)}</svg>`;
 function addWindowControls(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
   const strip = document.createElement('span'); strip.className = 'wctl';
-  strip.innerHTML = `<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button>`
-    + `<button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button>`
-    + `<button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
+  strip.innerHTML = html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
   if (head) head.appendChild(strip); else box.insertBefore(strip, box.firstChild);
   strip.querySelector('.wc-min').onclick = minimizeModal;
   strip.querySelector('.wc-max').onclick = () => {
@@ -119,7 +121,7 @@ function renderTray(){
   if (!m){ if (tray) tray.remove(); return; }
   if (!tray){ tray = document.createElement('div'); tray.id = 'mdlTray'; document.body.appendChild(tray); }
   const title = m.getAttribute('aria-label') || 'Dialog';
-  tray.innerHTML = `<span class="tray-chip"><button type="button" class="tray-open" title="${esc(title)}: restore">${esc(title)}</button><button type="button" class="tray-x" title="Close" aria-label="Close ${esc(title)}">×</button></span>`;
+  tray.innerHTML = html`<span class="tray-chip"><button type="button" class="tray-open" title="${title}: restore">${title}</button><button type="button" class="tray-x" title="Close" aria-label="Close ${title}">×</button></span>`;
   tray.querySelector('.tray-open').onclick = restoreModal;
   tray.querySelector('.tray-x').onclick = closeModal;
 }

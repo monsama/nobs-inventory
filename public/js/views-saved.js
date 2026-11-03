@@ -48,7 +48,7 @@ export function restoreView(v){
 }
 /* The name dialog of Save view and Rename. */
 function nameModal(title, name, note, ok){
-  modal(`<div class="mh">${esc(title)}</div><div class="mb"><div class="form"><label for="svName">Name</label><input id="svName" maxlength="80" value="${esc(name)}" autocomplete="off"></div>${note ? `<p class="note">${note}</p>` : ''}</div>
+  modal(html`<div class="mh">${title}</div><div class="mb"><div class="form"><label for="svName">Name</label><input id="svName" maxlength="80" value="${name}" autocomplete="off"></div>${note ? html`<p class="note">${note}</p>` : ''}</div>
     <div class="mf"><button id="svCancel">Cancel</button><button id="svOk" class="primary">Save</button></div>`, 'sm');
   const go = () => { const n = $('#svName').value.trim(); if (!n){ toast('Give the view a name.'); $('#svName').focus(); return; } if (ok(n) !== false) closeModal(); };
   $('#svCancel').onclick = closeModal; $('#svOk').onclick = go;
@@ -160,7 +160,7 @@ if (side) side.addEventListener('click', e => {
     const v = views().find(x => x.id === ren.dataset.svren); if (v) editViewModal(v);
   } else if (del && isAdmin()){
     const v = views().find(x => x.id === del.dataset.svdel); if (!v) return;
-    confirmModal('Delete view', `Delete the view “${esc(v.name)}” for every user? The devices are not touched.`, 'Delete', () => {
+    confirmModal('Delete view', html`Delete the view “${v.name}” for every user? The devices are not touched.`, 'Delete', () => {
       st.savedViews = removeView(views(), v.id); queueServerSave(); render(); toast(`View “${v.name}” deleted`);
     });
   } else if (open){

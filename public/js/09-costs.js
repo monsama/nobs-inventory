@@ -11,6 +11,7 @@ import { closeModal, confirmModal, modal } from './19-modal.js';
 COMBO_SOURCES.supplier = () => [...new Set([...contactCompanies(), ...COSTS.contracts.map(c => c.supplier).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
+import { html, rawHtml } from './html.js';
 
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 /* An amount in the inventory's currency: whole numbers without decimals, others with two. */
@@ -32,15 +33,15 @@ const int = (v, max) => { const n = parseInt(v, 10); return isFinite(n) ? Math.m
 /* Where a contract stands, as a chip: what is due and when. */
 export function contractChip(c){
   const s = contractStatus(c);
-  if (s.state === 'open') return '<span class="chip kept">No end date</span>';
-  if (s.state === 'ended') return `<span class="chip bad">Ended ${esc(dayText(s.end))}</span>`;
+  if (s.state === 'open') return html`<span class="chip kept">No end date</span>`;
+  if (s.state === 'ended') return html`<span class="chip bad">Ended ${dayText(s.end)}</span>`;
   if (c.renew > 0){
-    if (s.state === 'soon') return `<span class="chip warn" title="Renews by itself on ${esc(dayText(s.end))} unless notice is given">Give notice by ${esc(dayText(s.noticeBy))}</span>`;
+    if (s.state === 'soon') return html`<span class="chip warn" title="Renews by itself on ${dayText(s.end)} unless notice is given">Give notice by ${dayText(s.noticeBy)}</span>`;
     /* Too late to give notice for this term: it renews for another term, which is worth a look, not a calm grey. */
-    if (s.state === 'late') return `<span class="chip warn" title="The notice date, ${esc(dayText(s.noticeBy))}, has passed: it renews on ${esc(dayText(s.end))} for ${c.renew} more month${c.renew === 1 ? '' : 's'}">Notice passed · renews ${esc(dayText(s.end))}</span>`;
-    return `<span class="chip kept" title="${c.notice > 0 ? 'Notice by ' + esc(dayText(s.noticeBy)) : 'No notice period'}">Renews ${esc(dayText(s.end))}</span>`;
+    if (s.state === 'late') return html`<span class="chip warn" title="The notice date, ${dayText(s.noticeBy)}, has passed: it renews on ${dayText(s.end)} for ${c.renew} more month${c.renew === 1 ? '' : 's'}">Notice passed · renews ${dayText(s.end)}</span>`;
+    return html`<span class="chip kept" title="${c.notice > 0 ? 'Notice by ' + dayText(s.noticeBy) : 'No notice period'}">Renews ${dayText(s.end)}</span>`;
   }
-  return s.state === 'soon' ? `<span class="chip warn">Ends ${esc(dayText(s.end))}</span>` : `<span class="chip kept">Runs to ${esc(dayText(s.end))}</span>`;
+  return s.state === 'soon' ? html`<span class="chip warn">Ends ${dayText(s.end)}</span>` : html`<span class="chip kept">Runs to ${dayText(s.end)}</span>`;
 }
 /* Contracts in the order they need someone: notice due soon, notice missed, running, open-ended, ended; then by date. */
 const ORDER = { soon: 0, late: 1, ok: 2, open: 3, ended: 4 };
@@ -50,7 +51,7 @@ export const contractsDue = () => COSTS.contracts.filter(c => contractStatus(c).
 /* Contracts whose notice date for this term has passed: they renew whatever is done now. */
 export const contractsLate = () => COSTS.contracts.filter(c => contractStatus(c).state === 'late');
 /* The date notice must be given by, in the table: '' when it does not renew or needs none. */
-const noticeCell = c => { const s = contractStatus(c); if (!(c.renew > 0) || !s.noticeBy || s.state === 'open') return ''; return `<span class="${s.state === 'late' || s.state === 'soon' ? 'wty soon' : ''}">${esc(dayText(s.noticeBy))}</span>`; };
+const noticeCell = c => { const s = contractStatus(c); if (!(c.renew > 0) || !s.noticeBy || s.state === 'open') return ''; return html`<span class="${s.state === 'late' || s.state === 'soon' ? 'wty soon' : ''}">${dayText(s.noticeBy)}</span>`; };
 export const contractsOf = o => COSTS.contracts.filter(c => (c.devices || []).includes(o.id));
 
 /* What all contracts cost this year and the next two, with this year by kind. */
@@ -61,9 +62,9 @@ function costSummary(all){
   const kinds = Object.entries(CONTRACT_KINDS).map(([k, l]) => [l, all.filter(c => c.kind === k).reduce((t, c) => t + costInYear(c, y0), 0)]).filter(([, v]) => v > 0);
   /* The Overview's tiles: a label, the figure, a line under it; this year by kind is the fourth. */
   const when = ['this year', 'next year', 'the year after'];
-  return `<div class="ov-kpis ct-sum" aria-label="Contract costs per year">
-    ${years.map((y, i) => `<div class="ov-tile"><span class="ov-tl">${y}</span><span class="ov-tv">${money(Math.round(per[i] * 100) / 100) || money(0)}</span><span class="ov-ts">${when[i]}</span></div>`).join('')}
-    ${kinds.length ? `<div class="ov-tile"><span class="ov-tl">${y0} by kind</span>${kinds.map(([l, v]) => `<span class="ct-kind"><span>${esc(l)}</span><b>${money(Math.round(v * 100) / 100)}</b></span>`).join('')}</div>` : ''}
+  return html`<div class="ov-kpis ct-sum" aria-label="Contract costs per year">
+    ${years.map((y, i) => html`<div class="ov-tile"><span class="ov-tl">${y}</span><span class="ov-tv">${rawHtml(money(Math.round(per[i] * 100) / 100) || money(0))}</span><span class="ov-ts">${when[i]}</span></div>`)}
+    ${kinds.length ? html`<div class="ov-tile"><span class="ov-tl">${y0} by kind</span>${kinds.map(([l, v]) => html`<span class="ct-kind"><span>${l}</span><b>${rawHtml(money(Math.round(v * 100) / 100))}</b></span>`)}</div>` : ''}
   </div>
   <details class="how ct-sum-note"><summary>How the years are counted</summary><p class="note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p></details>`;
 }
@@ -78,22 +79,22 @@ export function renderContracts(){
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length, late = contractsLate().length;
-  $('#toolbar').innerHTML = `<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
-    ${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
+  $('#toolbar').innerHTML = html`<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? html`<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${String(!!st.ctDue)}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
+    ${isAdmin() ? html`<button id="ctNew" class="primary">New contract</button>` : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
   if (!all.length){
-    $('#view').innerHTML = `<div class="empty">No contracts yet.${isAdmin() ? ' <button type="button" class="primary" id="ctNewEmpty">New contract</button>' : ''}</div>`;
+    $('#view').innerHTML = html`<div class="empty">No contracts yet.${isAdmin() ? html` <button type="button" class="primary" id="ctNewEmpty">New contract</button>` : ''}</div>`;
     const ne = $('#ctNewEmpty'); if (ne) ne.onclick = () => contractModal(null);
     return;
   }
-  $('#view').innerHTML = `${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
+  $('#view').innerHTML = html`${costSummary(all)}<div class="gridwrap ct-wrap" style="height:auto"><table class="grid contracts" data-tb="own"><thead><tr>
       <th>Contract</th><th>Kind</th><th>Supplier</th><th class="num">Devices</th><th class="num">Cost</th><th>Notice by</th><th>Status</th><th aria-label="Edit"></th></tr></thead><tbody>
-    ${rows.map(({ c }) => `<tr><td title="${esc(c.name)}"><button class="link" data-contract="${esc(c.id)}"><b>${esc(c.name)}</b></button>${c.ref ? ` <span class="mono muted">${esc(c.ref)}</span>` : ''}</td>
-      <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
-      <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
-      <td class="num"><span class="rowacts">${editButton(`data-contract="${esc(c.id)}"`, c.name, isAdmin())}${isAdmin() ? deleteButton(`data-ctdel="${esc(c.id)}"`, c.name) : ''}</span></td></tr>`).join('')
-      || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.q)}”.`}</td></tr>`}
-    </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
+    ${rows.length ? rows.map(({ c }) => html`<tr><td title="${c.name}"><button class="link" data-contract="${c.id}"><b>${c.name}</b></button>${c.ref ? html` <span class="mono muted">${c.ref}</span>` : ''}</td>
+      <td>${CONTRACT_KINDS[c.kind]}</td><td>${c.supplier || ''}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
+      <td class="num">${c.cost > 0 ? html`${rawHtml(money(c.cost))} <span class="muted">${PERIODS[c.per || 'year']}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
+      <td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-contract="${c.id}"`), c.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-ctdel="${c.id}"`), c.name)) : ''}</span></td></tr>`)
+      : html`<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${st.q}”.`}</td></tr>`}
+    </tbody>${year ? html`<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${rawHtml(money(year))}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });
   $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
@@ -102,7 +103,7 @@ export function renderContracts(){
 
 /* The contacts of a contract that are still in Contacts, as a short line under its supplier. */
 const contactsOfContract = c => (c.contacts || []).map(contactOf).filter(Boolean);
-const contactsLine = c => { const list = contactsOfContract(c); return list.length ? `<div class="ct-who">${list.map(k => `<button type="button" class="link" data-ctcontact="${esc(k.id)}" title="${esc([k.role, k.email, k.phone].filter(Boolean).join(' · '))}">${esc(k.name)}</button>`).join(', ')}</div>` : ''; };
+const contactsLine = c => { const list = contactsOfContract(c); return list.length ? html`<div class="ct-who">${list.map((k, i) => html`${i ? ', ' : ''}<button type="button" class="link" data-ctcontact="${k.id}" title="${[k.role, k.email, k.phone].filter(Boolean).join(' · ')}">${k.name}</button>`)}</div>` : ''; };
 
 /* Making or changing a contract. The devices it covers are picked from a list that can be searched; its contacts
    (account manager, support line) from Contacts. */
@@ -110,33 +111,34 @@ export function contractModal(c, preset = []){
   const isNew = !c;
   const cur = c || { id: newId('c'), name: '', kind: 'maintenance', per: 'year', renew: 12, notice: 3, devices: [...preset] };
   const picked = new Set(cur.devices || []);
-  const opt = (map, v) => Object.entries(map).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
-  modal(`<div class="mh">${isNew ? 'New contract' : esc(cur.name)}</div>
+  const opt = (map, v) => Object.entries(map).map(([k, l]) => html`<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`);
+  modal(html`<div class="mh">${isNew ? 'New contract' : cur.name}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${esc(cur.name)}" placeholder="e.g. Switch maintenance HPE">
+      <label for="ctName">Name</label><input id="ctName" maxlength="120" value="${cur.name}" placeholder="e.g. Switch maintenance HPE">
       <label for="ctKind">Kind</label><select id="ctKind">${opt(CONTRACT_KINDS, cur.kind)}</select>
-      <label for="ctSupplier">Supplier</label>${comboHtml(`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${esc(cur.supplier || '')}" placeholder="Type or pick a company">`, 'ctSupplier')}
-      <label for="ctCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
-      <label for="ctEnd">Ends</label>${dateFieldHtml('id="ctEnd"', cur.end || '')}
+      <label for="ctSupplier">Supplier</label>${rawHtml(comboHtml(String(html`<input id="ctSupplier" data-combo="supplier" maxlength="120" value="${cur.supplier || ''}" placeholder="Type or pick a company">`), 'ctSupplier'))}
+      <label for="ctCost">Cost (${COSTS.currency || 'CHF'})</label><div class="ctlrow"><input id="ctCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="ctPer" aria-label="Cost period" style="flex:none;width:140px">${opt(PERIODS, cur.per || 'year')}</select></div>
+      <label for="ctEnd">Ends</label>${rawHtml(dateFieldHtml('id="ctEnd"', cur.end || ''))}
       <label for="ctNotice">Notice period</label><div class="ctlrow"><input id="ctNotice" type="number" min="0" max="36" value="${cur.notice ?? 0}" style="flex:none;width:90px"><span class="unit">months before the end</span></div>
       <label for="ctDevQ">Devices</label><div><input id="ctDevQ" type="search" placeholder="Find a device to add…" aria-label="Find a device" style="width:100%"><div class="ct-devs" id="ctDevs"></div></div>
     </div><details class="nmore" id="ctMore" ${cur.ref || cur.start || (cur.contacts || []).length || cur.note ? 'open' : ''}><summary>More details <span class="muted">contract number, start, renewal, contacts, note</span></summary><div class="form" style="padding:0">
-      <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${esc(cur.ref || '')}">
-      <label for="ctStart">Starts</label>${dateFieldHtml('id="ctStart"', cur.start || '')}
-      <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => `<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`).join('')}</select></div>
+      <label for="ctRef">Contract no.</label><input id="ctRef" class="mono" maxlength="60" value="${cur.ref || ''}">
+      <label for="ctStart">Starts</label>${rawHtml(dateFieldHtml('id="ctStart"', cur.start || ''))}
+      <label for="ctRenew">Renews by itself</label><div class="ctlrow"><select id="ctRenew"><option value="0">No, it ends</option>${[1, 3, 6, 12, 24, 36].map(m => html`<option value="${m}" ${cur.renew === m ? 'selected' : ''}>Every ${m === 1 ? 'month' : m === 12 ? 'year' : m === 24 ? '2 years' : m === 36 ? '3 years' : m + ' months'}</option>`)}</select></div>
       <label for="ctAddContact">Contacts</label><div><div class="ct-people" id="ctPeople"></div><select id="ctAddContact" aria-label="Add a contact from Contacts"></select></div>
-      <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
+      <label for="ctNote">Note</label><textarea id="ctNote" rows="2" maxlength="1000">${cur.note || ''}</textarea>
     </div></details><p class="note" id="ctErr" role="status"></p></div>
-    <div class="mf">${isNew ? '' : '<button id="ctDel" class="danger-text">Delete</button>'}<div class="grow"></div><button id="ctCancel">Cancel</button><button id="ctOk" class="primary">Save</button></div>`, 'wide');
+    <div class="mf">${isNew ? '' : html`<button id="ctDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="ctCancel">Cancel</button><button id="ctOk" class="primary">Save</button></div>`, 'wide');
   /* The devices covered come first, then those that match the search, at most 60. */
   const devs = () => {
     const q = $('#ctDevQ').value.trim().toLowerCase();
     const mine = objs.filter(o => picked.has(o.id));
     const more = q ? objs.filter(o => !picked.has(o.id) && [o.name, o.code, o.serial, o.model, o.user].some(v => String(v || '').toLowerCase().includes(q))).slice(0, 60) : [];
     /* The matches can all be taken at once; the count of devices covered stays in view. */
-    const bar = q && more.length ? `<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
-    $('#ctDevs').innerHTML = bar + [...mine, ...more].map(o => `<label class="pchk">${tico(o.type, 'tico sm')}<input type="checkbox" data-ctdev="${esc(o.id)}" ${picked.has(o.id) ? 'checked' : ''}> <b>${esc(o.name)}</b> <span class="muted">${esc([o.code, o.model].filter(Boolean).join(' · '))}</span></label>`).join('')
-      || `<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
+    const bar = q && more.length ? html`<div class="ct-devbar"><span class="muted">${more.length === 60 ? 'First 60' : more.length} found · ${picked.size} covered</span><button type="button" id="ctAddAll">Add ${more.length === 1 ? 'it' : `all ${more.length}`}</button></div>` : '';
+    const shown = [...mine, ...more];
+    $('#ctDevs').innerHTML = bar || shown.length ? html`${bar}${shown.map(o => html`<label class="pchk">${rawHtml(tico(o.type, 'tico sm'))}<input type="checkbox" data-ctdev="${o.id}" ${picked.has(o.id) ? 'checked' : ''}> <b>${o.name}</b> <span class="muted">${[o.code, o.model].filter(Boolean).join(' · ')}</span></label>`)}`
+      : html`<p class="note">${q ? 'No device matches.' : 'No devices yet. Find them by name, code, serial number, model or user.'}</p>`;
     $('#ctDevs').querySelectorAll('[data-ctdev]').forEach(x => x.onchange = () => { if (x.checked) picked.add(x.dataset.ctdev); else picked.delete(x.dataset.ctdev); });
     const all = $('#ctAddAll'); if (all) all.onclick = () => { more.forEach(o => picked.add(o.id)); $('#ctDevQ').value = ''; devs(); $('#ctDevQ').focus(); };
   };
@@ -146,9 +148,9 @@ export function contractModal(c, preset = []){
      external first. A contact's company fills an empty supplier. */
   let people = (cur.contacts || []).filter(id => contactOf(id));
   const peopleList = () => {
-    $('#ctPeople').innerHTML = people.map(contactOf).filter(Boolean).map(k => `<div class="ct-person"><span><b>${esc(k.name)}</b>${k.company ? ` <span class="muted">${esc(k.company)}</span>` : ''}<small>${esc([k.role, k.email, k.phone].filter(Boolean).join(' · '))}</small></span><button type="button" class="icon ghost" data-ctunlink="${esc(k.id)}" aria-label="Take ${esc(k.name)} off this contract" title="Take off">×</button></div>`).join('');
+    $('#ctPeople').innerHTML = html`${people.map(contactOf).filter(Boolean).map(k => html`<div class="ct-person"><span><b>${k.name}</b>${k.company ? html` <span class="muted">${k.company}</span>` : ''}<small>${[k.role, k.email, k.phone].filter(Boolean).join(' · ')}</small></span><button type="button" class="icon ghost" data-ctunlink="${k.id}" aria-label="Take ${k.name} off this contract" title="Take off">×</button></div>`)}`;
     const rest = CONTACTS.list.filter(k => !people.includes(k.id)).sort((a, b) => (a.kind === 'internal') - (b.kind === 'internal') || a.name.localeCompare(b.name));
-    $('#ctAddContact').innerHTML = `<option value="">${CONTACTS.list.length ? (rest.length ? 'Add a contact…' : 'Every contact is on it') : 'No contacts yet (add them in Contacts)'}</option>${['external', 'internal'].map(kind => { const g = rest.filter(k => (k.kind || 'external') === kind); return g.length ? `<optgroup label="${kind === 'external' ? 'External' : 'Internal'}">${g.map(k => `<option value="${esc(k.id)}">${esc(contactLabel(k))}</option>`).join('')}</optgroup>` : ''; }).join('')}`;
+    $('#ctAddContact').innerHTML = html`<option value="">${CONTACTS.list.length ? (rest.length ? 'Add a contact…' : 'Every contact is on it') : 'No contacts yet (add them in Contacts)'}</option>${['external', 'internal'].map(kind => { const g = rest.filter(k => (k.kind || 'external') === kind); return g.length ? html`<optgroup label="${kind === 'external' ? 'External' : 'Internal'}">${g.map(k => html`<option value="${k.id}">${contactLabel(k)}</option>`)}</optgroup>` : ''; })}`;
     $('#ctAddContact').disabled = !rest.length || people.length >= 20;
     $('#ctPeople').querySelectorAll('[data-ctunlink]').forEach(b => b.onclick = () => { people = people.filter(id => id !== b.dataset.ctunlink); peopleList(); });
   };
@@ -190,10 +192,10 @@ export function contractModal(c, preset = []){
 export function deviceContractsPanel(o){
   if (!COSTS.contracts.length) return '';
   const list = contractsOf(o);
-  return `<div class="panelbox"><div class="hdr">Contracts <span class="cnt">${list.length || 'none'}</span></div>
-    <div class="relist">${list.map(c => `<div class="relrow"><span class="k">${esc(CONTRACT_KINDS[c.kind])}</span><span class="t"><button class="link" data-contract="${esc(c.id)}">${esc(c.name)}</button>${c.supplier ? ` <span class="muted">${esc(c.supplier)}</span>` : ''}</span>${contractChip(c)}</div>`).join('')
-      || '<div class="chain"><span class="muted">No contract covers this device.</span></div>'}</div>
-    ${isAdmin() ? `<div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><button id="ctAddDev">Add</button></div>` : ''}</div>`;
+  return String(html`<div class="panelbox"><div class="hdr">Contracts <span class="cnt">${list.length || 'none'}</span></div>
+    <div class="relist">${list.length ? list.map(c => html`<div class="relrow"><span class="k">${CONTRACT_KINDS[c.kind]}</span><span class="t"><button class="link" data-contract="${c.id}">${c.name}</button>${c.supplier ? html` <span class="muted">${c.supplier}</span>` : ''}</span>${contractChip(c)}</div>`)
+      : html`<div class="chain"><span class="muted">No contract covers this device.</span></div>`}</div>
+    ${isAdmin() ? html`<div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => html`<option value="${c.id}">${c.name}</option>`)}</select><button id="ctAddDev">Add</button></div>` : ''}</div>`);
 }
 export function bindDeviceContracts(o){
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
@@ -211,14 +213,14 @@ export function bindDeviceContracts(o){
 /* The seats a licence has against the devices that have the software. Over-use is marked. */
 export function licenceChip(l){
   const u = licenceUse(l, objs);
-  return u.over ? `<span class="chip bad" title="${u.used} devices have it, the licence has ${l.seats} seats">${u.used - l.seats} over</span>`
-    : `<span class="chip ${u.free <= Math.max(1, Math.ceil(l.seats * 0.1)) ? 'warn' : 'ok'}">${u.free} free</span>`;
+  return u.over ? html`<span class="chip bad" title="${u.used} devices have it, the licence has ${l.seats} seats">${u.used - l.seats} over</span>`
+    : html`<span class="chip ${u.free <= Math.max(1, Math.ceil(l.seats * 0.1)) ? 'warn' : 'ok'}">${u.free} free</span>`;
 }
 /* On a package row: which licence counts it, as a quiet marker; red-edged when that licence is over-used. The numbers
    are in the Licences box above and in the marker's tooltip, not repeated on every package of the licence. */
 export function licenceMark(l){
   const u = licenceUse(l, objs);
-  return `<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${esc(l.name)}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`;
+  return String(html`<span class="lic-mark${u.over ? ' over' : ''}" title="Counted by the licence ${l.name}: ${u.used} of ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'} used${u.over ? `, ${u.used - l.seats} over` : ''}">Licence</span>`);
 }
 export const licencesOver = () => COSTS.licences.filter(l => licenceUse(l, objs).over);
 /* The licences that count a package, for its row in the Software view. */
@@ -226,14 +228,14 @@ export const licencesFor = pkg => COSTS.licences.filter(l => pkg.toLowerCase().i
 
 /* Deleting a contract or a licence: asked first, then gone at once with Undo, from its row or its dialog. The devices stay. */
 function deleteContract(c){
-  confirmModal(`Delete the contract ${c.name}?`, `<b>${esc(c.name)}</b> is removed from the contracts. The devices it lists stay; only their tie to it goes.`, 'Delete contract', () => {
+  confirmModal(`Delete the contract ${c.name}?`, html`<b>${c.name}</b> is removed from the contracts. The devices it lists stay; only their tie to it goes.`, 'Delete contract', () => {
     const i = COSTS.contracts.indexOf(c);
     COSTS.contracts = COSTS.contracts.filter(x => x !== c); queueServerSave(); render();
     toastUndo(`Contract ${c.name} deleted`, () => { COSTS.contracts.splice(Math.min(i, COSTS.contracts.length), 0, c); queueServerSave(); render(); });
   });
 }
 function deleteLicence(l){
-  confirmModal(`Delete the licence ${l.name}?`, `<b>${esc(l.name)}</b> is removed from the licences. The software on the devices stays.`, 'Delete licence', () => {
+  confirmModal(`Delete the licence ${l.name}?`, html`<b>${l.name}</b> is removed from the licences. The software on the devices stays.`, 'Delete licence', () => {
     const i = COSTS.licences.indexOf(l);
     COSTS.licences = COSTS.licences.filter(x => x !== l); queueServerSave(); render();
     toastUndo(`Licence ${l.name} deleted`, () => { COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); });
@@ -242,15 +244,15 @@ function deleteLicence(l){
 export function licencesPanel(){
   const rows = COSTS.licences.map(l => {
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
-    return `<tr><td><button class="link" data-lic="${esc(l.id)}"><b>${esc(l.name)}</b></button></td>
+    return html`<tr><td><button class="link" data-lic="${l.id}"><b>${l.name}</b></button></td>
       <td class="num">${u.used} used / ${l.seats} ${l.seats === 1 ? 'seat' : 'seats'}</td><td><span class="lic-bar${u.over ? ' over' : ''}" aria-hidden="true"><span style="width:${pct}%"></span></span>${licenceChip(l)}</td>
-      <td class="num">${l.cost > 0 ? `${money(l.cost)} <span class="muted">${esc(PERIODS[l.per || 'year'])}</span>` : ''}</td><td>${l.end ? esc(dayText(l.end)) : ''}</td><td class="num"><span class="rowacts">${editButton(`data-lic="${esc(l.id)}"`, l.name, isAdmin())}${isAdmin() ? deleteButton(`data-licdel="${esc(l.id)}"`, l.name) : ''}</span></td></tr>`;
-  }).join('');
+      <td class="num">${l.cost > 0 ? html`${rawHtml(money(l.cost))} <span class="muted">${PERIODS[l.per || 'year']}</span>` : ''}</td><td>${l.end ? dayText(l.end) : ''}</td><td class="num"><span class="rowacts">${rawHtml(editButton(String(html`data-lic="${l.id}"`), l.name, isAdmin()))}${isAdmin() ? rawHtml(deleteButton(String(html`data-licdel="${l.id}"`), l.name)) : ''}</span></td></tr>`;
+  });
   const over = licencesOver().length;
-  return `<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
+  return String(html`<div class="panelbox lic"><div class="hdr">Licences <span class="cnt">${COSTS.licences.length}${over ? ` · ${over} over-used` : ''}</span></div>
     <p class="note">A licence counts the devices, not retired, with software whose name holds the licence's name. “Microsoft 365 Apps” counts every package named so, whatever its version.</p>
-    ${rows ? `<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-    ${isAdmin() ? '<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>' : ''}</div>`;
+    ${rows.length ? html`<div style="overflow-x:auto"><table class="grid mini lic-table" style="min-width:640px;table-layout:fixed"><colgroup><col style="width:30%"><col style="width:16%"><col style="width:22%"><col style="width:15%"><col style="width:12%"><col style="width:44px"></colgroup><thead><tr><th>Software</th><th class="num">Devices</th><th>Use</th><th class="num">Cost</th><th>Ends</th><th aria-label="Edit"></th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    ${isAdmin() ? html`<div class="addrel"><span class="grow"></span><button id="licNew" class="primary">New licence</button></div>` : ''}</div>`);
 }
 export function bindLicences(){
   const nb = $('#licNew'); if (nb) nb.onclick = () => licenceModal(null);
@@ -261,16 +263,16 @@ export function bindLicences(){
 export function licenceModal(l, name = ''){
   const isNew = !l;
   const cur = l || { id: newId('l'), name, seats: 0, per: 'year' };
-  const opt = Object.entries(PERIODS).map(([k, t]) => `<option value="${k}" ${k === (cur.per || 'year') ? 'selected' : ''}>${esc(t)}</option>`).join('');
-  modal(`<div class="mh">${isNew ? 'New licence' : esc(cur.name)}</div>
+  const opt = Object.entries(PERIODS).map(([k, t]) => html`<option value="${k}" ${k === (cur.per || 'year') ? 'selected' : ''}>${t}</option>`);
+  modal(html`<div class="mh">${isNew ? 'New licence' : cur.name}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="licName">Software</label><input id="licName" maxlength="120" value="${esc(cur.name)}" placeholder="The name, or the part of it every version has">
+      <label for="licName">Software</label><input id="licName" maxlength="120" value="${cur.name}" placeholder="The name, or the part of it every version has">
       <label for="licSeats">Seats</label><input id="licSeats" type="number" min="0" value="${cur.seats}" style="width:140px">
-      <label for="licCost">Cost (${esc(COSTS.currency || 'CHF')})</label><div class="ctlrow"><input id="licCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="licPer" aria-label="Cost period" style="flex:none;width:140px">${opt}</select></div>
-      <label for="licEnd">Ends</label>${dateFieldHtml('id="licEnd"', cur.end || '')}
-      <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${esc(cur.note || '')}</textarea>
+      <label for="licCost">Cost (${COSTS.currency || 'CHF'})</label><div class="ctlrow"><input id="licCost" inputmode="decimal" value="${cur.cost ?? ''}" placeholder="0.00" style="flex:none;width:140px"><select id="licPer" aria-label="Cost period" style="flex:none;width:140px">${opt}</select></div>
+      <label for="licEnd">Ends</label>${rawHtml(dateFieldHtml('id="licEnd"', cur.end || ''))}
+      <label for="licNote">Note</label><textarea id="licNote" rows="2" maxlength="1000">${cur.note || ''}</textarea>
     </div><p class="note" id="licErr" role="status"></p></div>
-    <div class="mf">${isNew ? '' : '<button id="licDel" class="danger-text">Delete</button>'}<div class="grow"></div><button id="licCancel">Cancel</button><button id="licOk" class="primary">Save</button></div>`, 'sm');
+    <div class="mf">${isNew ? '' : html`<button id="licDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="licCancel">Cancel</button><button id="licOk" class="primary">Save</button></div>`, 'sm');
   const hint = () => { const n = $('#licName').value.trim(); $('#licErr').classList.remove('err'); $('#licErr').textContent = n ? `${licenceUse({ name: n, seats: 0 }, objs).used} devices have software named so.` : ''; };
   hint(); $('#licName').oninput = hint;
   $('#licCancel').onclick = closeModal;

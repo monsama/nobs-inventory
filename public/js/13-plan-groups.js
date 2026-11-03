@@ -2,8 +2,9 @@
    one of them needs attention. Which pins are grouped follows the screen, not the data: zoom in and a group falls apart
    into its pins again. Clicking a group fans up to FAN_MAX pins out around it, each to be opened or dragged on as usual;
    a bigger group opens a list instead, from which a device is opened, or dragged to another place on the plan. */
-import { byId, esc, filtered, scanOld, st, tico, TYPES, warrantyState } from './01-core.js';
+import { byId, filtered, scanOld, st, tico, TYPES, warrantyState } from './01-core.js';
 import { openObj } from './02-views.js';
+import { html, rawHtml } from './html.js';
 
 export const FAN_MAX = 8;
 const GAP = 2;   /* pins closer than this many pixels count as touching */
@@ -80,7 +81,7 @@ function regroup(c, startDrag){
     m.setAttribute('aria-expanded', 'false');
     m.setAttribute('aria-label', `${devs.length} devices: ${names.join(', ')}`);
     m.title = names.slice(0, 12).join('\n') + (names.length > 12 ? `\nand ${names.length - 12} more` : '') + '\n\nClick to show them. Zoom in to see them apart.';
-    m.innerHTML = `<b>${devs.length}</b>${kinds.slice(0, 3).map(t => tico(t, 'tico sm')).join('')}${kinds.length > 3 ? '<span class="muted">…</span>' : ''}${devs.some(needsAttention) ? '<span class="pl-gdot" aria-hidden="true"></span>' : ''}`;
+    m.innerHTML = html`<b>${devs.length}</b>${kinds.slice(0, 3).map(t => rawHtml(tico(t, 'tico sm')))}${kinds.length > 3 ? html`<span class="muted">…</span>` : ''}${devs.some(needsAttention) ? html`<span class="pl-gdot" aria-hidden="true"></span>` : ''}`;
     m.onpointerdown = e => e.stopPropagation();
     m.onclick = e => { e.stopPropagation(); const was = open && open.marker === m; closeGroup(); if (!was) (members.length <= FAN_MAX ? fan(c, m, members) : list(c, m, members, devs, startDrag)); };
     c.appendChild(m);
@@ -153,8 +154,8 @@ function list(c, m, members, devs, startDrag){
   box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', `${devs.length} devices`);
   box.style.left = m.style.left; box.style.top = m.style.top;
   const sorted = [...devs].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  box.innerHTML = `<div class="pl-ghead">${devs.length} devices here<span class="muted">Click to open, drag to move</span></div>
-    ${sorted.map(o => `<button type="button" class="pl-grow${needsAttention(o) ? ' attn' : ''}" data-gopen="${esc(o.id)}">${tico(o.type, 'tico sm')}<span class="pl-gn">${esc(o.name)}</span><span class="muted mono">${esc(o.code || '')}</span><span class="muted">${esc(TYPES[o.type] ? TYPES[o.type].short : '')}</span></button>`).join('')}`;
+  box.innerHTML = html`<div class="pl-ghead">${devs.length} devices here<span class="muted">Click to open, drag to move</span></div>
+    ${sorted.map(o => html`<button type="button" class="pl-grow${needsAttention(o) ? ' attn' : ''}" data-gopen="${o.id}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-gn">${o.name}</span><span class="muted mono">${o.code || ''}</span><span class="muted">${TYPES[o.type] ? TYPES[o.type].short : ''}</span></button>`)}`;
   let dragged = false;
   box.onpointerdown = e => {
     e.stopPropagation();

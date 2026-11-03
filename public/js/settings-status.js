@@ -8,6 +8,7 @@ import { resetFilters } from './02-views.js';
 import { scheduleOf } from './schedule.js';
 import { SOURCE_LABEL } from './sync-map.js';
 import { runOf, summary, when } from './16-sync.js';
+import { html } from './html.js';
 
 /* A source by its field key (ls, ad, graph), its sync key (syncRuns, the schedule) and its Settings tab. */
 export const RUN_KEY = { ls: 'lansweeper', ad: 'ldap', graph: 'graph' };
@@ -40,10 +41,10 @@ export function sourceState(src){
 /* The last run in one line: when, how (a push), and what it brought or why it failed. */
 function lastRunHtml(src){
   const r = runOf(RUN_KEY[src]);
-  if (!r) return `<span class="muted">${sourceOn(src) ? 'No sync yet' : 'Set up below, then sync'}</span>`;
-  const head = `Last sync ${esc(when(r.at))}${r.how === 'push' ? ' (push)' : ''}`;
+  if (!r) return html`<span class="muted">${sourceOn(src) ? 'No sync yet' : 'Set up below, then sync'}</span>`;
+  const head = `Last sync ${when(r.at)}${r.how === 'push' ? ' (push)' : ''}`;
   const warn = r.ok && r.counts && r.counts.ambiguous ? ` · ${r.counts.ambiguous} fit more than one device and were skipped` : '';
-  return r.ok ? `${head}: ${esc(summary(RUN_KEY[src], r.counts))}${esc(warn)}` : `<span class="src-err">${head} failed: ${esc(r.error || '')}</span>`;
+  return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>`;
 }
 /* The header. on: the switch ({ id, checked, label }) as Lansweeper draws it; AD and Entra get theirs here (id useAd,
    useGraph), and while off no Sync now and a line saying what off means; test and sync: the buttons ({ id, ready }),
@@ -76,9 +77,9 @@ const says = r => {
 };
 function historyModal(src){
   const runs = changesOf(src), c = (st.syncChanges || {})[src];
-  modal(`<div class="mh">${esc(SOURCE_LABEL[src])}: history of changes</div>
+  modal(html`<div class="mh">${SOURCE_LABEL[src]}: history of changes</div>
     <div class="mb"><p class="note">What each sync changed or filled in on the devices' fields, newest first. ${c && !c.n ? 'The last sync changed nothing.' : ''}</p>
-      ${runs.length ? `<ul class="src-hist">${runs.map((r, i) => `<li><span class="muted">${esc(when(r.at))}</span> ${esc(says(r))} <button type="button" class="link" data-histrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button></li>`).join('')}</ul>` : '<p class="note">No sync has changed a field yet.</p>'}</div>
+      ${runs.length ? html`<ul class="src-hist">${runs.map((r, i) => html`<li><span class="muted">${when(r.at)}</span> ${says(r)} <button type="button" class="link" data-histrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button></li>`)}</ul>` : html`<p class="note">No sync has changed a field yet.</p>`}</div>
     <div class="mf"><span class="grow"></span><button id="histClose" class="primary">Close</button></div>`, 'sm');
   $('#histClose').onclick = closeModal;
   document.querySelectorAll('[data-histrun]').forEach(b => b.onclick = () => {
