@@ -1,13 +1,14 @@
 /* Saved views: the device list's filters, search, columns and sort under a name, in the sidebar's Views. Admins save,
    rename and delete them (setting savedViews, shared by all); everyone can open them. */
 import { VIEWS_MAX, applyViewFilters, hiddenFor, removeView, renameView, sameView, serializeView, tableStateFor, upsertView } from './saved-views.js';
-import { $, deleteButton, editButton, esc, rid, st, toast } from './01-core.js';
+import { $, deleteButton, editButton, rid, st, toast } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { isAdmin } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { resetFilters } from './02-views.js';
 import { hiddenCols, setHiddenCols, tableCols } from './views-table.js';
+import { html, rawHtml } from './html.js';
 
 const TABLE_KEY = 'view:table:0';
 const views = () => Array.isArray(st.savedViews) ? st.savedViews : [];
@@ -21,7 +22,7 @@ export function renderSavedViews(){
   if (!hdr || !box) return;
   hdr.hidden = box.hidden = !list.length;
   const admin = isAdmin();
-  box.innerHTML = list.map(v => `<div class="svrow"><button class="item ${isShown(v) ? 'sel' : ''}" data-savedview="${esc(v.id)}" title="Show the list as saved in this view"><span class="lbl">${esc(v.name)}</span></button>${admin ? editButton(`data-svren="${esc(v.id)}"`, v.name).replace('aria-label="Edit', 'aria-label="Rename').replace('title="Edit"', 'title="Rename"') + deleteButton(`data-svdel="${esc(v.id)}"`, v.name) : ''}</div>`).join('');
+  box.innerHTML = html`${list.map(v => html`<div class="svrow"><button class="item ${isShown(v) ? 'sel' : ''}" data-savedview="${v.id}" title="Show the list as saved in this view"><span class="lbl">${v.name}</span></button>${admin ? rawHtml(editButton(String(html`data-svren="${v.id}"`), v.name).replace('aria-label="Edit', 'aria-label="Rename').replace('title="Edit"', 'title="Rename"') + deleteButton(String(html`data-svdel="${v.id}"`), v.name)) : ''}</div>`)}`;
 }
 /* A view opened: every filter goes, then the view's filters, search, tab, columns, column filters and sort are put on. */
 export function restoreView(v){
@@ -38,7 +39,7 @@ export function restoreView(v){
 }
 /* The name dialog of Save view and Rename. */
 function nameModal(title, name, note, ok){
-  modal(`<div class="mh">${esc(title)}</div><div class="mb"><div class="form"><label for="svName">Name</label><input id="svName" maxlength="80" value="${esc(name)}" autocomplete="off"></div>${note ? `<p class="note">${note}</p>` : ''}</div>
+  modal(html`<div class="mh">${title}</div><div class="mb"><div class="form"><label for="svName">Name</label><input id="svName" maxlength="80" value="${name}" autocomplete="off"></div>${note ? html`<p class="note">${note}</p>` : ''}</div>
     <div class="mf"><button id="svCancel">Cancel</button><button id="svOk" class="primary">Save</button></div>`, 'sm');
   const go = () => { const n = $('#svName').value.trim(); if (!n){ toast('Give the view a name.'); $('#svName').focus(); return; } if (ok(n) !== false) closeModal(); };
   $('#svCancel').onclick = closeModal; $('#svOk').onclick = go;
@@ -70,7 +71,7 @@ if (side) side.addEventListener('click', e => {
     });
   } else if (del && isAdmin()){
     const v = views().find(x => x.id === del.dataset.svdel); if (!v) return;
-    confirmModal('Delete view', `Delete the view “${esc(v.name)}” for every user? The devices are not touched.`, 'Delete', () => {
+    confirmModal('Delete view', html`Delete the view “${v.name}” for every user? The devices are not touched.`, 'Delete', () => {
       st.savedViews = removeView(views(), v.id); queueServerSave(); render(); toast(`View “${v.name}” deleted`);
     });
   } else if (open){

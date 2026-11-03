@@ -1,8 +1,9 @@
 /* The relations map: layout, drawing, zoom and the toolbar (split out of 02-views.js, which re-exports it). */
-import { isAttached, $, menuHtml, STATUS, TYPES, byId, esc, filtered, objs, portLabel, rels, st, tcol, tico, toast, used } from './01-core.js';
+import { isAttached, $, menuHtml, STATUS, TYPES, byId, filtered, objs, portLabel, rels, st, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { bindHiddenHits, hiddenHits, openObj } from './02-views.js';
+import { html, rawHtml } from './html.js';
 /* ---------- relationship map ----------
    Like the ER diagram in NOBS SQL: boxes with a header, right-angled lines between them, the line's kind and port
    written on it. Hover a box to light up its lines. Drag a box to move it, drag the background to pan, Ctrl + wheel to zoom. */
@@ -127,32 +128,32 @@ export function mapInner(L){
   const edges = L.edges.map((r, i) => {
     const a = byId(r.from), b = byId(r.to), p = routes[i];
     const label = MAP_SHORT[r.kind] + (r.port != null ? ' · ' + portLabel(b, r.port) : '');
-    return `<g class="mline" data-from="${esc(a.id)}" data-to="${esc(b.id)}">
+    return html`<g class="mline" data-from="${a.id}" data-to="${b.id}">
       <path class="mhit" d="${p.d}" fill="none" stroke="transparent" stroke-width="10"/>
       <path d="${p.d}" fill="none" stroke="var(--line)" stroke-width="1.4"/>
       <circle cx="${p.A.x}" cy="${p.A.y}" r="3" fill="var(--line)"/><circle cx="${p.B.x}" cy="${p.B.y}" r="3" fill="var(--line)"/>
-      <text class="mlab" x="${p.lx}" y="${p.ly}" text-anchor="${p.anchor}" font-size="10" font-family="var(--mono)" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(label)}</text></g>`;
-  }).join('');
+      <text class="mlab" x="${p.lx}" y="${p.ly}" text-anchor="${p.anchor}" font-size="10" font-family="var(--mono)" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${label}</text></g>`;
+  });
   const nodes = L.list.map(o => {
     const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
     /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
-    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${esc(o.id)}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
+    return html`<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${o.id}" transform="translate(${p.x} ${p.y})"><title>${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}</title>
       <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
       <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
       <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
-      <text x="9" y="14" font-size="10" fill="var(--muted)"><tspan font-family="var(--mono)">${esc(o.code)}</tspan> · ${esc(TYPES[o.type] ? (o.status !== 'active' ? TYPES[o.type].short : TYPES[o.type].label) : o.type)}</text>
-      <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
-      ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
-      ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}
+      <text x="9" y="14" font-size="10" fill="var(--muted)"><tspan font-family="var(--mono)">${o.code}</tspan> · ${TYPES[o.type] ? (o.status !== 'active' ? TYPES[o.type].short : TYPES[o.type].label) : o.type}</text>
+      <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${fitMap(o.name, 13)}<title>${o.name}</title></text>
+      ${lines.map((t, i) => html`<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${fitMap(t, 11)}<title>${t}</title></text>`)}
+      ${o.status !== 'active' ? html`<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${STATUS[o.status].label}</text>` : ''}
     </g>`;
-  }).join('');
-  return `<g class="medges">${edges}</g><g class="mnodes">${nodes}</g>`;
+  });
+  return String(html`<g class="medges">${edges}</g><g class="mnodes">${nodes}</g>`);
 }
 /* Key for the map: which colour is which type, and what a line label says. */
 export function mapLegend(L){
   const types = [...new Set(L.list.map(o => o.type))];
-  return `<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
-    <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
+  return html`<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
+    <b>Boxes</b><div class="lgtypes">${types.map(t => html`<span>${rawHtml(tico(t, 'tico sm'))}${TYPES[t].label}</span>`)}</div>
     <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
 }
 export function mapApply(){
@@ -230,14 +231,14 @@ export function renderMap(){
   }
   const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
   const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
-  $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = html`<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this device"><option value="">All devices</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
+    <select id="mapFocus" aria-label="Show only the relations of this device"><option value="">All devices</option>${withRelations.map(o => html`<option value="${o.id}" ${focus && focus.id === o.id ? 'selected' : ''}>${o.name}</option>`)}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
     <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
-    ${menuHtml('More', '<button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button>')}</span>`;
+    ${rawHtml(menuHtml('More', '<button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button>'))}</span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
@@ -247,8 +248,8 @@ export function renderMap(){
     $('#mapCount').textContent = '0 devices';
     $('#view').innerHTML = narrowed
       ? (!found.length && hiddenHits()) || (found.length
-        ? `<div class="empty">None of the ${found.length} devices in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
-        : `<div class="empty">No device matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
+        ? html`<div class="empty">None of the ${found.length} devices in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
+        : html`<div class="empty">No device matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
       : '<div class="empty">Nothing to draw yet: link two devices on a device\'s page.</div>';
     const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
     bindHiddenHits();
@@ -257,7 +258,7 @@ export function renderMap(){
   }
   const nL = MAP.L.list.length, nE = MAP.L.edges.length;
   $('#mapCount').textContent = `${nL} ${nL === 1 ? 'device' : 'devices'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
-  $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relations map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
+  $('#view').innerHTML = html`<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relations map"><g id="mapG">${rawHtml(mapInner(MAP.L))}</g></svg>
     <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
   const svg = $('#mapSvg');
   /* A right click on a box shows only its relations (the same as Relations of in the toolbar). */

@@ -2,10 +2,11 @@
 import { closeModal, modal } from './19-modal.js';
 import './srcpick.js';
 import { LOCS, O } from './01-core.js';
-import { $, byId, esc, hist, now, objs, rackUnits, racksList, st, tcol, toast, used } from './01-core.js';
+import { $, byId, hist, now, objs, rackUnits, racksList, st, tcol, toast, used } from './01-core.js';
 import { queueServerSave, render } from './07-render.js';
 import { isAdmin, mountModal, who } from './04-settings.js';
 import { openObj } from './02-views.js';
+import { html } from './html.js';
 
 
 /* ---------- racks ---------- */
@@ -13,10 +14,10 @@ import { openObj } from './02-views.js';
    It is shown in Racks right away. */
 export function rackNewModal(){
   const n = racksList().length + 1;
-  modal(`<div class="mh">New rack</div>
+  modal(html`<div class="mh">New rack</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
-      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
+      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => html`<option>${l}</option>`) : html`<option value="">No rooms yet</option>`}</select>
       <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
       <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
       <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">
@@ -39,17 +40,17 @@ export function renderRack(){
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is a device of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
+    $('#view').innerHTML = html`<div class="empty">No racks yet. A rack is a device of the type Rack.${isAdmin() ? html` <button class="primary" id="rackNew">New rack</button>` : ''}</div>`;
     const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
-  $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${esc(r.id)}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
-    ${isAdmin() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
-    <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
-    ${isAdmin() ? '<button id="rkMount">Mount device…</button>' : ''}`;
+  $('#toolbar').innerHTML = html`<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => html`<option value="${r.id}" ${r.id===R_.id?'selected':''}>${r.name}</option>`)}</select>
+    ${isAdmin() ? html`<button id="rkNew">New rack</button>` : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
+    <span class="muted hide-n">${R_.loc} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
+    ${isAdmin() ? html`<button id="rkMount">Mount device…</button>` : ''}`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   const rn = $('#rkNew'); if (rn) rn.onclick = rackNewModal;
   $('#rkOpen').onclick = () => openObj(R_.id);
@@ -60,23 +61,24 @@ export function renderRack(){
     if (top){
       const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
-      cells.push(`<div class="unit${h === 1 ? ' one' : ''}" data-open="${esc(top.id)}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${esc(top.name)}">
-        <span class="nm">${esc(top.name)}</span><span class="sub">${[esc(top.code), esc(sub)].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => esc(x.name)).join(', ') : ''}</span></div>`);
+      cells.push(html`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${top.name}">
+        <span class="nm">${top.name}</span><span class="sub">${[top.code, sub].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => x.name).join(', ') : ''}</span></div>`);
       n -= h - 1;
     }
   }
   for (let n = rackUnits(R_); n >= 1; n--){
     const row = rackUnits(R_) - n + 1;
     const occupied = inRack.some(o => n >= o.u && n <= o.u + (o.h || 1) - 1);
-    cells.push(`<div class="uno" style="grid-row:${row};grid-column:1">U${n}</div>`);
-    if (!occupied) cells.push(`<div class="slot" style="grid-row:${row};grid-column:2"></div>`);
+    cells.push(html`<div class="uno" style="grid-row:${row};grid-column:1">U${n}</div>`);
+    if (!occupied) cells.push(html`<div class="slot" style="grid-row:${row};grid-column:2"></div>`);
   }
-  $('#view').innerHTML = `<div class="rackbox">
-    <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells.join('')}</div>
+  const mounted = inRack.slice().sort((a,b) => (b.u||0) - (a.u||0));
+  $('#view').innerHTML = html`<div class="rackbox">
+    <div class="rack" style="grid-template-rows:repeat(${rackUnits(R_)},24px)">${cells}</div>
     <div class="rackside">
-      <div class="panelbox"><div class="hdr">${esc(R_.name)}</div>
-        <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${esc(R_.loc)}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${inRack.slice().sort((a,b) => (b.u||0) - (a.u||0)).map(o => `<button class="item" data-open="${esc(o.id)}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + esc(byId(o.ontop).name) : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${esc(o.name)}</span></button>`).join('') || '<span class="muted">No devices in this rack yet. Use Mount device… above.</span>'}</div>
+      <div class="panelbox"><div class="hdr">${R_.name}</div>
+        <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${R_.loc}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet. Use Mount device… above.</span>`}</div>
       </div>
     </div></div>`;
 }

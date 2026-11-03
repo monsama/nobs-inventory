@@ -1,7 +1,7 @@
 /* The device lists: the sidebar, the filter bar, the tabs and the empty states. Cards, Table, bulk actions, CSV, the map and
    the ports are in views-*.js, re-exported at the end. */
 import { syncButtonHtml } from './16-sync.js';
-import { QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, esc, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
+import { QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -13,6 +13,7 @@ import { handOutToModal, takeBackModal } from './27-handout.js';
 import { reviewStale } from './15-review.js';
 import { QUALITY_FIX, qfix } from './views-table.js';
 import { renderSavedViews } from './views-saved.js';
+import { html, rawHtml } from './html.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
@@ -35,12 +36,11 @@ export function renderSide(){
   /* Under Waiting one choice at a time (Old, In AD or Entra, a source); a second click on it, or on Waiting or Ignored
      when shown, goes back a step. */
   const sub = !!(st.rvSrc || st.rvKnown || st.rvOld);
-  $('#scopeList').innerHTML = `<button class="item ${st.scope === 'review' && !sub ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>`
-    + (st.scope === 'review' && waitingR.some(reviewStale) ? `<button class="item sub ${st.rvOld ? 'sel' : ''}" data-rvold title="Not seen by any source for ${REVIEW_STALE_DAYS} days or more: likely gone"><span class="lbl">Old</span><span class="cnt">${waitingR.filter(reviewStale).length}</span></button>` : '')
-    + (st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? `<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : '')
-    + (st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => `<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${esc(l)}</span><span class="cnt">${n}</span></button>`).join('') : '')
-    + (ignoredR.length ? `<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : '')
-    ;
+  $('#scopeList').innerHTML = html`<button class="item ${st.scope === 'review' && !sub ? 'sel' : ''}" data-scope="review" title="Devices a sync found, not in the inventory yet: accept or ignore them in Cards or Table"><span class="dot warn"></span><span class="lbl">Waiting</span><span class="cnt">${waitingR.length}</span></button>${
+    st.scope === 'review' && waitingR.some(reviewStale) ? html`<button class="item sub ${st.rvOld ? 'sel' : ''}" data-rvold title="Not seen by any source for ${REVIEW_STALE_DAYS} days or more: likely gone"><span class="lbl">Old</span><span class="cnt">${waitingR.filter(reviewStale).length}</span></button>` : ''}${
+    st.scope === 'review' && waitingR.some(o => o.inAd || o.graph) ? html`<button class="item sub ${st.rvKnown ? 'sel' : ''}" data-rvknown title="Only the ones Active Directory or Entra knows too: most likely real devices"><span class="lbl">In AD or Entra</span><span class="cnt">${waitingR.filter(o => o.inAd || o.graph).length}</span></button>` : ''}${
+    st.scope === 'review' && srcs.length > 1 ? srcs.map(([k, l, n]) => html`<button class="item sub ${st.rvSrc === k ? 'sel' : ''}" data-scope="review" data-rvsrc="${k}"><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`) : ''}${
+    ignoredR.length ? html`<button class="item ${st.scope === 'ignored' ? 'sel' : ''}" data-scope="ignored" title="Kept out of the inventory and of every sync"><span class="dot off"></span><span class="lbl">Ignored</span><span class="cnt">${ignoredR.length}</span></button>` : ''}`;
   /* The sidebar counts what the list shows: in To review only while Cards, Table or the map show it. */
   const pool = LIST_TABS.includes(st.tab) ? scopePool() : objs, cnt = f => pool.filter(f).length;
   /* With an object type selected, the locations count only objects of that type. */
@@ -48,22 +48,21 @@ export function renderSide(){
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
      picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
-  const typeBtn = ([k, v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${byType[k] || 0}</span></button>`;
+  const typeBtn = ([k, v]) => html`<button class="item ${st.type===k?'sel':''}" data-type="${k}">${rawHtml(tico(k,'tico sm'))}<span class="lbl">${v.label}</span><span class="cnt">${byType[k] || 0}</span></button>`;
   const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
-  $('#typeList').innerHTML =
-    `<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>` +
-    shown.map(typeBtn).join('') +
-    (folded ? `<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
-      : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? '<button class="side-more" data-alltypes="0">Fewer types</button>' : '');
+  $('#typeList').innerHTML = html`<button class="item ${!st.type && !leftFilters() && !st.q.trim() ? 'sel' : ''}" data-type=""><span class="lbl">All devices</span><span class="cnt">${pool.length}</span></button>${
+    shown.map(typeBtn)}${
+    folded ? html`<button class="side-more" data-alltypes="1">+ ${folded} more type${folded === 1 ? '' : 's'} without devices</button>`
+      : st.sideAllTypes && types.some(([k]) => !byType[k] && st.type !== k) ? html`<button class="side-more" data-alltypes="0">Fewer types</button>` : ''}`;
   const limit = seenSites(), sites = [...new Set([...SITES, ...LOCS.map(l => l.split(' / ')[0])])].filter(s => !limit || limit.includes(s));
-  $('#locList').innerHTML = sites.map(s => `<button class="item ${st.loc===s?'sel':''}" data-loc="${esc(s)}"><span class="lbl">${esc(s)}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>` +
-    LOCS.filter(l => l.startsWith(s + ' / ')).map(l => `<button class="item sub ${st.loc===l?'sel':''}" data-loc="${esc(l)}"><span class="lbl">${esc(l.split(' / ')[1])}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`).join('')).join('');
+  $('#locList').innerHTML = html`${sites.map(s => html`<button class="item ${st.loc===s?'sel':''}" data-loc="${s}"><span class="lbl">${s}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>${
+    LOCS.filter(l => l.startsWith(s + ' / ')).map(l => html`<button class="item sub ${st.loc===l?'sel':''}" data-loc="${l}"><span class="lbl">${l.split(' / ')[1]}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`)}`)}`;
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
-  $('#wtyList').innerHTML = [['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => `<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`).join('');
+  $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_USED();
-  $('#chkList').innerHTML = LS_USED() ? `<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
+  $('#chkList').innerHTML = LS_USED() ? html`<button class="item ${st.scanOld?'sel':''}" data-scanold="1" title="Lansweeper has not scanned them for over 3 months"><span class="dot warn"></span><span class="lbl">Check by hand</span><span class="cnt">${nOld}</span></button>` : '';
   /* Duplicates, whatever found them: a second record by DNS name (Lansweeper, e.g. a docking station), more than one record
      in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
      one is. */
@@ -73,7 +72,7 @@ export function renderSide(){
     ['ambiguous', 'Name or serial used twice', GRAPH_TIPS.ambiguous, GRAPH_FILTERS.ambiguous[2], st.intune === 'ambiguous', () => SYNC.graph],
   ].map(([k, l, tip, f, on, live]) => [k, l, tip, live() ? cnt(f) : 0, on]).filter(([, , , n, on]) => n || on);
   $('#dupHdr').hidden = $('#dupList').hidden = !dups.length;
-  $('#dupList').innerHTML = dups.map(([k, l, tip, n, on]) => `<button class="item ${on ? 'sel' : ''}" ${k === 'twins' ? 'data-twins="1"' : `data-intune="${k}"`} title="${esc(tip)}"><span class="dot warn"></span><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`).join('');
+  $('#dupList').innerHTML = html`${dups.map(([k, l, tip, n, on]) => html`<button class="item ${on ? 'sel' : ''}" ${k === 'twins' ? html`data-twins="1"` : html`data-intune="${k}"`} title="${tip}"><span class="dot warn"></span><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`)}`;
   /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
      Shown once Graph is set up. */
   $('#grHdr').hidden = $('#grList').hidden = !SYNC.graph;
@@ -85,19 +84,19 @@ export function renderSide(){
     if (fromOverview && st.intune !== k) return '';
     if (k === 'duplicates' || k === 'ambiguous') return '';   /* under Duplicates */
     if ((join || onlyWhenSome) && !n && st.intune !== k) return '';
-    const head = join && !joinHead ? (joinHead = true, '<div class="side-sub">Joined</div>') : '';
-    return `${head}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${esc(join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l)}">${join ? `<span class="dot jdot j-${k}"></span>` : `<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
+    const head = join && !joinHead ? (joinHead = true, html`<div class="side-sub">Joined</div>`) : '';
+    return html`${head}<button class="item ${st.intune === k ? 'sel' : ''}" data-intune="${k}" title="${join ? JOIN_INFO[l === 'AD joined only' ? 'AD joined' : l] || GRAPH_TIPS[k] : GRAPH_TIPS[k] || l}">${join ? html`<span class="dot jdot j-${k}"></span>` : html`<span class="dot ${c}"></span>`}<span class="lbl">${l}</span><span class="cnt">${n}</span></button>`;
   }).join('') : '';
   /* An operating system picked on the Overview: shown here while it filters, with a way out. */
   $('#osHdr').hidden = $('#osList').hidden = !st.osFam;
-  $('#osList').innerHTML = st.osFam ? `<button class="item sel" data-osfam="" title="Show all devices again"><span class="lbl">${esc(st.osFam)}</span><span class="cnt">${cnt(o => osFamily(o) === st.osFam)}</span><span aria-hidden="true">×</span></button>` : '';
+  $('#osList').innerHTML = st.osFam ? html`<button class="item sel" data-osfam="" title="Show all devices again"><span class="lbl">${st.osFam}</span><span class="cnt">${cnt(o => osFamily(o) === st.osFam)}</span><span aria-hidden="true">×</span></button>` : '';
   /* A contact's devices, opened from Contacts: shown here while it filters, with a way out. */
   const rc = contactOf(st.resp);
   $('#respHdr').hidden = $('#respList').hidden = !rc;
-  $('#respList').innerHTML = rc ? `<button class="item sel" data-resp="" title="Show all devices again"><span class="lbl">${esc(rc.name)}</span><span class="cnt">${cnt(o => o.respIn === rc.id || o.respEx === rc.id)}</span><span aria-hidden="true">×</span></button>` : '';
+  $('#respList').innerHTML = rc ? html`<button class="item sel" data-resp="" title="Show all devices again"><span class="lbl">${rc.name}</span><span class="cnt">${cnt(o => o.respIn === rc.id || o.respEx === rc.id)}</span><span aria-hidden="true">×</span></button>` : '';
   /* An AD group picked on a device: shown here while it filters, with a way out. */
   $('#adgHdr').hidden = $('#adgList').hidden = !st.adGroup;
-  $('#adgList').innerHTML = st.adGroup ? `<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${esc(st.adGroup)}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
+  $('#adgList').innerHTML = st.adGroup ? html`<button class="item sel" data-adgroup="" title="Show all devices again"><span class="lbl">${st.adGroup}</span><span class="cnt">${cnt(o => (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase()))}</span><span aria-hidden="true">×</span></button>` : '';
   /* Warranty, Lansweeper checks, duplicates and Entra & Intune under More filters: open while one of them filters, and
      once opened (this browser). */
   const mf = $('#moreFilters');
@@ -108,7 +107,7 @@ export function renderSide(){
     mf.ontoggle = () => { try { if (mf.open) localStorage.setItem(MORE_KEY, '1'); else if (!mf.querySelector('.item.sel')) localStorage.removeItem(MORE_KEY); } catch { /* not kept */ } };
   }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
-  $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
+  $('#statList').innerHTML = html`${st.live ? html`<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : ''}${Object.entries(STATUS).map(([k,v]) => html`<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${v.label}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`)}`;
   /* The saved views (views-saved.js). */
   renderSavedViews();
 }
@@ -183,18 +182,18 @@ export function renderFilterBar(){
     st.q.trim() && ['q', 'Filter', '“' + st.q.trim() + '”'],
   ].filter(Boolean);
   const pool = list && st.scope ? scopePool().length : 0;
-  const scope = !list || !st.scope ? '' : `<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
-    : `${pool} ${pool === 1 ? 'device' : 'devices'} waiting for review${st.rvSrc ? ` (found by ${esc(REVIEW_SRC[st.rvSrc] || st.rvSrc)})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
+  const scope = !list || !st.scope ? '' : html`<span class="fb-scope">${st.scope === 'ignored' ? `${pool} ignored ${pool === 1 ? 'device' : 'devices'}: kept out of the inventory and every sync`
+    : html`${pool} ${pool === 1 ? 'device' : 'devices'} waiting for review${st.rvSrc ? html` (found by ${REVIEW_SRC[st.rvSrc] || st.rvSrc})` : ''}: not in the inventory yet`}</span><button type="button" class="fb-clear" data-fx="scope">Back to inventory</button>`;
   /* A person's devices: who they are, and what is done with their devices when they come or go, in one place. */
   const mine = person ? objs.filter(o => o.uid === person.id && o.status !== 'retired') : [];
-  const who = !list || !person ? '' : `<div class="fb-person"><b>${esc(person.name)}</b>${person.active === false ? ' <span class="chip warn">left</span>' : ''}<span class="muted">${esc([person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · '))}</span>
-    <span class="grow"></span>${SERVER.on && mine.length ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${esc(person.name)} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? '<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>' : ''}${isAdmin() ? '<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>' : ''}${isAdmin() && mine.length ? `<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
+  const who = !list || !person ? '' : html`<div class="fb-person"><b>${person.name}</b>${person.active === false ? html` <span class="chip warn">left</span>` : ''}<span class="muted">${[person.dept, `${mine.length} ${mine.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span>
+    <span class="grow"></span>${SERVER.on && mine.length ? html`<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(person.id)}&format=pdf" download title="The devices ${person.name} has, as a PDF to tick off when they are handed back">Hand-back list</a>` : ''}${SERVER.on && isAdmin() ? html`<button type="button" data-pact="sheet" title="Print the devices handed out and, if wanted, a new initial password">Entry sheet…</button>` : ''}${isAdmin() ? html`<button type="button" data-pact="give" title="Give them devices from the stock">Hand out a device…</button>` : ''}${isAdmin() && mine.length ? html`<button type="button" data-pact="back" title="All of them in stock, nobody assigned (with Undo)">Take all back</button>` : ''}</div>`;
   /* Values set by hand in one field: given back to the sources, which write them again at their next sync. */
-  const hf = list && st.handField && isAdmin() ? `<div class="fb-person fb-qfix"><b>Set by hand: ${esc(SYNC_FIELD_LABEL[st.handField] || st.handField)}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
+  const hf = list && st.handField && isAdmin() ? html`<div class="fb-person fb-qfix"><b>Set by hand: ${SYNC_FIELD_LABEL[st.handField] || st.handField}</b><span class="muted">no source changes these; given back, the sources write them again at their next sync.</span><span class="grow"></span><button type="button" data-handback="1">Give all back to the sources</button></div>` : '';
   const qf = st.tab === 'table' && qfix() && QUALITY_FIX[st.quality] && QUALITY[st.quality];
-  const qbar = !qf ? '' : `<div class="fb-person fb-qfix"><b>${esc(QUALITY[st.quality][0])}</b><span class="muted">${esc(QUALITY_FIX[st.quality][2])}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? `<button type="button" data-qfix="1" id="qfixSel">Select all ${qfix().n}</button>` : ''}</div>`;
+  const qbar = !qf ? '' : html`<div class="fb-person fb-qfix"><b>${QUALITY[st.quality][0]}</b><span class="muted">${QUALITY_FIX[st.quality][2]}.</span><span class="grow"></span>${QUALITY_FIX[st.quality][1] && isAdmin() ? html`<button type="button" data-qfix="1" id="qfixSel">Select all ${qfix().n}</button>` : ''}</div>`;
   bar.hidden = !chips.length && !scope && !who && !qbar && !hf;
-  bar.innerHTML = who + qbar + hf + scope + (chips.length ? `<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => `<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? `${esc(l)}: ` : ''}<b>${esc(v)}</b></span><span class="x" aria-hidden="true">×</span></button>`).join('')}${chips.length > 1 ? '<button type="button" class="fb-clear" data-fx="all">Clear all</button>' : ''}` : '');
+  bar.innerHTML = html`${who}${qbar}${hf}${scope}${chips.length ? html`<span class="fb-l">Showing only</span>${chips.map(([k, l, v]) => html`<button type="button" class="fchip" data-fx="${k}" title="Take this filter off"><span>${l ? html`${l}: ` : ''}<b>${v}</b></span><span class="x" aria-hidden="true">×</span></button>`)}${chips.length > 1 ? html`<button type="button" class="fb-clear" data-fx="all">Clear all</button>` : ''}` : ''}`;
 }
 $('#fbar').addEventListener('click', e => {
   if (e.target.closest('[data-qfix]')){ if (qfix()) qfix().select(); return; }
@@ -228,7 +227,7 @@ export function hiddenHits(){
   const all = searchAll(), q = st.q.trim();
   if (!all.length) return '';
   const within = [st.type && TYPES[st.type] ? TYPES[st.type].label : '', st.loc || '', st.status && STATUS[st.status] ? STATUS[st.status].label.toLowerCase() : ''].filter(Boolean).join(', ') || 'the filters on the left';
-  return `<div class="empty">Nothing matches “${esc(q)}” within ${esc(within)}. ${all.length === 1 ? `1 device outside ${st.type ? 'this type' : 'these filters'} does: <b>${esc(all[0].name)}</b>` : `${all.length} devices outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all devices</button></div>`;
+  return String(html`<div class="empty">Nothing matches “${q}” within ${within}. ${all.length === 1 ? html`1 device outside ${st.type ? 'this type' : 'these filters'} does: <b>${all[0].name}</b>` : `${all.length} devices outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all devices</button></div>`);
 }
 export function bindHiddenHits(){
   const b = $('#searchAllBtn');
@@ -245,8 +244,8 @@ document.addEventListener('click', async e => {
 /* An empty inventory says where the devices a sync found are: waiting in To review (after a clear, every device is new). */
 export function emptyHtml(){
   const n = REVIEW.filter(o => !o.review.ignored).length;
-  return n ? `<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
-    : `<div class="empty">The inventory is empty.${isAdmin() ? ' <button type="button" class="primary" data-empty-new>New device</button>' : ''}</div>`;
+  return String(n ? html`<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
+    : html`<div class="empty">The inventory is empty.${isAdmin() ? html` <button type="button" class="primary" data-empty-new>New device</button>` : ''}</div>`);
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
@@ -265,7 +264,7 @@ export function viewSwitch(){
   (st.tabLast = st.tabLast || {})[g] = st.tab;
   const m = TAB_GROUPS[g][1].filter(tabAllowed); if (m.length < 2) return;
   const tb = $('#toolbar'); if (!tb || tb.querySelector('.vswitch')) return;
-  tb.insertAdjacentHTML('afterbegin', `<span class="vswitch" role="group" aria-label="${TAB_GROUPS[g][0]}">${m.map(id => `<button type="button" class="${id === st.tab ? 'on' : ''}" aria-pressed="${id === st.tab}" data-vsw="${id}">${FIXED_TABS[id]}</button>`).join('')}</span>`);
+  tb.insertAdjacentHTML('afterbegin', html`<span class="vswitch" role="group" aria-label="${TAB_GROUPS[g][0]}">${m.map(id => html`<button type="button" class="${id === st.tab ? 'on' : ''}" aria-pressed="${String(id === st.tab)}" data-vsw="${id}">${FIXED_TABS[id]}</button>`)}</span>`);
   tb.querySelectorAll('[data-vsw]').forEach(b => b.onclick = () => { flushSearch(); if (b.dataset.vsw !== st.tab){ st.tab = b.dataset.vsw; view(); } });
 }
 /* A view that draws its toolbar again on its own (ticking rows, typing in its search) would drop the switch: it is put
@@ -302,7 +301,7 @@ export function renderTabs(){
   $('#objbar').hidden = !objs.length;
   $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open devices</span>' : '') + objs.map(id => {
     const o = byId(id);
-    return `<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${esc(o.name)}">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
+    return html`<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${o.name}">${o.name}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
   }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
   document.querySelectorAll('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
