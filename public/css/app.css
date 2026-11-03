@@ -83,6 +83,8 @@ code{font-family:var(--mono)}
 .combo-list li.off:hover{background:none}
 textarea{height:auto;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+/* Two control heights in the whole app: 28px for buttons, fields, dropdowns and tabs; 24px (compact) only for actions
+   inside rows, lists and panel headers. */
 button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
 button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)}
 button:disabled{opacity:.45;cursor:not-allowed}
@@ -140,7 +142,7 @@ table.locs td.site{color:var(--muted)}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
 .fmenu{flex:none;width:26px}
-.fmenu>.menu-btn{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
+.fmenu>.menu-btn{height:24px;width:24px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
 .ctlrow:hover>.fmenu>.menu-btn,.fmenu>.menu-btn:focus-visible,.fmenu:has(>:popover-open)>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)}
 .fmenu .menubox{min-width:210px}
 /* Other network adapters under the MAC address: name, address and details on one row each. */
@@ -321,7 +323,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 /* main frame */
 #main{flex:1;display:flex;min-height:0;position:relative}
 #side{width:250px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--bd);overflow:auto}
-.hdr button{height:22px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
+.hdr button{height:24px;font-size:11px;padding:0 6px;text-transform:none;letter-spacing:0}
 #side>.hdr:first-child{height:38px}
 .item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
@@ -465,7 +467,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-what{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .sync-what span{font-size:12px;overflow-wrap:anywhere}
 .sync-err{color:var(--danger)}
-.sync-row>button{flex:none;height:26px;min-height:0;padding:0 10px}
+.sync-row>button{flex:none;height:24px;min-height:0;padding:0 10px}
 .rv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
 .rv-chips .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .card.stale{background:var(--panel)}.card.stale .nm,.card.stale .model{color:var(--muted)}
@@ -703,7 +705,7 @@ table.grid.sw table.sw-sub td,table.grid.sw table.sw-sub tr:hover td{background:
 .sw-dev{display:inline-flex;align-items:center;gap:8px}
 table.grid th[data-sort="desc"]::after{content:' \25BC';font-size:9px;color:var(--muted)}
 table.grid tr.fr th{top:27px;padding:2px 3px;background:var(--gridh)}
-table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;padding:1px 4px}
+table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;padding:1px 4px}
 
 /* switch ports */
 #net{padding:12px;display:flex;flex-direction:column;gap:12px}
@@ -748,7 +750,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .tf-name:hover{border-color:var(--bd)} .tf-name:focus{border-color:var(--accent);background:var(--bg)}
 .tf-fixed{font-size:12px}
 .tf-note-k{font-size:12px;white-space:nowrap}
-.tf-row .fl-move button{height:24px;width:26px;padding:0}
+.tf-row .fl-move button{height:24px;width:24px;padding:0}
 /* On a phone a field takes two lines: the arrows, its name and the bin on the first, its note, how many have it and
    Shown on the second, so the name keeps its width. */
 @media (max-width:760px){
@@ -935,7 +937,7 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relrow .t{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
 .relrow .t a{font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .p{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.relrow button:not(.link){height:22px;width:22px}
+.relrow button:not(.link){height:24px;width:24px}
 .relrow .t .link{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relrow .t:has(.rport) .link{flex:1 1 auto}   /* the port boxes line up, however long the name */
 #arTo{min-width:160px}
@@ -1491,7 +1493,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
-.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
+.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
 @media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
@@ -1831,7 +1833,7 @@ details.how[open]>summary{margin-bottom:4px}
 .xadd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px dashed var(--bd);border-radius:var(--r-m)}
 .xadd>.muted{margin-right:4px}
 .vswitch{display:inline-flex;border:1px solid var(--bd);border-radius:var(--r-m);overflow:hidden;flex:none}
-.vswitch>button{border:0;border-radius:0;background:var(--btn);min-height:30px;padding:4px 12px}
+.vswitch>button{border:0;border-radius:0;background:var(--btn);height:26px;min-height:0;padding:0 12px}
 .vswitch>button+button{border-left:1px solid var(--bd)}
 
 .vswitch>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
@@ -1842,7 +1844,7 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore[open]>summary{margin-bottom:8px}
 .ls-adv{margin:0 0 14px}
 .ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
-.umenu>.menu-btn{min-width:34px;min-height:30px;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
+.umenu>.menu-btn{min-width:28px;height:24px;min-height:0;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
 .umenu .menubox{min-width:190px}
 .umenu .menubox>a{padding:6px 10px}
 @media (pointer:coarse){.umenu>.menu-btn{min-height:40px;min-width:40px}}
