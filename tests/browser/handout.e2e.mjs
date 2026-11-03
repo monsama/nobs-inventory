@@ -62,6 +62,10 @@ try {
   // taken back: asked where it goes (the store room), then in stock with nobody; Undo gives it back to her
   await p.click('#takeBackBtn'); await p.waitForSelector('#tbLoc');
   assert.equal(await p.inputValue('#tbLoc'), 'Bern / Lager', 'the store room of its site is proposed');
+  // the first choice names the room it is in; the store rooms come first, in a group of their own
+  assert.match(await p.textContent('#tbLoc option[value=""]'), /^Leave it where it is \(.+\)$/);
+  assert.deepEqual(await p.$$eval('#tbLoc optgroup', g => g.map(x => x.label)), ['Store rooms', 'Other rooms']);
+  assert.deepEqual(await p.$$eval('#tbLoc optgroup[label="Store rooms"] option', o => o.map(x => x.value)), ['Bern / Lager']);
   await p.selectOption('#tbLoc', 'Bern / Lager'); await p.click('#tbOk');
   await eventually(() => stored('n1').status === 'stock' && !stored('n1').uid && stored('n1').loc === 'Bern / Lager');
   // the next time, the same store room is proposed

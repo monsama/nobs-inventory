@@ -4,6 +4,8 @@
 /* One set of colours: light-dark() picks the light or the dark value by color-scheme, which follows the system unless
    the page sets data-theme (Settings: light or dark). The shadow and the chevron image are not colours and are set per scheme below. */
 :root{color-scheme:light dark;
+/* The one space between the window edge and what lines up along it (top bar, tab bar, toolbar, views, status bar). */
+--gutter:12px;
 --danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;--bg:light-dark(#fff,#16181b);--fg:light-dark(#1b1d21,#e4e6ea);
  --panel:light-dark(#f4f5f7,#1d2024);--panel2:light-dark(#eaecef,#272a2f);--bd:light-dark(#d6d9de,#34383e);--bd2:light-dark(#e7e9ec,#2a2d32);
@@ -279,7 +281,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .code{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.3px}
 
 /* top bar */
-#bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
+#bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(var(--gutter), env(safe-area-inset-right, 0px)) 6px max(var(--gutter), env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
 #brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
 #toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
 #brand .logo{width:24px;height:24px;flex:none;display:block}
@@ -346,7 +348,7 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 /* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
 @media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
 .sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
-#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
+#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 var(--gutter) 0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
 
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
@@ -366,10 +368,10 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .port.single{opacity:.5;cursor:not-allowed}
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
-.toolbar{padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
+.toolbar{padding:4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
 .tbsep{width:1px;align-self:stretch;background:var(--bd);margin:2px 2px}
 .view{flex:1;overflow:auto;min-height:0;position:relative}
-.statusbar{display:flex;gap:14px;padding:3px max(8px, env(safe-area-inset-right, 0px)) 3px max(8px, env(safe-area-inset-left, 0px));font-size:12px;border-top:1px solid var(--bd2);background:var(--panel);flex:none;white-space:nowrap;overflow:hidden}
+.statusbar{display:flex;gap:14px;padding:3px max(var(--gutter), env(safe-area-inset-right, 0px)) 3px max(var(--gutter), env(safe-area-inset-left, 0px));font-size:12px;border-top:1px solid var(--bd2);background:var(--panel);flex:none;white-space:nowrap;overflow:hidden}
 .statusbar span{display:inline-flex;align-items:center;gap:5px}
 /* "? Shortcuts" at the right end of the status bar: small, like the rest of the bar. */
 .statusbar .sb-keys{margin-left:auto;height:auto;min-height:0;padding:0 2px;border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer}
@@ -861,7 +863,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .maphint{position:absolute;left:12px;bottom:10px;font-size:12px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);padding:4px 8px;pointer-events:none}
 
 /* object page */
-.obj{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;padding:12px;align-items:start}
+.obj{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;padding:var(--gutter);align-items:start}
 .obj .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .form{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;padding:12px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
@@ -1903,3 +1905,4 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .be-prev{margin-top:12px;border-top:1px solid var(--bd2);padding-top:8px}.be-prev .hdr{font-weight:600;margin-bottom:6px}
 .be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
 @media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}
+.xhide{margin-left:6px;min-height:0;height:20px;width:20px;padding:0;line-height:1;font-size:15px;flex:none}

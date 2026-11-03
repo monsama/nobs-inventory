@@ -14,7 +14,7 @@ import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './0
 import { menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
-import { SERVER, coloursModal, queueServerSave, render, renderStatus } from './07-render.js';
+import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
@@ -180,7 +180,7 @@ const setAllFields = on => { try { if (on) localStorage.setItem(ALL_KEY, '1'); e
 function extras(o){
   const edit = isAdmin();
   const parts = [
-    ['links', 'Link', deviceLinksPanel(o), !(o.urls || []).length && !(o.ip || o.dns)],
+    ['links', 'Link', deviceLinksPanel(o), !(o.urls || []).length],
     ['maint', 'Maintenance', o.review ? '' : maintPanel(o), !(o.maint || []).length],
     ['photos', 'Photo', photosPanel(o), photoCount(o.id) === 0],
     ['software', 'Software', SW_TYPES.includes(o.type) ? softwarePanel(o) : '', !(o.software || []).length],
@@ -189,12 +189,16 @@ function extras(o){
   ].filter(([, , html]) => html);
   const folded = parts.filter(([k, , , empty]) => empty && !st.showPanels?.has(o.id + ':' + k));
   const hide = (k, html) => html.replace(/^(\s*)<(div|details) class="panelbox/, `$1<$2 data-xpanel="${k}" hidden class="panelbox`);
+  /* An empty panel that was opened from Add gets a × in its title that puts it back on the Add line. */
+  const label = Object.fromEntries(parts.map(([k, l]) => [k, l]));
+  const hideBtn = k => `<button type="button" class="icon ghost xhide" data-xhide="${k}" title="Hide this empty panel (it goes back to Add)" aria-label="Hide the empty ${label[k]} panel">×</button>`;
+  const closable = (k, html) => html.replace(/(<(div|summary) class="hdr"[^>]*>)([\s\S]*?)(<\/\2>)/, (m, open, tag, inner, close) => open + inner + hideBtn(k) + close);
   /* Someone who only reads gets the empty ones named in one line instead. */
   const NONE = { links: 'links', maint: 'maintenance', photos: 'photos', software: 'software', resp: 'responsible', contracts: 'contracts' };
   const names = folded.map(([k]) => NONE[k]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] : names[0];
   const none = !edit && folded.length ? html`<p class="note xnone" id="xNone">No ${list} recorded.</p>` : '';
   /* The panels are markup from their modules (strings), folded by a string edit. */
-  return html`${none}${edit && folded.length ? html`<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => html`<button type="button" data-xadd="${k}">+ ${l}</button>`)}</div>` : ''}${parts.map(([k, , panel]) => rawHtml(folded.some(f => f[0] === k) ? hide(k, String(panel)) : panel))}`;
+  return html`${none}${edit && folded.length ? html`<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => html`<button type="button" data-xadd="${k}">+ ${l}</button>`)}</div>` : ''}${parts.map(([k, , panel, empty]) => rawHtml(folded.some(f => f[0] === k) ? hide(k, String(panel)) : edit && empty ? closable(k, String(panel)) : String(panel)))}`;
 }
 export function renderObj(o){
   /* A panel's patch cords are in its Ports table, not listed again here. */
@@ -248,8 +252,8 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   const more = html`<button id="relMapBtn">Relations map</button>${edit ? html`<button id="dupBtn">Duplicate</button>` : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? html`<button id="addPortsBtn">Add network ports…</button>` : ''}${o.uid && SERVER.on && isAdmin() ? html`<button id="sheetBtn">Entry sheet for ${o.user}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? html`<hr class="msep">${o.excluded ? html`<button id="exclBtn">Include in sync</button>` : html`<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>`}` : ''}${edit ? html`<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>` : ''}`;
   $('#toolbar').innerHTML = html`${rawHtml(tico(o.type))}<b class="mono" id="objTitle" tabindex="-1">${o.name}</b><span class="code">${o.code}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
-    ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div>${handBtn(o)}
-    ${rawHtml(menuHtml('More', more))}<span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
+    ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>${handBtn(o)}
+    ${rawHtml(menuHtml('More', more))}`;
   $('#view').innerHTML = html`${rawHtml(reviewBanner(o))}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row)}
@@ -277,13 +281,22 @@ export function renderObj(o){
       ${rawHtml(historyPanel(o))}
     </div></div>`;
 
+  /* Hide: an empty panel goes back to the Add line. */
+  $('#view').querySelectorAll('[data-xhide]').forEach(b => b.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (st.showPanels) st.showPanels.delete(o.id + ':' + b.dataset.xhide);
+    view();
+  });
   /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
   $('#view').querySelectorAll('[data-xadd]').forEach(b => b.onclick = () => {
     const k = b.dataset.xadd, el = $('#view').querySelector(`[data-xpanel="${k}"]`); if (!el) return;
     (st.showPanels = st.showPanels || new Set()).add(o.id + ':' + k);
-    el.hidden = false; b.remove(); const bar = $('#xAdd'); if (bar && !bar.querySelector('[data-xadd]')) bar.remove();
-    const f = el.querySelector('input:not([type=file]):not([hidden]), select, textarea, button:not([disabled])'); if (f) f.focus();
-    el.scrollIntoView({ block: 'nearest' });
+    /* Drawn again, so the opened panel has its × (hide) and the Add line loses its button. */
+    view();
+    const shown = $('#view').querySelector(`[data-xpanel="${k}"]`) || $('#view').querySelector(`[data-xhide="${k}"]`)?.closest('.panelbox');
+    if (!shown) return;
+    const f = shown.querySelector('input:not([type=file]):not([hidden]), select, textarea, button:not([disabled]):not(.xhide)'); if (f) f.focus();
+    shown.scrollIntoView({ block: 'nearest' });
   });
   bindSoftware(o);
   bindDeviceContracts(o);
