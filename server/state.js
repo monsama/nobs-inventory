@@ -232,7 +232,7 @@ function checkStateRules(s, size = true) {
   { const p = fieldModeProblem(s.fieldMode); if (p) bad(p); }
   if (s.groupRoles !== undefined && s.groupRoles !== null) { const p = groupRolesProblem(s.groupRoles); if (p) bad(p); }
   { const p = lifecycleProblem(s.lifecycle); if (p) bad(p); }
-  /* Stocktakes (the Stocktake view): started, finished, what they found. */
+  /* Inventory checks (the Inventory check view): started, finished, what they found. */
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
   if (s.peopleNotSame !== undefined && (!Array.isArray(s.peopleNotSame) || s.peopleNotSame.length > 5000 || s.peopleNotSame.some(x => typeof x !== 'string' || x.length > 200))) bad('The people marked as not the same are a list of pairs.');
   for (const k of ['fillGraph', 'fillAd', 'mergeTwins', 'locFromOffice', 'useAd', 'useGraph']) if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(`${k} is on or off.`);

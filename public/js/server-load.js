@@ -12,7 +12,7 @@ import { loginModal } from './signin.js';
 /* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
 export function restoreOffline(){
   const kept = offlineKept(); if (!kept || !isAdmin()) return;
-  /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
+  /* Of the settings, the inventory checks (what an inventory check found and noted) are what is changed without a connection. */
   const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
   if (stk) st.stocktakes = JSON.parse(stk.json);
   /* Rooms added there come back too. */

@@ -252,7 +252,7 @@ export function emptyHtml(){
 document.addEventListener('click', e => { const b = evEl(e).closest && evEl(e).closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
-export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
+export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Inventory check'};
 /* The views someone gets: My devices only for a viewer who sees only their own devices, and for them only it and the
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
@@ -278,7 +278,7 @@ export function viewSwitch(){
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
-  /* Stocktake shows while one runs, or while it is the tab open (from the Overview). Relationships only while it is open:
+  /* Inventory check shows while one runs, or while it is the tab open (from the Overview). Relationships only while it is open:
      it is opened from a device (More → Relationships), centred on it. */
   if (!st.tabIds.includes('stocktake')) st.tabIds.push('stocktake');
   const stk = (st.stocktakes || []).some(t => !t.finished);
@@ -300,7 +300,7 @@ export function renderTabs(){
   const sync = syncButtonHtml(), right = sync || reload || views.includes('review');
   /* A group shows once, where its first member stands in the order. */
   const shownViews = views.filter(id => id !== 'review' && (!TAB_GROUP_OF[id] || views.find(v => TAB_GROUP_OF[v] === TAB_GROUP_OF[id]) === id));
-  /* A tab shown only while it is open (Relations, Stocktake with none running) comes after the others, so opening and
+  /* A tab shown only while it is open (Relations, Inventory check with none running) comes after the others, so opening and
      closing it moves no other tab. It is not dragged into the order either. */
   const fleeting = id => id === 'map' || (id === 'stocktake' && !stk);
   const tabsHtml = shownViews.filter(id => !fleeting(id)).map(viewTab).join('')
