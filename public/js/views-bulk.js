@@ -11,6 +11,7 @@ import { dupOf, resolveModal, reviewDo, reviewStale } from './15-review.js';
 import { openObj } from './02-views.js';
 import { renderCards } from './views-cards.js';
 import { renderTable } from './views-table.js';
+import { bulkEditModal } from './views-bulk-edit.js';
 /* In To review (st.scope): Accept or Ignore the picked devices (Back to review when ignored ones are shown), or, with
    none picked and allAlso, every one shown; Accept all leaves out the old ones, which are accepted one by one. */
 export function scopeActs(list, allAlso){
@@ -56,18 +57,19 @@ export function bindScopeActs(list){
   on('rvIgnoreAll', () => confirmModal('Ignore devices', `Ignore the ${list.length} ${list.length === 1 ? 'device' : 'devices'} shown? No sync brings them back; you can bring them back from Ignored.`, 'Ignore', () => reviewDo('ignore', list)));
   on('rvRestoreAll', () => reviewDo('restore', list));
 }
-/* Cards picked (the same choice as the Table's ticks): open them all as tabs, or go on in the Table, where the picked
-   rows can be moved, given a status or a responsible together. */
+/* Cards picked (the same choice as the Table's ticks): open them all as tabs, edit their fields (admins), or go on in the
+   Table, where the picked rows can be moved, given a status or a responsible together. */
 export function pickBar(list){
   const n = (st.bulk || new Set()).size;
   /* The picked devices' actions on a row of their own, always in one order: count, the To review actions, Resolve, the rest. */
-  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
+  return n ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="cdOpen" title="Open each as a tab">Open in tabs</button>${isAdmin() && !st.scope ? '<button id="cdEdit" title="Set or clear fields of them all, with a preview">Edit fields…</button>' : ''}${st.scope ? '' : '<button id="cdTable" title="The Table shows the same selection, with actions for all of them">Edit in Table</button>'}<button id="cdClear">Clear selection</button></div>`
     : '<span class="muted hide-n">Click a card to open it · Ctrl+click or its corner selects several · Ctrl+A all</span>' + scopeActs(list, true);
 }
 /* The picked devices that are still among those shown (the inventory, or To review): a pick does not reach across. */
 export const pickedInPool = () => { const ids = new Set(scopePool().map(o => o.id)); return new Set([...(st.bulk || [])].filter(id => ids.has(id))); };
 export function bindPickBar(){
   const o = $('#cdOpen'); if (o) o.onclick = () => openObjs([...st.bulk]);
+  const e = $('#cdEdit'); if (e) e.onclick = () => bulkEditModal([...st.bulk]);
   const t = $('#cdTable'); if (t) t.onclick = () => { st.tab = 'table'; view(); };
   const c = $('#cdClear'); if (c) c.onclick = () => { st.bulk.clear(); keepScroll(renderCards); };
 }
@@ -112,9 +114,9 @@ document.addEventListener('keydown', e => {
   }
 });
 /* The Table's bar for the selected rows: in To review its actions; else one menu that opens, hands out, moves, or sets
-   the status or the responsible of them all. */
+   the status, the responsible or any field of them all. */
 export const tableBulkBar = (list, n) => `${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? '<option value="handout">Hand out to a person…</option>' : ''}
+${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? '<option value="handout">Hand out to a person…</option><option value="edit">Edit fields…</option>' : ''}
 ${isAdmin() ? `<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
@@ -150,9 +152,9 @@ export function bindTableBulk(n){
   const bc = $('#bkClear'); if (bc) bc.onclick = () => { st.bulk.clear(); renderTable(); };
   /* All the listed devices (those past the first rows drawn too), then the control that fixes them has the focus. */
   const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
-  /* One menu for what is done with the selected: open them, move them, set their status or responsible. */
+  /* One menu for what is done with the selected: open them, move them, set their status, responsible or fields. */
   const ba = $('#bkAct'); if (ba) ba.onchange = () => {
     const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1); ba.value = '';
-    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'edit') bulkEditModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
   };
 }
