@@ -23,6 +23,8 @@ const fullUrl = p => `api/images/${encodeURIComponent(p.id)}`;
 
 /* How many photos a device has, once read (null before). */
 export const photoCount = id => { const c = CACHE.get(id); return c && !c.failed ? c.images.length : null; };
+/* The Photos panel of device o's page: previews of its photos once read (Loading… before), and for an admin the
+   Add photos row with the count and limit. Nothing without a server or for a record still in To review. */
 export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = isAdmin();
@@ -90,6 +92,8 @@ function redraw(o){
     }
   }
 }
+/* Reads device o's photo list from the server into CACHE and draws the panel again when it changed. A list that
+   could not be read is marked failed and asked for again on the next drawing. */
 async function load(o){
   const was = CACHE.get(o.id);
   if (was) was.at = Date.now();
@@ -180,6 +184,8 @@ async function base64(blob){
   return btoa(s);
 }
 
+/* Adds the pictures in files to device o, one after the other, up to its limit: each is made smaller (prepare) and
+   uploaded, the panel showing progress. Notes the photos added in the history; stops at the first error. */
 async function add(o, files){
   const pics = files.filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
   if (!pics.length) { toast('Choose a picture: JPEG, PNG or WebP.'); return; }

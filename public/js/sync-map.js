@@ -62,6 +62,8 @@ export function fieldModeProblem(v) {
   }
   return '';
 }
+/* Whether source src may set field k of device o now: the rules in the comment above MODES, with a field's 'fill'
+   mode keeping any value already there, and Lansweeper first on a device it reports. */
 export function maySet(s, o, k, src) {
   const pick = o.pick && o.pick[k];
   if (pick) return pick === src;

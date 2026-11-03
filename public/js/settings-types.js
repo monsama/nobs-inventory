@@ -87,6 +87,8 @@ export function renderCardLines(box, type){
    Click a name to rename it, untick Shown to hide it (its values are kept), move it with the arrows. Name, type, status
    and location are always shown; a field of the type's own can be removed. */
 const ALWAYS_SHOWN = ['name', 'type', 'status', 'loc'];
+/* Draws the field list described above into box for type, with how many devices have a value in each, and wires
+   renaming, showing or hiding, moving and removing. Each change is saved in the type's field layout at once. */
 export function renderBuiltinFields(box, type){
   const lay = FIELD_LAYOUT[type] || {}, own = TYPE_FIELDS[type] || [];
   const base = typeFieldsOf(type);

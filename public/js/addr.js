@@ -3,6 +3,8 @@
 export const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 export const MAC_RE = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
 
+/* Whether v is a full or shortened IPv6 address (one :: at most), also with an IPv4 address as its last part
+   (::ffff:10.0.0.1). Hex groups of 1-4 digits; no zone or prefix length. */
 export function validIPv6(v) {
   if (v.length > 45 || !/^[0-9a-f:.]+$/i.test(v)) return false;
   if (v.includes('.')) {

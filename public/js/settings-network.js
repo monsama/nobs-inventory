@@ -214,6 +214,8 @@ function stockRoomsHtml(){
     <p class="note lnote">Where a device taken back into stock goes: taking back proposes the store room of the device's site.</p>
     <div class="lrows">${sites.map(x => html`<div class="lrow"><span>${x}</span><select data-stock="${x}" aria-label="Store room of ${x}" style="grid-column:2 / 4"><option value="">None</option>${LOCS.filter(l => siteOf(l) === x).map(l => html`<option value="${l}" ${rooms[x] === l ? 'selected' : ''}>${l.split(' / ').slice(1).join(' / ')}</option>`)}</select></div>`)}</div></section>`;
 }
+/* Draws Settings → Locations: the sites and rooms with their device counts (one still in use cannot be deleted), the
+   store rooms and the location texts from the sources. Wires renaming, deleting and adding sites and rooms. */
 export function renderSetLocs(){
   if (!$('#setLocs')) return;   /* an Undo after Settings was closed: nothing here to draw */
   const siteRow = (x, i) => {
@@ -276,6 +278,8 @@ const locTexts = () => {
 };
 const locMap = () => ({ ...(st.adLocMap || {}), ...(st.locMap || {}) });
 const locTarget = t => LOCS.find(l => lc(l) === lc(t)) || (Object.entries(locMap()).find(([k]) => lc(k) === lc(t)) || [])[1] || '';
+/* The Location texts from the sources panel: each text with its sources and device count, and what it is used as.
+   An admin can pick an existing room or a new one for it, or remove that again. */
 function adLocsHtml(){
   const list = locTexts();
   const office = html`<label class="pchk adloc-office" title="A user's office comes from AD or Entra; on a laptop or for remote work it may not be where the device is"><input type="checkbox" id="locOffice" ${st.locFromOffice ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Use the office of the device's user, for devices without a location</label>`;
@@ -307,6 +311,8 @@ function useAdLoc(text, room, msg){
     queueServerSave(); renderSetLocs(); render();
   });
 }
+/* Wires the location texts panel: the user's office option, using a text as a room (useAdLoc), and removing that
+   use with Undo; devices keep the location they got. */
 function bindAdLocs(root){
   const list = locTexts();
   const oc = $('#locOffice'); if (oc) oc.onchange = () => { st.locFromOffice = oc.checked; queueServerSave(); toast(oc.checked ? 'Devices without a location take their user\'s office at the next sync' : 'The office of a user is no longer used'); };
@@ -359,6 +365,8 @@ export function renameSite(old, value){
   toastUndo(`Site renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameSite(name, old); queueServerSave(); });
   renderSetLocs(); render();
 }
+/* Renames room old to value (Site / Room), and with it the devices' locations, the plan areas and the filter. Draws
+   Settings again and offers Undo, which renames it back. */
 export function renameLoc(old, value){
   const name = cleanLoc(value);
   if (!name){ toast('Use the form Site / Room, e.g. Basel / Lager'); renderSetLocs(); return; }

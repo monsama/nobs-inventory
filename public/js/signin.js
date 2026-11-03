@@ -20,6 +20,8 @@ export async function loadVersion(){
   const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
   return APP_VERSION;
 }
+/* Starts the page: reads the version and who is signed in (api/me) and what the server offers. Without a server it says
+   so; signed out it shows the sign-in, with what went wrong on a single sign-on; signed in it loads the inventory. */
 export async function boot(){
   loadVersion();
   let info = null;
@@ -114,6 +116,7 @@ const browserName = ua => {
   const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
   return os ? b + ' on ' + os : b;
 };
+/* Lists the browsers this account is signed in on in Your account, and wires ending one of them or all the others. */
 async function loadMySessions(){
   const box = $('#acSessions'); if (!box) return;
   const r = await fetch('api/me/sessions', {credentials: 'same-origin'});

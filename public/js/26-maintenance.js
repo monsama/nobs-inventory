@@ -18,6 +18,8 @@ export function dueChip(m, today = todayDay()){
   return String(html`<span class="chip ${s === 'late' ? 'bad' : s === 'soon' ? 'warn' : 'ok'}">${when}</span>`);
 }
 
+/* The Maintenance panel of device o's page: its tasks by due date, each with its interval, when it was last done and
+   a due chip. For an admin also Done…, change and Add maintenance… (up to MAINT_MAX tasks). */
 export function maintPanel(o){
   const list = o.maint || [], edit = isAdmin(), today = todayDay();
   const editIcon = rawHtml('<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>');

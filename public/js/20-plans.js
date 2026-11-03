@@ -143,6 +143,9 @@ export function locateOnPlan(plan, o, x, y){
 const SIDE_KEY = 'ni-pl-side';
 const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? isAdmin() : v === '1'; } catch { return isAdmin(); } };
 const setSideOpen = on => { try { localStorage.setItem(SIDE_KEY, on ? '1' : '0'); } catch { /* not kept */ } };
+/* Draws the Plans tab: the bar (pick a plan, zoom, and for an admin new plan, draw area and the Plan… menu), the list
+   of devices not on the plan and the plan itself, then wires them all. Viewers can look, search and open devices;
+   drawing, placing and dragging are for admins only. */
 export function renderPlans(){
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
@@ -173,6 +176,7 @@ export function renderPlans(){
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
+  /* The bar's buttons and the zoom. */
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#plNew', () => planModal(null)); on('#plNew2', () => planModal(null));
   on('#plSideBtn', () => { setSideOpen(!sideOpen()); renderPlans(); });
@@ -224,6 +228,7 @@ export function renderPlans(){
     listDragDone = false;
     planListDrag = {id: b.dataset.plitem, sx: e.clientX, sy: e.clientY, moved: false, ghost: null, label: b.querySelector('.pl-n').textContent};
   };
+  /* The plan: drawing areas, placing a device, and its pins and areas. */
   const c = $('#plCanvas');
   c.onpointerdown = e => {
     if (e.target.closest('.pl-pin,.pl-x') || e.button !== 0) return;
@@ -330,6 +335,8 @@ export function renderPlanList(plan){
     && (!q || [o.name, o.code, o.serial, o.model].some(v => v && String(v).toLowerCase().includes(q)))).slice(0, 300);
   $('#plList').innerHTML = rows.length ? html`${rows.map(o => html`<button class="pl-item ${planPlace && planPlace.id === o.id ? 'on' : ''}" data-plitem="${o.id}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-n">${o.name}</span><span class="muted">${TYPES[o.type].short}</span></button>`)}` : '<p class="note pl-none">No devices to place.</p>';
 }
+/* Places device o on the plan at x, y (percent) and gives it the room of the area there, with an Undo. A device at
+   another site is asked about first, unless sure is set. Saved and drawn again. */
 export function placeDevice(plan, o, x, y, sure = false){
   /* A device at another site would move there: that is asked first, not done quietly. */
   const a = areaAt(plan, x, y), to = a && plan.site ? areaLocName(plan, a) : '', fromSite = String(o.loc || '').split(' / ')[0];
@@ -471,6 +478,8 @@ export function clearPlanModal(plan){
     queueServerSave(); closeModal(); toast('Devices cleared from the plan'); renderPlans();
   };
 }
+/* Asks before removing an area from the plan. Devices placed inside it lose their place on the plan; their locations
+   and history stay. */
 export function areaRemoveModal(plan, area){
   modal(html`<div class="mh">Remove ${area.name}?</div>
     <div class="mb"><p class="note">Devices placed inside it leave the plan, and so do devices in its location. Nothing in the inventory changes: locations and history stay as they are.</p></div>
@@ -484,6 +493,8 @@ export function areaRemoveModal(plan, area){
     plan.areas = plan.areas.filter(a => a.id !== area.id); queueServerSave(); closeModal(); toast('Area removed'); renderPlans();
   };
 }
+/* The New area dialog for the rectangles just drawn: a name and a room of the plan's site (or a new room named like
+   the area). Adds the area to the plan and its room to the locations, and saves. */
 export function areaModal(plan, rects){
   /* The rooms that already exist on this plan's site. */
   const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
@@ -526,6 +537,8 @@ export function shrinkPlanImage(img){
   ctx.drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL('image/jpeg', 0.85);
 }
+/* The New floor plan dialog (name, site, image), or with existing the Replace image one. The image is made smaller,
+   uploaded to the server on its own (api/plans/…/image) and the plan saved. */
 export function planModal(existing){
   modal(html`<div class="mh">${existing ? 'Replace image' : 'New floor plan'}</div><div class="mb">
     <div class="form" style="padding:0">${existing ? '' : html`<label for="plName">Name</label><input id="plName" placeholder="e.g. Ground floor" maxlength="60"><label for="plSite">Site</label><select id="plSite">${SITES.map(s => html`<option>${s}</option>`)}</select>`}
@@ -590,6 +603,8 @@ export function areaEditModal(plan, area){
   };
   $('#aeName').focus();
 }
+/* Asks before deleting a plan: its areas go and its image is removed from the server. Devices placed on it stay in
+   the inventory, off any plan. */
 export function deletePlanModal(plan){
   modal(html`<div class="mh">Delete ${plan.name}?</div><div class="mb"><p class="note">The plan and its areas are removed. Devices placed on it stay in the inventory, but are no longer shown on a plan.</p></div>
     <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="danger-text">Delete plan</button></div>`, 'sm');

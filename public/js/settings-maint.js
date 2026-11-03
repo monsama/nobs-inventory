@@ -29,6 +29,8 @@ export async function renderSetLog(){
   LOG_DATA = r.ok ? await r.json() : {entries: []};
   drawLog();
 }
+/* Draws the log as last read: the kind tabs, the search, Refresh and the lines. Wires them, and Restore on a logged
+   settings change (restoreLogged). */
 function drawLog(){
   const pane = $('#setLog');
   if (!pane || !LOG_DATA) return;
@@ -51,6 +53,8 @@ function drawLog(){
 /* Restore on a logged settings change: the old value set back on the server, which logs it; asked first, with the value
    now and the one to set back. The page's own unsaved changes are saved before. */
 const shownValue = v => v === undefined || v === null || v === '' ? 'empty' : String(v);
+/* Asks to restore the value before logged change c of entry e (admin only), showing it beside the value now. Then
+   saves pending changes, has the server set it back (api/log/restore), loads the inventory again and reads the log. */
 function restoreLogged(e, c){
   const r = settingRestore(e.detail.setting, c); if (!r || !isAdmin()) return;
   const cur = (documents().get('setting|' + e.detail.setting) || {}).value, now = r.keys.length ? valueAt(cur, r.keys) : cur;
@@ -113,6 +117,8 @@ function restoreTestHtml(edit){
     <p class="note">Each Sunday the newest ${(x.where || []).includes('folder') && x.on ? 'copy outside the server' : 'backup'} is restored into memory, apart from the inventory, and what comes back is counted. So you know a restore works before you need one.</p>
     <div class="bk-exrow"><span class="note" style="flex:1" id="rtLast">${text}</span><button id="rtRun" ${edit ? '' : 'disabled'}>Test now</button></div></div>`;
 }
+/* The Copy outside the server box: how to set it up when the server has no folder for it, else on or off, how many
+   copies to keep, the password and the last copy, with Copy now. */
 function exportHtml(edit){
   const x = EXPORT; if (!x) return '';
   if (!x.dir) return html`<div class="bk-export"><div class="bk-head"><b>Copy outside the server</b> <span class="chip kept">Not set up</span></div><p class="note">Optional. To keep a nightly encrypted copy off this server, mount a share and set <span class="mono">NI_BACKUP_EXPORT_DIR</span>, or name cloud storage with <span class="mono">NI_BACKUP_EXPORT_AZURE_URL</span> (Azure Blob, a SAS URL) or <span class="mono">NI_BACKUP_EXPORT_S3_URL</span> (S3) on the server (see the README). It can then be turned on here.</p></div>`;
@@ -125,6 +131,8 @@ function exportHtml(edit){
     <div class="bk-exrow"><label for="bxPw" class="note">Password</label><input id="bxPw" type="password" autocomplete="new-password" placeholder="${x.passwordSet ? 'Set ' + pushDate(x.passwordSet) + ': type to replace' : `At least ${x.passwordMin} characters`}" ${edit ? '' : 'disabled'} style="flex:1;min-width:160px"><button id="bxPwSave" ${edit ? '' : 'disabled'}>Save password</button></div>
     <div class="bk-exrow"><span class="note" style="flex:1" id="bxLast">${lastText}</span><button id="bxRun" ${edit && x.passwordSet ? '' : 'disabled'}>Copy now</button></div></div>`;
 }
+/* Wires the copy outside the server and the restore test: on or off, how many to keep, the password, Copy now and
+   Test now. Each goes straight to the server, which answers with the new state; the pane is drawn again. */
 function wireExport(){
   const call = async (method, url, body) => {
     const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -138,6 +146,9 @@ function wireExport(){
   const rt = $('#rtRun'); if (rt) rt.onclick = async () => { rt.disabled = true; $('#rtLast').textContent = 'Testing…'; try { await call('POST', 'api/restore-test'); toast('The backup came back whole'); } catch (e) { toast(e.message); loadBackups(); } };
   const run = $('#bxRun'); if (run) run.onclick = async () => { run.disabled = true; $('#bxLast').textContent = 'Copying…'; try { await call('POST', 'api/backup-export/run'); toast('Copied outside the server'); loadBackups(); } catch (e) { toast(e.message); loadBackups(); } };
 }
+/* The Backups panel as markup: when backups are taken, automatic backups on or off, how many are kept, the list with
+   Download, Restore and Delete, and Back up now and Restore from file. With edit also the copy outside the server and
+   the restore test; without it the buttons are disabled. */
 export function backupPanel(edit){
   const list = BACKUPS || [];
   const rows = list.map(b => html`<tr><td>${pushDate(b.at)}</td><td>${b.reason}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${sizeText(b.bytes)}</td>
@@ -150,6 +161,9 @@ export function backupPanel(edit){
     ${edit ? html`${exportHtml(edit)}${restoreTestHtml(edit)}` : ''}
     <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`);
 }
+/* Wires the Backups panel: Back up now, Delete (asked first), Restore (restoreModal), automatic backups and how many
+   to keep (saved with the settings), the copy outside the server, and Restore from file, an encrypted copy or a
+   downloaded backup. */
 export function wireBackups(edit){
   const msg = t => toast(t);
   if ($('#bkNew')) $('#bkNew').onclick = async () => {
@@ -229,6 +243,8 @@ function healthGo(c){
   if (f) f.focus({ preventScroll: true });
   el.classList.add('hl-flash'); setTimeout(() => el.classList.remove('hl-flash'), 1600);
 }
+/* The Health panel: the server's checks by area plus this page's live updates and its certificate, the worst state
+   in the header, and a link per row to where it is dealt with. Checking… until the server has answered. */
 function healthPanel(){
   if (!HEALTH) return html`<div class="panelbox"><div class="hdr">Health</div><p class="note" style="padding:12px">Checking…</p></div>`;
   /* The page's own certificate is checked by the page (Certificate below): its state is counted here too. */
@@ -268,6 +284,8 @@ function mailHtml(m){
     <p class="note">The password is kept sealed on the server and never shown again. Changing the server or port asks for it again.</p>
     <div class="bk-exrow"><input id="smTo" type="email" placeholder="Send a test to …" aria-label="Address for a test e-mail" style="flex:1"><button id="smTest" ${m.source ? '' : 'disabled'}>Send a test</button>${m.source ? '<button id="smDel" class="danger-text">Remove</button>' : ''}<button id="smSave" class="primary">Save mail server</button></div></details>`;
 }
+/* Wires the mail server form: the port follows the security picked, Save, Remove (asked first) and Send a test. Each
+   goes to api/smtp and the pane is drawn again with the answer. */
 function wireMail(){
   const call = async (method, url, b) => { const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'That did not work.'); return j; };
   const sec = $('#smSec'), port = $('#smPort');
@@ -280,6 +298,8 @@ function wireMail(){
   const t = $('#smTest');
   if (t) t.onclick = () => { t.disabled = true; call('POST', 'api/smtp/test', { to: $('#smTo').value }).then(() => toast('Test e-mail sent: check the inbox'), e => toast(e.message)).finally(() => { t.disabled = false; }); };
 }
+/* The Weekly e-mail panel: on or off, who gets it, the day and hour, the user's reports option, the last sending and
+   Preview, Send now and Save, then the mail server. Only the mail server setup until one is set. */
 function digestPanel(){
   const d = DIGEST; if (!d) return '';
   const l = d.last;
@@ -294,6 +314,8 @@ function digestPanel(){
       <div class="addrel" style="padding:10px 12px"><span class="note" style="flex:1">${!l ? 'Not sent yet.' : l.ok ? `Last sent ${esc(pushDate(l.at))} to ${l.to} address${l.to === 1 ? '' : 'es'}.` : `<span class="warn">Last try ${esc(pushDate(l.at))} failed: ${esc(l.error || '')}</span>`}</span>
         <button id="dgPreview">Preview</button><button id="dgSend">Send now</button><button id="dgSave" class="primary">Save</button></div>` : ''}${mailHtml(d.mail || {})}</div>`;
 }
+/* Wires the weekly e-mail: Save, Send now (which saves first) and Preview, which shows the e-mail in a dialog; also
+   the mail server form. */
 function wireDigest(){
   wireMail();
   const sv = $('#dgSave'); if (!sv) return;
@@ -323,6 +345,8 @@ function photosShrinkPanel(){
     <p class="note" style="padding:10px 12px">New photos are made as small as they can be without a visible loss: WebP or JPEG, whichever is smaller, screenshots without any loss, and a file that is already small is kept as it is. Photos added before can be made smaller the same way: each is replaced only when it gets at least 15 % smaller, under a new address. Floor plans are not changed.</p>
     <div class="addrel" style="padding:0 12px 10px"><span class="note" style="flex:1" id="psStatus" role="status" aria-live="polite">${status}</span><button id="psRun" ${s && s.running ? 'disabled' : ''}>${s && s.running ? 'Working…' : 'Make photos smaller'}</button></div></div>`;
 }
+/* Wires Make photos smaller: each stored photo is read, made again with prepare and replaced on the server when that
+   saves at least 15 %. Shows progress as it goes and what it saved at the end. */
 function wirePhotosShrink(){
   const b = $('#psRun'); if (!b) return;
   b.onclick = async () => {
@@ -347,6 +371,9 @@ function wirePhotosShrink(){
     if ($('#setMaint')) renderSetMaint();
   };
 }
+/* Draws the part of Settings → System that is open: Backups (with clearing the inventory and the factory reset),
+   E-mail, or Health with the certificate and the photos. Starts reading what is not loaded yet; most of it is for an
+   admin only. */
 export function renderSetMaint(){
   const edit = isAdmin();
   if (edit && BACKUPS === null) loadBackups();
@@ -375,6 +402,8 @@ export function renderSetMaint(){
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });
   const ha = $('#hlAgain'); if (ha) ha.onclick = () => { HEALTH = undefined; renderSetMaint(); loadHealth(); };
 }
+/* The Factory reset dialog: enabled only once FACTORY RESET is typed, optionally deleting the backups too. The server
+   clears everything but the person's own account; the page then loads anew. */
 export function factoryResetModal(){
   modal(`<div class="mh">Factory reset?</div>
     <div class="mb"><p class="note">Everything is removed, except your own account, including the LDAP and Microsoft Graph connections with Graph's certificates and keys, and the entry sheets. This cannot be undone: only a backup brings the data back.</p>

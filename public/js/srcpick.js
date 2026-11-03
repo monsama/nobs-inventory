@@ -34,6 +34,9 @@ function choicesOf(o, k){
 const AUTO_TEXT = 'Lansweeper, then Entra & Intune, then Active Directory';
 const LOCK = '<svg class="sp-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 
+/* Builds the source picker for the clicked source mark: each source's value and time, the newest and the one in use
+   marked. An admin's click fixes the field to a value or sets it back to automatic, noted in the history. Returns
+   the box, or null when there is nothing to show. Read-only for viewers. */
 function pickerOf(mark, close){
   const o = byId(mark.dataset.oid), k = mark.dataset.fk;
   if (!o || !k) return null;

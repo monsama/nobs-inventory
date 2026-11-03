@@ -38,6 +38,8 @@ function caHtml(edit){
   if (!ca) return html`<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
   return html`<span style="flex:1;min-width:0">${ca.certs.map((c, i) => html`${i ? ' ' : ''}<span class="chip ok" style="flex:none">${c.name}</span> <span class="muted">until ${day(c.expires)}</span>`)}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
 }
+/* Wires adding and removing the CA certificate. Each saves pending changes first, sends the file to the server (or
+   removes it there), then loads the settings again and draws the pane. */
 function bindCa(){
   const f = $('#caFile');
   if (f) f.onchange = async () => {

@@ -45,6 +45,9 @@ export function intuneCoverageHtml(){
     <p class="note" style="padding:10px 12px">Of ${fr.managed} devices Intune manages, how many came with each field. A field only some platforms have (patch level: Android; supervised: Apple) is expected to be partial.</p>
     <dl class="lsbox">${Object.entries(FIELD_NAMES).map(([k, l]) => html`<dt>${l}</dt><dd>${fr.fields && fr.fields[k] ? html`${fr.fields[k]} <span class="muted">of ${fr.managed}</span>` : html`<span class="muted">none</span>`}</dd>`)}</dl></div>`;
 }
+/* Draws the Entra & Intune pane: the status header, the setup steps with what is done, the optional reads (people,
+   Autopilot, Secure Boot, sign-in), the schedule and the certificates, and the Defender section. For an admin it reads
+   the connection from the server first (api/graph/status); viewers see it read-only. */
 export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
@@ -135,6 +138,7 @@ export async function renderSetGraph(){
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="gDefender">Defender</label><select id="gDefender" ${edit ? '' : 'disabled'}>
       <option value="off" ${(g.defender || 'off') === 'off' ? 'selected' : ''}>Don't read Defender</option>
       <option value="on" ${g.defender === 'on' ? 'selected' : ''}>Read Defender for Endpoint</option></select></div></div>`;
+  /* The controls: each setting is saved on the server at once (api/graph/settings), then the pane says so. */
   const msg = $('#graphMsg');
   const say = (text, bad) => { if (msg) msg.innerHTML = bad ? html`<span style="color:var(--danger)">${text}</span>` : html`${text}`; };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };

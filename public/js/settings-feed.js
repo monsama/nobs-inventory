@@ -81,6 +81,8 @@ export function removeModel(name){
   if (k >= 0) MODELS.splice(k, 1);
   queueServerSave(); renderSetModels();
 }
+/* Renames model old to value on every device (with a history line each) and in the list of models, and maps the old
+   name and the Lansweeper names that led to it to the new one, so the next sync keeps it. Saves. */
 export function renameModel(old, value){
   const name = value.trim();
   if (!name || name === old){ renderSetModels(); return; }
@@ -94,6 +96,8 @@ export function renameModel(old, value){
   st.modelMap[old] = name;
   queueServerSave(); render(); renderSetModels();
 }
+/* Draws the Lansweeper type names table (only while Lansweeper is on): a row per name and the device type it becomes.
+   An admin's change is applied at once to the synced devices with that name and saved; read-only for viewers. */
 export function renderTypeMap(){
   if (!$('#setTypeMap')) return;
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
@@ -202,6 +206,8 @@ export function scheduleRowHtml(job, edit){
     <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span>${rawHtml(timeFieldHtml(`data-sched-at="${job}" aria-label="Start time" ${ro}`, plan.at, { hidden: !plan.every }))}
     <span class="muted sched-next">${plan.every ? 'next at ' + nextRun(plan) : ''}</span></div>`;
 }
+/* Wires the schedule rows under root: a change of interval or start time is saved, the row drawn again with its next
+   run and the focus put back. A time that is not one is marked and not saved. */
 export function bindScheduleRows(root){
   root.querySelectorAll('[data-sched]').forEach(row => {
     const job = row.dataset.sched, every = row.querySelector('[data-sched-every]'), at = row.querySelector('[data-sched-at]');
@@ -245,6 +251,9 @@ export function pushStatus(){
   const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => o.name).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
   return html`${last && html`<label>Last push brought</label><span>${last}</span>`}<label>Not seen</label><span>${stale}</span>`;
 }
+/* Draws the Lansweeper connection panes (only while it is on): the push token and script (admin only), the API settings
+   and schedule, and the CSV import. Wires making, copying and revoking the token, Sync now and the upload; the one
+   source not in use is hidden. */
 export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};

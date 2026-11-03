@@ -75,6 +75,8 @@ const says = r => {
   const x = [part(r.changed, 'changed'), part(r.filled, 'filled in')].filter(Boolean).join('; ');
   return x.charAt(0).toUpperCase() + x.slice(1);
 };
+/* The History of changes dialog of source src: each sync run that changed fields, newest first, with what it changed
+   or filled in. A run's link opens its devices in the Table and closes Settings. */
 function historyModal(src){
   const runs = changesOf(src), c = (st.syncChanges || {})[src];
   modal(html`<div class="mh">${SOURCE_LABEL[src]}: history of changes</div>

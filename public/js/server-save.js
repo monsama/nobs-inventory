@@ -31,6 +31,8 @@ export function saveData(){ queueServerSave(); }
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
    changed on the server since is not saved; the page then shows the newer version. */
 const PREFERENCES = ['mapPos'];
+/* Everything the page holds as the records the server stores, by key (kind|id): devices, devices under review,
+   connections, users, types, history and one record per setting. Compared with SERVER.base to find the changes. */
 export function documents(){
   const m = new Map();
   objs.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
@@ -90,6 +92,9 @@ export function sendChanges(){
   SERVER.inflight = sendNow();
   return SERVER.inflight;
 }
+/* Sends the pending changes to api/changes in batches (admin only). Takes in the codes and revisions given back;
+   a refused record (403) is taken back, a conflict shows the newer version and what was not saved. Without a
+   connection the changes are kept on this device and the save shows offline. */
 async function sendNow(){
   if (!isAdmin()) return;
   const pending = pendingChanges();

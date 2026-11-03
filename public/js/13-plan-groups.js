@@ -36,6 +36,9 @@ export function closeGroup(){
   return true;
 }
 
+/* Draws the group markers on plan canvas c again: measures the pins, joins the touching ones into groups and puts a
+   marker for each where its pins are. Also marks the search's hits and the device looked for, and scrolls to the
+   first. */
 function regroup(c, startDrag){
   if (!c.isConnected) { observer && observer.disconnect(); return; }
   /* An open group goes back first, so its pins are at their own places again before anything is measured or kept. */

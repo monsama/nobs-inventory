@@ -36,6 +36,8 @@ export function verifiedProblem(v) {
   if (!one(v) || (v.prev !== undefined && (!one(v.prev) || v.prev.prev !== undefined))) return 'The confirmation on site has a day, who confirmed it and, from a stocktake, which one.';
   return '';
 }
+/* Checks the list of stocktakes before it is saved (the server uses it too): at most 50, each id once, the right
+   fields and sizes, and for a finished one what it found. Returns what is wrong, or '' when it is fine. */
 export function stocktakesProblem(list) {
   if (list === undefined) return '';
   if (!Array.isArray(list) || list.length > 50) return 'The stocktakes are a list of up to 50.';

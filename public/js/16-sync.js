@@ -46,6 +46,8 @@ export function syncButtonHtml(){
   const failed = list.some(([src]) => runOf(src) && !runOf(src).ok);
   return `<button type="button" id="syncBtn" class="tab sync-btn${running ? ' spinning' : ''}${failed ? ' failed' : ''}" aria-haspopup="dialog" title="${failed ? 'A sync failed: open for details' : 'Sync now, and when each sync last ran'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg><span class="tlbl">Sync</span></button>`;
 }
+/* The Sync menu's rows: Sync all (when more than one source can run), each source with its last run, failure and a
+   Sync button (Lansweeper by push has none), and Reload for this page. */
 function menuHtml(){
   const list = sources();
   const line = ([src, canRun]) => {
@@ -85,6 +87,8 @@ async function syncOne(src){
   const j = await r.json().catch(() => ({}));
   return r.ok ? { ok: true, text: `${SOURCES[src].label}: ${summary(src, j.counts)}` } : { ok: false, text: `${SOURCES[src].label}: ${j.error || 'failed'}` };
 }
+/* Runs one sync, or all ('all') in the server's order, after saving what is pending. The button spins meanwhile; then
+   the inventory is loaded again, the menu redrawn if it was open, and a toast says what each sync found. */
 async function run(which){
   if (running) return;
   running = which;

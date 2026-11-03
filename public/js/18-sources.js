@@ -49,6 +49,9 @@ export function feedPanel(o){
    encryption, its primary user and when it was last heard of. A device of a type expected there that was not found
    says so. */
 const graphTime = dateTimeText;
+/* The Entra & Intune tab, as described above; '' while that sync is off. Also says when the device was not found,
+   is listed there more than once, is gone or disabled, or matched several devices here. A server only in Defender
+   gets a Defender panel instead. */
 export function graphPanel(o){
   if (!SYNC.graph) return '';
   const g = o.graph;

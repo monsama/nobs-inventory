@@ -31,6 +31,8 @@ function unconfirm(o){
   if (!o.verified) delete o.verified;
 }
 
+/* Draws the Stocktake tab: the stocktake running, or a new one to start, with the list of earlier ones below. Wires
+   them, keeps the focus in the scan field and lets an earlier stocktake be removed from the list (with Undo). */
 export function renderStocktake(){
   const t = activeStocktake(), edit = isAdmin();
   /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
@@ -57,6 +59,8 @@ function startHtml(edit){
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Stocktake ${dateText(today())}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the stocktake</button><span class="muted" id="stkCount"></span></div>` : html`<p class="note stk-pad">An admin starts a stocktake.</p>`}</div>`;
 }
+/* Wires starting a stocktake (admin only): the device count for the place picked, and Start, which adds the
+   stocktake, saves it and puts the focus in the scan field. */
 function wireStart(edit){
   if (!edit) return;
   const count = () => { $('#stkCount').textContent = `${stocktakeDevices(objs, $('#stkPlace').value).length} devices`; };
@@ -91,6 +95,8 @@ function activeHtml(t, edit){
       : html`<p class="note stk-pad">${FILTER === 'open' ? 'Every device here is confirmed.' : 'Nothing here yet.'}</p>`}</div>
     ${edit ? html`<div class="addrel stk-pad"><span class="grow"></span><button id="stkCancel" class="danger-text">Cancel the stocktake…</button></div>` : ''}</div>`;
 }
+/* Wires the running stocktake: the Still open, Confirmed and All tabs for everyone; for an admin also ticking a
+   device, the scan field (Enter looks it up), Finish and Cancel, which takes back the confirmations made in it. */
 function wireActive(t, edit){
   $$('[data-stkf]').forEach(b => b.onclick = () => { FILTER = b.dataset.stkf; renderStocktake(); });
   if (!edit) return;

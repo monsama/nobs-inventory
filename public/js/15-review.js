@@ -114,6 +114,8 @@ function withUndo(list, msg, change, { reload = false } = {}){
     render(); queueServerSave();
   }, { anyEpoch: reload });
 }
+/* Does a To review action (kind) on the records in list: accept, ignore, merge, restore, or one of the RESOLVE ways.
+   Accepting a record the inventory seems to have already asks first, offering Merge instead. Each can be undone. */
 export function reviewDo(kind, list, { asked = false } = {}){
   if (!list.length) return;
   const n = list.length, what = n === 1 ? list[0].name : `${n} devices`;
@@ -192,6 +194,8 @@ const RESOLVE = [
 /* The device a record stands for: by serial number or name in the inventory, else the device of its DNS name's first
    part, also while that one still waits in To review. */
 export const dupOf = o => mergeTarget(o) || twinOf(o);
+/* Does the RESOLVE way kind for each record and the device it most likely is (dupOf): merges it, keeps it as a shared
+   dock, marks it as no duplicate, or makes it obsolete (retired and excluded, or ignored while still in To review). */
 function resolve(kind, list){
   const pairs = list.map(o => [o, dupOf(o)]).filter(([, t]) => t);
   if (!pairs.length) return;
@@ -229,6 +233,8 @@ const seenBy = o => {
   return [['Lansweeper', o.feed && (o.feed.scanned || o.feed.seen)], ['AD', o.ad && o.ad.logon], ['Entra', g && (g.lastSignIn || g.lastSync)], ['Defender', o.defender && o.defender.lastSeen]]
     .filter(([, v]) => v).map(([k, v]) => `${k} ${dayText(String(v).slice(0, 10))}`).join(' · ');
 };
+/* The Resolve dialog for probable duplicates (admin only): one record beside its device with the differing fields
+   marked, or a list for several, and the RESOLVE ways to pick from. Resolve passes the choice to reviewDo. */
 export function resolveModal(list){
   list = list.filter(o => dupOf(o));
   if (!list.length || !isAdmin()) return;
@@ -263,6 +269,8 @@ export function reviewBanner(o){
     ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
     : html`<div class="rv-banner"><span>Waiting in To review: found by ${src}, not in any list, count or cost yet.</span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
+/* Wires the buttons of the review banner on device o's page. After an accept, ignore or merge that went through, the
+   next record waiting opens in the same tab. */
 export function bindReviewBanner(o){
   $$('[data-rvpage]').forEach(b => b.onclick = () => {
     const k = b.dataset.rvpage;

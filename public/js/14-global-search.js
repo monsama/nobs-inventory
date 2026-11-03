@@ -69,6 +69,7 @@ function results(q){
   return out;
 }
 
+/* Draws the hits of the global search for the text typed, under a heading per kind, and marks the first one. */
 function show(){
   const q = box.value.trim().toLowerCase();
   items = []; active = -1;

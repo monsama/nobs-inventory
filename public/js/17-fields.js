@@ -39,6 +39,9 @@ export function accessoriesHtml(o){
 export function notesHtml(o, edit){
   return `<textarea id="objNotes" class="notes-box" rows="${Math.min(12, Math.max(3, String(o.notes || '').split('\n').length + 1))}" maxlength="20000" placeholder="${edit ? 'Anything worth knowing about this device: where its papers are, a known quirk, a link…' : ''}" aria-label="Notes" ${edit ? '' : 'readonly'}>${esc(o.notes || '')}</textarea>`;
 }
+/* The input for field [k, label, kind] of device o on its page, as markup: a select for the kinds with set choices
+   (location, user, type, subnet, domain, status …), a combo for the model and the address, else a text input. The
+   id is idp + device id + field; data-k names the field for the save. */
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
@@ -86,6 +89,8 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
 /* Antivirus: one entry per product, as chips. A product can be added from the list of those seen on the devices and
    common ones, or typed; each chip can be removed. Kept on the device as one text, entries separated by "; ". */
 export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).filter(Boolean);
+/* The antivirus field: one entry per product, with Lansweeper's scan state as chips while its sync keeps it current.
+   With edit, a remove button per entry, a combo to add one and a hidden input holding the whole text (data-k="av"). */
 export function avCtl(o, id, edit){
   const items = avEntries(o);
   /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
@@ -168,6 +173,8 @@ export function ipClash(o, ip){
   }
   return { level: 'warn', other, text: `${ip} is also used by ${other.name}`, html: `In use by ${link}.` };
 }
+/* The address combo's list: the free addresses of the device's subnet (the picked one, or the one its address is in),
+   starting with what was typed, with the current and first free marked. A remark instead when there are none. */
 function ipChoices(input, all){
   const o = ipOwner(input); if (!o) return [];
   const sub = ipSubnet(o);
@@ -196,6 +203,8 @@ function ipNote(input, note){
 /* A subnet by its name, or by its network when it has none of its own. */
 export const subnetName = n => n.name && n.name !== n.cidr ? n.name : n.cidr;
 const subnetLabel = n => n.name && n.name !== n.cidr ? `${n.name} · ${n.cidr}` : n.cidr;
+/* Opens combo c's list with the choices of its source, filtered by what was typed unless all is set or the source
+   filters itself. Opens upwards near the bottom of a dialog or the window, and is never taller than the room there. */
 function comboOpen(c, all){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   if (input.disabled) return;
