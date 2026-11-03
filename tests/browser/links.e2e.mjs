@@ -28,6 +28,8 @@ try {
   await page.fill('#lgUser', 'admin'); await page.fill('#lgPw', 'adminpass123'); await page.click('#lgOk');
   await page.waitForSelector('.card');
   await page.evaluate(async () => (await import('/js/02-views.js')).openObj('o1'));
+  // Links without any link waits on the Add line; its button opens it, with the quick links from the address
+  await page.click('[data-xadd=links]');
   await page.waitForSelector('[data-lnkquick]');
 
   await page.click('[data-lnkquick="https://10.0.0.5"]');

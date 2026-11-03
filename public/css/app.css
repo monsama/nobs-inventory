@@ -1903,3 +1903,4 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .be-prev{margin-top:12px;border-top:1px solid var(--bd2);padding-top:8px}.be-prev .hdr{font-weight:600;margin-bottom:6px}
 .be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
 @media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}
+.xhide{margin-left:6px;min-height:0;height:20px;width:20px;padding:0;line-height:1;font-size:15px;flex:none}

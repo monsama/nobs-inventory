@@ -35,6 +35,10 @@ try {
   // no task yet: the panel is offered on the Add line
   await p.waitForSelector('[data-xadd=maint]'); assert.equal(await p.isVisible('#mtPanel'), false);
   await p.click('[data-xadd=maint]'); await p.waitForSelector('#mtPanel');
+  // an empty panel opened from Add can be put back: its × hides it and the Add button returns
+  await p.click('#mtPanel [data-xhide=maint]'); await p.waitForSelector('[data-xadd=maint]');
+  assert.equal(await p.isVisible('#mtPanel'), false, 'the empty panel is hidden again');
+  await p.click('[data-xadd=maint]'); await p.waitForSelector('#mtPanel');
   assert.match(await p.textContent('#mtPanel'), /No recurring maintenance/);
   await p.click('#mtAdd'); await p.waitForSelector('#mtWhat');
   await p.fill('#mtWhat', 'Test the UPS battery'); await p.fill('#mtEvery', '6'); await p.selectOption('#mtUnit', 'm');
