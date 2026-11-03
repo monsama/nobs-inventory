@@ -107,6 +107,8 @@ export function renderStatus(){
   save.innerHTML = S[0] === 'bad' ? `<span class="chip bad">${S[1]}</span>` : S[0] === 'warn' ? `<span class="chip warn">${S[1]}</span>` : `<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
   save.classList.toggle('hide-n', !S[0]);
+  /* Someone who only reads saves nothing: the line would only be noise to them. */
+  save.hidden = !canEdit();
   if (!lsLive()){ sync.innerHTML = '<span class="dot off"></span>Lansweeper off'; sync.title = 'The Lansweeper sync is turned off in Settings.'; return; }
   updateSync();
   const last = SYNC.run ? {at: SYNC.run, days: daysSince(SYNC.run)} : null;

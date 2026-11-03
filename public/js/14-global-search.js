@@ -2,7 +2,7 @@
    It finds devices, people, contacts, contracts and rooms and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
 import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
-import { USERS } from './04-settings.js';
+import { USERS, SET_TABS, isAdmin, openSettings } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
@@ -16,7 +16,13 @@ let items = [], active = -1;
 /* Small line icons in the style of the type icons. */
 const ico = d => `<span class="tico sm gs-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="${d}"/></svg></span>`;
 const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'), contact: ico('M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'),
-  contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6') };
+  contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
+  setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
+/* The pages of Settings an admin looks for by another word: Backups by restore, E-mail by SMTP or digest … */
+const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
+  log: 'audit history errors', users: 'people roles editor viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
+  feed: 'lansweeper sync', sources: 'fields policy', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
+const SET_PATH = { maintenance: 'Maintenance → System', backups: 'Maintenance → Backups', mail: 'Maintenance → E-mail', log: 'Maintenance → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 const row = (i, icon, main, sub) => `<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${esc(main)}</span>${sub ? `<span class="gs-sub">${esc(sub)}</span>` : ''}</li>`;
 
@@ -54,6 +60,11 @@ function results(q){
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
     icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} devices`,
     go: () => { st.loc = l; st.q = ''; st.person = null; if (!['cards', 'table', 'map', 'plans'].includes(st.tab)) st.tab = 'cards'; render(); } }))]);
+  /* Settings pages, for an admin: found by their name or a word for what they hold. */
+  const pages = isAdmin() ? SET_TABS.filter(([k, l]) => has(q, l, SET_PATH[k], SET_WORDS[k])) : [];
+  if (pages.length) out.push(['Settings', pages.length, pages.slice(0, MAX.other).map(([k, l]) => ({
+    icon: ICON.setting, main: l, sub: 'Settings → ' + (SET_PATH[k] || l),
+    go: () => { st.setTab = k; openSettings(); } }))]);
   return out;
 }
 

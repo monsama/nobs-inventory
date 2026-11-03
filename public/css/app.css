@@ -1084,7 +1084,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
  #sideBtn{display:inline-flex}
  #side{position:absolute;inset:0 auto 0 0;z-index:20;box-shadow:var(--shadow);display:none}
  body.side-open #side{display:flex}
- .gs{width:100%;order:10} #search{width:100%}
+ .gs{width:100%;order:10;position:static} #search{width:100%} .gs-list{width:auto;left:8px;right:8px}
  #brand small,.hide-n{display:none}
  .obj{grid-template-columns:minmax(0,1fr)}
  .form{grid-template-columns:90px minmax(0,1fr)}
@@ -1392,6 +1392,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
    card, which is also outlined. */
 .card{position:relative}
 .cardtick{position:absolute;top:8px;right:8px;width:16px;height:16px;border:1.5px solid var(--bd);border-radius:4px;background:var(--bg);opacity:0;transition:opacity .1s;z-index:1;cursor:pointer}
+@media (hover:none){.cardtick{opacity:.55}}
 .card:hover .cardtick,.card:focus-visible .cardtick,#cards:has(.card.picked) .cardtick,.card.picked .cardtick{opacity:1}
 .card.picked{outline:2px solid var(--accent);outline-offset:-1px}
 .card.picked .cardtick{background:var(--accent);border-color:var(--accent)}
@@ -1796,3 +1797,5 @@ details.how[open]>summary{margin-bottom:4px}
 .ps-row{position:relative}
 .ps-dot{left:-22px;top:50%;transform:translateY(-50%)}
 .ps:last-child::before{height:auto;bottom:12px}
+/* Someone who only reads sees no adding or removing on a device page (rather than disabled controls). */
+.readonly .obj .addrel,.readonly .obj [data-delrel]{display:none}

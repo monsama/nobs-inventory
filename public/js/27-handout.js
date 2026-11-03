@@ -32,8 +32,9 @@ export function takeBack(list){
 }
 
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
+const SHOWN = 8;
 const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q))))
-  .sort((a, b) => (a.active === false) - (b.active === false) || a.name.localeCompare(b.name)).slice(0, 8);
+  .sort((a, b) => (a.active === false) - (b.active === false) || a.name.localeCompare(b.name));
 
 /* Hand out the devices (ids) to a person picked here. */
 export function handOutModal(ids){
@@ -47,11 +48,12 @@ export function handOutModal(ids){
     <p class="note" id="hoSays">The device is in use with the person from now on.</p></div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
   const draw = () => {
-    const q = low($('#hoQ').value), found = people(q), exact = found.some(u => low(u.name) === q);
+    const q = low($('#hoQ').value), all = people(q), found = all.slice(0, SHOWN), exact = all.some(u => low(u.name) === q);
     /* Someone who has left is found too (so the name is not offered as a new person), but cannot be picked. */
     $('#hoList').innerHTML = found.map(u => u.active === false ? `<button type="button" class="ho-p" disabled title="Has left: reactivate in Settings → Users first"><b>${esc(u.name)}</b><span class="muted">has left${u.login ? ' · ' + esc(u.login) : ''}</span></button>` : `<button type="button" class="ho-p${picked && picked.id === u.id ? ' sel' : ''}" data-hop="${esc(u.id)}" role="option" aria-selected="${picked && picked.id === u.id}"><b>${esc(u.name)}</b><span class="muted">${esc([u.login, u.dept].filter(Boolean).join(' · '))}</span></button>`).join('')
       /* A new person is a change to Settings → Users, which only an admin makes: an editor picks someone who is there. */
       + (q && !exact && isAdmin() ? `<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${esc($('#hoQ').value.trim())}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : '')
+      + (all.length > SHOWN ? `<p class="note">${SHOWN} of ${all.length} shown: type to narrow.</p>` : '')
       + (!found.length && !q ? '<p class="note">Type a name.</p>' : '')
       + (q && !found.length && !isAdmin() ? '<p class="note">Nobody by that name. An admin adds new people under Settings → Users.</p>' : '');
     $('#hoList').querySelectorAll('[data-hop]').forEach(b => b.onclick = () => { picked = USERS.find(u => u.id === b.dataset.hop); $('#hoQ').value = picked.name; draw(); });

@@ -425,7 +425,7 @@ export function renderObj(o){
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
-        <label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>
+        ${edit || o.notes ? `<label for="objNotes">Notes</label><div class="ctlrow entries">${notesHtml(o, edit)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${nEmpty ? `<span></span><div><button type="button" class="link fm-reveal" id="fmAll" aria-expanded="${allF}">${allF ? 'Show only the filled fields' : `Show all fields (${nEmpty} empty)`}</button></div>` : ''}
         ${nHidden ? `<span></span><div><button type="button" class="link fm-reveal" id="fmReveal" aria-expanded="${reveal}">${reveal ? 'Hide the hidden fields' : `Show ${nHidden} hidden field${nHidden === 1 ? '' : 's'}`}</button></div>` : ''}</div></div>
       ${sourcesPanel(o)}

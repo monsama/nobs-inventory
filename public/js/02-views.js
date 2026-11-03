@@ -266,6 +266,9 @@ export function viewSwitch(){
   tb.insertAdjacentHTML('afterbegin', `<span class="vswitch" role="group" aria-label="${TAB_GROUPS[g][0]}">${m.map(id => `<button type="button" class="${id === st.tab ? 'on' : ''}" aria-pressed="${id === st.tab}" data-vsw="${id}">${FIXED_TABS[id]}</button>`).join('')}</span>`);
   tb.querySelectorAll('[data-vsw]').forEach(b => b.onclick = () => { flushSearch(); if (b.dataset.vsw !== st.tab){ st.tab = b.dataset.vsw; view(); } });
 }
+/* A view that draws its toolbar again on its own (ticking rows, typing in its search) would drop the switch: it is put
+   back whenever the toolbar changes. */
+{ const tb = document.getElementById('toolbar'); if (tb) new MutationObserver(() => { if (!tb.querySelector('.vswitch')) viewSwitch(); }).observe(tb, { childList: true }); }
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
@@ -782,8 +785,8 @@ ${CONTACTS.list.length && canEdit() ? Object.entries(CONTACT_KINDS).map(([k, l])
   $('#toolbar').querySelectorAll('[data-colpreset]').forEach(b => b.onclick = () => {
     const shown = COL_PRESETS[b.dataset.colpreset][1];
     setHiddenCols(tableCols().filter(c => !c.fixed && !shown.includes(c.k)).map(c => c.k));
-    /* Drawn anew, the menu stays open (after the click that closes menus elsewhere has passed). */
-    renderTable(); setTimeout(() => { const m = $('#colMenu'); if (m) m.open = true; }, 0);
+    /* A set is a whole choice: the menu closes on it, so the table (and a selection bar under it) shows. */
+    $('#colMenu').open = false; renderTable();
   });
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();
