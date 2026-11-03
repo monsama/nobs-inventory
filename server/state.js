@@ -11,6 +11,7 @@ import { typeRulesProblem } from '../public/js/type-rules.js';
 import { scheduleProblem } from '../public/js/schedule.js';
 import { fieldModeProblem, fieldOrderProblem } from '../public/js/sync-map.js';
 import { groupRolesProblem } from '../public/js/group-roles.js';
+import { MERGED } from '../public/js/people-match.js';
 import { lifecycleProblem } from '../public/js/lifecycle.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { liftOvr } from './fill.js';
@@ -534,6 +535,18 @@ export function saveState(db, s) {
   for (const k of ['codeN', 'seq', 'rseq']) s[k] = Math.max(Number(s[k]) || 0, Number(settingOf(db, k)) || 0);
   for (const id of Object.keys(s.history || {})) if (Array.isArray(s.history[id]) && s.history[id].length > HISTORY_KEEP) s.history[id] = s.history[id].slice(0, HISTORY_KEEP);
   writeDocs(db, s);
+  /* People a sync merged (people-match.js): their entry sheets and sign-in follow them, as for a merge made by hand. */
+  for (const m of s[MERGED] || []) movePersonRows(db, m.keep, m.drop, m.hadLogin);
+  delete s[MERGED];
+}
+/* What belongs to a person outside the inventory's records, moved to the one kept when two are merged: the entry sheets;
+   the dropped one's password goes with its login when the kept one had neither, else it is removed; its sessions end. */
+export function movePersonRows(db, keepId, dropId, keepHadLogin) {
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sheets'").get()) db.prepare('UPDATE sheets SET user_id = ? WHERE user_id = ?').run(keepId, dropId);
+  const kc = db.prepare('SELECT 1 FROM credentials WHERE user_id = ?').get(keepId);
+  if (!keepHadLogin && !kc) db.prepare('UPDATE credentials SET user_id = ? WHERE user_id = ?').run(keepId, dropId);
+  db.prepare('DELETE FROM credentials WHERE user_id = ?').run(dropId);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(dropId);
 }
 
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how

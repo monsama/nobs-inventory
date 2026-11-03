@@ -15,7 +15,7 @@ import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, re
 import { PASSWORD_MIN, decryptBackup, exportSet, exportWhere, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, stateSeq, changesSince, settingOf, ADMIN_SETTINGS, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, settingOf, ADMIN_SETTINGS, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, movePersonRows, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -1061,12 +1061,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       let r;
       try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
       saveState(db, s);
-      db.prepare('UPDATE sheets SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
-      /* The sign-in: the dropped one's password goes with its login when the kept one had none, else it is removed. */
-      const kc = db.prepare('SELECT 1 FROM credentials WHERE user_id = ?').get(k.id);
-      if (!hadLogin && !kc) db.prepare('UPDATE credentials SET user_id = ? WHERE user_id = ?').run(k.id, d.id);
-      db.prepare('DELETE FROM credentials WHERE user_id = ?').run(d.id);
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(d.id);
+      movePersonRows(db, k.id, d.id, hadLogin);
       audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
       res.json({ ok: true, moved: r.moved });
     } catch (e) { next(e); }

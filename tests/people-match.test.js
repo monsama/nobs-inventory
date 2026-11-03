@@ -80,3 +80,41 @@ test('merging keeps the higher role, admin above viewer', async () => {
   const s2 = { users: [{ id: 'k', name: 'Eva', role: 'viewer', source: 'ldap' }, { id: 'd', name: 'Eva', role: 'admin', source: 'manual' }], objs: [] };
   mergePeople(s2, 'k', 'd'); assert.equal(s2.users[0].role, 'admin');
 });
+
+test('records that share a login (without its domain) or the UPN Entra knows are merged after a sync', async () => {
+  const { mergeSamePeople, exactKeys } = await import('../public/js/people-match.js');
+  assert.deepEqual([...exactKeys({ login: 'CORP\\AMuster', entra: { upn: 'anna.muster@corp.example' }, aliases: ['Anna Muster', 'amuster2'] })].sort(), ['amuster', 'amuster2', 'anna.muster@corp.example']);
+  const s = { users: [
+    { id: 'l', name: 'Anna Muster', login: 'amuster', aliases: ['anna.muster@corp.example'], role: 'viewer', source: 'ldap' },
+    { id: 'ls', name: 'amuster', login: 'CORP\\amuster', role: 'none', source: 'lansweeper' },
+    { id: 'en', name: 'Anna M.', login: 'anna.muster@corp.example', role: 'none', source: 'entra', entra: { id: 'e1', upn: 'anna.muster@corp.example' } },
+    { id: 'm', name: 'Anna', login: 'amuster', role: 'admin', source: 'manual' },
+    { id: 'b', name: 'Ben', login: 'bkeller', role: 'none', source: 'lansweeper' },
+    { id: 'b2', name: 'Ben K', login: 'bkeller', role: 'none', source: 'lansweeper' }],
+    objs: [{ id: 'o1', uid: 'ls', user: 'amuster' }, { id: 'o2', uid: 'en', user: 'Anna M.' }], peopleNotSame: ['b|b2'] };
+  assert.equal(mergeSamePeople(s), 2);
+  assert.deepEqual(s.users.map(u => u.id), ['l', 'm', 'b', 'b2'], 'Lansweeper and Entra records go into the directory one; a hand-made account and a pair marked not the same stay');
+  assert.deepEqual(s.objs.map(o => [o.uid, o.user]), [['l', 'Anna Muster'], ['l', 'Anna Muster']]);
+  assert.equal(s.users[0].entra.id, 'e1');
+  assert.equal(mergeSamePeople(s), 0, 'nothing left to merge');
+});
+
+test('a Lansweeper push whose user is the login of a directory person merges into them, sign-in and all', async () => {
+  const srv = await startServer();
+  try {
+    const s = loadState(srv.db);
+    s.users.push(P('ldap-amuster', 'Anna Muster', { login: 'amuster', source: 'ldap', role: 'viewer', aliases: ['anna.muster@corp.example'] }),
+      P('ls-x', 'anna.muster@corp.example', { login: 'anna.muster@corp.example', source: 'lansweeper' }));
+    s.objs = [{ id: 'n1', code: 'INV-1', type: 'notebook', name: 'NB-1', status: 'active', loc: '', feed: { sys: 'Lansweeper', ref: '7', seen: '' }, uid: 'ls-x', user: 'anna.muster@corp.example' }];
+    saveState(srv.db, s);
+    setPassword(srv.db, 'ls-x', 'lspassword12345');
+    const st = loadState(srv.db);
+    const counts = mergeRecords(st, [{ ref: '7', name: 'NB-1', user: 'CORP\\amuster', userName: 'Anna Muster', userDept: 'IT' }]);
+    assert.equal(counts.merged, 1);
+    saveState(srv.db, st);
+    const after = loadState(srv.db);
+    assert.deepEqual(after.users.filter(u => /muster/i.test(u.name + u.login)).map(u => u.id), ['ldap-amuster']);
+    assert.equal(after.objs[0].uid, 'ldap-amuster');
+    assert.equal(srv.db.prepare('SELECT COUNT(*) AS n FROM credentials WHERE user_id = ?').get('ls-x').n, 0, 'the merged-away record keeps no password');
+  } finally { await srv.close(); }
+});

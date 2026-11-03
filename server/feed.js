@@ -9,6 +9,7 @@ import { KNOWN_TYPES, intakeOf } from './state.js';
    Name and serial number are match keys. A field moves only where the policy allows it, and a field the object
    overrides by hand stays as it was set. */
 import { checkAddress } from './validate.js';
+import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 import { lsWrites, mappedRoom, markSource, noteValue, pickOf, priceOf } from './fill.js';
 import { parseCsv } from '../public/js/csv.js';
 export { parseCsv };
@@ -119,8 +120,9 @@ function applyDepartments(s, records) {
   /* Lookups instead of a pass over every person and device per record; kept up to date as people are added. */
   const byLogin = new Map(), byName = new Map(), byUser = new Map();
   /* Names and logins a merge left as aliases find the person too, so a merged person is not made again. */
-  const indexPerson = u => { if (u.login && !byLogin.has(low(u.login))) byLogin.set(low(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u);
-    for (const a of u.aliases || []) { if (!byLogin.has(low(a))) byLogin.set(low(a), u); if (!byName.has(low(a))) byName.set(low(a), u); } };
+  const indexPerson = u => { if (u.login && !byLogin.has(loginCore(u.login))) byLogin.set(loginCore(u.login), u); if (!byName.has(low(u.name))) byName.set(low(u.name), u);
+    if (u.entra && u.entra.upn && !byLogin.has(loginCore(u.entra.upn))) byLogin.set(loginCore(u.entra.upn), u);
+    for (const a of u.aliases || []) { if (!byLogin.has(loginCore(a))) byLogin.set(loginCore(a), u); if (!byName.has(low(a))) byName.set(low(a), u); } };
   s.users.forEach(indexPerson);
   for (const o of s.objs) if (o.user) { const k = low(o.user); byUser.set(k, [...(byUser.get(k) || []), o]); }
   for (const r of records) {
@@ -291,6 +293,8 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (isPlaceholderSerial(r.serial)) r.serial = '';
     if (Array.isArray(r.nics)) r.nics = cleanNics(r.nics, r.ip);
     r.role = ['workstation', 'server', 'dc'].includes(r.role) ? r.role : '';
+    /* A user written with its domain (CORP\amuster, as a report file may give it) is the login amuster, as the push sends it. */
+    if (r.user && r.user.includes('\\')) r.user = r.user.slice(r.user.lastIndexOf('\\') + 1).trim();
     return r;
   };
   /* The room a device's address puts it in, by Lansweeper's IP locations, when the location it reports is not one. */
@@ -456,6 +460,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     else { found.feed.seen = seen; counts.unchanged++; }
   }
   counts.people = applyDepartments(s, cleaned);
+  /* A person Lansweeper made who is someone else's login too (the directory's, Entra's): one record again. */
+  const merged = mergeSamePeople(s, seen);
+  if (merged) { counts.merged = merged; counts.people += merged; }
   /* Subnets to suggest, from the masks the devices' adapters report. Worked out from the whole inventory, as a push comes
      in batches; kept from the last push when this one sent no masks. */
   const netsBefore = JSON.stringify([s.lsNets || [], before.ipLocations]);
