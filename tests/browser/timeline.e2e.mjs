@@ -8,7 +8,7 @@ import { loadState, saveState } from '../../server/state.js';
 import { setPassword } from '../../server/auth.js';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import assert from 'node:assert/strict';
-import { until } from './until.mjs';
+import { storedBy, until } from './until.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-timeline-'));
 const db = openDb(path.join(dir, 'inventory.db'));
@@ -59,7 +59,8 @@ try {
   assert.equal((await events(p))[3][0], 'move');
   assert.ok(await p.locator('#histPanel [data-hrestore]').count() > 0, 'an admin can restore the location');
 
-  // a viewer sees the timeline, and no Restore
+  // a viewer sees the timeline, and no Restore (once the move is on the server)
+  await storedBy(() => loadState(db), st => st.objs.find(o => o.id === 'n1').loc === 'Bern / 1' && (st.history.n1 || []).some(h => /Bern \/ 1/.test(h.msg || '')));
   const v = await open('vera', 'verapass12345');
   assert.ok((await events(v)).some(e => e[0] === 'move'));
   assert.equal(await v.locator('#histPanel [data-hrestore]').count(), 0);
