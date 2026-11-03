@@ -120,6 +120,38 @@ const shiftRects = (rects, dx, dy) => {
   const k = Math.max(-b.x, Math.min(100 - b.x - b.w, dx)), j = Math.max(-b.y, Math.min(100 - b.y - b.h, dy));
   return {dx: k, dy: j, rects: rects.map(r => ({...r, x: r.x + k, y: r.y + j}))};
 };
+/* Snapping: an edge drawn or dragged near the edge of another area (or of the plan) lands on it, so rooms sit flush
+   and one can be drawn round the corner of another. SNAP_PX is how near, in screen pixels; Alt held turns it off. */
+const SNAP_PX = 8;
+/* The edges to snap to: every area but the one moved, the parts of the area being drawn, and the plan's own edges. */
+const snapLines = (plan, skipId) => {
+  const rects = [...(plan.areas || []).filter(a => a.id !== skipId).flatMap(areaRects), ...planParts];
+  return { xs: [0, 100, ...rects.flatMap(r => [r.x, r.x + r.w])], ys: [0, 100, ...rects.flatMap(r => [r.y, r.y + r.h])] };
+};
+/* The nearest line to v within tol, or null. */
+const nearest = (v, lines, tol) => { let best = null; for (const l of lines) if (Math.abs(l - v) <= tol && (best === null || Math.abs(l - v) < Math.abs(best - v))) best = l; return best; };
+/* A point snapped on each axis on its own; also says which lines it took, to show them. */
+const snapPoint = (plan, x, y, box, off) => {
+  if (off) return { x, y, gx: null, gy: null };
+  const L = snapLines(plan, null), tx = SNAP_PX / box.width * 100, ty = SNAP_PX / box.height * 100;
+  const gx = nearest(x, L.xs, tx), gy = nearest(y, L.ys, ty);
+  return { x: gx ?? x, y: gy ?? y, gx, gy };
+};
+/* How far to nudge rectangles moved by dx, dy so one of their edges lands on a line: the smallest nudge per axis. */
+const snapShift = (plan, skipId, rects, dx, dy, box, off) => {
+  if (off) return { dx, dy, gx: null, gy: null };
+  const L = snapLines(plan, skipId), tx = SNAP_PX / box.width * 100, ty = SNAP_PX / box.height * 100;
+  const best = (edges, lines, tol) => { let n = null, g = null; for (const e of edges) { const l = nearest(e, lines, tol); if (l !== null && (n === null || Math.abs(l - e) < Math.abs(n))) { n = l - e; g = l; } } return [n, g]; };
+  const [nx, gx] = best(rects.flatMap(r => [r.x + dx, r.x + r.w + dx]), L.xs, tx);
+  const [ny, gy] = best(rects.flatMap(r => [r.y + dy, r.y + r.h + dy]), L.ys, ty);
+  return { dx: dx + (nx ?? 0), dy: dy + (ny ?? 0), gx, gy };
+};
+/* The guide lines of a snap, drawn over the plan while the pointer is down; gone with null. */
+const showGuides = (c, gx, gy) => {
+  c.querySelectorAll('.pl-guide').forEach(el => el.remove());
+  if (gx !== null && gx !== undefined) { const el = document.createElement('div'); el.className = 'pl-guide v'; el.style.left = gx + '%'; c.appendChild(el); }
+  if (gy !== null && gy !== undefined) { const el = document.createElement('div'); el.className = 'pl-guide h'; el.style.top = gy + '%'; c.appendChild(el); }
+};
 /* An area is a location: "Site / Area". An area that was given an existing room keeps that room; otherwise the room is
    named after the area. Reading the name changes nothing, so drawing a plan never brings back a deleted room. */
 export const areaLocName = (plan, area) => area.room && LOCS.includes(area.room) ? area.room : `${plan.site} / ${area.name}`;
@@ -236,7 +268,7 @@ export function renderPlans(){
     if (closeGroup()) return;
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
-    if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
+    if (planMode === 'area'){ const s = snapPoint(plan, x, y, r, e.altKey); planDraw = {x0: s.x, y0: s.y, x1: s.x, y1: s.y}; showGuides(c, s.gx, s.gy); return; }
     if (planPlace && isAdmin()){
       if (!areaAt(plan, x, y)){ toast('A device goes inside an area. Draw the area first.'); return; }
       placeDevice(plan, planPlace, round1(x), round1(y));
@@ -393,10 +425,17 @@ document.addEventListener('pointermove', e => {
       c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !rack && !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
     }
   }
-  if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
+  if (planDraw){
+    const r = c.getBoundingClientRect(), pl = planById(planSel);
+    const s = pl ? snapPoint(pl, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey) : { x: pctOf(e.clientX, r.left, r.width), y: pctOf(e.clientY, r.top, r.height), gx: null, gy: null };
+    planDraw.x1 = s.x; planDraw.y1 = s.y; showGuides(c, s.gx, s.gy); drawPreview();
+  }
   if (planAreaDrag){
     const r = c.getBoundingClientRect(), d = planAreaDrag;
-    const sh = shiftRects(d.rects, pctOf(e.clientX, r.left, r.width) - d.x0, pctOf(e.clientY, r.top, r.height) - d.y0);
+    const pl = planById(d.planId), raw = { dx: pctOf(e.clientX, r.left, r.width) - d.x0, dy: pctOf(e.clientY, r.top, r.height) - d.y0 };
+    const sn = pl ? snapShift(pl, d.area.id, d.rects, raw.dx, raw.dy, r, e.altKey) : { ...raw, gx: null, gy: null };
+    const sh = shiftRects(d.rects, sn.dx, sn.dy);
+    showGuides(c, sn.gx, sn.gy);
     d.dx = sh.dx; d.dy = sh.dy; d.moved = d.moved || Math.abs(sh.dx) + Math.abs(sh.dy) > 0.2;
     /* The shape and its name tag follow the pointer by the drag's offset; the drop writes the new place. */
     const tx = d.dx * r.width / 100, ty = d.dy * r.height / 100;
@@ -412,6 +451,7 @@ document.addEventListener('pointermove', e => {
   }
 });
 document.addEventListener('pointerup', e => {
+  { const c = $('#plCanvas'); if (c) showGuides(c, null, null); }
   if (planListDrag){
     const d = planListDrag; planListDrag = null;
     if (d.moved){
