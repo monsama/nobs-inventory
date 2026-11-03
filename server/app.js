@@ -39,6 +39,9 @@ export const publicDir = path.join(here, '..', 'public');
 const cookieName = secure => secure ? '__Host-ni_session' : 'ni_session';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8')).version;
 
+/* Builds the Express app on an open database, without listening (index.js does that). The options are the connections
+   as the server's environment sets them (a value, or a function read on each use), the cookie and proxy settings, the
+   key that seals stored secrets, and stand-ins the tests pass (graphFetch, mailTransport, diskSpace, certProbe). */
 export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = null, lansweeperConfig = null, graphConfig = null, feedToken = null, secureCookie = false, sheetKey = null, graphFetch = fetch, diskSpace = undefined, mailTransport = null, certProbe = { host: 'nobs-proxy', port: 443 }, trustedProxy = '', loginFailMs = 0 }) {
   /* Entry sheets are sealed with this key. Without one (tests), a key for this process only. */
   const SECRET_KEY = sheetKey || crypto.randomBytes(32), SHEET_KEY = SECRET_KEY;

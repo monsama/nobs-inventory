@@ -11,6 +11,8 @@ import { readSecret } from './secrets.js';
 export function cloudTarget(env = process.env) {
   try { return readTarget(env); } catch (e) { return { error: String(e.message || e).slice(0, 200) }; }
 }
+/* Azure first, else S3, else null. A setting that is wrong comes back as { error }, a short reason without any secret,
+   so Health can say what to fix; cloudTarget turns a throw (an unreadable secret file) into one too. */
 function readTarget(env) {
   const az = String(readSecret(env, 'NI_BACKUP_EXPORT_AZURE_URL') || '').trim();
   if (az) {

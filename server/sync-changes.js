@@ -5,6 +5,9 @@
 export const EARLIER_KEEP = 9;
 const PREFIX = { ls: 'Lansweeper', graph: 'Intune', ad: 'Active Directory' };
 export const historyLens = s => new Map(Object.entries(s.history || {}).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+/* Writes s.syncChanges[src] (src is ls, graph or ad) from the history lines added since lens, which historyLens took
+   before the sync. A run within ten minutes of the last adds to it; else the last, when it changed anything, moves to
+   earlier. */
 export function noteChanges(s, src, lens, now = new Date()) {
   const re = new RegExp(`^${PREFIX[src]}: (.+?) (changed from |filled in: )`);
   const changed = {}, filled = {}, ids = new Set();

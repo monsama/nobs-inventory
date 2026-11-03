@@ -9,6 +9,8 @@ import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { ensureImagesTable } from './device-images.js';
 
+/* Makes the parts table and adds the columns later versions use (the backup's format and size, the photos' part
+   hashes), so an older database works. Run when the database opens and before each use; safe to repeat. */
 export function ensureBackupStore(db) {
   db.exec('CREATE TABLE IF NOT EXISTS backup_parts (hash TEXT PRIMARY KEY, gz INTEGER NOT NULL, data BLOB NOT NULL)');
   const cols = db.prepare('PRAGMA table_info(backups)').all().map(c => c.name);

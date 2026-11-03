@@ -112,6 +112,8 @@ export const dayOf = v => {
    bound to them (uid), so the page shows the person's name and a rename moves the devices with them.
    A login is letters (umlauts too), digits and . _ @ ' -, as Active Directory allows them. */
 export const LOGIN_RE = /^[\p{L}\p{N}_.@'-]{1,64}$/u;
+/* Does what is said above for the records of one push or import, changing s in place. Returns how many changes it made:
+   none when the feed is off or does not bring departments (policy.dept). */
 function applyDepartments(s, records) {
   let n = 0;
   if (s.feedOn === false || (s.policy && s.policy.dept === false)) return n;
@@ -172,6 +174,8 @@ const linksOf = list => list.slice(0, 50).map(l => ({ ...(l.ref != null ? { ref:
 const DOCK_LINKS_DAYS = 30;
 /* Records waiting in To review at most: more are not added until some are accepted or ignored. */
 export const REVIEW_MAX = 5000;
+/* Does the link matching said above for the merged pairs ({ r, obj, linksOnly }), changing s.rels in place. seen is the
+   run's time stamp; a port already taken is counted in counts.portConflict. Returns how many links changed. */
 function applyLinks(s, pairs, counts, seen) {
   let n = 0;
   if (s.feedOn === false) return n;
@@ -248,6 +252,8 @@ export function modelFor(s, name) {
    rules, in their order (the ones shipped, or the list edited in Settings → Feed). */
 /* A type chosen by hand on the page (or one the history says was changed by a person) is never changed by the rules. */
 export const typeSetByHand = (s, o) => pickOf(o, 'type') === 'hand' || ((s.history || {})[o.id] || []).some(h => /^Type changed from .+ by (?!the type rules)/.test(h.msg || ''));
+/* Returns the type for a device from Lansweeper: name is Lansweeper's type name; model, devName and chassis go to the
+   type rules too. role (workstation, server or dc, from Windows) moves a PC to server and back. */
 export function typeFor(s, name, model, role, devName = '', chassis = '') {
   const text = String(name || '');
   const own = s.typeMap && Object.keys(s.typeMap).find(k => k.toLowerCase() === text.toLowerCase());

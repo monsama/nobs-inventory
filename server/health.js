@@ -21,6 +21,9 @@ const ERROR = /fail|refus|error|throttl|denied|wrong|could not|not set|not allow
 /* diskSpace(dir) → { free, total } in bytes: the file system's own numbers, or given (tests, so they do not depend on
    the disk of the machine they run on). */
 export const statDisk = dir => { const f = fs.statfsSync(dir); return { free: f.bavail * f.bsize, total: f.blocks * f.bsize }; };
+/* Builds the Health list from the database and the inventory s; it only reads. Returns { state, at, checks }: each
+   check is { area, name, state, value, note }, and state is the worst of them. Settings → Health and the weekly e-mail
+   use it. */
 export function healthReport(db, s, { version = '', on = {}, graphCert = null, photos = null, copy = null, restore = null, diskSpace = statDisk, now = Date.now(), started = now - process.uptime() * 1000 } = {}) {
   const checks = [];
   const add = (area, name, state, value, note = '') => checks.push({ area, name, state, value, note });

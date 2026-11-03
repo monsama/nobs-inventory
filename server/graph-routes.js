@@ -8,6 +8,9 @@ import crypto from 'node:crypto';
 import { runRecorded } from './sync-runs.js';
 import { HttpError } from './errors.js';
 
+/* Adds the Microsoft Graph routes, all for admins: the status, the settings (tenant, client id and how far each part
+   goes), the certificates (make one, download its .cer, choose one, remove one), and the test and sync. It also puts
+   the connection on app.locals for the nightly run. */
 export function registerGraphRoutes(app, ctx) {
   const { db, requireUser, requireAdmin, cfgGraph, graphSettings, graphSource, SHEET_KEY, graphFetch } = ctx;
   const editGraph = fn => { const s = loadState(db); s.graph = fn({ ...(s.graph || {}) }); const p = graphSettingsProblem(s.graph); if (p) throw new HttpError(400, p); saveState(db, s); };

@@ -16,6 +16,8 @@ const short = v => {
 /* An item of a list by what names it: a contact, location, subnet, rule… */
 const label = x => isObj(x) ? String(x.name || x.title || x.label || x.cidr || x.login || x.id || short(x)) : short(x);
 
+/* Compares one setting's value before and after, walking into objects by path. Returns the lines for the log as
+   described above. path, out and keys carry the walk on its way down; callers give only before and after. */
 export function settingDiff(before, after, path = '', out = [], keys = []) {
   if (out.length >= MAX || JSON.stringify(before) === JSON.stringify(after)) return out;
   const last = path.split('.').pop();

@@ -8,6 +8,9 @@ import { sendReportMail } from './digest.js';
 import { HttpError } from './errors.js';
 import { loadState, movePersonRows, saveState } from './state.js';
 
+/* Adds POST /api/users/merge (admins) and My devices for anyone signed in, on a device they are the user of: confirm it
+   (/api/my/devices/:id/confirm) or report a problem (/report). Both are noted in its history and the log; a problem is
+   also mailed to the admins when that is turned on. */
 export function registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailTransport, smtpNow }) {
   /* Two records of one person merged (public/js/people-match.js): devices, entry sheets and the sign-in go to the one
      kept, the other's login and name stay as aliases so a sync finds the person again. A backup is taken first. */

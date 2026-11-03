@@ -26,6 +26,8 @@ export const dropGraphKey = (db, thumbprint) => db.prepare('DELETE FROM graph_ke
 
 /* The connection settings made in Settings: the tenant, the app (client) id and the certificate in use. Not secret. */
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/* Returns what is wrong with the Graph settings, in words for the page, or null. Every save of the inventory runs it
+   (checkState), and so does each change made by the Graph routes. */
 export function graphSettingsProblem(g) {
   if (!g || typeof g !== 'object' || Array.isArray(g)) return 'The Microsoft Graph settings are a record.';
   if (g.tenant && !(GUID.test(g.tenant) || /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(g.tenant))) return 'The directory (tenant) ID is a GUID such as 1b2c3d4e-…, or a domain such as contoso.onmicrosoft.com.';

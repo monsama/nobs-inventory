@@ -17,6 +17,10 @@ import { recordSync, runRecorded } from './sync-runs.js';
 import { setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 
+/* Adds the directory and Lansweeper routes, all for admins but the push: the service account password and CA
+   certificate (/api/ldap/password, /api/ldap/ca), the directory test and sync, the type rules applied again
+   (/api/feed/retype), the Lansweeper API sync, the push with its token and script, and the CSV import. It also puts the
+   directory settings on app.locals for the nightly run. */
 export function registerSyncRoutes(app, ctx) {
   const { db, throttle, auditQuiet, requireUser, requireAdmin, cfgLs, cfgLdap, ldap, ldapConfig, ldapPasswordFromServer, SECRET_KEY, feedToken, certProbe, publicDir } = ctx;
   /* The service account's password: set or replaced here, removed here, never read back. The server's own setting wins. */
@@ -103,6 +107,8 @@ export function registerSyncRoutes(app, ctx) {
       res.json({ changed: pick.length });
     } catch (e) { next(e); }
   });
+  /* Sync now for the Lansweeper API, recorded as a run like the scheduled one. Only when Settings → Feed is set to API
+     sync. */
   app.post('/api/feed/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
       lsRequire('api');
@@ -213,6 +219,7 @@ export function registerSyncRoutes(app, ctx) {
     if (mode === 'push' && s.lsSource === 'api') throw new HttpError(403, 'Lansweeper is set to API sync in Settings → Feed. Switch to script push to use it.');
     if (mode === 'api' && s.lsSource !== 'api') throw new HttpError(403, 'Lansweeper is set to script push in Settings → Feed. Switch to API sync to run it.');
   };
+  /* A Lansweeper export (CSV) uploaded by an admin. A backup is taken first when it changes anything. */
   app.post('/api/feed/import', requireUser, requireAdmin, (req, res, next) => {
     try { lsRequire(); } catch (e) { return next(e); }
     try {

@@ -49,6 +49,8 @@ export function clientAssertion(cfg, now = new Date()) {
   return `${head}.${body}.${sig}`;
 }
 
+/* An app-only access token from Entra, signed in with the certificate (clientAssertion). scope is Graph's by default. A
+   refusal becomes a 502 that says, in the setup's words, what to fix. */
 export async function graphToken(cfg, now = new Date(), fetchImpl = fetch, scope = `${GRAPH_ORIGIN}/.default`) {
   const body = new URLSearchParams({
     client_id: cfg.clientId, scope, grant_type: 'client_credentials',
@@ -243,6 +245,8 @@ export async function fetchGraphAll(cfg, now = new Date(), fetchImpl = fetch) {
    already (DeviceManagementManagedDevices.Read.All). A device that has not reported it yet stays unknown. */
 const BATCH = 20;
 export const secureBootOf = v => (/^(enabled|on|true)$/i.test(clean(v)) ? 'on' : /^(disabled|off|false)$/i.test(clean(v)) ? 'off' : '');
+/* Returns a Map of Intune device id to { secureBoot: 'on' or 'off', at: the day reported }, for the Windows devices
+   Intune manages. Throws when Graph refuses the batch, or every device (the permission is missing). */
 export async function fetchSecureBoot(token, managed, fetchImpl = fetch) {
   const ids = (managed || []).filter(m => managedBy(m.managementAgent) === 'Intune' && /windows/i.test(clean(m.operatingSystem)) && m.id).map(m => m.id);
   const out = new Map();
@@ -282,6 +286,8 @@ const profileOfEntra = u => {
   const f = profileFields({ title: u.jobTitle, phone: (u.businessPhones || [])[0], mobile: u.mobilePhone, office: u.officeLocation, manager: u.manager && u.manager.displayName, mail: u.mail });
   return Object.keys(f).length ? { ...f, from: 'entra' } : null;
 };
+/* Applies Entra's users, as the sync read them, to s.users as said above, in place, then binds devices to their Intune
+   primary user. mode is off, match or add. Returns the counts { inEntra, added, gone, bound }. */
 export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const at = stamp(now), counts = { inEntra: 0, added: 0, gone: 0, bound: 0 };
   if (!users || mode === 'off') return counts;
@@ -485,6 +491,9 @@ export function intakeFromGraph(s, now = new Date()) {
   s.graphUnmatched = [];
   return { direct: n, review: m };
 }
+/* ids are Graph device ids from s.graphUnmatched, or 'all'; who is named in the history; review: true puts them in To
+   review. A name or serial number the inventory has already is skipped. The ones added leave the list. Returns their
+   ids. */
 export function addFromGraph(s, ids, who, now = new Date(), { review = false } = {}) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids);
   const list = (s.graphUnmatched || []).filter(d => !want || want.has(d.id));
@@ -581,6 +590,9 @@ export function graphFieldReport(records, fallback = false, now = new Date()) {
   const managed = (records || []).filter(r => r.intune);
   return { at: now.toISOString(), managed: managed.length, fallback: !!fallback, fields: Object.fromEntries(Object.keys(FIELD_REPORT).map(k => [k, managed.filter(r => r[k]).length])) };
 }
+/* One Microsoft Graph sync: reads Graph (devices, and Entra's people, Defender and Autopilot when turned on), applies
+   it, notes what changed for Settings → Data sources, takes the daily automatic backup and saves. Returns the counts; a
+   part Graph refused is named in them (peopleError and the like) instead of failing the sync. */
 export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const { records, users, peopleError, machines, defenderError, autopilot, autopilotError, fallback, secureBootError } = await fetchGraphAll(cfg, now, fetchImpl);
   const s = loadState(db);

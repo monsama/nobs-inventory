@@ -17,6 +17,8 @@ const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
    (saved: { host, port, security, user, from, pass }, the password kept sealed apart). null when neither. security is
    starttls (the default, port 587), tls (from the start, port 465) or none (a relay inside the network, port 25). */
 export const SMTP_SECURITY = ['starttls', 'tls', 'none'];
+/* Returns the mail transport's options ({ source, host, port, secure, requireTLS, auth, from }) or null. saved is the
+   setting with its password already unsealed (app.js). */
 export function smtpConfig(env = process.env, saved = null) {
   const host = String(env.NI_SMTP_HOST || '').trim();
   if (host) {

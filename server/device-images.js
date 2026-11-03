@@ -54,6 +54,8 @@ export function stripJpeg(buf) {
 
 /* A PNG with only the chunks that draw the picture: text, time and EXIF chunks (camera, GPS) are left out. */
 const PNG_KEEP = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tRNS', 'gAMA', 'cHRM', 'sRGB', 'iCCP', 'sBIT', 'pHYs']);
+/* Walks the chunks after the signature and keeps those in PNG_KEEP, up to IEND. A cut-off file, or one without IEND, is
+   refused with a 400. */
 export function stripPng(buf) {
   const out = [buf.subarray(0, 8)];
   let i = 8;
@@ -68,6 +70,8 @@ export function stripPng(buf) {
 }
 /* A WebP with only the chunks that draw the picture: EXIF and XMP (camera, GPS) go, and the flags that announced them. */
 const WEBP_KEEP = new Set(['VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ICCP']);
+/* Walks the RIFF chunks, keeps those in WEBP_KEEP, clears the EXIF and XMP flags in VP8X and writes a new RIFF header
+   for the new length. An animation, or a file with no picture chunk, is refused. */
 export function stripWebp(buf) {
   const out = [];
   let i = 12;
@@ -107,6 +111,9 @@ export function imageStats(db) {
   return { n: Number(r.n), bytes: Number(r.bytes), devices: Number(r.devices) };
 }
 
+/* Adds the photo routes: a device's photos listed and added (/api/objects/:id/images), moved to another device in a
+   merge, one photo or its preview (GET /api/images/:id), its caption and its removal, and for Health the list of all
+   photos and a smaller copy replacing one. Viewers only read, and only devices in their scope. */
 export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit }) {
   ensureImagesTable(db);
   /* A viewer limited to some sites sees the photos of their devices only (server/scope.js). */
@@ -146,6 +153,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
+  /* A new photo: checked and cleaned by pictureOf, within the count per device and the room for all photos together. */
   app.post('/api/objects/:id/images', requireUser, requireAdmin, (req, res, next) => {
     try {
       const o = objectOf(req.params.id, req);
@@ -216,6 +224,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
+  /* A new caption. Not written to the log. */
   app.patch('/api/images/:id', requireUser, requireAdmin, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);

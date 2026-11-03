@@ -11,6 +11,8 @@ const M = 36, PW = 841.89, PH = 595.28, W = PW - 2 * M;   /* A4 landscape, margi
 const money = n => typeof n === 'number' ? n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(n ?? '');
 const cellText = (col, v) => col.money ? money(v) : typeof v === 'number' ? String(v) : String(v ?? '');
 
+/* r is a report as public/js/reports.js builds it ({ title, subtitle, columns, groups, total, currency }). Resolves to
+   the PDF as a Buffer. A cell too long for its column is cut with an ellipsis. */
 export function reportPdf(r, company = {}) {
   return new Promise((resolve, reject) => {
     const doc = unicodeFonts(new PDFDocument({ size: 'A4', layout: 'landscape', margin: M, bufferPages: true, info: { Title: r.title, Author: company.name || 'NOBS Inventory' } }));
@@ -92,6 +94,8 @@ function zip(files) {
   const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(size, 12); end.writeUInt32LE(at, 16);
   return Buffer.concat([...parts, ...dir, end]);
 }
+/* Returns the workbook as a Buffer, at once. A report with a total gets a SUM formula two rows below the last, with the
+   total already computed as its value. */
 export function reportXlsx(r) {
   const groupLabel = { Inventory: 'Group' }[r.title] || 'Group';
   const cols = [...(r.groups.some(g => g.name) ? [{ label: groupLabel, w: 1.4, group: true }] : []), ...r.columns];

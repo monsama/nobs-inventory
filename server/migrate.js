@@ -8,6 +8,8 @@ const TYPE_RENAMES = { iphone: 'ios', tablet: 'mobile', smartphone: 'mobile' };
 
 /* Changes s in place and returns true when anything was changed. */
 export const NOTES_MAX = 20000;
+/* Brings a stored inventory up to date, at start and when a backup is restored: changes s in place and returns true
+   when anything changed (the start then takes a backup and saves). Each step is safe to run again. */
 export function migrateState(s) {
   let changed = false;
   for (const o of s.objs) if (TYPE_RENAMES[o.type]) { o.type = TYPE_RENAMES[o.type]; changed = true; }

@@ -225,6 +225,9 @@ export function intakeFromAd(s, now = new Date()) {
   s.adUnmatched = [];
   return { direct: n, review: m };
 }
+/* ids are computer accounts from s.adUnmatched (without case), or 'all'; who is named in the history; review: true puts
+   them in To review. A name the inventory has already is skipped. Each gets the next free code and id and leaves the
+   list. Returns the ids added. */
 export function addFromAd(s, ids, who, now = new Date(), { review = false } = {}) {
   const at = stamp(now), want = ids === 'all' ? null : new Set(ids.map(low));
   const list = (s.adUnmatched || []).filter(d => !want || want.has(d.id));

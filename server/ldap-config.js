@@ -23,6 +23,8 @@ export const defaultBindTemplate = searchBase => {
    it (.cer, DER or Base-64) or a PEM with the whole chain. Only CA certificates are taken; the server's own certificate
    is refused, as it cannot vouch for itself once it is renewed. Returns the PEM and what each certificate is. */
 const cnOf = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];
+/* base64 is the uploaded file. Takes up to ten certificates; a file that is too large, not a certificate, or a server's
+   own certificate is refused with a 400. */
 export function parseCaCerts(base64) {
   const buf = Buffer.from(String(base64 || ''), 'base64');
   if (!buf.length || buf.length > 200000) throw new HttpError(400, 'Choose the CA certificate file (.cer, .crt or .pem).');
@@ -69,6 +71,8 @@ export function ldapPortProblem(url, env = process.env) {
 }
 const savedCa = db => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = 'ldapCa'").get(); const v = r ? JSON.parse(r.data) : null; return v && typeof v.pem === 'string' ? v.pem : ''; };
 
+/* The directory settings from the server's environment (NI_LDAP_*), the service password read from it or its file. Used
+   when nothing is saved in the inventory; url is undefined without NI_LDAP_URL. */
 export function configFromEnv(env) {
   return {
     url: env.NI_LDAP_URL,

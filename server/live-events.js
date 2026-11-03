@@ -9,6 +9,9 @@ import { stateSeq } from './state.js';
 const PER_SESSION = 4, TOTAL = 200;
 const TICK_MS = 1000, SWEEP_MS = 5000;
 
+/* Adds GET /api/events, and a hook on every /api request that is not a read so a check runs as soon as it is answered.
+   Streams are limited per session and in total; a tick each second sends the new number when there is one, a heartbeat,
+   and closes the streams of ended sessions. Returns { check, count }. */
 export function registerLiveEvents(app, { db, requireUser, userDoc, COOKIE, perSession = PER_SESSION, total = TOTAL, heartbeatMs = 25_000 }) {
   const streams = new Set();
   let seq = 0, timer = null, beat = 0, swept = 0;

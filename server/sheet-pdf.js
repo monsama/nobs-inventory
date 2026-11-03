@@ -19,6 +19,8 @@ function nobsMark(doc, x, y, s) {
   doc.restore();
 }
 
+/* sheet is a kept entry sheet as sheets.js opens it; company gives the name and logo (the NOBS mark without a logo).
+   Resolves to the PDF as a Buffer. compress: false leaves the text readable in the file. */
 export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
   return new Promise((resolve, reject) => {
     const doc = unicodeFonts(new PDFDocument({ size: 'A4', margin: M, compress, info: { Title: `Entry sheet ${sheet.person.name}`, Author: company.name || 'NOBS Inventory' } }));
