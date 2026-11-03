@@ -17,6 +17,7 @@ import { lifecycleProblem } from '../public/js/lifecycle.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
+import { cordProblem, outletClash, outletsProblem } from '../public/js/cabling.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
@@ -158,7 +159,8 @@ export const KNOWN_TYPES = ['pc', 'notebook', 'camera', 'bmc', 'server', 'vm', '
    still sends them (a page not reloaded yet, a backup) is taken as In stock. */
 const STATUSES = ['active', 'stock', 'retired'];
 export const LEGACY_STATUS = ['unused', 'repair'];
-const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink'];
+/* patched: a patch cord from a panel port (fromPort) to a switch port. */
+const REL_KINDS = ['attached', 'hosted', 'connected', 'uplink', 'patched'];
 /* A user id that is free: the directory's ids come from the login, and a login can change after the id was made. */
 export const freeUserId = (users, id) => { let n = 1, out = id; while (users.some(u => String(u.id) === out)) out = id + '-' + (++n); return out; };
 
@@ -408,7 +410,11 @@ function checkStateRules(s, size = true) {
     if (o.sfp !== undefined && (!Number.isInteger(o.sfp) || o.sfp < 0 || o.sfp > 1000)) bad(`${o.name}: the SFP port count must be a whole number from 0 to 1000.`);
     if (o.h !== undefined && (!Number.isInteger(o.h) || o.h < 1 || o.h > 200)) bad(`${o.name}: the height in U must be a whole number from 1 to 200.`);
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
+    /* A patch panel's wall outlets (public/js/cabling.js). */
+    { const p = outletsProblem(o); if (p) bad(`${o.name}: ${p}`); }
   }
+  /* An outlet name is used once across all panels. */
+  { const p = outletClash(s.objs); if (p) bad(p); }
   const codes = s.objs.map(o => o.code).filter(Boolean);
   if (new Set(codes).size !== codes.length) bad('Two devices have the same code.');
   if (new Set(s.users.map(u => String(u.id))).size !== s.users.length) bad('Two users have the same id.');
@@ -435,6 +441,16 @@ function checkStateRules(s, size = true) {
       if (inLag) bad(`Port ${r.port} on ${t.name} is part of the LAG ${inLag.name}. Connect the LAG instead.`);
     }
     if (r.from === r.to) bad('A device cannot be related to itself.');
+    /* A patch cord runs from a panel port to a switch port; only a cord names the port it starts on. */
+    if (r.kind === 'patched') { const p = cordProblem(r, id => byId.get(id)); if (p) bad(p); }
+    else if (r.fromPort != null) bad('Only a patch cord starts on a port.');
+  }
+  /* A panel port has one patch cord. */
+  const cords = new Set();
+  for (const r of s.rels) if (r.kind === 'patched') {
+    const k = r.from + '|' + r.fromPort;
+    if (cords.has(k)) bad(`${byId.get(r.from).name} ${r.fromPort} has two patch cords.`);
+    cords.add(k);
   }
   /* One device per port of a switch or patch panel. */
   const taken = new Set();
