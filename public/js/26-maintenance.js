@@ -1,7 +1,7 @@
 /* Recurring maintenance on a device's page: its tasks with when each is due, Done… (when, who, a note) and, for someone
    who may change the device, adding, changing and removing tasks. The rules and dates are in maintenance.js; the
    Overview lists what is due, the weekly e-mail too. */
-import { $, esc, hist, now, toast } from './01-core.js';
+import { $, hist, now, toast } from './01-core.js';
 import { MAINT_MAX, MAINT_UNITS, addInterval, daysTo, doneTask, dueState, everyText, todayDay } from './maintenance.js';
 import { isAdmin, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
@@ -37,8 +37,8 @@ export function maintPanel(o){
 /* Done: on which day (today unless said), and a note; the next due date moves on from that day. */
 export function maintDoneModal(o, id, after = render){
   const m = (o.maint || []).find(x => x.id === id); if (!m) return;
-  modal(`<div class="mh">Maintenance done</div><div class="mb"><p class="note"><b>${esc(o.name)}</b>: ${esc(m.what)} (${esc(everyText(m))})</p>
-    <div class="form2"><label for="mtDay">Done on</label>${dateFieldHtml('id="mtDay"', todayDay())}
+  modal(html`<div class="mh">Maintenance done</div><div class="mb"><p class="note"><b>${o.name}</b>: ${m.what} (${everyText(m)})</p>
+    <div class="form2"><label for="mtDay">Done on</label>${rawHtml(dateFieldHtml('id="mtDay"', todayDay()))}
       <label for="mtNote">Note</label><textarea id="mtNote" rows="3" maxlength="500" placeholder="Optional: what was done or found"></textarea></div>
     <p class="note" id="mtNext"></p></div>
     <div class="mf"><button id="mtNo">Cancel</button><button id="mtOk" class="primary">Mark as done</button></div>`, 'sm');
@@ -62,13 +62,13 @@ export function maintDoneModal(o, id, after = render){
 /* Add or change a task: what, every how many days, weeks, months or years, and the next due date. */
 function maintEditModal(o, id){
   const m = id ? (o.maint || []).find(x => x.id === id) : null;
-  modal(`<div class="mh">${m ? 'Change maintenance' : 'Add maintenance'}</div><div class="mb">
-    <div class="form2"><label for="mtWhat">What</label><input id="mtWhat" maxlength="120" value="${esc(m ? m.what : '')}" placeholder="e.g. Test the UPS battery">
+  modal(html`<div class="mh">${m ? 'Change maintenance' : 'Add maintenance'}</div><div class="mb">
+    <div class="form2"><label for="mtWhat">What</label><input id="mtWhat" maxlength="120" value="${m ? m.what : ''}" placeholder="e.g. Test the UPS battery">
       <label for="mtEvery">Every</label><div class="bk-exrow"><input id="mtEvery" type="number" min="1" max="999" value="${m ? m.every : 1}" style="width:80px">
-        <select id="mtUnit" aria-label="Unit">${Object.entries(MAINT_UNITS).map(([k, [, many]]) => `<option value="${k}" ${(m ? m.unit : 'y') === k ? 'selected' : ''}>${many}</option>`).join('')}</select></div>
-      <label for="mtDue">Next due</label>${dateFieldHtml('id="mtDue"', m ? m.due : todayDay())}</div>
-    ${m && (m.log || []).length ? `<details class="mt-log"><summary>Done ${m.log.length} time${m.log.length === 1 ? '' : 's'}</summary><ul>${m.log.map(e => `<li>${esc(dateText(e.at))}${e.by ? ` · ${esc(e.by)}` : ''}${e.note ? ` · ${esc(e.note)}` : ''}</li>`).join('')}</ul></details>` : ''}</div>
-    <div class="mf">${m ? '<button id="mtDel" class="danger-text" style="margin-right:auto">Remove</button>' : ''}<button id="mtNo">Cancel</button><button id="mtSave" class="primary">${m ? 'Save' : 'Add'}</button></div>`, 'sm');
+        <select id="mtUnit" aria-label="Unit">${Object.entries(MAINT_UNITS).map(([k, [, many]]) => html`<option value="${k}" ${(m ? m.unit : 'y') === k ? 'selected' : ''}>${many}</option>`)}</select></div>
+      <label for="mtDue">Next due</label>${rawHtml(dateFieldHtml('id="mtDue"', m ? m.due : todayDay()))}</div>
+    ${m && (m.log || []).length ? html`<details class="mt-log"><summary>Done ${m.log.length} time${m.log.length === 1 ? '' : 's'}</summary><ul>${m.log.map(e => html`<li>${dateText(e.at)}${e.by ? ` · ${e.by}` : ''}${e.note ? ` · ${e.note}` : ''}</li>`)}</ul></details>` : ''}</div>
+    <div class="mf">${m ? html`<button id="mtDel" class="danger-text" style="margin-right:auto">Remove</button>` : ''}<button id="mtNo">Cancel</button><button id="mtSave" class="primary">${m ? 'Save' : 'Add'}</button></div>`, 'sm');
   $('#mtNo').onclick = closeModal;
   $('#mtSave').onclick = () => {
     const what = $('#mtWhat').value.trim(), every = Number($('#mtEvery').value), unit = $('#mtUnit').value, el = $('#mtDue'), due = dateValue(el);

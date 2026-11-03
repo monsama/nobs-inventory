@@ -2,10 +2,11 @@
    Intune, Active Directory, and a value set by hand), each with the time it is from, the newest marked, and lets an admin
    fix the field to one: a picked source is the only one that writes it from then on (o.pick), a value kept as typed
    ('hand') is left alone by every sync. Automatic goes back to the usual order: Lansweeper, Intune, AD. */
-import { FIELD_LABEL, SRC_ICON, byId, dayText, esc, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
+import { FIELD_LABEL, SRC_ICON, byId, dayText, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
 import { stamp } from './dates.js';
 import { isAdmin, who } from './04-settings.js';
 import { render } from './07-render.js';
+import { html, rawHtml } from './html.js';
 
 const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
 const WHEN = { ls: 'last scan', graph: 'last check-in', ad: 'last logon', hand: 'edited', unknown: '' };
@@ -40,22 +41,22 @@ function pickerOf(mark, close){
   if (!list.length && !fixed) return null;
   const inUse = sourceOf(o, k), edit = isAdmin(), label = LABELS[k] || k;
   const newest = list.length > 1 ? list.reduce((a, b) => ms(b.at) > ms(a.at) ? b : a) : null;
-  const mode = fixed ? `${LOCK}${fixed === 'hand' ? 'Kept as typed' : `Fixed to ${esc(NAMES[fixed])}`}` : 'Automatic';
+  const mode = fixed ? html`${rawHtml(LOCK)}${fixed === 'hand' ? 'Kept as typed' : `Fixed to ${NAMES[fixed]}`}` : 'Automatic';
   /* What fixing means: a value kept as typed is left alone by every sync; a picked source is the only one that writes it. */
-  const fixedText = fixed === 'hand' ? 'The syncs leave it as it is.' : fixed ? `Only ${esc(NAMES[fixed])} writes it from now on; the other sources are still shown here.` : '';
+  const fixedText = fixed === 'hand' ? 'The syncs leave it as it is.' : fixed ? `Only ${NAMES[fixed]} writes it from now on; the other sources are still shown here.` : '';
   const box = document.createElement('div');
-  box.innerHTML = `<div class="sp-head"><b>${esc(label)}</b><span class="sp-mode${fixed ? ' fixed' : ''}">${mode}</span></div>
-    ${list.length ? `<div class="sp-list" role="radiogroup" aria-label="Value of ${esc(label)}">${list.map(c => {
+  box.innerHTML = html`<div class="sp-head"><b>${label}</b><span class="sp-mode${fixed ? ' fixed' : ''}">${mode}</span></div>
+    ${list.length ? html`<div class="sp-list" role="radiogroup" aria-label="Value of ${label}">${list.map(c => {
       const cur = c.src === inUse && String(o[k] ?? '') === c.value;
-      return `<button type="button" class="sp-row${cur ? ' cur' : ''}" role="radio" aria-checked="${cur}" data-pick="${c.src}" ${edit ? '' : 'disabled'}>
-        <span class="sp-ico" title="${esc(NAMES[c.src])}">${icon(c.src)}</span>
-        <span class="sp-main"><span class="sp-src">${esc(NAMES[c.src])}${newest === c ? ' <span class="chip ok sp-new">newest</span>' : ''}${cur ? ' <span class="chip sp-use">in use</span>' : ''}</span><span class="sp-val">${esc(c.value)}</span>
-        <span class="sp-at">${c.at && WHEN[c.src] ? `${WHEN[c.src]} ${esc(shown(c.at))}` : ''}</span></span>
+      return html`<button type="button" class="sp-row${cur ? ' cur' : ''}" role="radio" aria-checked="${String(cur)}" data-pick="${c.src}" ${edit ? '' : 'disabled'}>
+        <span class="sp-ico" title="${NAMES[c.src]}">${rawHtml(icon(c.src))}</span>
+        <span class="sp-main"><span class="sp-src">${NAMES[c.src]}${newest === c ? html` <span class="chip ok sp-new">newest</span>` : ''}${cur ? html` <span class="chip sp-use">in use</span>` : ''}</span><span class="sp-val">${String(c.value ?? '')}</span>
+        <span class="sp-at">${c.at && WHEN[c.src] ? `${WHEN[c.src]} ${shown(c.at)}` : ''}</span></span>
         <span class="sp-tick" aria-hidden="true">${cur ? '✓' : ''}</span></button>`;
-    }).join('')}</div>` : '<p class="sp-none muted">No source has a value for it.</p>'}
-    <div class="sp-foot">${!edit ? `<span class="muted">${fixed ? fixedText : `Filled automatically: ${AUTO_TEXT}.`}</span>`
-      : fixed ? `<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
-      : `<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`;
+    })}</div>` : html`<p class="sp-none muted">No source has a value for it.</p>`}
+    <div class="sp-foot">${!edit ? html`<span class="muted">${fixed ? fixedText : `Filled automatically: ${AUTO_TEXT}.`}</span>`
+      : fixed ? html`<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
+      : html`<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`;
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const src = b.dataset.pick === 'unknown' ? 'hand' : b.dataset.pick, c = list.find(x => x.src === b.dataset.pick);
     /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand

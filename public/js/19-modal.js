@@ -52,13 +52,12 @@ export function confirmModal(title, text, okLabel, onOk, { primary = false } = {
 }
 /* Minimize, maximize and close in a dialog's top right corner, as in NOBS SQL Editor. A minimized dialog keeps what was
    typed in it and waits as a chip at the bottom right; opening another dialog takes its place. A sign-in dialog has none. */
-const WSVG = p => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+/* p: the icon's shapes, written here. */
+const WSVG = p => html`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${rawHtml(p)}</svg>`;
 function addWindowControls(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
   const strip = document.createElement('span'); strip.className = 'wctl';
-  strip.innerHTML = `<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button>`
-    + `<button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button>`
-    + `<button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
+  strip.innerHTML = html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
   if (head) head.appendChild(strip); else box.insertBefore(strip, box.firstChild);
   strip.querySelector('.wc-min').onclick = minimizeModal;
   strip.querySelector('.wc-max').onclick = () => {

@@ -6,11 +6,12 @@
    metadata behind: the camera, the time and the GPS
    position stay on this computer. The server checks the picture again and keeps it apart from the inventory
    (server/device-images.js). */
-import { $, byId, esc, hist, now, st, toast } from './01-core.js';
+import { $, byId, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
 import { isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave } from './07-render.js';
+import { html } from './html.js';
 
 const LONG_SIDE = 2560, THUMB_SIDE = 480, MAX_FILE = 40 * 1048576, MAX_SENT = 6 * 1048576;
 /* What the server said each device has, so a redraw of the page does not ask again. */
@@ -26,12 +27,12 @@ export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = isAdmin();
   const empty = edit ? 'No photos yet: the label with its serial number, how it is cabled, where it stands. Drop pictures here or paste one.' : 'No photos yet.';
-  return `<div class="panelbox ph-panel" id="phPanel"><div class="hdr">Photos <span class="cnt">${list ? list.length || 'none' : '…'}</span></div>
-    <div class="ph-grid" id="phGrid">${!list ? '<p class="note lempty">Loading…</p>' : c.failed ? '<p class="note lempty">The photos could not be read. They are asked for again when the page is opened.</p>' : list.length
-      ? list.map((p, i) => `<button type="button" class="ph-thumb" data-ph="${i}" title="${esc(label(p))}" aria-label="Open photo ${i + 1} of ${list.length}: ${esc(label(p))}"><img src="${thumbUrl(p)}" alt="" loading="lazy" decoding="async"></button>`).join('')
-      : `<p class="note lempty">${empty}</p>`}</div>
-    ${edit && list && !c.failed ? `<div class="addrel ph-add"><button type="button" id="phAdd" ${list.length >= c.max ? `disabled title="A device keeps up to ${c.max} photos"` : ''}>Add photos…</button>
-      <input id="phFile" type="file" accept="image/*" multiple hidden><span class="muted" id="phMsg" role="status" aria-live="polite">${list.length ? `${list.length} photo${list.length === 1 ? '' : 's'} (max. ${c.max})` : ''}</span></div>` : ''}</div>`;
+  return String(html`<div class="panelbox ph-panel" id="phPanel"><div class="hdr">Photos <span class="cnt">${list ? list.length || 'none' : '…'}</span></div>
+    <div class="ph-grid" id="phGrid">${!list ? html`<p class="note lempty">Loading…</p>` : c.failed ? html`<p class="note lempty">The photos could not be read. They are asked for again when the page is opened.</p>` : list.length
+      ? list.map((p, i) => html`<button type="button" class="ph-thumb" data-ph="${i}" title="${label(p)}" aria-label="Open photo ${i + 1} of ${list.length}: ${label(p)}"><img src="${thumbUrl(p)}" alt="" loading="lazy" decoding="async"></button>`)
+      : html`<p class="note lempty">${empty}</p>`}</div>
+    ${edit && list && !c.failed ? html`<div class="addrel ph-add"><button type="button" id="phAdd" ${list.length >= c.max ? html`disabled title="A device keeps up to ${c.max} photos"` : ''}>Add photos…</button>
+      <input id="phFile" type="file" accept="image/*" multiple hidden><span class="muted" id="phMsg" role="status" aria-live="polite">${list.length ? `${list.length} photo${list.length === 1 ? '' : 's'} (max. ${c.max})` : ''}</span></div>` : ''}</div>`);
 }
 
 /* Called after the device page is drawn: reads the list the first time, and wires the panel. */
@@ -212,15 +213,15 @@ async function add(o, files){
 function viewer(o, i){
   const c = CACHE.get(o.id); if (!c || !c.images[i]) { closeModal(); return; }
   const list = c.images, p = list[i], edit = isAdmin(), many = list.length > 1;
-  modal(`<div class="mh">${esc(o.name)}: photo ${i + 1} of ${list.length}</div>
+  modal(html`<div class="mh">${o.name}: photo ${i + 1} of ${list.length}</div>
     <div class="mb ph-view">
-      ${many ? `<button type="button" class="icon ph-nav ph-prev" id="phPrev" aria-label="Previous photo" title="Previous (←)">‹</button>` : ''}
-      <a class="ph-big" href="${fullUrl(p)}" target="_blank" rel="noopener" title="Open in full size"><img src="${fullUrl(p)}" alt="${esc(label(p))}" width="${p.w}" height="${p.h}"></a>
-      ${many ? `<button type="button" class="icon ph-nav ph-next" id="phNext" aria-label="Next photo" title="Next (→)">›</button>` : ''}
+      ${many ? html`<button type="button" class="icon ph-nav ph-prev" id="phPrev" aria-label="Previous photo" title="Previous (←)">‹</button>` : ''}
+      <a class="ph-big" href="${fullUrl(p)}" target="_blank" rel="noopener" title="Open in full size"><img src="${fullUrl(p)}" alt="${label(p)}" width="${p.w}" height="${p.h}"></a>
+      ${many ? html`<button type="button" class="icon ph-nav ph-next" id="phNext" aria-label="Next photo" title="Next (→)">›</button>` : ''}
     </div>
-    <div class="ph-info">${edit ? `<input id="phCaption" maxlength="200" value="${esc(p.caption || '')}" placeholder="Caption, e.g. Label on the back" aria-label="Caption of the photo">` : p.caption ? `<b>${esc(p.caption)}</b>` : ''}
-      <span class="muted">Added ${esc(dateText(p.created.slice(0, 10)))}${p.by ? ` by ${esc(p.by)}` : ''} · ${p.w} × ${p.h} · ${kb(p.bytes)}</span></div>
-    <div class="mf">${edit ? '<button id="phDel" class="danger-text">Remove…</button>' : ''}<span class="grow"></span><a class="btnlike" href="${fullUrl(p)}?download=1" download>Download</a><button id="phClose" class="primary">Close</button></div>`, 'wide ph-modal');
+    <div class="ph-info">${edit ? html`<input id="phCaption" maxlength="200" value="${p.caption || ''}" placeholder="Caption, e.g. Label on the back" aria-label="Caption of the photo">` : p.caption ? html`<b>${p.caption}</b>` : ''}
+      <span class="muted">Added ${dateText(p.created.slice(0, 10))}${p.by ? ` by ${p.by}` : ''} · ${p.w} × ${p.h} · ${kb(p.bytes)}</span></div>
+    <div class="mf">${edit ? html`<button id="phDel" class="danger-text">Remove…</button>` : ''}<span class="grow"></span><a class="btnlike" href="${fullUrl(p)}?download=1" download>Download</a><button id="phClose" class="primary">Close</button></div>`, 'wide ph-modal');
   const go = d => viewer(o, (i + d + list.length) % list.length);
   if (many) { $('#phPrev').onclick = () => go(-1); $('#phNext').onclick = () => go(1); }
   $('#phClose').onclick = () => closeModal();

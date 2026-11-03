@@ -355,7 +355,7 @@ export function renderSetMaint(){
      reset, beside restoring), and E-mail (the mail server and the weekly e-mail). The API tokens are under Users. */
   const part = ['backups', 'mail'].includes(st.setTab) ? st.setTab : 'system';
   if (part === 'backups'){
-    $('#setMaint').innerHTML = edit ? backupPanel(edit) + `${edit ? `<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
+    $('#setMaint').innerHTML = edit ? html`${rawHtml(backupPanel(edit))}${edit ? html`<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Clear inventory</div>
     <div class="note" style="padding:12px">Deletes every device with its relations and history, for everyone, and takes them out of the contracts. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you choose otherwise. A backup is taken first.</div>
     <div class="addrel" style="padding:10px 12px"><button id="setReset" class="danger-text">Clear inventory…</button></div></div>` : ''}<div class="panelbox" style="border-color:var(--danger-bg)"><div class="hdr">Factory reset</div>
     <div class="note" style="padding:12px">Returns the app to the state of a new installation. Everything is removed: devices, relations and history, users and their sign-in, locations, sites, racks, object types and settings, the LDAP and Microsoft Graph connections with Graph's certificates and keys, the Lansweeper push token, and the entry sheets. Only your own account stays, with its password, so you can sign in again.</div>

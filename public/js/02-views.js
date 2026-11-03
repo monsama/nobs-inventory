@@ -356,7 +356,7 @@ export function showTabMenu(e, id){
   tabMenu = document.createElement('div');
   tabMenu.className = 'tabmenu'; tabMenu.popover = 'auto';
   const others = st.open.some(x => x !== id);
-  tabMenu.innerHTML = `<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
+  tabMenu.innerHTML = html`<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
   document.body.appendChild(tabMenu);
   const m = tabMenu; m.addEventListener('toggle', ev => { if (ev.newState === 'closed' && tabMenu === m) hideTabMenu(); });
   tabMenu.showPopover();

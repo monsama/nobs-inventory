@@ -35,9 +35,9 @@ export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
   resetSubnetEdit();
-  modal(`<div class="mh">Settings</div>
-    <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? `<button class="tab" data-sg="${k}">${l}</button>` : `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
-      ${Object.entries(SET_GROUPS).map(([g, list]) => `<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>`).join('')}</div>
+  modal(html`<div class="mh">Settings</div>
+    <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? html`<button class="tab" data-sg="${k}">${l}</button>` : html`<button class="tab" data-st="${k}">${l}</button>`)}</div>
+      ${Object.entries(SET_GROUPS).map(([g, list]) => html`<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => html`<button class="tab" data-st="${k}">${l}</button>`)}</div>`)}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf"><button type="button" class="link" id="setAboutBtn" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
   const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? g.dataset.sg : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
@@ -76,7 +76,7 @@ export function renderSetPane(){
   /* Each source's page: its status header and connection, then the fields it brings (#srcFields, settings-sources.js). */
   const fields = src => `<div id="srcFields" data-src="${src}"></div>`;
   const lsIntake = `<div class="panelbox"><div class="hdr">New devices <span class="cnt">Lansweeper</span></div>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
-  const html = {
+  const body = {
     feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? lsIntake + '<details class="ls-adv" id="lsTypeAdv" ' + (typeAdvOpen ? 'open' : '') + '><summary>Advanced: Lansweeper type names and type rules</summary><div id="setTypeMap"></div><div id="setTypeRules"></div></details>' + fields('ls') : ''),
     directory: '<div id="setLdap"></div>' + fields('ad'),
     entra: '<div id="setGraph"></div>' + fields('graph') + '<div id="setDefender"></div>',
@@ -90,7 +90,7 @@ export function renderSetPane(){
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   /* Someone who is not an admin sees the settings to know them, not to change them: said once, at the top. */
-  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : `<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${isAdmin() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + html;
+  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : html`<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${isAdmin() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + body;
   const ta = $('#lsTypeAdv'); if (ta) ta.ontoggle = () => { typeAdvOpen = ta.open; };
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
