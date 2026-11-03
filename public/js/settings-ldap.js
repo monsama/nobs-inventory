@@ -1,11 +1,12 @@
-/* Settings → Active Directory: the LDAP connection, its security and CA, the service password,
-   test and sync. */
+/* Settings → Active Directory: its status header (test and sync), then the LDAP connection, its security and CA, and
+   the service password. */
 import { scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { isAdmin } from './04-settings.js';
 import { flushSave, reloadFromServer, queueServerSave } from './07-render.js';
 import { dateText } from './dates.js';
 import { st, esc, $, toast } from './01-core.js';
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
+import { statusHeaderHtml } from './settings-status.js';
 /* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
    service account's password is not in the inventory: it is saved here into the server's encrypted store (or set in
    the server's environment) and never sent back to the page. ---------- */
@@ -66,7 +67,7 @@ export function renderSetLdap(){
   const ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
   const ready = !!L.url && edit;
-  $('#setLdap').innerHTML = `<div class="panelbox"><div class="hdr">LDAP / Active Directory</div>
+  $('#setLdap').innerHTML = statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }) + `<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
@@ -96,12 +97,10 @@ export function renderSetLdap(){
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
-    <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
     ${intakeRowHtml('ad')}
     <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
-    <p class="note" style="padding:0 12px 4px">Only fields nobody has filled: a value set by hand, from Lansweeper or from Intune goes first. The device shows where a value came from. Only these fields of a computer account are read, never its LAPS password or BitLocker keys.</p>
-    <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div>
-    <div class="addrel" style="padding:10px 12px"><button id="ldapTest" ${ready ? '' : 'disabled'}>Test connection</button><button id="ldapSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="ldapMsg"></span></div></div>`;
+    <p class="note" style="padding:0 12px 4px">Only the fields listed under Fields from this source are read from a computer account, never its LAPS password or BitLocker keys.</p>
+    <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div></div>`;
   bindScheduleRows($('#setLdap'));
   if (edit) loadLdapPassword(); else $('#ldapPw').innerHTML = '<span class="muted">Only an admin can see this</span>';
   $('#setLdap').querySelectorAll('[data-lk]').forEach(i => i.onchange = () => {
@@ -125,10 +124,9 @@ export function renderSetLdap(){
   };
   if (edit) bindCa();
   bindIntakeRows($('#setLdap'));
-  $('#lk_fillAd').onchange = e => { st.fillAd = e.target.checked; queueServerSave(); };
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
-  $('#ldapTest').onclick = async () => {
+  if ($('#ldapTest')) $('#ldapTest').onclick = async () => {
     const msg = $('#ldapMsg'); msg.textContent = 'Testing…';
     await flushSave();
     const r = await fetch('api/ldap/test', {method: 'POST', credentials: 'same-origin'});
@@ -138,7 +136,7 @@ export function renderSetLdap(){
       : j.people ? `<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`
       : bad('Connected, but no user is in the sign-in group. Check the group\'s name or DN, and the search base.');
   };
-  $('#ldapSync').onclick = async () => {
+  if ($('#ldapSync')) $('#ldapSync').onclick = async () => {
     const msg = $('#ldapMsg'), btn = $('#ldapSync');
     btn.disabled = true; msg.textContent = 'Syncing…';
     await flushSave();

@@ -1,5 +1,5 @@
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
-import { renderSetSources } from './settings-sources.js';
+import { renderSetSources, renderSourceFields } from './settings-sources.js';
 import { renderSetMaint, renderSetLog } from './settings-maint.js';
 import { renderSetUsers, renderSetCompany, renderSetAccess } from './settings-users.js';
 import { renderSetApi } from './settings-api.js';
@@ -8,7 +8,7 @@ import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
 import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSetModels } from './settings-feed.js';
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
-import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
+import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
 import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
@@ -25,9 +25,9 @@ export * from './settings-types.js';
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 /* What everyone sets up first comes first; the sources (each optional) after them. */
 export const SET_TABS = [['locations','Locations'],['users','People'],['access','Access'],['company','Company'],['types','Device types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Health'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
-/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and backups, e-mail and the log under System, each
-   group with a row of its own; About is a link at the foot. */
-const SET_GROUPS = { users: [['users', 'People'], ['access', 'Access'], ['company', 'Company']], vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
+/* Six tabs: the sources (all their fields together, then Lansweeper, AD, Entra a page each) under Data sources, and backups,
+   e-mail and the log under System, each group with a row of its own; About is a link at the foot. */
+const SET_GROUPS = { users: [['users', 'People'], ['access', 'Access'], ['company', 'Company']], vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'All fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
 const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['sources','Data sources'],['maintenance','System']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
 export function openSettings(){
@@ -72,11 +72,13 @@ export function renderSetPane(){
   document.querySelectorAll('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
   document.querySelectorAll('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
   const pane = $('#setPane');
-  const policyPane = `<div class="panelbox"><div class="hdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set in Settings → Data sources. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
+  /* Each source's page: its status header and connection, then the fields it brings (#srcFields, settings-sources.js). */
+  const fields = src => `<div id="srcFields" data-src="${src}"></div>`;
+  const lsIntake = `<div class="panelbox"><div class="hdr">New devices <span class="cnt">Lansweeper</span></div>${intakeRowHtml('lansweeper')}<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="skipIp" ${st.skipIpOnly ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Devices named only by an IP address (no serial number) always wait in To review</label></div><div class="lpanel-add"><label class="pchk" style="width:auto" title="A record with a DNS name and no serial number (nb-35.corp.example) when a device named by its first part (NB-35) is here: a docking station's or a USB network adapter's"><input type="checkbox" id="mergeTwins" ${st.mergeTwins ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> Merge docking-station records into their device (adds the address as an adapter instead of waiting in To review)</label></div></div>`;
   const html = {
-    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? policyPane : '') + '<details class="ls-adv" id="lsTypeAdv" ' + (typeAdvOpen ? 'open' : '') + '><summary>Advanced: Lansweeper type names and type rules</summary><div id="setTypeMap"></div><div id="setTypeRules"></div></details>',
-    directory: '<div id="setLdap"></div>',
-    entra: '<div id="setGraph"></div>',
+    feed: '<div id="setLsToggle"></div><div id="setFeed"></div>' + (LS_ON() ? lsIntake + '<details class="ls-adv" id="lsTypeAdv" ' + (typeAdvOpen ? 'open' : '') + '><summary>Advanced: Lansweeper type names and type rules</summary><div id="setTypeMap"></div><div id="setTypeRules"></div></details>' + fields('ls') : ''),
+    directory: '<div id="setLdap"></div>' + fields('ad'),
+    entra: '<div id="setGraph"></div>' + fields('graph') + '<div id="setDefender"></div>',
     sources: '<div id="setSources"></div>',
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
@@ -94,7 +96,7 @@ export function renderSetPane(){
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
   bindIntakeRows(document);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, access: () => { renderSetAccess(); renderSetApi(); }, company: renderSetCompany, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); renderSourceFields(); }, directory: () => { renderSetLdap(); renderSourceFields(); }, entra: () => { renderSetGraph(); renderSourceFields(); }, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: renderSetUsers, access: () => { renderSetAccess(); renderSetApi(); }, company: renderSetCompany, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 
