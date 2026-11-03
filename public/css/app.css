@@ -104,7 +104,7 @@ table.locs td.site{color:var(--muted)}
 .fsrc:hover{color:var(--fg)}
 /* On a phone the label sits above its field: the source mark moves up beside the label, and the empty columns kept
    for alignment on a wide screen go, so the field gets the width. */
-@media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot,.obj .form .ctlrow>.pchk-slot{display:none}}
+@media (max-width:760px){.obj .form .ctlrow{position:relative}.obj .form .ctlrow>.fsrc{position:absolute;right:0;top:-22px;width:20px;height:20px}.obj .form .ctlrow>.fsrc-slot{display:none}}
 /* Sources that disagree: a dot on the mark; a source picked by hand: the mark in the accent colour. */
 .fsrc{color:var(--muted);cursor:help;position:relative}
 .fsrc-multi::after{content:"";position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
@@ -240,14 +240,9 @@ button[data-td]{min-width:92px}
 .lpanel-add select{flex:0 0 160px;height:28px;min-width:0}
 .lnote{margin:0;padding:0 12px 12px}
 .ctlrow .pchk{width:112px;flex:none;white-space:nowrap}
-.pchk-slot{display:inline-block;width:24px;flex:none}
 /* "+ 8 more types": a quiet line under the list, like a link. */
 .side-more{display:block;width:100%;height:auto;min-height:0;padding:5px 12px 7px;border:0;background:none;color:var(--linktext);font-size:12px;text-align:left;cursor:pointer}
 .side-more:hover{text-decoration:underline}
-.prop-head{min-height:0}
-.prop-head .ph-ls{display:flex;justify-content:flex-end;white-space:nowrap;overflow:visible;font-size:11px;color:var(--muted);margin-right:-2px}
-.ctlrow .pchk.pchk-only{width:24px;justify-content:center}
-.ctlrow .pchk-only input{margin:0}
 table.types{table-layout:fixed;width:100%}
 table.types th,table.types td{overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
 table.types td input{width:100%;min-width:0;box-sizing:border-box}
@@ -309,7 +304,6 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .gs-list .gs-none{padding:10px;color:var(--muted)}
 .gs-ico .i{width:14px;height:14px}
 /* A list's own filter, in its toolbar. */
-.listq{width:220px;max-width:100%}
 .grow{flex:1}
 /* The source of a user (LDAP, Lansweeper, Manual): one width, so the column lines up. */
 /* As tall as the fields beside it (department, role), so a row lines up; LDAP and Entra share the one chip. */
@@ -551,7 +545,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .usrc .sdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}
 .sdot.ldap{background:#7c3aed}.sdot.entra{background:#2563eb}.sdot.lansweeper{background:#0d9488}.sdot.manual{background:var(--muted)}
 .tbgroup{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-@media (max-width:760px){.map-hint{right:110px}}
+@media (max-width:760px){}
 /* on a device page: who is responsible for it */
 .resp{display:flex;flex-direction:column}
 .resp-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd2)}
@@ -792,21 +786,12 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 @media (max-width:760px){.sn-grid{grid-template-columns:1fr}.sn-grid label.span2{grid-column:auto}.sn-range{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px}.sn-range>.muted{display:none}.sn-range select{grid-column:1 / 3}}
 .subnet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;padding:10px 12px;border-top:1px solid var(--bd2)}
 .subnet label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
-.subnet label.span3{grid-column:span 3}
 /* Device types: every type as a checkbox, wrapping across the full width. */
-.sn-types{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:8px 10px;border:1px solid var(--bd2);border-radius:var(--r-m)}
-.sn-types legend{padding:0 4px;font-size:12px;color:var(--muted)}
-.subnet .sn-types label.pchk{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--fg);cursor:pointer}
-.sn-types .pchk input{margin:0}
 @media (max-width:760px){
   .subnet{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .subnet label.span3{grid-column:1 / -1}
 }
 .subnet-foot{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;gap:10px}
 /* The add form is one subnet row with a title above and the Add button below, across the full width. */
-.subnet-new{display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--bd2)}
-.subnet-new>.subnet{padding:0;border-top:0}
-.subnet-new>#snAdd{align-self:flex-end}
 .snmsg{font-size:12px}
 .relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
@@ -981,7 +966,6 @@ a.link:hover{text-decoration:underline}
 .entry{border:1px solid var(--bd2);border-radius:var(--r-s);padding:8px 10px;background:var(--panel)}
 .entry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .entry-head b{flex:1;min-width:0}
-.entry-text{margin-top:4px;font-size:12px;color:var(--muted);white-space:pre-wrap}
 .entry-add>input:first-child{flex:1 1 100%}
 .entry-add>input{flex:1 1 120px}
 .entry-add button{flex:none}
@@ -1366,8 +1350,7 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .jbar-page{align-items:stretch}
 /* On the device page a mark's state goes under its name when the three do not fit side by side, instead of being cut. */
 .jbar-page .jb{height:auto;min-height:22px;flex-wrap:wrap;row-gap:0;padding:2px 7px;align-content:center}
-#bkLoc,#bkStatus,#bkResp{flex:0 0 200px;width:200px;max-width:100%}
-@media (max-width:760px){#bkLoc,#bkStatus,#bkResp{flex:1 1 100%;width:auto}}
+@media (max-width:760px){}
 table.contracts td:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
 table.contracts td:first-child .link{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
 .obj table.grid.mini td:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;width:60%}
@@ -1494,7 +1477,6 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
 
 .ds-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.ds-head b{flex:1}
-.ds-run{font-size:12px;margin-bottom:4px}.ds-run.err{color:var(--danger)}
 .ds-card ul{margin:4px 0 0;padding-left:16px;font-size:12px}
 .ds-dl{display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:4px 12px;margin:4px 0 0;font-size:12px}
 /* In a card, each item under its name: the cards stay readable side by side. */
@@ -1502,14 +1484,11 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-wide{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
 .ds-dl dt{font-weight:600}.ds-dl dd{margin:0;color:var(--muted)}
 .ds-pad{padding:10px 12px 12px}
-.ds-order{margin:10px 12px 0;padding-left:22px;font-size:13px}.ds-order li{margin:2px 0}
 .ds-never{margin:10px 12px 12px;padding-left:18px;font-size:13px}
 .ds-scroll{overflow-x:auto;padding:8px 12px 0}
 .ds-matrix{width:100%}.ds-matrix th[scope=row]{font-weight:500;text-align:left}
 .ds-matrix td{font-size:12px}
-.ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-o{color:var(--muted);opacity:.6}.ds-n{color:var(--muted);opacity:.4}
-.ds-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 12px 12px;font-size:12px}.ds-legend span{color:var(--muted)}.ds-legend b{margin-right:4px}
-.ds-legend .ds-w b{color:var(--ok)}.ds-legend .ds-f b{color:var(--accent)}
+.ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-n{color:var(--muted);opacity:.4}
 
 /* Settings → Locations → From Active Directory: an AD location text, its devices, and the room it is used as. */
 #adLocs{margin-top:12px}
@@ -1531,11 +1510,6 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .dir-all{width:auto}
 @media (max-width:760px){.dir-row{grid-template-columns:auto minmax(0,1fr)}.dir-how{grid-column:2;text-align:left}}
 /* Settings → Data sources: the field sources, editable */
-
-table.grid.ds-edit{min-width:680px}.ds-edit th:first-child{width:24%}.ds-edit td{padding:3px 4px}
-.ds-sel{width:100%;min-width:0;font-size:12px;padding:3px 22px 3px 6px;height:auto;font-weight:inherit;color:inherit;background-color:var(--bg)}
-
-.ds-ord{font-size:12px;color:var(--muted)}
 .ds-matrix tr.ds-set th[scope=row]::after{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
 .ds-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px 12px;font-size:12px}
 /* Merged records: name and address, the details below, Open and Unmerge as small buttons on the right. */
@@ -1666,7 +1640,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 /* Merged records: names break between words, the date stays on one line. */
 .nics.merged .nic-name{overflow-wrap:break-word;word-break:normal}
 .nics.merged .nic-meta{white-space:normal}
-.nics.merged .nic-meta time,.nics.merged .nic-when{white-space:nowrap}
+.nics.merged .nic-meta time{white-space:nowrap}
 @media (max-width:760px){.nics.merged li{grid-template-columns:minmax(0,1fr)}.nics.merged .nic-meta{grid-column:1}.nics.merged .nic-acts{grid-column:1;grid-row:auto}}
 /* Device photos: square previews in a grid; one opens large in a dialog, with the ones before and after it. */
 .ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px 12px}
@@ -1737,7 +1711,7 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 .udupe-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px}
 .dg-pre{white-space:pre-wrap;font:13px/1.5 var(--mono);margin:0;max-height:60vh;overflow:auto}
 .usees{display:block;font-size:12px;margin-top:2px;text-align:left}.usees-sites{display:flex;flex-wrap:wrap;gap:4px 12px;padding:2px 0 6px 24px}
-.ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-changes{font-size:12px;margin:2px 0 4px}.ds-earlier{margin-top:4px}.ds-earlier summary{cursor:pointer;color:var(--muted)}.ds-earlier ul{margin:4px 0 0;padding-left:16px}.ds-earlier li{margin:2px 0}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}
+.ds-mode{font-weight:400;color:var(--muted);font-size:11px}.ds-hand{display:block;font-size:12px;font-weight:400;margin-top:2px;text-align:left}.ds-presets{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 12px 10px}
 .ugrp{margin-left:4px;font-size:10px;padding:0 5px}
 #groupRoles table{width:100%;min-width:0}#groupRoles td{white-space:normal}#groupRoles .gr-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
 .ov-cost{display:block;font-size:11px;color:var(--muted);font-weight:400;white-space:nowrap}.ov-plnote{padding:6px 12px 10px;margin:0}.ov-life input{width:90px}.ov-life td{max-width:none}#ovPlan .ov-bar:disabled{opacity:.55;cursor:default}
