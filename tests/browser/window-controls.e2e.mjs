@@ -40,7 +40,7 @@ try {
   // minimize: hidden, a chip in the corner; Escape leaves it; restore keeps what was typed
   await p.click('.wc-min');
   assert.equal(await p.isVisible('#mdl'), false);
-  assert.equal(await p.textContent('#mdlTray .tray-open'), 'New object');
+  assert.equal(await p.textContent('#mdlTray .tray-open'), 'New device');
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#mdl').count(), 1, 'Escape does not close a minimized dialog');
   await p.click('#mdlTray .tray-open');
@@ -59,7 +59,7 @@ try {
   await p.click('#newBtn'); await p.waitForSelector('#nName'); await p.click('.wc-min');
   await p.click('#setBtn'); await p.waitForSelector('#setPane');
   assert.equal(await p.locator('#mdlTray').count(), 0);
-  assert.match(await p.textContent('#toast'), /The minimized “New object” was closed/, 'it says so');
+  assert.match(await p.textContent('#toast'), /The minimized “New device” was closed/, 'it says so');
   assert.deepEqual(errors, []);
   console.log('window controls: ok');
 } finally { await browser.close(); server.close(); }

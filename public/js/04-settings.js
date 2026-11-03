@@ -9,7 +9,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LOCS, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
@@ -23,11 +23,11 @@ export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 /* What everyone sets up first comes first; the sources (each optional) after them. */
-export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
-/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and the log under Maintenance, each
+export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Health'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
+/* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and backups, e-mail and the log under System, each
    group with a row of its own; About is a link at the foot. */
-const SET_GROUPS = { vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'System'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
-const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['maintenance','Maintenance']];
+const SET_GROUPS = { vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
+const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['sources','Data sources'],['maintenance','System']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
@@ -79,14 +79,14 @@ export function renderSetPane(){
     sources: '<div id="setSources"></div>',
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
-    types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
+    types: '<div class="panelbox"><div class="hdr">Device types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>', backups: '<div id="setMaint"></div>', mail: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
   }[st.setTab];
   /* Someone who is not an admin sees the settings to know them, not to change them: said once, at the top. */
-  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : `<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${canEdit() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + html;
+  pane.innerHTML = (isAdmin() || st.setTab === 'about' ? '' : `<p class="ro-banner" role="note"><b>Read only.</b> Only an admin changes Settings.${isAdmin() && st.setTab === 'locations' ? ' You can add rooms in your sites below.' : ''}</p>`) + html;
   const ta = $('#lsTypeAdv'); if (ta) ta.ontoggle = () => { typeAdvOpen = ta.open; };
   bindPolicy(pane);
   const skip = $('#skipIp'); if (skip) skip.onchange = () => { st.skipIpOnly = skip.checked; queueServerSave(); };
@@ -136,35 +136,27 @@ export const devicesOf = name => objs.filter(o => o.user === name).length;
 export const me = () => USERS.find(u => u.id === st.meId);
 /* The name the history records for the signed-in person. */
 export const who = () => (me() && me().name) || 'someone';
-/* An admin changes everything; an editor the devices (in their sites, when limited to some: the server sends only
-   those, and refuses anything else), never the settings or the people. */
+/* An admin changes everything; anyone else (a viewer) only reads. */
 export const isAdmin = () => !USERS.length || (!!me() && me().role === 'admin');
-export const canEdit = () => isAdmin() || (!!me() && me().role === 'editor');
 /* A viewer who sees only the devices given to them: they start on My devices, and get only the views that help with that. */
 export const ownOnly = () => { const u = me(); return !!u && u.role === 'viewer' && !!u.own; };
-/* The sites an editor is limited to (null: no limit), and the rooms they may put a device in. */
-export const mySites = () => { const u = me(); return u && u.role === 'editor' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
-/* The sites someone limited to some sees (a viewer or an editor), or null: the sidebar lists only those. */
+/* The sites a viewer limited to some sees, or null: the sidebar lists only those. */
 export const seenSites = () => { const u = me(); return u && u.role !== 'admin' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
-export const myLocs = () => { const s = mySites(); return s ? LOCS.filter(l => s.includes(l.split(' / ')[0])) : LOCS; };
-export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'editor' ? 'Editor' : u.role === 'none' ? 'No access' : 'Viewer';
+export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ? 'No access' : 'Viewer';
 /* Viewers: controls in the page are disabled, navigation stays. */
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-/* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|cardJoin|cnQ|cnKind|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
+/* Looking, not changing: searches, view switches and zoom. Settings → Device types: tfType picks whose fields are shown. */
+export const RO_INPUT_OK = /^(search|mapFocus|mapOnly|mapLabels|cardJoin|cnKind|mapAttached|grp|portsDevice|rkSel|swCollapse|plSel|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
-  const ro = !canEdit();
+  const ro = !isAdmin();
   document.body.classList.toggle('readonly', ro);
   /* Someone who cannot add or link sees no buttons for it, rather than disabled ones. */
   $('#newBtn').disabled = ro; $('#newBtn').hidden = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
-  /* An editor changes devices, not the settings: Settings stays read only for them, as for a viewer. */
-  const roSet = !isAdmin();
   ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
-    /* An editor adds rooms in their sites (Settings → Locations): that part stays open for them. */
-    if (!ro && !(roSet && el.closest('#setPane') && !el.closest('[data-editor-ok]'))){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
+    if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
     if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   }));
@@ -226,7 +218,7 @@ export function rackCheck(rackId, u, h, exceptId){
 export function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and the source mark and menu columns stay free. */
-  const slot = '<span class="fsrc-slot" aria-hidden="true"></span>' + (canEdit() ? '<span class="fm-slot" aria-hidden="true"></span>' : '');
+  const slot = '<span class="fsrc-slot" aria-hidden="true"></span>' + (isAdmin() ? '<span class="fm-slot" aria-hidden="true"></span>' : '');
   return `<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => `<option value="${esc(r.id)}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>${slot}</div>
     <div class="rk-mount" ${o.rack && o.u != null && !o.ontop ? '' : 'hidden'}><label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span><input type="number" min="1" data-rk="u" value="${o.u ?? ''}" style="width:64px" aria-label="Start U"><span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div></div>
     <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => `<option value="${esc(x.id)}" ${o.ontop===x.id ? 'selected' : ''}>${esc(x.name)} · U${x.u}</option>`).join('')}</select>${slot}</div>`;

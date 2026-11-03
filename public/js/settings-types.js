@@ -1,4 +1,4 @@
-/* Settings → Object types: names, colours and icons (uploaded icons cleaned to shapes), the fields each type has,
+/* Settings → Device types: names, colours and icons (uploaded icons cleaned to shapes), the fields each type has,
    and the four lines of its cards. */
 import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
 import { cardLines, CARD_FIELDS } from './02-views.js';

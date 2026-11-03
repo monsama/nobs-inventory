@@ -67,7 +67,7 @@ const OURS = /^nobs-backup-\d{4}-\d{2}-\d{2}-\d{4}\.nobsbak$/;
    oldest of the app's own files beyond keep are removed (nothing else in the folder is touched). */
 export async function exportOnce(dir, password, produce, { keep = 14, now = new Date() } = {}) {
   if (!dir) throw new Error('No folder is set on the server (NI_BACKUP_EXPORT_DIR).');
-  if (!password) throw new Error('No password is set for the copies: set it in Settings → Maintenance.');
+  if (!password) throw new Error('No password is set for the copies: set it in Settings → System → Backups.');
   fs.accessSync(dir, fs.constants.W_OK);
   const name = `nobs-backup-${stamp(now)}${EXT}`, tmp = path.join(dir, `.${name}.part`), file = path.join(dir, name);
   try { await writeEncrypted(tmp, password, produce); fs.renameSync(tmp, file); }
@@ -92,7 +92,7 @@ export async function runExport(db, key, env = process.env, now = new Date(), fe
     const password = getAppSecret(db, key, 'backupExportPassword'), cloud = cloudTarget(env);
     if (!dir && !cloud) throw new Error('No folder or cloud storage is set on the server (NI_BACKUP_EXPORT_DIR, NI_BACKUP_EXPORT_AZURE_URL or NI_BACKUP_EXPORT_S3_URL).');
     if (cloud && cloud.error) throw new Error(cloud.error);
-    if (!password) throw new Error('No password is set for the copies: set it in Settings → Maintenance.');
+    if (!password) throw new Error('No password is set for the copies: set it in Settings → System → Backups.');
     const id = takeBackup(db, 'for the copy outside the server');
     const row = db.prepare('SELECT data, format FROM backups WHERE id = ?').get(id);
     /* Without a folder the file is written to a private temporary folder first, uploaded, and removed. */

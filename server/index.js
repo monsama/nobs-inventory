@@ -92,7 +92,7 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
         try { const r = await restoreTest(now); log('restore test: the backup came back whole,', r.objects, 'devices'); }
         catch (e) { log('restore test failed:', e.message); audit(db, null, 'restore test failed: ' + e.message); }
       }
-      /* The weekly e-mail to the admins, on its day and hour (Settings → Maintenance). */
+      /* The weekly e-mail to the admins, on its day and hour (Settings → System → E-mail). */
       const dg = digestSettings(db);
       if (digest && dg.on && (smtpOn ? smtpOn() : smtpConfig(env)) && mins.some(t => t.getDay() === dg.day && t.getHours() === dg.hour && t.getMinutes() === 0 && once('digest', t))) {
         try { await digest(now); log('weekly e-mail sent'); } catch (e) { log('weekly e-mail failed:', e.message); audit(db, null, 'weekly e-mail failed: ' + e.message); }

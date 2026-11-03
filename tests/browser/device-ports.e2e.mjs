@@ -62,11 +62,13 @@ try {
   // a second click closes it; a search for a device opens the packages it has
   await p.click('tr[data-sw="Tool X"]');
   assert.equal(await p.locator('tr.sw-detail').count(), 0, 'a second click closes the package');
-  await p.fill('#swQ', 'RTR-EDGE');
+  // the one search at the top filters the software list too
+  await p.fill('#search', 'RTR-EDGE');
   await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');
-  await p.fill('#swQ', 'no such thing');
+  await p.fill('#search', 'no such thing');
   await p.waitForSelector('#swBody >> text=Nothing matches');
-  await p.fill('#swQ', '');
+  await p.fill('#search', ''); await p.keyboard.press('Escape');
+  await p.waitForFunction(() => !document.querySelector('#swBody').textContent.includes('Nothing matches'));
   // keyboard only: the chevron is a button; Enter opens the package, Enter again closes it
   await p.focus('tr[data-sw="Tool X"] .sw-tg'); await p.keyboard.press('Enter');
   await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');

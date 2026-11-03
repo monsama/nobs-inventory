@@ -20,9 +20,9 @@ const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 1
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
 /* The pages of Settings an admin looks for by another word: Backups by restore, E-mail by SMTP or digest … */
 const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
-  log: 'audit history errors', users: 'people roles editor viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
+  log: 'audit history errors', users: 'people roles viewer admin sso token api', directory: 'ldap ad active directory', entra: 'graph intune defender azure microsoft',
   feed: 'lansweeper sync', sources: 'fields policy', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
-const SET_PATH = { maintenance: 'Maintenance → System', backups: 'Maintenance → Backups', mail: 'Maintenance → E-mail', log: 'Maintenance → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
+const SET_PATH = { maintenance: 'System → Health', backups: 'System → Backups', mail: 'System → E-mail', log: 'System → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → Fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
 const row = (i, icon, main, sub) => `<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${esc(main)}</span>${sub ? `<span class="gs-sub">${esc(sub)}</span>` : ''}</li>`;
 
@@ -50,11 +50,11 @@ function results(q){
   const contacts = (CONTACTS.list || []).filter(c => has(q, c.name, c.company, c.email, c.phone, c.mobile, c.area));
   if (contacts.length) out.push(['Contacts', contacts.length, contacts.slice(0, MAX.other).map(c => ({
     icon: ICON.contact, main: c.name, sub: [c.company, c.area || c.role].filter(Boolean).join(' · '),
-    go: () => { st.cnQ = c.name; st.cnKind = ''; st.tab = 'contacts'; render(); } }))]);
+    go: () => { st.q = c.name; st.cnKind = ''; st.tab = 'contacts'; render(); } }))]);
   const contracts = (COSTS.contracts || []).filter(c => has(q, c.name, c.supplier, c.ref));
   if (contracts.length) out.push(['Contracts', contracts.length, contracts.slice(0, MAX.other).map(c => ({
     icon: ICON.contract, main: c.name, sub: [c.supplier, c.ref].filter(Boolean).join(' · '),
-    go: () => { st.ctQ = c.name; st.ctDue = false; st.tab = 'contracts'; render(); } }))]);
+    go: () => { st.q = c.name; st.ctDue = false; st.tab = 'contracts'; render(); } }))]);
   const rooms = LOCS.filter(l => has(q, l));
   const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
@@ -100,9 +100,10 @@ function pick(i){
 }
 
 box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'); box.setAttribute('aria-expanded', 'false'); box.setAttribute('aria-autocomplete', 'list');
-/* On a list (Cards, Table, Relationships) the same field also narrows the list as one types (st.q, shown as a Filter
-   chip over it): one field, not two. Escape closes the hits and keeps the filter; a second Escape clears both. */
-const LIST = ['cards', 'table', 'map', 'plans'];
+/* On a list (Cards, Table, Relationships, Floor plans, Software, Contracts, Contacts) the same field also narrows the list
+   as one types (st.q): one search field in the whole app, not one per view. Escape closes the hits and keeps the filter;
+   a second Escape clears both. */
+const LIST = ['cards', 'table', 'map', 'plans', 'sw', 'contracts', 'contacts'];
 const onList = () => LIST.includes(st.tab);
 /* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
 let redraw = 0;

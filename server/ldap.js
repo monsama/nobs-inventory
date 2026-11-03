@@ -13,7 +13,7 @@ export const ldapEnabled = config => !!config?.url;
 /* All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs. */
 /* What is read of a person, by name: never everything, so a user filter that also matches computer accounts never
    asks for their LAPS password or BitLocker keys. The login attribute (set in Settings) is added to it. */
-const USER_ATTRS = ['displayname', 'department', 'mail', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
+const USER_ATTRS = ['displayname', 'department', 'mail', 'samaccountname', 'userprincipalname', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
 const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])].filter(a => !SECRET_ATTR.test(a));
 /* The LAPS password and the BitLocker recovery data are never asked for: not as the login attribute, not in a filter. The
    settings are an admin's, but a stolen session must not turn them into a way to read those secrets. */
@@ -105,6 +105,8 @@ export function profileOf(attrs, config) {
   const login = first(config.loginAttr);
   return {
     login,
+    /* AD's two logins, whatever the sign-in uses: Lansweeper names a device's user by the first, Entra by the second. */
+    sam: first('sAMAccountName'), upn: first('userPrincipalName'),
     name: first('displayName') || login,
     dept: first('department'),
     mail: first('mail'),

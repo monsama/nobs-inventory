@@ -4,7 +4,7 @@
    ('hand') is left alone by every sync. Automatic goes back to the usual order: Lansweeper, Intune, AD. */
 import { FIELD_LABEL, SRC_ICON, byId, dayText, esc, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
 import { stamp } from './dates.js';
-import { canEdit, who } from './04-settings.js';
+import { isAdmin, who } from './04-settings.js';
 import { render } from './07-render.js';
 
 const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
@@ -38,7 +38,7 @@ function pickerOf(mark, close){
   if (!o || !k) return null;
   const list = choicesOf(o, k), fixed = fieldFixed(o, k);
   if (!list.length && !fixed) return null;
-  const inUse = sourceOf(o, k), edit = canEdit(), label = LABELS[k] || k;
+  const inUse = sourceOf(o, k), edit = isAdmin(), label = LABELS[k] || k;
   const newest = list.length > 1 ? list.reduce((a, b) => ms(b.at) > ms(a.at) ? b : a) : null;
   const mode = fixed ? `${LOCK}${fixed === 'hand' ? 'Kept as typed' : `Fixed to ${esc(NAMES[fixed])}`}` : 'Automatic';
   /* What fixing means: a value kept as typed is left alone by every sync; a picked source is the only one that writes it. */

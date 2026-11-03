@@ -14,7 +14,7 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const dev = (id, name, extra = {}) => ({ id, code: 'INV-' + id, type: 'notebook', name, status: 'stock', loc: 'Bern / Lager', ovr: {}, feed: null, ...extra });
 const s0 = loadState(db);
-saveState(db, { ...s0, history: {}, sites: ['Bern'], locs: ['Bern / Lager'],
+saveState(db, { ...s0, history: {}, sites: ['Bern'], locs: ['Bern / Lager', 'Bern / Büro'],
   users: [...s0.users, { id: 'u-anna', login: 'amuster', name: 'Anna Muster', dept: 'Sales', role: 'none', groups: [], source: 'manual', active: true }],
   objs: [dev('n1', 'NB-01'), dev('n2', 'NB-02'), dev('n3', 'NB-03'), dev('s1', 'SW-CORE', { type: 'switch', status: 'active' }),
     /* named only by its user's name, as a Lansweeper record can be: the person is made and saved, the device linked */
@@ -51,10 +51,12 @@ try {
   await p.fill('#hoQ', 'mus');
   await p.click('[data-hop="u-anna"]');
   assert.match(await p.textContent('#hoOk'), /Hand out to Anna Muster/);
+  // where it goes with her: a room, picked in the same step
+  await p.selectOption('#hoLoc', 'Bern / Büro');
   await p.click('#hoOk');
-  await eventually(() => stored('n1').uid === 'u-anna' && stored('n1').status === 'active');
+  await eventually(() => stored('n1').uid === 'u-anna' && stored('n1').status === 'active' && stored('n1').loc === 'Bern / Büro');
   await p.waitForSelector('#takeBackBtn');
-  assert.ok((loadState(db).history.n1 || []).some(h => /Handed out to Anna Muster by Administrator/.test(h.msg)));
+  await eventually(() => (loadState(db).history.n1 || []).some(h => /Handed out to Anna Muster, to Bern \/ Büro by Administrator/.test(h.msg)));
 
   // taken back: in stock, nobody; Undo gives it back to her
   await p.click('#takeBackBtn');

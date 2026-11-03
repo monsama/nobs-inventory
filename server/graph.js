@@ -11,6 +11,7 @@ import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
 import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
+import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
 
@@ -281,8 +282,8 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
   const ref = u => ({ id: u.id, upn: clean(u.userPrincipalName), enabled: u.accountEnabled !== false, synced: u.onPremisesSyncEnabled === true, seen: at });
   const taken = new Set();
   for (const p of s.users) {
-    const u = (p.entra && byId.get(p.entra.id)) || (p.login && (bySam.get(low(p.login)) || byUpn.get(low(p.login))))
-      || (p.aliases || []).map(a => bySam.get(low(a)) || byUpn.get(low(a))).find(Boolean) || null;
+    /* By any login of the person, without a domain (CORP\amuster is amuster). */
+    const u = (p.entra && byId.get(p.entra.id)) || [p.login, ...(p.aliases || [])].filter(Boolean).map(a => bySam.get(loginCore(a)) || byUpn.get(loginCore(a))).find(Boolean) || null;
     if (u && !taken.has(u.id)) {
       taken.add(u.id); p.entra = ref(u); counts.inEntra++;
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
@@ -581,7 +582,12 @@ export async function syncGraph(db, cfg, now = new Date(), fetchImpl = fetch) {
   const added = intakeFromGraph(s, now);
   if (added.review) counts.review = added.review;
   if (added.direct) counts.added = added.direct;
-  if (users) counts.people = applyGraphPeople(s, users, cfg.people, now);
+  if (users) {
+    counts.people = applyGraphPeople(s, users, cfg.people, now);
+    /* Entra now names a Lansweeper record by its UPN: the records that are one person become one. */
+    const merged = mergeSamePeople(s, stamp(now));
+    if (merged) counts.merged = merged;
+  }
   /* Devices without a location take their user's office, when Settings → Locations says so. */
   { const office = officeLocations(s, stamp(now)); if (office) counts.office = office; }
   if (peopleError) counts.peopleError = peopleError;

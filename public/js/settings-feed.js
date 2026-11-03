@@ -97,12 +97,12 @@ export function renderTypeMap(){
   const entries = Object.entries(st.typeMap || {});
   const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
   const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
-    <select data-tmt="${i}" aria-label="Object type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
+    <select data-tmt="${i}" aria-label="Device type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
   $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
     <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes. It applies when a device syncs, and when a row is saved to devices already synced with that name. Names are matched without case. Names not listed here use the built-in rules.</p>
-    <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Object type</span><span></span></div>
+    <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Device type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
-    <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Object type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
+    <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Device type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
 </div>`;
   const put = (list, name) => {
     st.typeMap = Object.fromEntries(list.filter(([n]) => n));

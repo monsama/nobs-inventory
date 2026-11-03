@@ -28,7 +28,7 @@ export function certAttention(){
 }
 
 const STATE = { ok: ['kept', 'Valid'], soon: ['warn', 'Ends soon'], expired: ['bad', 'Expired'], wrong: ['bad', 'Another name'] };
-/* Settings → Maintenance: what the certificate is for, who issued it, until when, and how to replace it. */
+/* Settings → System → Health: what the certificate is for, who issued it, until when, and how to replace it. */
 export function certPanel(){
   const c = CERT && CERT.certificate;
   const how = '<p class="note" style="padding:0 12px 10px">To replace it, on the server in the inventory\'s folder: <code>sudo ./scripts/install-cert.sh inventory &lt;bundle.pem&gt;</code> (key, certificate and CA in one file). <code>--info</code> lists the certificate of every site on the proxy.</p>';

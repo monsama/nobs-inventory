@@ -8,7 +8,17 @@ import { ldapListComputers, ldapListUsers } from './ldap.js';
 import { fillField, mappedRoom, noteValue, officeLocations, pickOf } from './fill.js';
 import { stamp, typeFor } from './feed.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
+import { exactKeys, loginCore, mergeSamePeople } from '../public/js/people-match.js';
 
+/* AD's other logins (sAMAccountName, UPN) kept as aliases of a directory record, so Lansweeper and Entra find the person by
+   either, whatever the sign-in uses. true when that changed u. */
+function keepLogins(u, p) {
+  const before = JSON.stringify(u.aliases || []);
+  const others = [p.sam, p.upn].filter(v => v && loginCore(v) !== loginCore(u.login));
+  const list = [...new Set([...(u.aliases || []), ...others])].slice(0, 20);
+  if (list.length) u.aliases = list; else delete u.aliases;
+  return JSON.stringify(u.aliases || []) !== before;
+}
 /* Brings the users in line with the directory. Users are added and updated from it, their role follows the
    admin group, and users who are gone from it are deactivated, never deleted, so their devices keep their owner. */
 export async function syncLdapUsers(db, config) {
@@ -22,10 +32,15 @@ export async function syncLdapUsers(db, config) {
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
   const linked = [];
   for (const p of people) {
-    const u = s.users.find(x => x.login && x.login.toLowerCase() === p.login.toLowerCase()) || s.users.find(x => ['lansweeper', 'entra'].includes(x.source) && (x.aliases || []).some(a => a.toLowerCase() === p.login.toLowerCase()));
-    /* The admin group makes admins. Anyone else has no access (none) until an admin gives them the viewer (or editor) role, which
+    /* The same person by any of their logins (without a domain): AD's login, sAMAccountName or UPN against a record's
+       login, Entra UPN or aliases. A directory account is only found by its own login; one found otherwise is a record a
+       sync or a person made. */
+    const keys = [p.login, p.sam, p.upn].map(loginCore).filter(Boolean);
+    const u = s.users.find(x => x.login && loginCore(x.login) === loginCore(p.login))
+      || s.users.find(x => x.source !== 'ldap' && keys.some(k => exactKeys(x).has(k)));
+    /* The admin group makes admins. Anyone else has no access (none) until an admin gives them the viewer role, which
        the sync keeps; an admin who left the admin group has none again. */
-    const role = p.admin ? 'admin' : u && ['viewer', 'editor'].includes(u.role) ? u.role : 'none';
+    const role = p.admin ? 'admin' : u && u.role === 'viewer' ? 'viewer' : 'none';
     if (!u) {
       s.users.push({ id: freeUserId(s.users, 'ldap-' + p.login.toLowerCase()), login: p.login, name: p.name, ...(p.dept ? { dept: p.dept } : {}), groups: p.groups, source: 'ldap', active: true, role, ...profileOf(p) });
       counts.created++;
@@ -51,7 +66,13 @@ export async function syncLdapUsers(db, config) {
       if (changed) counts.updated++;
     }
     // A local account with the same login is left alone; it is not taken over by the directory.
+    const me = s.users.find(x => x.source === 'ldap' && x.login && loginCore(x.login) === loginCore(p.login));
+    if (me && keepLogins(me, p)) counts.updated++;
   }
+  /* Records a sync made for someone the directory now names by another login (a Lansweeper record by sAMAccountName,
+     an Entra one by UPN) are merged into the directory's. */
+  const merged = mergeSamePeople(s, stamp(new Date()));
+  if (merged) counts.merged = merged;
   /* Roles from groups (public/js/group-roles.js): the directory's groups, and the Entra groups the last Microsoft
      sign-in named, give a role and sites; one a rule gave goes when no rule matches any more. */
   for (const p of people) {
@@ -85,7 +106,7 @@ export async function syncLdapUsers(db, config) {
   /* A sync that changes no user saves nothing and takes no backup; one that changes users is backed up first. */
   if (linked.length) counts.linked = linked.length;
   const listChanged = counts.listChanged; delete counts.listChanged;
-  if (counts.created || counts.updated || counts.linked || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
+  if (counts.created || counts.updated || counts.linked || counts.merged || counts.deactivated || counts.computers || listChanged) { autoBackup(db, 'before an LDAP sync'); saveState(db, s); }
   for (const id of linked) db.prepare('DELETE FROM credentials WHERE user_id = ?').run(id);
   audit(db, null, 'ldap sync: ' + JSON.stringify(counts));
   return counts;

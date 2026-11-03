@@ -109,8 +109,6 @@ export function imageStats(db) {
 
 export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit }) {
   ensureImagesTable(db);
-  /* An editor adds, captions and removes the photos of the devices they may change (their sites, when limited). */
-  const requireEditor = (req, res, next) => (req.user.role === 'editor' ? next() : requireAdmin(req, res, next));
   /* A viewer limited to some sites sees the photos of their devices only (server/scope.js). */
   const objectOf = (id, req = null) => {
     if (!/^[\w.-]{1,80}$/.test(String(id || ''))) throw new HttpError(404, 'No such device.');
@@ -148,7 +146,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  app.post('/api/objects/:id/images', requireUser, requireEditor, (req, res, next) => {
+  app.post('/api/objects/:id/images', requireUser, requireAdmin, (req, res, next) => {
     try {
       const o = objectOf(req.params.id, req);
       const b = req.body || {};
@@ -166,7 +164,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
   });
 
   /* A record folded into a device as the same device: its photos go to that device, as many as it has room for. */
-  app.post('/api/objects/:id/images/move', requireUser, requireEditor, (req, res, next) => {
+  app.post('/api/objects/:id/images/move', requireUser, requireAdmin, (req, res, next) => {
     try {
       const from = objectOf(req.params.id, req), to = objectOf(req.body && req.body.to, req);
       const rows = db.prepare('SELECT id FROM device_images WHERE obj_id = ? ORDER BY created, id').all(from.id);
@@ -192,13 +190,13 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  /* All photos, for Make photos smaller (Settings → Maintenance): what each is, not the pictures. */
+  /* All photos, for Make photos smaller (Settings → System → Health): what each is, not the pictures. */
   app.get('/api/images', requireUser, requireAdmin, (req, res) => {
     res.set('Cache-Control', 'no-store').json({ images: db.prepare('SELECT id, obj_id, name, mime, w, h, bytes, LENGTH(thumb) AS tbytes FROM device_images ORDER BY bytes DESC').all() });
   });
   /* The same photo, smaller: stored under a new id (a photo's id never shows other bytes, so browsers may keep it), with
      its name, caption, date and who added it; the old one goes. Only when it is smaller. */
-  app.post('/api/images/:id/replace', requireUser, requireEditor, (req, res, next) => {
+  app.post('/api/images/:id/replace', requireUser, requireAdmin, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
       const o = objectOf(r.obj_id, req);
@@ -218,7 +216,7 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  app.patch('/api/images/:id', requireUser, requireEditor, (req, res, next) => {
+  app.patch('/api/images/:id', requireUser, requireAdmin, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
       objectOf(r.obj_id, req);
@@ -228,11 +226,10 @@ export function registerDeviceImages(app, { db, requireUser, requireAdmin, audit
     } catch (e) { next(e); }
   });
 
-  app.delete('/api/images/:id', requireUser, requireEditor, (req, res, next) => {
+  app.delete('/api/images/:id', requireUser, requireAdmin, (req, res, next) => {
     try {
       const r = imageRow(req.params.id);
-      /* An editor only for a device of theirs; an admin also for one already gone. */
-      if (req.user.role === 'editor') objectOf(r.obj_id, req);
+      /* Also for a device already gone. */
       db.prepare('DELETE FROM device_images WHERE id = ?').run(r.id);
       let name = r.obj_id;
       try { name = objectOf(r.obj_id).name; } catch { /* the device is gone: its id is named */ }

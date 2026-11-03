@@ -2,7 +2,7 @@
    An admin adds, edits and removes them; the rules are in links.js. */
 import { $, esc, hist, now, toast } from './01-core.js';
 import { LINK_MAX, isShare, linkHref, linkKind, linkProblem } from './links.js';
-import { canEdit, who } from './04-settings.js';
+import { isAdmin, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
 
 /* Quick links from the device's address: its web interface, when it has none of them yet. */
@@ -12,7 +12,7 @@ let editing = null;
 const suggestions = o => !o.ip ? [] : [`https://${o.ip}`, `http://${o.ip}`].filter(u => !(o.urls || []).some(l => l.url === u));
 
 export function deviceLinksPanel(o){
-  const list = o.urls || [], edit = canEdit();
+  const list = o.urls || [], edit = isAdmin();
   const rows = list.map((l, i) => editing && editing.id === o.id && editing.i === i && edit ? `<div class="relrow lnkrow lnk-edit">
       <input id="lnkEdLabel" value="${esc(l.label || '')}" placeholder="Label" maxlength="60" aria-label="Label of the link" style="width:170px">
       <input id="lnkEdUrl" value="${esc(l.url)}" maxlength="500" aria-label="Address of the link" style="flex:1;min-width:160px">

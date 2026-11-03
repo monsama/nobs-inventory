@@ -61,7 +61,7 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   if (!keep.profile && drop.profile) keep.profile = drop.profile;
   if (!keep.entra && drop.entra) keep.entra = drop.entra;
   if (!keep.login && drop.login) keep.login = drop.login;
-  const ROLE = { admin: 3, editor: 2, viewer: 1, none: 0 };
+  const ROLE = { admin: 2, viewer: 1, none: 0 };
   if ((ROLE[drop.role] ?? 0) > (ROLE[keep.role] ?? 0)) keep.role = drop.role;
   if (drop.active !== false && keep.active === false && keep.source !== 'ldap') { keep.active = true; delete keep.leftAt; delete keep.leftBy; }
   const aliases = new Set(keep.aliases || []);
@@ -69,6 +69,33 @@ export function mergePeople(s, keepId, dropId, stamp = '') {
   if (aliases.size) keep.aliases = [...aliases].slice(0, 20);
   s.users = s.users.filter(u => u !== drop);
   return { moved };
+}
+/* The keys that say for sure two records are one person: a login without its domain (CORP\amuster is amuster), the user
+   principal name Entra knows, and the other logins kept as aliases (AD's sAMAccountName and UPN, a merged record's
+   login). A name, or only the part of an e-mail before the @, is not enough: those stay suggestions under
+   Settings → Users → Duplicates. */
+export const exactKeys = u => new Set([u.login, u.entra && u.entra.upn, ...(u.aliases || []).filter(a => !/\s/.test(a))].map(loginCore).filter(k => k.length >= 2));
+/* Merges the records that share an exact key, after each sync: the directory's record is kept (keepOf), and only records
+   a sync made (Lansweeper, Entra) are merged into another, never two directory accounts, an account someone signs in with
+   by its own password (hand-made), or a pair marked as not the same. Returns how many records were merged away. */
+/* The merges a sync made, on s (not saved with it): the server moves the entry sheets and the sign-in with them on save. */
+export const MERGED = Symbol.for('nobs.mergedPeople');
+export function mergeSamePeople(s, stamp = '') {
+  const skip = new Set(s.peopleNotSame || []), byKey = new Map();
+  for (const u of s.users || []) for (const k of exactKeys(u)) byKey.set(k, [...(byKey.get(k) || []), u]);
+  let n = 0;
+  for (const group of byKey.values()) {
+    const live = group.filter(u => (s.users || []).includes(u));
+    if (live.length < 2) continue;
+    const keep = keepOf(live);
+    for (const drop of live) {
+      if (drop === keep || !['lansweeper', 'entra'].includes(drop.source) || skip.has(pairKey(keep.id, drop.id))) continue;
+      const hadLogin = !!keep.login;
+      mergePeople(s, keep.id, drop.id, stamp); n++;
+      (s[MERGED] ||= []).push({ keep: keep.id, drop: drop.id, hadLogin });
+    }
+  }
+  return n;
 }
 /* A person a source names by login or name, also by an alias a merge left (for the syncs). */
 export const matchesAlias = (u, v) => !!v && (u.aliases || []).some(a => low(a) === low(v) || loginCore(a) === loginCore(v));

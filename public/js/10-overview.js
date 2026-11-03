@@ -11,7 +11,7 @@ import { contractsDue, licencesOver, money } from './09-costs.js';
 import { SERVER, queueServerSave, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
-import { USERS, canEdit, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
+import { USERS, isAdmin, openSettings, showDevicesOf } from './04-settings.js';
 /* Devices still out this many days after their person left are marked red. */
 const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
@@ -37,7 +37,7 @@ function startHtml(){
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
     [USERS.length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
     [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'users', 'Set the name'],
-    [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New object'],
+    [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New device'],
   ];
   const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
   if (steps.every(x => x[0])) return '';
@@ -99,10 +99,10 @@ export function renderOverview(){
   const reports = objs.filter(o => o.reported && o.status !== 'retired');
   const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
   const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
-  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && canEdit() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
+  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && isAdmin() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
   /* Recurring maintenance due within 30 days (overdue first), on devices in use. */
   const mtToday = todayDay(), mtDue = dueTasks(objs, mtToday), mtLate = mtDue.filter(x => x.days < 0);
-  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${canEdit() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
+  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${isAdmin() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
@@ -123,7 +123,7 @@ export function renderOverview(){
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
   /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'object' : 'objects'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
+  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'device' : 'devices'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
   $('#view').innerHTML = `<div class="ov">${startHtml()}
@@ -197,7 +197,7 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; view(); });
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; view(); });
 }
 
 /* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */

@@ -1,7 +1,7 @@
 /* The weekly e-mail to the admins: what needs doing, in one short list, with a link to the inventory. Warranties that
    end soon or ended on devices in use, contract notices due, people who left with devices out, problems users reported, devices waiting in To
    review, the last backup and the copy outside the server, and what Health marks bad. Optional: only when the server
-   names a mail server (NI_SMTP_*), and turned on in Settings → Maintenance with the addresses to send to. Nothing secret
+   names a mail server (NI_SMTP_*), and turned on in Settings → System → E-mail with the addresses to send to. Nothing secret
    goes in it; the mail server's password stays on the server. */
 import nodemailer from 'nodemailer';
 import { readSecret } from './secrets.js';
@@ -14,7 +14,7 @@ const WARRANTY_SOON = 90;
 const getDoc = (db, id, dflt) => { const r = db.prepare("SELECT data FROM docs WHERE kind = 'setting' AND id = ?").get(id); try { return r ? JSON.parse(r.data) : dflt; } catch { return dflt; } };
 const putDoc = (db, id, v) => writeDoc(db, 'setting', id, v);
 
-/* The mail server: the one the server names (NI_SMTP_*), which wins, or else the one set in Settings → Maintenance
+/* The mail server: the one the server names (NI_SMTP_*), which wins, or else the one set in Settings → System → E-mail
    (saved: { host, port, security, user, from, pass }, the password kept sealed apart). null when neither. security is
    starttls (the default, port 587), tls (from the start, port 465) or none (a relay inside the network, port 25). */
 export const SMTP_SECURITY = ['starttls', 'tls', 'none'];
@@ -46,7 +46,7 @@ const transportOf = cfg => nodemailer.createTransport({ host: cfg.host, port: cf
 export async function sendTestMail(cfg, to, transport = null) {
   if (!cfg) throw Object.assign(new Error('No mail server is set.'), { ours: true });
   if (!EMAIL.test(String(to || '')) || String(to).length > 200) throw Object.assign(new Error('Give the address to send the test to.'), { ours: true });
-  await (transport || transportOf(cfg)).sendMail({ from: cfg.from, to, subject: 'NOBS Inventory: test e-mail', text: 'This is a test from NOBS Inventory (Settings → Maintenance → E-mail). The mail server works.' });
+  await (transport || transportOf(cfg)).sendMail({ from: cfg.from, to, subject: 'NOBS Inventory: test e-mail', text: 'This is a test from NOBS Inventory (Settings → System → E-mail). The mail server works.' });
 }
 /* Why a test mail failed, in a few kinds only: the mail server's own answer is not passed on, since it would let the
    test reach any host and port and read back what answers there (a service banner). */
@@ -101,12 +101,12 @@ export function buildDigest(s, { link = '', backups = null, copy = null, health 
   if (copy) backupLine.push(`Copy outside the server: ${copy}`);
   const count = sections.length;
   const subject = count ? `NOBS Inventory: ${count} thing${count === 1 ? '' : 's'} to look at` : 'NOBS Inventory: nothing needs attention';
-  const text = [count ? 'This week:' : 'Nothing needs attention this week.', '', ...sections.flatMap(([h, lines]) => [h, ...lines.map(l => `  - ${l}`), '']), ...backupLine, '', link ? `Open the inventory: ${link}` : '', '', 'Sent by NOBS Inventory. Change or turn off in Settings → Maintenance.'].join('\n');
+  const text = [count ? 'This week:' : 'Nothing needs attention this week.', '', ...sections.flatMap(([h, lines]) => [h, ...lines.map(l => `  - ${l}`), '']), ...backupLine, '', link ? `Open the inventory: ${link}` : '', '', 'Sent by NOBS Inventory. Change or turn off in Settings → System → E-mail.'].join('\n');
   const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;max-width:640px">
 <p>${count ? 'This week:' : 'Nothing needs attention this week.'}</p>${sections.map(([h, lines]) => `<h3 style="font-size:15px;margin:16px 0 4px">${esc(h)}</h3><ul style="margin:0;padding-left:20px">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`).join('')}
 ${backupLine.length ? `<p style="color:#555;margin-top:16px">${backupLine.map(esc).join('<br>')}</p>` : ''}${link ? `<p><a href="${esc(link)}">Open the inventory</a></p>` : ''}
-<p style="color:#777;font-size:12px">Sent by NOBS Inventory. Change or turn off in Settings → Maintenance.</p></div>`;
+<p style="color:#777;font-size:12px">Sent by NOBS Inventory. Change or turn off in Settings → System → E-mail.</p></div>`;
   return { subject, text, html, count };
 }
 
@@ -114,7 +114,7 @@ ${backupLine.length ? `<p style="color:#555;margin-top:16px">${backupLine.map(es
 export async function sendDigest(db, mail, env = process.env, now = new Date(), transport = null, cfg = smtpConfig(env)) {
   const set = digestSettings(db);
   try {
-    if (!cfg) throw new Error('No mail server is set (Settings → Maintenance, or NI_SMTP_HOST on the server).');
+    if (!cfg) throw new Error('No mail server is set (Settings → System → E-mail, or NI_SMTP_HOST on the server).');
     if (!set.to.length) throw new Error('No address to send to.');
     const t = transport || transportOf(cfg);
     await t.sendMail({ from: cfg.from, to: set.to.join(', '), subject: mail.subject, text: mail.text, html: mail.html });
@@ -125,17 +125,17 @@ export async function sendDigest(db, mail, env = process.env, now = new Date(), 
   }
 }
 
-/* A problem a device's user reported, sent at once to the same addresses (when turned on in Settings → Maintenance).
+/* A problem a device's user reported, sent at once to the same addresses (when turned on in Settings → System → E-mail).
    Says the device, who and what, and links to it; nothing else of the inventory. */
 export function buildReportMail(o, rep, link = '') {
   const where = [o.code, o.loc].filter(Boolean).join(' · ');
   const url = link && o.code ? `${link.replace(/\/?$/, '/')}?o=${encodeURIComponent(o.code)}` : link;
   const subject = `NOBS Inventory: problem reported on ${o.name}`;
-  const text = [`${rep.by} reported a problem with ${o.name}${where ? ` (${where})` : ''}:`, '', rep.text, '', url ? `Open the device: ${url}` : '', '', 'Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → Maintenance.'].join('\n');
+  const text = [`${rep.by} reported a problem with ${o.name}${where ? ` (${where})` : ''}:`, '', rep.text, '', url ? `Open the device: ${url}` : '', '', 'Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → System → E-mail.'].join('\n');
   const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:14px;color:#111;max-width:640px"><p><b>${esc(rep.by)}</b> reported a problem with <b>${esc(o.name)}</b>${where ? ` (${esc(where)})` : ''}:</p>
 <blockquote style="margin:8px 0;padding:6px 12px;border-left:3px solid #ccc">${esc(rep.text)}</blockquote>${url ? `<p><a href="${esc(url)}">Open the device</a></p>` : ''}
-<p style="color:#777;font-size:12px">Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → Maintenance.</p></div>`;
+<p style="color:#777;font-size:12px">Mark it as done on the device or in the Overview. Sent by NOBS Inventory; turn off in Settings → System → E-mail.</p></div>`;
   return { subject, text, html };
 }
 export async function sendReportMail(db, o, rep, env = process.env, transport = null, cfg = smtpConfig(env)) {

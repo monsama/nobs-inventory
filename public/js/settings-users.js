@@ -24,7 +24,7 @@ export function sourceChips(u){
   const tip = [from[1], !own || e && (e.gone || e.enabled === false) ? entraTip : ''].filter(Boolean).join(' · ');
   return `<span class="chip kept usrc" title="${esc(tip)}"><span class="usrc-part"><span class="sdot ${src}" aria-hidden="true"></span>${from[0]}</span>${entra}</span>`;
 }
-const ROLE_TIPS = { admin: 'Admin: can change everything', editor: 'Editor: changes devices (in their sites, when limited to some), not the settings or the people', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
+const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
 /* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
 const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
 /* Possible duplicates: the same person found twice (public/js/people-match.js). Each group says why, keeps the record
@@ -73,18 +73,16 @@ function wireDupes(){
 }
 /* What a viewer sees (server/scope.js): everything, the devices of some sites, or only their own devices. The server
    sends them nothing else. */
-const seesText = u => { const verb = u.role === 'editor' ? 'Changes' : 'Sees';
-  return u.own && u.role !== 'editor' ? 'Sees: own devices' : Array.isArray(u.sites) && u.sites.length ? `${verb}: ${u.sites.length === 1 ? u.sites[0] : u.sites.length + ' sites'}` : `${verb}: everything`; };
+const seesText = u => u.own ? 'Sees: own devices' : Array.isArray(u.sites) && u.sites.length ? `Sees: ${u.sites.length === 1 ? u.sites[0] : u.sites.length + ' sites'}` : 'Sees: everything';
 function seesModal(u){
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
-  const editor = u.role === 'editor';
-  const cur = u.own && !editor ? 'own' : Array.isArray(u.sites) && u.sites.length ? 'sites' : 'all';
-  modal(`<div class="mh">What ${esc(u.name)} ${editor ? 'sees and changes' : 'sees'}</div><div class="mb">
+  const cur = u.own ? 'own' : Array.isArray(u.sites) && u.sites.length ? 'sites' : 'all';
+  modal(`<div class="mh">What ${esc(u.name)} sees</div><div class="mb">
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="all" ${cur === 'all' ? 'checked' : ''}> Everything</label>
     <label class="pchk" style="width:auto"><input type="radio" name="sees" value="sites" ${cur === 'sites' ? 'checked' : ''} ${sites.length ? '' : 'disabled'}> Only the devices of these sites${sites.length ? '' : ' (add sites in Settings → Locations first)'}</label>
     <div class="usees-sites">${sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-site="${esc(n)}" ${(u.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('')}</div>
-    ${editor ? '' : `<label class="pchk" style="width:auto"><input type="radio" name="sees" value="own" ${cur === 'own' ? 'checked' : ''}> Only their own devices: they can confirm they have them and report a problem</label>`}
-    <p class="note">The server sends them nothing else: no other devices, their history, photos, reports or labels.${editor ? ' They change those devices, their connections, photos and stocktakes; never the settings, the rooms or the people.' : ''}</p></div>
+    <label class="pchk" style="width:auto"><input type="radio" name="sees" value="own" ${cur === 'own' ? 'checked' : ''}> Only their own devices: they can confirm they have them and report a problem</label>
+    <p class="note">The server sends them nothing else: no other devices, their history, photos, reports or labels.</p></div>
     <div class="mf"><button id="seCancel">Cancel</button><button id="seOk" class="primary">Save</button></div>`, 'sm');
   $('#seCancel').onclick = closeModal;
   /* Ticking a site means "only these sites": that choice is made with it, so Save does what the boxes show. */
@@ -107,7 +105,7 @@ function groupRolesHtml(){
   return `<div class="panelbox" id="groupRoles"><div class="hdr">Roles from groups <span class="cnt">${rules.length || 'none'}</span></div>
     <p class="note">A person in one of these groups gets its role and sites at each directory sync and sign-in; the first rule that matches counts. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group, not from here. When no rule matches any more, a role a rule gave goes back to No access.</p>
     ${rules.length ? `<table class="grid mini stack"><thead><tr><th>Group</th><th>Role</th><th>Sites</th><th>Given now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => `<tr>
-      <td class="mono">${esc(r.group)}</td><td>${r.role === 'editor' ? 'Editor' : 'Viewer'}</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : `<span class="muted">${r.role === 'editor' ? 'All sites (every device)' : 'All'}</span>`}</td><td class="n">${by(r.group)}</td>
+      <td class="mono">${esc(r.group)}</td><td>Viewer</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : '<span class="muted">All</span>'}</td><td class="n">${by(r.group)}</td>
       <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the rule for ${esc(r.group)}">Remove</button></div></td></tr>`).join('')}</tbody></table>` : ''}
     <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a rule…</button></div></div>`;
 }
@@ -117,7 +115,7 @@ function groupRuleModal(i){
   modal(`<div class="mh">${i === null ? 'Add a rule' : 'Change the rule'}</div><div class="mb"><div class="form">
       <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${esc(r.group)}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
       <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => `<option value="${esc(g)}">`).join('')}</datalist>
-      <label for="grRole">Role</label><select id="grRole"><option value="viewer" ${r.role === 'viewer' ? 'selected' : ''}>Viewer: looks</option><option value="editor" ${r.role === 'editor' ? 'selected' : ''}>Editor: changes devices</option></select>
+      <span class="lbl">Role</span><span>Viewer: signs in and looks</span>
       <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${esc(n)}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('') : '<span class="muted">No sites yet: the rule gives all sites.</span>'}</div>
     </div><p class="note" id="grSitesNote">No site ticked: all sites. A rule takes effect at the next directory sync or sign-in of each person.</p></div>
     <div class="mf"><button id="grCancel">Cancel</button><button id="grOk" class="primary">Save</button></div>`, 'sm');
@@ -126,12 +124,8 @@ function groupRuleModal(i){
     const group = $('#grGroup').value.trim();
     if (!group){ toast('Name the group.'); $('#grGroup').focus(); return; }
     if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('There is a rule for this group already.'); return; }
-    const next = { group, role: $('#grRole').value, sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
-    if (!next.sites.length) {
-      /* An editor of every site from a group is asked once: it lets each member change every device. */
-      if (next.role === 'editor' && !$('#grOk').dataset.sure) { $('#grOk').dataset.sure = '1'; $('#grOk').textContent = 'Yes, every site'; $('#grSitesNote').innerHTML = '<b>No site ticked: every member may change every device.</b> Tick sites to limit it, or click again.'; return; }
-      delete next.sites;
-    }
+    const next = { group, role: 'viewer', sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
+    if (!next.sites.length) delete next.sites;
     st.groupRoles = i === null ? [...rules, next] : rules.map((x, j) => j === i ? next : x);
     queueServerSave(); closeModal(); renderSetUsers(); toast(`${group}: ${next.role}${next.sites ? ` in ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
   };
@@ -180,7 +174,7 @@ export function renderSetUsers(){
   const filterBar = `<div class="addrel ufilters"><input id="uQ" type="search" placeholder="Search name, login, e-mail…" value="${esc(st.userQ || '')}" aria-label="Search the users" autocomplete="off">
     ${sel('uSrc', 'Source', st.userSrc || '', [['', 'All sources'], ['ldap', 'LDAP'], ['entra', 'Entra'], ['lansweeper', 'Lansweeper'], ['manual', 'Manual']])}
     ${sel('uStatus', 'Status', st.userStatus || '', [['', 'Active and not'], ['active', 'Active'], ['inactive', 'Deactivated']])}
-    ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['editor', 'Editor'], ['viewer', 'Viewer'], ['none', 'No access']])}
+    ${sel('uRole', 'Role', st.userRole || '', [['', 'All roles'], ['admin', 'Admin'], ['viewer', 'Viewer'], ['none', 'No access']])}
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
     <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? '<button type="button" class="link" id="uClear">Clear</button>' : ''}</div>`;
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => `<tr>
@@ -188,20 +182,20 @@ export function renderSetUsers(){
       ${fromDirectory(u) ? `<td>${esc(u.dept || '')}</td>` : `<td><input data-udept="${i}" maxlength="80" value="${esc(u.dept || '')}" placeholder="Department" aria-label="Department of ${esc(u.name)}"></td>`}<td>${esc((u.groups || []).join(', '))}</td>
       <td><span class="usrcs">${sourceChips(u)}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
-      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="editor" ${u.role === 'editor' ? 'selected' : ''}>Editor</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? `<span class="chip kept ugrp" title="Given by the group ${esc(u.roleBy)} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</div></td>
+      <td><div class="urole"><select data-role="${i}" aria-label="Role of ${esc(u.name)}" title="${ROLE_TIPS[u.role] || ROLE_TIPS.viewer}"><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="viewer" ${u.role === 'viewer' || !u.role ? 'selected' : ''}>Viewer</option><option value="none" ${u.role === 'none' ? 'selected' : ''}>No access</option></select>${u.roleBy ? `<span class="chip kept ugrp" title="Given by the group ${esc(u.roleBy)} (Roles from groups below); the next sync gives it again while they are in it">group</span>` : ''}${u.role === 'viewer' || u.role === 'editor' || !u.role ? `<button type="button" class="link usees" data-sees="${i}" title="${u.role === 'editor' ? 'What this editor sees and changes' : 'What this viewer sees'}">${esc(seesText(u))}</button>` : ''}</div></td>
       <td><input type="checkbox" data-act="${i}" ${u.active ? 'checked' : ''} aria-label="Active"></td>
       <td class="umenu-c"><details class="menu umenu"><summary aria-label="More for ${esc(u.name)}" title="Password, entry sheet, remove">⋯</summary><div class="menubox">
         ${SERVER.on && u.source !== 'ldap' ? (u.login ? `<button data-pw="${i}" title="Set this user's password">Set password…</button>` : `<button data-login="${i}" title="Give this user a login name">Give a login name…</button>`) : ''}
         ${SERVER.on ? `<button data-sheet="${i}" title="Print the devices handed out and a new initial Windows password">Entry sheet…</button>${devicesOfUser(u.name) ? `<a class="link uhand" href="api/reports/handback?id=${encodeURIComponent(u.id)}&format=pdf" download title="The devices ${esc(u.name)} has, as a PDF to tick off when they are handed back">Hand-back list (PDF)</a>` : ''}` : ''}
         <button class="danger-text" data-del="${i}" ${u.source === 'ldap' ? 'disabled title="Managed by LDAP"' : devicesOfUser(u.name) ? 'disabled title="Has devices. Move them first."' : 'title="Remove"'}>Remove</button></div></details></td></tr>`).join('');
   $('#setUsers').innerHTML = `<div class="panelbox"><div class="hdr">Users <span class="cnt">${USERS.filter(u => u.active).length} active of ${USERS.length}</span></div>
-    <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Editor changes the devices (of the sites you give them), Viewer can look, No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
+    <details class="how u-how"><summary>What the roles and columns mean</summary><p class="note">Admin can change everything, Viewer can look (everything, some sites or only their own devices), No access lets nobody in (people found by LDAP, Entra or Lansweeper start with No access; give them Viewer to let them in). Each device names its user. The Devices count lists them, and clicking it shows those devices. Users from LDAP can't be removed here, only deactivated. Source says where each person comes from and whether Microsoft Entra knows them too (Settings → Entra &amp; Intune → People).</p></details>
     ${dirOn || foundViewers().length ? `<div class="addrel">${dirOn ? `<label class="muted" for="userDir">Show</label><select id="userDir"><option value="">Everybody (${USERS.length})</option>${Object.entries(DIRS).map(([k, [l, f]]) => `<option value="${k}" ${st.userDir === k ? 'selected' : ''}>${l} (${USERS.filter(f).length})</option>`).join('')}</select>` : ''}<span class="grow"></span>${foundViewers().length ? `<button id="noneAll" title="Imported people with the role Viewer get No access. Admins, people added here and you keep yours.">Remove access for ${foundViewers().length} imported ${foundViewers().length === 1 ? 'viewer' : 'viewers'}…</button>` : ''}</div>` : ''}
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>${groupRolesHtml()}`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>${groupRolesHtml()}`;
   const root = $('#setUsers');
   /* The ⋯ menu of a row opens over the table (the table scrolls sideways, so a menu inside it would be cut off). */
   root.querySelectorAll('.umenu').forEach(d => d.ontoggle = () => {
@@ -272,8 +266,6 @@ export function renderSetUsers(){
     const u = USERS[+sel.dataset.role];
     if (u.role === 'admin' && sel.value !== 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); renderSetUsers(); return; }
     u.role = sel.value; queueServerSave(); toast(`${u.name} is now ${roleLabel(u)}`); renderSetUsers();
-    /* An editor changes devices: which sites is asked at once (everything unless limited). */
-    if (u.role === 'editor' && !(Array.isArray(u.sites) && u.sites.length)) seesModal(u);
   });
   root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     const u = USERS[+b.dataset.del];

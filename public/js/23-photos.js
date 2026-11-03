@@ -9,7 +9,7 @@
 import { $, byId, esc, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
-import { canEdit, who } from './04-settings.js';
+import { isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave } from './07-render.js';
 
 const LONG_SIDE = 2560, THUMB_SIDE = 480, MAX_FILE = 40 * 1048576, MAX_SENT = 6 * 1048576;
@@ -24,7 +24,7 @@ const fullUrl = p => `api/images/${encodeURIComponent(p.id)}`;
 export const photoCount = id => { const c = CACHE.get(id); return c && !c.failed ? c.images.length : null; };
 export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
-  const c = CACHE.get(o.id), list = c ? c.images : null, edit = canEdit();
+  const c = CACHE.get(o.id), list = c ? c.images : null, edit = isAdmin();
   const empty = edit ? 'No photos yet: the label with its serial number, how it is cabled, where it stands. Drop pictures here or paste one.' : 'No photos yet.';
   return `<div class="panelbox ph-panel" id="phPanel"><div class="hdr">Photos <span class="cnt">${list ? list.length || 'none' : '…'}</span></div>
     <div class="ph-grid" id="phGrid">${!list ? '<p class="note lempty">Loading…</p>' : c.failed ? '<p class="note lempty">The photos could not be read. They are asked for again when the page is opened.</p>' : list.length
@@ -44,7 +44,7 @@ export function bindPhotos(o){
      few seconds, so the redraw after it does not ask again. */
   if (Date.now() - c.at > 5000) load(o);
   panel.querySelectorAll('[data-ph]').forEach(b => b.onclick = () => viewer(o, Number(b.dataset.ph)));
-  if (!canEdit()) return;
+  if (!isAdmin()) return;
   const file = $('#phFile');
   $('#phAdd').onclick = () => file.click();
   file.onchange = () => { const f = [...file.files]; file.value = ''; add(o, f); };
@@ -57,7 +57,7 @@ export function bindPhotos(o){
 /* A picture pasted on the device page (not into a field) is added to it. */
 document.addEventListener('paste', e => {
   const panel = $('#phPanel'), o = panel && openId && byId(openId);
-  if (!panel || !o || !canEdit() || !$('#phAdd') || $('#mdl') || e.target.closest('input, textarea, [contenteditable]')) return;
+  if (!panel || !o || !isAdmin() || !$('#phAdd') || $('#mdl') || e.target.closest('input, textarea, [contenteditable]')) return;
   const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => /^image\//.test(f.type));
   if (files.length) { e.preventDefault(); add(o, files); }
 });
@@ -79,7 +79,7 @@ function redraw(o){
      being typed in a field stays). */
   if (photoCount(o.id) === 0 && !panel.dataset.xpanel && !panel.hidden && !(st.showPanels && st.showPanels.has(o.id + ':photos'))){
     panel.hidden = true;
-    if (canEdit()){
+    if (isAdmin()){
       panel.dataset.xpanel = 'photos';
       let bar = $('#xAdd');
       if (!bar){ bar = document.createElement('div'); bar.className = 'xadd'; bar.id = 'xAdd'; bar.innerHTML = '<span class="muted">Add</span>'; panel.parentNode.insertBefore(bar, panel.parentNode.firstChild); }
@@ -211,7 +211,7 @@ async function add(o, files){
    was added, Download, and for an admin Remove. */
 function viewer(o, i){
   const c = CACHE.get(o.id); if (!c || !c.images[i]) { closeModal(); return; }
-  const list = c.images, p = list[i], edit = canEdit(), many = list.length > 1;
+  const list = c.images, p = list[i], edit = isAdmin(), many = list.length > 1;
   modal(`<div class="mh">${esc(o.name)}: photo ${i + 1} of ${list.length}</div>
     <div class="mb ph-view">
       ${many ? `<button type="button" class="icon ph-nav ph-prev" id="phPrev" aria-label="Previous photo" title="Previous (←)">‹</button>` : ''}

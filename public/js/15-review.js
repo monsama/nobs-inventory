@@ -4,7 +4,7 @@
 import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { unplace } from './03-object-modals.js';
-import { canEdit, isAdmin, me } from './04-settings.js';
+import { isAdmin, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
 import { movePhotos } from './23-photos.js';
 
@@ -230,7 +230,7 @@ const seenBy = o => {
 };
 export function resolveModal(list){
   list = list.filter(o => dupOf(o));
-  if (!list.length || !canEdit()) return;
+  if (!list.length || !isAdmin()) return;
   const one = list.length === 1, o = list[0], t = dupOf(o);
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
@@ -256,7 +256,7 @@ export function resolveModal(list){
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
   if (!o || !o.review) return '';
-  const edit = canEdit(), src = REVIEW_SRC[o.review.src] || o.review.src;
+  const edit = isAdmin(), src = REVIEW_SRC[o.review.src] || o.review.src;
   return o.review.ignored
     ? `<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
     : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;

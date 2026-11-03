@@ -10,12 +10,12 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBack } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
-import { sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { LOCS, sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rackUnits, racksList, rels, relsOf, rid, st, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, render, renderStatus } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { canEdit, ensureUser, isAdmin, myLocs, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
+import { ensureUser, isAdmin, personById, checkAddress, mountModal, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -27,7 +27,7 @@ export function rackNewModal(){
   modal(`<div class="mh">New rack</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="rnName">Name</label><input id="rnName" class="mono" maxlength="80" placeholder="e.g. ZH-RACK-${String(n).padStart(2, '0')}">
-      <label for="rnLoc">Room</label><select id="rnLoc">${myLocs().length ? myLocs().map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
+      <label for="rnLoc">Room</label><select id="rnLoc">${LOCS.length ? LOCS.map(l => `<option>${esc(l)}</option>`).join('') : '<option value="">No rooms yet</option>'}</select>
       <label for="rnUnits">Height</label><div class="ctlrow"><input id="rnUnits" type="number" min="1" max="60" value="42" style="flex:none;width:90px"><span class="unit">U</span></div>
       <label for="rnModel">Model</label><input id="rnModel" maxlength="120" placeholder="Optional, e.g. APC NetShelter SX 42U">
       <label for="rnSerial">Serial number</label><input id="rnSerial" class="mono" maxlength="80" placeholder="Optional">
@@ -50,7 +50,7 @@ export function renderRack(){
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${canEdit() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
+    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
     const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
@@ -58,7 +58,7 @@ export function renderRack(){
   const inRack = objs.filter(o => o.rack === R_.id);
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${esc(r.id)}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
-    ${canEdit() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
+    ${isAdmin() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
     <button id="rkMount">Mount device…</button>`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
@@ -144,8 +144,7 @@ export function renderSoftware(){
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
   const devCount = objs.filter(o => (o.software || []).length).length;
-  $('#toolbar').innerHTML = `<input id="swQ" type="search" placeholder="Find software, version or device…" aria-label="Find software" value="${esc(st.swQ || '')}" style="width:260px">
-    <span class="muted" id="swCount"></span><div class="grow"></div>
+  $('#toolbar').innerHTML = `<span class="muted" id="swCount"></span><div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
   if (!all.length){ $('#view').innerHTML = `<div class="sw-page">${licencesPanel()}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
   /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */
@@ -154,7 +153,7 @@ export function renderSoftware(){
   bindLicences();
   const max = Math.max(...all.map(r => r.devices.length));
   const body = () => {
-    const q = (st.swQ || '').trim().toLowerCase();
+    const q = (st.q || '').trim().toLowerCase();
     /* A search for a device opens the packages it has, so the match is in sight. */
     const hits = r => !q ? 'none' : r.name.toLowerCase().includes(q) || r.versions.some(([v]) => v.toLowerCase().includes(q)) ? 'package' : r.devices.some(d => d.name.toLowerCase().includes(q)) ? 'device' : '';
     const rows = all.filter(r => hits(r)).sort(st.swSort === 'devices' ? (a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
@@ -168,7 +167,7 @@ export function renderSoftware(){
         <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceMark(l)).join('')}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
-    }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.q)}”.</td></tr>`;
     $('#swCollapse').hidden = !st.swOpen.length;
   };
   body();
@@ -187,7 +186,6 @@ export function renderSoftware(){
     if (e.target.closest('[data-open]')) return;   /* a device link opens the device */
     const tr = e.target.closest('tr.sw-row'); if (tr) toggle(tr);
   });
-  $('#swQ').addEventListener('input', e => { st.swQ = e.target.value; body(); });
   $('#swCollapse').onclick = () => { st.swOpen = []; body(); };
   $('#view').querySelectorAll('[data-swsort]').forEach(th => th.onclick = () => { st.swSort = th.dataset.swsort; renderSoftware(); });
 }
@@ -282,13 +280,13 @@ function twinBanner(o){
   const tw = twinOf(o);
   /* The device itself says so too: its probable second records, to open or resolve from here. */
   const tws = twinsOf(o);
-  if (!tw && tws.length) return `<div class="rv-banner warn"><span>${tws.length === 1 ? `<b>${esc(tws[0].name)}</b> is most likely a second record of this device` : `${tws.length} records are most likely second records of this device: ${tws.map(x => `<b>${esc(x.name)}</b>`).join(', ')}`}${tws.some(x => x.review) ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? `<button type="button" id="twOpen">Open ${esc(tws[0].name)}</button>` : ''}${canEdit() ? `<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
+  if (!tw && tws.length) return `<div class="rv-banner warn"><span>${tws.length === 1 ? `<b>${esc(tws[0].name)}</b> is most likely a second record of this device` : `${tws.length} records are most likely second records of this device: ${tws.map(x => `<b>${esc(x.name)}</b>`).join(', ')}`}${tws.some(x => x.review) ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span>${tws.length === 1 ? `<button type="button" id="twOpen">Open ${esc(tws[0].name)}</button>` : ''}${isAdmin() ? `<button type="button" id="twResolve" class="primary">Resolve…</button>` : ''}</div>`;
   if (!tw){
     const was = o.notTwin && twinOf(o, { marked: true });
-    return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${canEdit() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
+    return was ? `<div class="rv-banner"><span>Marked as not a duplicate of <b>${esc(was.name)}</b>.</span>${isAdmin() ? '<button type="button" id="twAgain">Check again</button>' : ''}</div>` : '';
   }
-  const can = canEdit() && !o.review && mergeTarget(o) === tw;
-  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${canEdit() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${esc(tw.name)} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
+  const can = isAdmin() && !o.review && mergeTarget(o) === tw;
+  return `<div class="rv-banner warn"><span>Probably a second record of <b>${esc(tw.name)}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${esc(tw.name)}</button>${isAdmin() ? '<button type="button" id="twResolve">Resolve…</button>' : ''}${can ? `<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${esc(tw.name)} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${esc(tw.name)}</button>` : ''}</div>`;
 }
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
@@ -343,7 +341,7 @@ export function unplace(o){
 /* Hand out or take back, the one thing done most with a device that people use: shown on those (and on any device
    someone has), for someone who may change it. */
 const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios', 'monitor', 'sip', 'camera'];
-const handBtn = o => !canEdit() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
+const handBtn = o => !isAdmin() || o.review || o.status === 'retired' || !(PERSONAL.includes(o.type) || o.uid || o.hotdesk) ? ''
   : o.uid || o.hotdesk ? `<button id="takeBackBtn" title="Back into stock, with nobody (with Undo)">Take back</button>` : '<button id="handOutBtn" title="Give it to a person: in use with them from now on">Hand out…</button>';
 /* The fields a device page always shows, filled or not; the others show when they hold something, or all of them on request. */
 const KEY_FIELDS = ['name', 'type', 'status', 'model', 'serial', 'loc', 'user', 'ip', 'os', 'purpose'];
@@ -353,7 +351,7 @@ const setAllFields = on => { try { if (on) localStorage.setItem(ALL_KEY, '1'); e
 /* The panels a device may have beside its fields (links, maintenance, photos, software, responsible, contracts): an empty
    one is not drawn as a box of its own but offered on one Add line, and opens when its button is clicked. */
 function extras(o){
-  const edit = canEdit();
+  const edit = isAdmin();
   const parts = [
     ['links', 'Link', deviceLinksPanel(o), !(o.urls || []).length && !(o.ip || o.dns)],
     ['maint', 'Maintenance', o.review ? '' : maintPanel(o), !(o.maint || []).length],
@@ -405,7 +403,7 @@ export function renderObj(o){
   const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
   const nEmpty = fields.filter(emptyF).length, allF = allFields();
   if (!allF) fields = fields.filter(f => !emptyF(f));
-  const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
+  const edit = isAdmin(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
   const row = f => {
     const h = hiddenBy(f), html = propRow(o, f, edit ? fieldMenu(o, f, h) : '');
     return h ? html.replace('<label for=', `<label class="fm-hid" title="Hidden on ${h === 'device' ? 'this device' : 'every ' + esc(TYPES[o.type].label)}" for=`) : html;
@@ -418,7 +416,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>${handBtn(o)}
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="relMapBtn">Relationships</button><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && canEdit() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}${canEdit() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? '<hr class="msep">' + (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}<hr class="msep"><button id="delBtn">Retire…</button>${canEdit() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="relMapBtn">Relations map</button><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && isAdmin() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? '<hr class="msep">' + (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}<hr class="msep"><button id="delBtn">Retire…</button>${isAdmin() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
       <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
