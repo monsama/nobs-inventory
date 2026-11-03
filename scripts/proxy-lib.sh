@@ -42,7 +42,8 @@ proxy_site() {
   { echo "# NOBS Inventory. Written from NI_HOST in .env by deploy-nobs.sh and scripts/update.sh: a change here is overwritten."
     echo "$names {"
     proxy_tls_lines inventory
-    printf '\treverse_proxy nobs-inventory:8080\n}\n'
+    # flush_interval -1: the live updates (/api/events) are passed on at once, not buffered.
+    printf '\treverse_proxy nobs-inventory:8080 {\n\t\tflush_interval -1\n\t}\n}\n'
   } > "$PROXY_DIR/sites/inventory.caddy"
 }
 

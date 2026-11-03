@@ -16,7 +16,13 @@
 }
 
 (headers) {
-	encode zstd gzip
+	# Compressed, except a stream of live events (Server-Sent Events, the inventory's /api/events): compressing it
+	# would hold its messages back.
+	@compressible {
+		not header Accept text/event-stream*
+		not path /api/events
+	}
+	encode @compressible zstd gzip
 	header {
 		-Server
 		X-Content-Type-Options "nosniff"
