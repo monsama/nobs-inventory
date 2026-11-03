@@ -50,7 +50,7 @@ export function buildReport(s, opts, today = new Date()) {
   const grouped = (list, keyOf, emptyName) => {
     const m = new Map();
     for (const [k, row] of list) { const name = k || emptyName; if (!m.has(name)) m.set(name, []); m.get(name).push(row); }
-    return [...m.entries()].sort(([a], [b]) => (a === emptyName) - (b === emptyName) || byName(a, b)).map(([name, rows]) => ({ name, rows }));
+    return [...m.entries()].sort(([a], [b]) => Number(a === emptyName) - Number(b === emptyName) || byName(a, b)).map(([name, rows]) => ({ name, rows }));
   };
 
   if (o.kind === 'inventory') {

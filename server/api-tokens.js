@@ -31,7 +31,7 @@ export function checkApiToken(db, given, now = new Date()) {
   ensureApiTokens(db);
   const r = db.prepare('SELECT * FROM api_tokens WHERE hash = ?').get(digest(given));
   if (!r) return null;
-  if (!r.used || now - Date.parse(r.used) > 60000) db.prepare('UPDATE api_tokens SET used = ? WHERE id = ?').run(now.toISOString(), r.id);
+  if (!r.used || now.getTime() - Date.parse(r.used) > 60000) db.prepare('UPDATE api_tokens SET used = ? WHERE id = ?').run(now.toISOString(), r.id);
   return row(r);
 }
 

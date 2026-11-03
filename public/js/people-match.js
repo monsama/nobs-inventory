@@ -47,7 +47,7 @@ export function duplicateGroups(users, notSame = []) {
 }
 /* Which record to keep: the directory's, then Entra's, then one made here, then Lansweeper's; then the one with a login. */
 const RANK = { ldap: 0, entra: 1, manual: 2, lansweeper: 3 };
-export const keepOf = people => [...people].sort((a, b) => (RANK[a.source] ?? 2) - (RANK[b.source] ?? 2) || (!!b.login - !!a.login) || String(a.id).localeCompare(String(b.id)))[0];
+export const keepOf = people => [...people].sort((a, b) => (RANK[a.source] ?? 2) - (RANK[b.source] ?? 2) || (Number(!!b.login) - Number(!!a.login)) || String(a.id).localeCompare(String(b.id)))[0];
 
 /* Merges the person drop into keep in s (users, objs): devices move, what keep lacks is taken over, drop's login and
    name are kept as aliases (so a sync finds the person again), drop goes. Returns { moved } or throws. */

@@ -14,7 +14,8 @@
     "test:browser:a": "node scripts/browser-tests.mjs --shard 1/3",
     "test:browser:b": "node scripts/browser-tests.mjs --shard 2/3",
     "test:browser:c": "node scripts/browser-tests.mjs --shard 3/3",
-    "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs"
+    "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs && tsc -p .",
+    "typecheck": "tsc -p ."
   },
   "engines": {
     "node": ">=22.13"

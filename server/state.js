@@ -388,7 +388,7 @@ function checkStateRules(s, size = true) {
         if (a.kind !== undefined && (typeof a.kind !== 'string' || a.kind.length > 60)) bad(`${o.name}: the kind of an attachment is text of up to 60 characters.`);
         if (a.serial !== undefined && (typeof a.serial !== 'string' || a.serial.length > 60)) bad(`${o.name}: the serial of an attachment is text of up to 60 characters.`);
         /* A docking station merged in: its MAC address and the record Lansweeper sees it as. */
-        for (const [k, n] of [['mac', 40], ['seenAs', 120], ['ref', 60], ['linksAt', 40]]) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
+        for (const [k, n] of /** @type {[string, number][]} */ ([['mac', 40], ['seenAs', 120], ['ref', 60], ['linksAt', 40]])) if (a[k] !== undefined && (typeof a[k] !== 'string' || a[k].length > n)) bad(`${o.name}: the ${k} of an attachment is text of up to ${n} characters.`);
       }
     }
     if (o.notes !== undefined && (typeof o.notes !== 'string' || o.notes.length > 20000)) bad(`${o.name}: the notes are text of up to 20000 characters.`);
@@ -603,6 +603,7 @@ export function describeChanges(body, before) {
 /* The page's saves. Each change says which kind of record it is, its new value (or none, for a delete) and the
    revision it was based on. A change based on an old revision is not applied: someone else changed that record
    first. The other changes are applied. New objects get their code here, so codes stay unique. */
+/** @param {(s: any) => void} [guard] */
 export function applyChanges(db, body, guard = () => {}) {
   const bad = msg => { throw new HttpError(400, msg); };
   const puts = body && body.puts, dels = body && body.dels;

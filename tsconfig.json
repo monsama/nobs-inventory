@@ -1,3 +1,4 @@
+// Type check of the server and the shared modules it imports from public/js (no build: the JavaScript runs as it is).
 {
   "compilerOptions": {
     "allowJs": true, "checkJs": true, "noEmit": true,

@@ -93,6 +93,7 @@ export function cleanNics(list, mainIp) {
 /* A date as YYYY-MM-DD, from what Lansweeper writes (2027-03-31, 2027-03-31T00:00:00, 31.03.2027); anything else is no date. */
 export const dayOf = v => {
   const t = String(v || '').trim();
+  /** @type {(string|null)[] | null} */
   let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
   if (!m) { const d = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t); if (d) m = [null, d[3], d[2].padStart(2, '0'), d[1].padStart(2, '0')]; }
   if (!m || +m[1] < 1990 || +m[1] > 2100 || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) return '';
