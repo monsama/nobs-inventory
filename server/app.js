@@ -28,7 +28,7 @@ import { registerGraphRoutes } from './graph-routes.js';
 import { registerSheetRoutes } from './sheet-routes.js';
 import { registerSettingsRoutes } from './settings-routes.js';
 import { registerBackupRoutes } from './backup-routes.js';
-
+import { registerLiveEvents } from './live-events.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const publicDir = path.join(here, '..', 'public');
@@ -190,6 +190,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   const ctx = { db, throttle, auditQuiet, requireUser, requireAdmin, currentUser, me, userDoc, saveUserDoc, bumpUser, COOKIE, cookie, secureCookie, loginFailMs,
     cfgLs, cfgLdap, ldap, ldapConfig, ldapPasswordFromServer, cfgGraph, graphSettings, graphSource, SECRET_KEY, SHEET_KEY, feedToken, graphFetch,
     mailTransport, certProbe, diskSpace, smtpNow, APP_VERSION, publicDir };
+  /* Live updates (server/live-events.js): first, so a check follows every change made through the routes below. */
+  registerLiveEvents(app, ctx);
   registerSessionRoutes(app, ctx);
   registerStateRoutes(app, ctx);
   registerSyncRoutes(app, ctx);
