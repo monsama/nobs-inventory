@@ -64,6 +64,28 @@ try {
   assert.equal(await p.locator('[data-srcstatus=ad] .dot.off').count(), 1, 'a source not set up has the grey ring');
   assert.equal(await p.locator('#srcFields .ds-matrix tbody tr:not(.ds-grp)').count(), Object.keys(AD_FILL).length);
   assert.equal(await p.isDisabled('[data-srchist=ad]'), true, 'no history yet');
+  // AD and Entra have a switch in the header, as Lansweeper has: off stops the sync only, sign-in keeps working
+  assert.equal(await p.isChecked('#useAd'), true, 'on by default');
+  assert.equal(await p.locator('#ldapSync').count(), 1);
+  await p.uncheck('#useAd');
+  await stored(st => st.useAd === false);
+  await p.waitForSelector('[data-srcstatus=ad] .src-offtext');
+  assert.match(await p.textContent('[data-srcstatus=ad]'), /Active Directory\s*Off[\s\S]*Sync now and the scheduled sync do not run[\s\S]*Sign-in with AD accounts keeps working/);
+  assert.equal(await p.locator('#ldapSync').count(), 0, 'no Sync now while off');
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.id), 'useAd', 'the focus stays on the switch');
+  await p.check('#useAd');
+  await stored(st => st.useAd === true);
+  assert.equal(await p.locator('[data-srcstatus=ad] .src-offtext').count(), 0);
+  await openSetTab(p, 'entra'); await p.waitForSelector('#useGraph');
+  await p.uncheck('#useGraph');
+  await stored(st => st.useGraph === false);
+  await p.waitForSelector('[data-srcstatus=graph] .src-offtext');
+  assert.match(await p.textContent('[data-srcstatus=graph]'), /Entra & Intune\s*Off[\s\S]*Sign-in with Microsoft keeps working/);
+  await openSetTab(p, 'sources'); await p.waitForSelector('.ds-srcs');
+  assert.match(await p.textContent('.ds-srcs'), /Entra & Intune\s*Off/);
+  await openSetTab(p, 'entra'); await p.waitForSelector('#useGraph');
+  await p.check('#useGraph');
+  await stored(st => st.useGraph === true);
   await openSetTab(p, 'feed'); await p.waitForSelector('#srcFields .ds-matrix');
   assert.equal(await p.inputValue('#intake_lansweeper'), 'direct');
   assert.equal(await p.locator('#srcFields .ds-matrix tbody tr:not(.ds-grp)').count(), new Set([...LS_FIELDS, ...Object.keys(LS_FILL), 'loc']).size);
