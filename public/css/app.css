@@ -183,7 +183,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 .pl-item.on{background:var(--panel2);font-weight:600}
 .pl-ghost{position:fixed;z-index:200;pointer-events:none;padding:4px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:12px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
 body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
-.pl-area.droptarget .pl-area-fill{fill:rgba(37,99,235,.28)}
+.pl-area.droptarget .pl-area-fill{fill:color-mix(in srgb,var(--ac,var(--accent)) 28%,transparent)}
 .pl-area.droptarget .pl-area-edge{stroke-width:3}
 .pl-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .pl-none{padding:12px}
@@ -1303,9 +1303,19 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .pl-unpin{display:inline-flex;align-items:center;justify-content:center;height:16px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;width:0;margin-left:-6px;overflow:hidden;background:transparent;color:var(--muted);transition:width .1s}
 .pl-pin:hover .pl-unpin,.pl-pin:focus-visible .pl-unpin,.pl-pin:focus-within .pl-unpin{width:16px;margin-left:0}
 .pl-unpin:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
-.pl-area-fill{fill:color-mix(in srgb,var(--accent) 7%,transparent)}
-.pl-area-edge{fill:none;stroke:var(--accent);vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-width:1.5px}
-.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:7;background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--bd));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}
+.pl-area-fill{fill:color-mix(in srgb,var(--ac,var(--accent)) 10%,transparent)}
+.pl-area-edge{fill:none;stroke:var(--ac,var(--accent));vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-width:1.5px}
+.pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:7;background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--ac,var(--accent)) 45%,var(--bd));border-left:4px solid var(--ac,var(--accent));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}
+/* Area colours: one class each, sets --ac for the fill, the outline and the name tag. Picked in the area dialogs. */
+.ac-blue{--ac:var(--accent)} .ac-green{--ac:light-dark(#16a34a,#4ade80)} .ac-teal{--ac:light-dark(#0d9488,#2dd4bf)}
+.ac-amber{--ac:light-dark(#d97706,#fbbf24)} .ac-orange{--ac:light-dark(#ea580c,#fb923c)} .ac-red{--ac:light-dark(#dc2626,#f87171)}
+.ac-pink{--ac:light-dark(#db2777,#f472b6)} .ac-purple{--ac:light-dark(#7c3aed,#a78bfa)} .ac-grey{--ac:light-dark(#64748b,#94a3b8)}
+.ar-colors{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ar-sw{position:relative;display:inline-flex;cursor:pointer;margin:0}
+.ar-sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.ar-sw span{width:22px;height:22px;border-radius:50%;background:var(--ac);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--bd)}
+.ar-sw input:checked+span{box-shadow:0 0 0 2px var(--fg)}
+.ar-sw input:focus-visible+span{outline:2px solid var(--accent);outline-offset:3px}
 .pl-area-tag .pl-acount{background:var(--panel2);color:var(--muted)}
 .pl-area-tag .pl-x{pointer-events:auto;position:static;border-radius:50%;background:transparent;color:var(--muted);width:16px;height:16px}
 .pl-area-tag .pl-x:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}

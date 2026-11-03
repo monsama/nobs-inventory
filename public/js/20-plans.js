@@ -277,6 +277,14 @@ export function renderPlans(){
     planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
 }
+/* The colours an area can have. A name, not a free value: the page draws it from its own CSS (one class per colour),
+   in light and dark. Blue is the default and is not stored. */
+export const AREA_COLORS = [['blue', 'Blue'], ['green', 'Green'], ['teal', 'Teal'], ['amber', 'Amber'], ['orange', 'Orange'], ['red', 'Red'], ['pink', 'Pink'], ['purple', 'Purple'], ['grey', 'Grey']];
+const areaColor = a => AREA_COLORS.some(([k]) => k === (a && a.color)) ? a.color : 'blue';
+/* The row of colour swatches in the area dialogs, as radio buttons (arrow keys move between them). */
+const colorPicker = cur => html`<label>Colour</label><div class="ar-colors" role="radiogroup" aria-label="Colour of the area">${AREA_COLORS.map(([k, label]) => html`<label class="ar-sw ac-${k}" title="${label}"><input type="radio" name="arColor" value="${k}" ${k === cur ? 'checked' : ''} aria-label="${label}"><span></span></label>`)}</div>`;
+const pickedColor = () => { const v = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name=arColor]:checked')); return v ? v.value : 'blue'; };
+const setColor = (area, c) => { if (c === 'blue') delete area.color; else area.color = c; };
 /* An area is drawn as one shape: its rectangles are filled together and outlined once, with no edges between them.
    attrs: markup of attributes, made by html``. */
 export function areaShape(rects, cls = '', attrs = ''){
@@ -304,7 +312,7 @@ export function areaShape(rects, cls = '', attrs = ''){
 /* The name of an area and its ×, placed at the top left of the area. */
 export function areaTag(a, removable, count = 0){
   const r = areaRects(a)[0];
-  return String(html`<div class="pl-area-tag" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
+  return String(html`<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
@@ -319,7 +327,7 @@ export function planCanvas(plan){
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return String(html`<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? html`<img src="${src}" alt="Floor plan ${plan.name}" draggable="false">` : (plan.areas || []).length ? '' : html`<div class="pl-noimg">No picture yet. Use Plan… → Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
-    ${(plan.areas || []).map(a => rawHtml(areaShape(areaRects(a), `${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, String(html`data-area-drag="${a.id}"`)) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)))}
+    ${(plan.areas || []).map(a => rawHtml(areaShape(areaRects(a), ` ac-${areaColor(a)}${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, String(html`data-area-drag="${a.id}"`)) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)))}
     ${planParts.length ? rawHtml(areaShape(planParts, ' pending')) : ''}
     ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`)}
   </div>`);
@@ -501,6 +509,7 @@ export function areaModal(plan, rects){
   modal(html`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
       <label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60">
       <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="">A new room, named like the area</option>${rooms.map(l => html`<option value="${l}">${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
+      ${colorPicker('blue')}
     </div>
     <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. Choose a room that already exists, or leave it to create one.</p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
@@ -514,6 +523,7 @@ export function areaModal(plan, rects){
     const box = boxOf(rects);
     const area = {id: 'ar' + rid(), name, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h), rects: rects.map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}))};
     if (room) area.room = room;
+    setColor(area, pickedColor());
     plan.areas = [...(plan.areas || []), area];
     if (plan.site) areaLoc(plan, area);
     planMode = 'view'; planParts = []; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
@@ -590,7 +600,8 @@ export function areaEditModal(plan, area){
   const rooms = [...new Set([...LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / ')), cur].filter(Boolean))];
   modal(html`<div class="mh">Edit ${area.name}</div><div class="mb"><div class="form" style="padding:0">
       <label for="aeName">Name</label><input id="aeName" maxlength="60" value="${area.name}">
-      <label for="aeRoom">Room</label><select id="aeRoom">${cur ? '' : html`<option value="">A new room, named like the area</option>`}${rooms.map(l => html`<option value="${l}" ${l === cur ? 'selected' : ''}>${l.split(' / ').slice(1).join(' / ')}</option>`)}</select></div>
+      <label for="aeRoom">Room</label><select id="aeRoom">${cur ? '' : html`<option value="">A new room, named like the area</option>`}${rooms.map(l => html`<option value="${l}" ${l === cur ? 'selected' : ''}>${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
+      ${colorPicker(areaColor(area))}</div>
     <p class="note">Devices placed inside the area get its room as their location.</p></div>
     <div class="mf"><button id="aeCancel">Cancel</button><button id="aeOk" class="primary">Save</button></div>`, 'sm');
   $('#aeCancel').onclick = closeModal;
@@ -599,6 +610,7 @@ export function areaEditModal(plan, area){
     if (!name){ toast('Give the area a name.'); return; }
     area.name = name;
     if (room) area.room = room; else delete area.room;
+    setColor(area, pickedColor());
     queueServerSave(); closeModal(); toast('Area saved'); renderPlans();
   };
   $('#aeName').focus();
