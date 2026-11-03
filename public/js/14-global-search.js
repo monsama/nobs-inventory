@@ -1,11 +1,12 @@
 /* The search at the top: always through everything, whatever the filters on the left or the tab say.
    It finds devices, people, contacts, contracts and rooms and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
-import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, esc, matchesQ, objs, st, tico } from './01-core.js';
+import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS, SET_TABS, isAdmin, openSettings } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
+import { html, rawHtml } from './html.js';
 
 const MAX = { dev: 8, other: 4 };
 const box = $('#search'), list = $('#gsList');
@@ -14,7 +15,7 @@ if (window.matchMedia && matchMedia('(max-width:760px)').matches) box.placeholde
 let items = [], active = -1;
 
 /* Small line icons in the style of the type icons. */
-const ico = d => `<span class="tico sm gs-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="${d}"/></svg></span>`;
+const ico = d => html`<span class="tico sm gs-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="${d}"/></svg></span>`;
 const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'), contact: ico('M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'),
   contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
@@ -24,7 +25,7 @@ const SET_WORDS = { maintenance: 'system health certificate https photos clear r
   feed: 'lansweeper sync push token', sources: 'fields policy order sources', vlans: 'network vlan', subnets: 'ip range dhcp', types: 'object types models', locations: 'sites rooms', about: 'version licence' };
 const SET_PATH = { users: 'Users → People', access: 'Users → Access', company: 'Users → Company', maintenance: 'System → Health', backups: 'System → Backups', mail: 'System → E-mail', log: 'System → Log', feed: 'Data sources → Lansweeper', directory: 'Data sources → Active Directory', entra: 'Data sources → Entra & Intune', sources: 'Data sources → All fields', vlans: 'Network → VLANs', subnets: 'Network → Subnets', domains: 'Network → Domains' };
 const has = (q, ...vals) => vals.some(v => v && String(v).toLowerCase().includes(q));
-const row = (i, icon, main, sub) => `<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${esc(main)}</span>${sub ? `<span class="gs-sub">${esc(sub)}</span>` : ''}</li>`;
+const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="${i}" aria-selected="false">${icon}<span class="gs-main">${main}</span>${sub ? html`<span class="gs-sub">${sub}</span>` : ''}</li>`;
 
 /* Every kind of thing the search knows, each with what to show and where it opens. */
 function results(q){
@@ -33,13 +34,13 @@ function results(q){
   const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code)).filter(o => matchesQ(o, q))
     .sort((a, b) => (a.status === 'retired') - (b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
-    icon: tico(o.type, 'tico sm'), main: o.name,
+    icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
     sub: [TYPES[o.type] ? TYPES[o.type].label : o.type, o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
   /* Devices a sync found that wait in To review: found here too, marked as such. */
   const waiting = REVIEW.filter(o => !o.review.ignored && matchesQ(o, q));
   if (waiting.length) out.push(['To review', waiting.length, waiting.slice(0, MAX.other).map(o => ({
-    icon: tico(o.type, 'tico sm'), main: o.name, sub: ['Waiting in To review', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
+    icon: rawHtml(tico(o.type, 'tico sm')), main: o.name, sub: ['Waiting in To review', REVIEW_SRC[o.review.src], o.ip].filter(Boolean).join(' · '),
     go: () => openObj(o.id) }))]);
   const people = USERS.filter(u => has(q, u.name, u.login, u.dept));
   const owned = new Map(); for (const o of objs) if (o.user && o.status !== 'retired') owned.set(o.user, (owned.get(o.user) || 0) + 1);
@@ -73,14 +74,14 @@ function show(){
   items = []; active = -1;
   if (!q){ close(); return; }
   const groups = results(q);
-  let html = '';
+  const hits = [];
   for (const [label, n, rows] of groups){
-    html += `<li class="gs-head" role="presentation">${esc(label)}${n > rows.length ? ` <span class="muted">· ${rows.length} of ${n}</span>` : ''}</li>`;
-    for (const r of rows){ html += row(items.length, r.icon, r.main, r.sub); items.push(r); }
+    hits.push(html`<li class="gs-head" role="presentation">${label}${n > rows.length ? html` <span class="muted">· ${rows.length} of ${n}</span>` : ''}</li>`);
+    for (const r of rows){ hits.push(row(items.length, r.icon, r.main, r.sub)); items.push(r); }
   }
   /* On a list the same text filters it too: said once at the top, so a shorter list is no surprise. */
-  const note = onList() ? '<li class="gs-note" role="presentation">Also filters this list · Esc closes these hits and keeps the filter</li>' : '';
-  list.innerHTML = note + (html || `<li class="gs-none" role="presentation">Nothing found for “${esc(box.value.trim())}”.</li>`);
+  const note = onList() ? html`<li class="gs-note" role="presentation">Also filters this list · Esc closes these hits and keeps the filter</li>` : '';
+  list.innerHTML = html`${note}${hits.length ? hits : html`<li class="gs-none" role="presentation">Nothing found for “${box.value.trim()}”.</li>`}`;
   list.hidden = false;
   box.setAttribute('aria-expanded', 'true');
   if (items.length) mark(0);

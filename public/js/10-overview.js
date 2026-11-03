@@ -1,6 +1,6 @@
 /* The overview: the inventory at a glance. A row of figures, what needs attention, and the devices by type and by
    site. Every line leads to the list behind it, filtered. */
-import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, esc, objs, st, tico, toast, warrantyState } from './01-core.js';
+import { COMPANY, SITES, QUALITY, REVIEW, SYNC, GRAPH_FILTERS, GRAPH_TYPES, JOIN_INFO, OS_ENDED, osFamily, LS_ON, scanOld, leftFilters, $, COSTS, LOCS, STATUS, TYPES, WARRANTY_SOON_DAYS, objs, st, tico, toast, warrantyState } from './01-core.js';
 import { NOTICE_SOON_DAYS, runningNow, yearlyCost } from './costs.js';
 import { lifeOf, replacementPlan } from './lifecycle.js';
 import { MAINT_SOON_DAYS, dueTasks, everyText, todayDay } from './maintenance.js';
@@ -17,13 +17,15 @@ const HANDBACK_DAYS = 14;
 const SERVER_ON = () => !!SERVER.on;
 import { newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
+import { html, rawHtml } from './html.js';
 
 const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-/* A list of bars, longest first, each a button that opens the list behind it. One hue: the length is the message. */
+/* A list of bars, longest first, each a button that opens the list behind it. One hue: the length is the message.
+   attr: the name of the data attribute, written here. */
 const bars = (rows, attr) => {
   const max = Math.max(1, ...rows.map(r => r.n));
-  return `<div class="ov-bars">${rows.map(r => `<button class="ov-bar" ${attr}="${esc(r.key)}" title="${esc(r.label)}: ${r.n} devices${r.bad ? ` (${esc(r.bad)})` : ''}${r.hint ? `\n${esc(r.hint)}` : ''}">
-    <span class="ov-lbl">${r.icon || ''}<span>${esc(r.label)}</span></span><span class="ov-track"><span ${r.bad ? 'class="bad" ' : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`).join('')}</div>`;
+  return html`<div class="ov-bars">${rows.map(r => html`<button class="ov-bar" ${rawHtml(attr)}="${r.key}" title="${r.label}: ${r.n} devices${r.bad ? ` (${r.bad})` : ''}${r.hint ? `\n${r.hint}` : ''}">
+    <span class="ov-lbl">${r.icon || ''}<span>${r.label}</span></span><span class="ov-track"><span ${r.bad ? html`class="bad" ` : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`)}</div>`;
 };
 
 /* Getting started, for an admin of a new inventory: the few things to set up first, each ticked when it is done and
@@ -41,9 +43,9 @@ function startHtml(){
   ];
   const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
   if (steps.every(x => x[0])) return '';
-  const row = ([done, title, note, act, label], i) => `<li class="start-step${done ? ' done' : ''}"><span class="start-n" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="start-t"><b>${title}</b><span class="muted">${note}</span></span>${done ? '<span class="chip ok">Done</span>' : `<button type="button" data-start="${act}">${label}</button>`}</li>`;
-  return `<div class="panelbox start"><div class="hdr">Getting started <span class="cnt">${steps.filter(x => x[0]).length} of ${steps.length} done</span><button type="button" class="link" id="startHide" style="margin-left:auto">Hide</button></div>
-    <ol class="start-list">${steps.map(row).join('')}${row(optional, steps.length)}</ol></div>`;
+  const row = ([done, title, note, act, label], i) => html`<li class="start-step${done ? ' done' : ''}"><span class="start-n" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="start-t"><b>${title}</b><span class="muted">${note}</span></span>${done ? html`<span class="chip ok">Done</span>` : html`<button type="button" data-start="${act}">${label}</button>`}</li>`;
+  return html`<div class="panelbox start"><div class="hdr">Getting started <span class="cnt">${steps.filter(x => x[0]).length} of ${steps.length} done</span><button type="button" class="link" id="startHide" style="margin-left:auto">Hide</button></div>
+    <ol class="start-list">${steps.map(row)}${row(optional, steps.length)}</ol></div>`;
 }
 /* The counts by type, site, status and so on are folded under Statistics: what needs doing comes first. Kept open once opened. */
 const STATS_KEY = 'ni-ov-stats';
@@ -99,10 +101,10 @@ export function renderOverview(){
   const reports = objs.filter(o => o.reported && o.status !== 'retired');
   const openRep = reports.filter(o => !o.reported.done).sort((a, b) => String(b.reported.at).localeCompare(String(a.reported.at)));
   const doneRep = reports.filter(o => o.reported.done && Date.now() - Date.parse(o.reported.done.at) < 30 * 864e5).sort((a, b) => String(b.reported.done.at).localeCompare(String(a.reported.done.at)));
-  const repRow = o => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(o.id)}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${esc(o.name)}</b><small>${esc(o.reported.text)}</small><small class="muted">${esc([o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · '))}</small></span></button>${!o.reported.done && isAdmin() ? `<button type="button" data-repdone="${esc(o.id)}">Done</button>` : ''}</div>`;
+  const repRow = o => html`<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${o.id}"><span class="chip ${o.reported.done ? 'ok' : 'warn'}">${o.reported.done ? '✓' : '!'}</span><span><b>${o.name}</b><small>${o.reported.text}</small><small class="muted">${[o.reported.by, dateText(String(o.reported.at).slice(0, 10)), o.reported.done ? `done ${dateText(o.reported.done.at.slice(0, 10))}${o.reported.done.by ? ` by ${o.reported.done.by}` : ''}${o.reported.done.note ? `: ${o.reported.done.note}` : ''}` : ''].filter(Boolean).join(' · ')}</small></span></button>${!o.reported.done && isAdmin() ? html`<button type="button" data-repdone="${o.id}">Done</button>` : ''}</div>`;
   /* Recurring maintenance due within 30 days (overdue first), on devices in use. */
   const mtToday = todayDay(), mtDue = dueTasks(objs, mtToday), mtLate = mtDue.filter(x => x.days < 0);
-  const mtRow = x => `<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${esc(x.o.id)}">${dueChip(x.m, mtToday)}<span><b>${esc(x.o.name)}</b><small>${esc(x.m.what)} · ${esc(everyText(x.m))}</small></span></button>${isAdmin() ? `<button type="button" data-ovmtdone="${esc(x.o.id)}|${esc(x.m.id)}">Done…</button>` : ''}</div>`;
+  const mtRow = x => html`<div class="ov-hb ov-rep"><button class="ov-row" data-ovopen="${x.o.id}">${rawHtml(dueChip(x.m, mtToday))}<span><b>${x.o.name}</b><small>${x.m.what} · ${everyText(x.m)}</small></span></button>${isAdmin() ? html`<button type="button" data-ovmtdone="${x.o.id}|${x.m.id}">Done…</button>` : ''}</div>`;
   const attention = [
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
@@ -112,60 +114,64 @@ export function renderOverview(){
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),
-    ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', `data-ovos="${esc(fam)}"`]),
+    ...osEnded.map(([fam, n]) => [n, 'bad', `${fam}: no more updates`, 'the maker has ended support; upgrade or replace', String(html`data-ovos="${fam}"`)]),
     certAttention() || [0],
   ].filter(a => a[0] > 0);
   /* The certificate is read once; the overview is drawn again when it is known, if it is still shown. */
   if (CERT === null) loadCert().then(() => { if (st.tab === 'overview' && certAttention()) renderOverview(); });
-  const tile = (label, value, sub, attr = '') => `<${attr ? `button ${attr}` : 'div'} class="ov-tile"><span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span></${attr ? 'button' : 'div'}>`;
-  const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: TYPES[t] ? TYPES[t].label : t, n, icon: tico(t, 'tico sm') })).sort((a, b) => b.n - a.n);
+  /* attr: a data attribute written here. */
+  const tile = (label, value, sub, attr = '') => {
+    const inner = html`<span class="ov-tl">${label}</span><span class="ov-tv">${value}</span><span class="ov-ts">${sub}</span>`;
+    return attr ? html`<button ${rawHtml(attr)} class="ov-tile">${inner}</button>` : html`<div class="ov-tile">${inner}</div>`;
+  };
+  const byType = Object.entries(live.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {})).map(([t, n]) => ({ key: t, label: TYPES[t] ? TYPES[t].label : t, n, icon: rawHtml(tico(t, 'tico sm')) })).sort((a, b) => b.n - a.n);
   const sites = [...new Set(LOCS.map(l => l.split(' / ')[0]))];
   const bySite = sites.map(s => ({ key: s, label: s, n: live.filter(o => String(o.loc || '').split(' / ')[0] === s).length })).filter(r => r.n).sort((a, b) => b.n - a.n);
   const noLoc = live.filter(o => !o.loc).length;
   /* The Overview counts everything: a filter picked on the left applies to the lists, which it says. */
-  $('#toolbar').innerHTML = `<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'device' : 'devices'}</span>${leftFilters() || st.q.trim() ? '<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>' : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
+  $('#toolbar').innerHTML = html`<b>Overview</b><span class="muted">${compact(objs.length)} ${objs.length === 1 ? 'device' : 'devices'}</span>${leftFilters() || st.q.trim() ? html`<span class="muted hide-n">· counts all objects; your filters apply to Cards, Table and Relationships</span>` : ''}<div class="grow"></div><button id="ovStock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Stocktake</button><button id="ovReports"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/></svg>Reports…</button>`;
   $('#ovReports').onclick = () => reportsModal();
   $('#ovStock').onclick = () => { st.tab = 'stocktake'; view(); };
-  $('#view').innerHTML = `<div class="ov">${startHtml()}
+  $('#view').innerHTML = html`<div class="ov">${startHtml()}
     <div class="ov-kpis">
       ${tile('Devices in use', compact(inUse.length), `${compact(stock)} in stock`, 'data-ovs="active"')}
       ${/* Topics, not a sum: the rows count devices, contracts and licences, and one device can be in several rows. */ ''}
       ${tile('Needs attention', compact(attention.length), attention.length ? (attention.length === 1 ? '1 topic: ' : `${attention.length} topics: `) + attention.map(a => a[2]).slice(0, 2).join(', ') + (attention.length > 2 ? '…' : '') : 'Nothing right now')}
       ${/* A tile with nothing to say is left out: no contracts or licences, no device with a price. */ ''}
-      ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? money(year) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
-      ${priced ? tile('Value of devices in use', money(value), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
+      ${COSTS.contracts.length || COSTS.licences.length ? tile('Contracts and licences', year ? rawHtml(money(year)) : '—', year ? 'per year, running' : 'No costs recorded', 'data-ovtab="contracts"') : ''}
+      ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
     </div>
     <div class="ov-cols">
       <div class="panelbox"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
-        ${attention.length ? `<div class="ov-att">${attention.map(([n, cls, label, sub, attr]) => `<button class="ov-row" ${attr}><span class="chip ${cls}">${compact(n)}</span><span><b>${esc(label)}</b><small>${esc(sub)}</small></span></button>`).join('')}</div>`
-          : '<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>'}
+        ${attention.length ? html`<div class="ov-att">${attention.map(([n, cls, label, sub, attr]) => html`<button class="ov-row" ${rawHtml(attr)}><span class="chip ${cls}">${compact(n)}</span><span><b>${label}</b><small>${sub}</small></span></button>`)}</div>`
+          : html`<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>`}
       </div>
-      ${handbacks.length ? `<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
+      ${handbacks.length ? html`<div class="panelbox"><div class="hdr">Hand-backs open <span class="cnt">${handbacks.length} ${handbacks.length === 1 ? 'person' : 'people'}</span></div>
         <p class="note" style="padding:8px 12px 2px;margin:0">People who left and still have devices. Open one to take the devices back, with the hand-back list to tick off.</p>
-        <div class="ov-att">${handbacks.map(h => `<div class="ov-hb"><button class="ov-row" data-ovhb="${esc(h.u.id)}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${esc(h.u.name)}</b><small>${esc([h.u.dept, h.days === null ? 'left' : h.u.leftBy ? `left before ${dateText(h.u.leftAt.slice(0, 10))}` : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</small></span></button>${SERVER_ON() ? `<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${esc(h.u.name)} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`).join('')}</div></div>` : ''}
-      ${openRep.length || doneRep.length ? `<div class="panelbox" id="ovReported"><div class="hdr">Reported problems <span class="cnt">${openRep.length ? `${openRep.length} open` : 'none open'}</span></div>
-        <div class="ov-att">${openRep.map(repRow).join('')}</div>
-        ${doneRep.length ? `<details class="ov-done"><summary>Done in the last 30 days (${doneRep.length})</summary><div class="ov-att">${doneRep.map(repRow).join('')}</div></details>` : ''}</div>` : ''}
-      ${mtDue.length ? `<div class="panelbox" id="ovMaint"><div class="hdr">Maintenance due <span class="cnt">${mtLate.length ? `${mtLate.length} overdue · ` : ''}${mtDue.length - mtLate.length} within ${MAINT_SOON_DAYS} days</span></div>
-        <div class="ov-att">${mtDue.slice(0, 8).map(mtRow).join('')}</div>
-        ${mtDue.length > 8 ? `<div class="chain"><button type="button" class="link" data-ovmt="all">Show all ${mtDue.length} in the Table</button></div>` : ''}</div>` : ''}
+        <div class="ov-att">${handbacks.map(h => html`<div class="ov-hb"><button class="ov-row" data-ovhb="${h.u.id}"><span class="chip ${h.days !== null && h.days > HANDBACK_DAYS ? 'bad' : 'warn'}">${h.n}</span><span><b>${h.u.name}</b><small>${[h.u.dept, h.days === null ? 'left' : h.u.leftBy ? `left before ${dateText(h.u.leftAt.slice(0, 10))}` : h.days === 0 ? 'left today' : `left ${h.days} day${h.days === 1 ? '' : 's'} ago`, `${h.n} device${h.n === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}</small></span></button>${SERVER_ON() ? html`<a class="btnlike" href="api/reports/handback?id=${encodeURIComponent(h.u.id)}&format=pdf" download title="The devices ${h.u.name} has, as a PDF to tick off">Hand-back list</a>` : ''}</div>`)}</div></div>` : ''}
+      ${openRep.length || doneRep.length ? html`<div class="panelbox" id="ovReported"><div class="hdr">Reported problems <span class="cnt">${openRep.length ? `${openRep.length} open` : 'none open'}</span></div>
+        <div class="ov-att">${openRep.map(repRow)}</div>
+        ${doneRep.length ? html`<details class="ov-done"><summary>Done in the last 30 days (${doneRep.length})</summary><div class="ov-att">${doneRep.map(repRow)}</div></details>` : ''}</div>` : ''}
+      ${mtDue.length ? html`<div class="panelbox" id="ovMaint"><div class="hdr">Maintenance due <span class="cnt">${mtLate.length ? `${mtLate.length} overdue · ` : ''}${mtDue.length - mtLate.length} within ${MAINT_SOON_DAYS} days</span></div>
+        <div class="ov-att">${mtDue.slice(0, 8).map(mtRow)}</div>
+        ${mtDue.length > 8 ? html`<div class="chain"><button type="button" class="link" data-ovmt="all">Show all ${mtDue.length} in the Table</button></div>` : ''}</div>` : ''}
       ${planHtml(live)}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
         <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
-        ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
-          : `<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
+        ${qRows.length ? html`<div class="ov-att">${qRows.map(r => html`<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${r.label}</b><small>${r.hint}</small></span></button>`)}</div>`
+          : html`<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>
     <details class="ov-stats" id="ovStats" ${statsOpen() ? 'open' : ''}><summary>Statistics <span class="muted">by type, site, status, operating system${showJoin || intuneGroups.length ? ', Entra and Intune' : ''}</span></summary><div class="ov-cols">
-      <div class="panelbox"><div class="hdr">Devices by type <span class="cnt">${compact(live.length)} not retired</span></div>${byType.length ? bars(byType, 'data-ovt') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
-      ${bySite.length ? `<div class="panelbox"><div class="hdr">Devices by site${noLoc ? ` <span class="cnt">${compact(noLoc)} without location</span>` : ''}</div>${bars(bySite, 'data-ovl')}</div>` : ''}
-      ${showJoin ? `<div class="panelbox"><div class="hdr">How devices are joined <span class="cnt">${compact(joinable.length)} computers and phones</span></div>
-        ${joinRows.length ? `<div class="ov-split" role="img" aria-label="${esc(joinRows.map(r => r.label + ' ' + pct(r.n)).join(', '))}">${joinRows.map(r => `<span class="j-${r.key}" style="flex:${r.n}" title="${esc(r.label)}: ${r.n} (${pct(r.n)})"></span>`).join('')}</div>
-        <div class="ov-att">${joinRows.map(r => `<button class="ov-row" data-ovintune="${r.key}" title="${esc(joinNote[r.key])}"><span class="ov-key j-${r.key}"></span><span><b>${esc(r.label)}</b><small>${esc(joinNote[r.key])}</small></span><span class="ov-num">${compact(r.n)}<small>${pct(r.n)}</small></span></button>`).join('')}</div>`
-        : '<div class="chain"><span class="muted">No computers or phones yet.</span></div>'}</div>` : ''}
-      ${intuneGroups.length ? `<div class="panelbox ov-wide"><div class="hdr">Microsoft Intune <span class="cnt">${compact(live.filter(o => o.graph && !o.graph.gone).length)} devices in Entra or Intune</span></div>
-        ${intuneGroups.map(([title, rows]) => `<div class="side-sub ov-sub">${esc(title)}</div>${bars(rows, 'data-ovintune')}`).join('')}</div>` : ''}
-      ${osRows.length ? `<div class="panelbox"><div class="hdr">Operating systems <span class="cnt">${compact(withOs)} of ${compact(live.length)} known</span></div>${bars(osRows.map(r => OS_ENDED.includes(r.key) ? { ...r, bad: 'no more updates from the maker' } : r), 'data-ovos')}</div>` : ''}
-      <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : '<div class="chain"><span class="muted">No devices yet.</span></div>'}</div>
+      <div class="panelbox"><div class="hdr">Devices by type <span class="cnt">${compact(live.length)} not retired</span></div>${byType.length ? bars(byType, 'data-ovt') : html`<div class="chain"><span class="muted">No devices yet.</span></div>`}</div>
+      ${bySite.length ? html`<div class="panelbox"><div class="hdr">Devices by site${noLoc ? html` <span class="cnt">${compact(noLoc)} without location</span>` : ''}</div>${bars(bySite, 'data-ovl')}</div>` : ''}
+      ${showJoin ? html`<div class="panelbox"><div class="hdr">How devices are joined <span class="cnt">${compact(joinable.length)} computers and phones</span></div>
+        ${joinRows.length ? html`<div class="ov-split" role="img" aria-label="${joinRows.map(r => r.label + ' ' + pct(r.n)).join(', ')}">${joinRows.map(r => html`<span class="j-${r.key}" style="flex:${r.n}" title="${r.label}: ${r.n} (${pct(r.n)})"></span>`)}</div>
+        <div class="ov-att">${joinRows.map(r => html`<button class="ov-row" data-ovintune="${r.key}" title="${joinNote[r.key]}"><span class="ov-key j-${r.key}"></span><span><b>${r.label}</b><small>${joinNote[r.key]}</small></span><span class="ov-num">${compact(r.n)}<small>${pct(r.n)}</small></span></button>`)}</div>`
+        : html`<div class="chain"><span class="muted">No computers or phones yet.</span></div>`}</div>` : ''}
+      ${intuneGroups.length ? html`<div class="panelbox ov-wide"><div class="hdr">Microsoft Intune <span class="cnt">${compact(live.filter(o => o.graph && !o.graph.gone).length)} devices in Entra or Intune</span></div>
+        ${intuneGroups.map(([title, rows]) => html`<div class="side-sub ov-sub">${title}</div>${bars(rows, 'data-ovintune')}`)}</div>` : ''}
+      ${osRows.length ? html`<div class="panelbox"><div class="hdr">Operating systems <span class="cnt">${compact(withOs)} of ${compact(live.length)} known</span></div>${bars(osRows.map(r => OS_ENDED.includes(r.key) ? { ...r, bad: 'no more updates from the maker' } : r), 'data-ovos')}</div>` : ''}
+      <div class="panelbox"><div class="hdr">By status</div>${objs.length ? bars(Object.entries(STATUS).map(([k, v]) => ({ key: k, label: v.label, n: objs.filter(o => o.status === k).length })).filter(r => r.n), 'data-ovs') : html`<div class="chain"><span class="muted">No devices yet.</span></div>`}</div>
     </div></details></div>`;
   const ovs = $('#ovStats'); if (ovs) ovs.ontoggle = () => { try { if (ovs.open) localStorage.setItem(STATS_KEY, '1'); else localStorage.removeItem(STATS_KEY); } catch { /* not kept */ } };
   /* Each line opens the list it counts: filters are reset first, so the list shows what the line said. */
@@ -206,18 +212,18 @@ function planHtml(live){
   if (!plan.planned && !plan.unknown) return '';
   const max = Math.max(1, ...plan.rows.map(r => r.ids.length));
   const tip = r => Object.entries(r.sites).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s}: ${n}`).join(', ');
-  return `<div class="panelbox" id="ovPlan"><div class="hdr">Replacement plan <span class="cnt">${compact(plan.planned)} planned</span>${isAdmin() ? '<button type="button" class="link" id="ovLife" style="margin-left:auto">Lifetimes and prices…</button>' : ''}</div>
-    <div class="ov-bars">${plan.rows.map(r => `<button class="ov-bar" data-ovplan="${r.key}" title="${esc(r.label)}: ${r.ids.length} device${r.ids.length === 1 ? '' : 's'}${r.ids.length ? ` (${esc(tip(r))})` : ''}" ${r.ids.length ? '' : 'disabled'}>
-      <span class="ov-lbl"><span>${esc(r.label)}</span></span><span class="ov-track"><span ${r.key === 'overdue' && r.ids.length ? 'class="bad" ' : ''}style="width:${r.ids.length ? Math.max(2, Math.round(r.ids.length / max * 100)) : 0}%"></span></span><span class="ov-n">${compact(r.ids.length)}${plan.priced && r.cost ? `<small class="ov-cost">${money(r.cost)}</small>` : ''}</span></button>`).join('')}</div>
+  return html`<div class="panelbox" id="ovPlan"><div class="hdr">Replacement plan <span class="cnt">${compact(plan.planned)} planned</span>${isAdmin() ? html`<button type="button" class="link" id="ovLife" style="margin-left:auto">Lifetimes and prices…</button>` : ''}</div>
+    <div class="ov-bars">${plan.rows.map(r => html`<button class="ov-bar" data-ovplan="${r.key}" title="${r.label}: ${r.ids.length} device${r.ids.length === 1 ? '' : 's'}${r.ids.length ? ` (${tip(r)})` : ''}" ${r.ids.length ? '' : 'disabled'}>
+      <span class="ov-lbl"><span>${r.label}</span></span><span class="ov-track"><span ${r.key === 'overdue' && r.ids.length ? html`class="bad" ` : ''}style="width:${r.ids.length ? Math.max(2, Math.round(r.ids.length / max * 100)) : 0}%"></span></span><span class="ov-n">${compact(r.ids.length)}${plan.priced && r.cost ? html`<small class="ov-cost">${rawHtml(money(r.cost))}</small>` : ''}</span></button>`)}</div>
     <p class="note ov-plnote">Due when a type's lifetime has passed since purchase; without a purchase date, when the warranty ends.${plan.unknown ? ` ${compact(plan.unknown)} device${plan.unknown === 1 ? ' has' : 's have'} neither date.` : ''}${plan.priced ? '' : isAdmin() ? ' Add replacement prices to see the budget per year.' : ' An admin can add replacement prices for the budget per year.'}</p></div>`;
 }
 /* The lifetime and the replacement price of each type, for the plan. */
 function lifeModal(){
   const used = Object.keys(TYPES).filter(t => objs.some(o => o.type === t && o.status !== 'retired'));
-  modal(`<div class="mh">Lifetimes and replacement prices</div><div class="mb"><p class="note">How many years a device of each type is kept, and what replacing one costs. 0 years: not planned.</p>
-    <table class="grid mini ov-life"><thead><tr><th>Type</th><th>Years</th><th>Price (${esc(COSTS.currency || 'CHF')})</th></tr></thead><tbody>${used.map(t => { const l = lifeOf(st.lifecycle, t); return `<tr><td>${esc(TYPES[t].label)}</td>
-      <td><input type="number" min="0" max="40" step="1" data-lfy="${esc(t)}" value="${l.years}" aria-label="Lifetime of ${esc(TYPES[t].label)} in years"></td>
-      <td><input type="number" min="0" step="any" data-lfp="${esc(t)}" value="${l.price || ''}" placeholder="0" aria-label="Replacement price of ${esc(TYPES[t].label)}"></td></tr>`; }).join('')}</tbody></table></div>
+  modal(html`<div class="mh">Lifetimes and replacement prices</div><div class="mb"><p class="note">How many years a device of each type is kept, and what replacing one costs. 0 years: not planned.</p>
+    <table class="grid mini ov-life"><thead><tr><th>Type</th><th>Years</th><th>Price (${COSTS.currency || 'CHF'})</th></tr></thead><tbody>${used.map(t => { const l = lifeOf(st.lifecycle, t); return html`<tr><td>${TYPES[t].label}</td>
+      <td><input type="number" min="0" max="40" step="1" data-lfy="${t}" value="${l.years}" aria-label="Lifetime of ${TYPES[t].label} in years"></td>
+      <td><input type="number" min="0" step="any" data-lfp="${t}" value="${l.price || ''}" placeholder="0" aria-label="Replacement price of ${TYPES[t].label}"></td></tr>`; })}</tbody></table></div>
     <div class="mf"><button id="lfCancel">Cancel</button><button id="lfOk" class="primary">Save</button></div>`, 'sm');
   $('#lfCancel').onclick = closeModal;
   $('#lfOk').onclick = () => {
