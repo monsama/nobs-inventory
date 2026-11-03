@@ -205,6 +205,14 @@ export function renderSetDomains(){
 }
 export const warn = t => '<span style="color:var(--danger)">' + esc(t) + '</span>';
 export const siteOf = l => String(l || '').split(' / ')[0];
+/* The store room of each site: taking a device back proposes it (27-handout.js). */
+function stockRoomsHtml(){
+  const sites = SITES.filter(x => LOCS.some(l => siteOf(l) === x)); if (!sites.length) return '';
+  const rooms = st.stockRooms || {};
+  return `<section class="panelbox locpanel"><div class="hdr">Store rooms</div>
+    <p class="note lnote">Where a device taken back into stock goes: taking back proposes the store room of the device's site.</p>
+    <div class="lrows">${sites.map(x => `<div class="lrow"><span>${esc(x)}</span><select data-stock="${esc(x)}" aria-label="Store room of ${esc(x)}" style="grid-column:2 / 4"><option value="">None</option>${LOCS.filter(l => siteOf(l) === x).map(l => `<option value="${esc(l)}" ${rooms[x] === l ? 'selected' : ''}>${esc(l.split(' / ').slice(1).join(' / '))}</option>`).join('')}</select></div>`).join('')}</div></section>`;
+}
 export function renderSetLocs(){
   if (!$('#setLocs')) return;   /* an Undo after Settings was closed: nothing here to draw */
   const siteRow = (x, i) => {
@@ -230,8 +238,13 @@ export function renderSetLocs(){
         ${LOCS.length ? LOCS.map(roomRow).join('') : '<p class="note lempty">No rooms yet.</p>'}</div>
       <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => `<option>${esc(x)}</option>`).join('')}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
-  </div>${adLocsHtml()}`;
+  </div>${stockRoomsHtml()}${adLocsHtml()}`;
   const root = $('#setLocs');
+  root.querySelectorAll('[data-stock]').forEach(sel => sel.onchange = () => {
+    const next = { ...(st.stockRooms || {}) };
+    if (sel.value) next[sel.dataset.stock] = sel.value; else delete next[sel.dataset.stock];
+    st.stockRooms = next; queueServerSave(); toast(sel.value ? `Store room of ${sel.dataset.stock}: ${sel.value}` : `${sel.dataset.stock} has no store room`);
+  });
   root.querySelectorAll('[data-si]').forEach(i => i.onchange = () => renameSite(SITES[+i.dataset.si], i.value));
   root.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => { SITES.splice(+b.dataset.sd, 1); toast('Site deleted'); renderSetLocs(); render(); });
   root.querySelectorAll('[data-lo]').forEach(i => i.onchange = () => { const old = LOCS[+i.dataset.lo]; renameLoc(old, siteOf(old) + ' / ' + i.value.trim()); });

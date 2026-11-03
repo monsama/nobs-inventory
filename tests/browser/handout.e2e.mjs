@@ -14,7 +14,7 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const dev = (id, name, extra = {}) => ({ id, code: 'INV-' + id, type: 'notebook', name, status: 'stock', loc: 'Bern / Lager', ovr: {}, feed: null, ...extra });
 const s0 = loadState(db);
-saveState(db, { ...s0, history: {}, sites: ['Bern'], locs: ['Bern / Lager', 'Bern / Büro'], locMap: { 'BE 2. OG': 'Bern / Büro' },
+saveState(db, { ...s0, history: {}, sites: ['Bern'], locs: ['Bern / Lager', 'Bern / Büro'], locMap: { 'BE 2. OG': 'Bern / Büro' }, stockRooms: { Bern: 'Bern / Lager' },
   users: [...s0.users, { id: 'u-anna', login: 'amuster', name: 'Anna Muster', dept: 'Sales', role: 'none', groups: [], source: 'manual', active: true, profile: { office: 'BE 2. OG', from: 'ldap' } }],
   objs: [dev('n1', 'NB-01'), dev('n2', 'NB-02'), dev('n3', 'NB-03'), dev('s1', 'SW-CORE', { type: 'switch', status: 'active' }),
     /* named only by its user's name, as a Lansweeper record can be: the person is made and saved, the device linked */
@@ -61,6 +61,7 @@ try {
 
   // taken back: asked where it goes (the store room), then in stock with nobody; Undo gives it back to her
   await p.click('#takeBackBtn'); await p.waitForSelector('#tbLoc');
+  assert.equal(await p.inputValue('#tbLoc'), 'Bern / Lager', 'the store room of its site is proposed');
   await p.selectOption('#tbLoc', 'Bern / Lager'); await p.click('#tbOk');
   await eventually(() => stored('n1').status === 'stock' && !stored('n1').uid && stored('n1').loc === 'Bern / Lager');
   // the next time, the same store room is proposed

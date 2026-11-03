@@ -814,12 +814,12 @@ ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l])
     toastUndo(moved === n ? `${n} moved to ${to}` : `${moved} moved to ${to}; ${n - moved} already there`, () => { restoreSnapshot(snap, 'Bulk move undone'); render(); }); renderTable(); render();
   };
   const bulkStatus = v => {
-    /* Take back: in stock, and nobody has it any more (a person who left gives their devices back). */
-    const back = v === '__back', to = back ? 'stock' : v;
+    /* Take back: the same dialog as on a device or a person (where they go, with the store room proposed). */
+    if (v === '__back'){ takeBackModal([...st.bulk].map(byId).filter(Boolean)); return; }
+    const to = v;
     const snap = snapshot([...st.bulk].map(byId));
-    st.bulk.forEach(id => { const o = byId(id); const had = o.user; o.status = to;
-      if (back && (o.uid || o.hotdesk)){ o.uid = null; delete o.hotdesk; hist(o, now(), `Taken back into stock from ${had} (bulk)`); } else hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
-    toastUndo(n + (back ? ' taken back into stock' : ' set to ' + STATUS[to].label), () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
+    st.bulk.forEach(id => { const o = byId(id); o.status = to; hist(o, now(), 'Status set to ' + STATUS[to].label + ' (bulk)'); });
+    toastUndo(n + ' set to ' + STATUS[to].label, () => { restoreSnapshot(snap, 'Bulk status undone'); render(); }); renderTable(); render(); };
   /* Internal or external responsible for every selected device; each device that changes gets a history line. */
   const bulkResp = v => {
     const [kind, id] = v.split(':'); if (!kind) return;
@@ -833,8 +833,8 @@ ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l])
   const bo = $('#bkOpen'); if (bo) bo.onclick = () => openObjs([...st.bulk]);
   /* One menu for what is done with the selected: open them, move them, set their status or responsible. */
   const ba = $('#bkAct'); if (ba) ba.onchange = () => {
-    const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1);
-    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout'){ ba.value = ''; handOutModal([...st.bulk]); } else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
+    const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1); ba.value = '';
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout') handOutModal([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
   };
   const idx = relIndex();   /* one index of the relations for all rows */
   let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));

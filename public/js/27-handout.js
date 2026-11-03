@@ -51,6 +51,10 @@ export function takeBackModal(list){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
   let last = ''; try { last = localStorage.getItem(STOCK_ROOM) || ''; } catch { /* no storage: nothing proposed */ }
+  /* All of one site with a store room set (Settings → Locations): that room; else the one used last in this browser. */
+  const sites = new Set(live.map(o => String(o.loc || '').split(' / ')[0]).filter(Boolean)), site = sites.size === 1 ? [...sites][0] : '';
+  const store = site && st.stockRooms && st.stockRooms[site];
+  if (store && LOCS.includes(store)) last = store;
   modal(`<div class="mh">Take back ${live.length === 1 ? esc(live[0].name) : `${live.length} devices`}</div><div class="mb">
     ${locField('tbLoc')}
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
