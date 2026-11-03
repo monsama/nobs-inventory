@@ -13,7 +13,7 @@ const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const pad = n => String(n).padStart(2, '0');
 const isoDay = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 /* A day (YYYY-MM-DD) as a moment, at the start of that day where the page is; and as people read it. */
-const dayTime = v => { const m = DAY.exec(v || ''); return m ? new Date(+m[1], m[2] - 1, +m[3]).getTime() : 0; };
+const dayTime = v => { const m = DAY.exec(v || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : 0; };
 const dayShown = v => { const m = DAY.exec(v || ''); return m ? `${m[3]}.${m[2]}.${m[1]}` : ''; };
 
 /* What one history line says of the device's life, or null: the field edits noted with their values first (restore.js

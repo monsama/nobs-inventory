@@ -1,4 +1,4 @@
-// Type check of the server and the shared modules it imports from public/js (no build: the JavaScript runs as it is).
+// Type check of the server and of every page module that does without the DOM (public/js) (no build: the JavaScript runs as it is).
 {
   "compilerOptions": {
     "allowJs": true, "checkJs": true, "noEmit": true,
@@ -6,5 +6,5 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node"], "strict": false, "skipLibCheck": true
   },
-  "include": ["server/**/*.js"]
+  "include": ["server/**/*.js", "public/js/addr.js", "public/js/bulk-edit.js", "public/js/contacts-import.js", "public/js/contacts.js", "public/js/costs.js", "public/js/csv.js", "public/js/dates.js", "public/js/delta.js", "public/js/device-import.js", "public/js/group-roles.js", "public/js/html.js", "public/js/intune.js", "public/js/lifecycle.js", "public/js/links.js", "public/js/maintenance.js", "public/js/net.js", "public/js/notices.js", "public/js/people-match.js", "public/js/reports.js", "public/js/restore.js", "public/js/saved-views.js", "public/js/schedule.js", "public/js/serials.js", "public/js/stocktake.js", "public/js/svg-rules.js", "public/js/sync-map.js", "public/js/timeline.js", "public/js/type-rules.js"]
 }
