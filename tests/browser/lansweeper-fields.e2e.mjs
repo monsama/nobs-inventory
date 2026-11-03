@@ -63,7 +63,7 @@ try {
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('o1').warranty === '2030-01-31');
 
   // Settings: a subnet the adapters report is offered, and Use fills in the form
-  await page.click('#setBtn'); await openSetTab(page, 'vlans'); await page.waitForSelector('.sn-suggest');
+  await page.click('#setBtn'); await openSetTab(page, 'subnets'); await page.waitForSelector('.sn-suggest');
   assert.match(await page.textContent('.sn-suggest'), /172\.21\.108\.0\/24.*3 devices.*Bern Lager/s);
   await page.click('[data-snuse="0"]');
   // Use opens the editor filled in: name, gateway, the device types seen there, and a range per kind of address seen

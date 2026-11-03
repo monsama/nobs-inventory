@@ -46,7 +46,7 @@ try {
   assert.equal(await p.locator('#setUsers [aria-label="Name of Administrator"]').count(), 1, 'a manual admin can be renamed too');
 
   // a domain's name; the object moves with it
-  await openSetTab(p, 'vlans'); await p.waitForSelector('[data-dname="0"]');
+  await openSetTab(p, 'domains'); await p.waitForSelector('[data-dname="0"]');
   await p.fill('[data-dname="0"]', 'ad.example.ch'); await p.keyboard.press('Tab');
   await until(p, async () => (await import('/js/01-core.js')).byId('p1').domain === 'ad.example.ch');
   // domains the devices are in that the list does not have are offered: Add takes one, Add all the rest
@@ -95,7 +95,7 @@ try {
       { cidr: '10.100.100.0/24', devices: 3, gateway: '192.168.1.1', dns: [], name: '' },
       { cidr: '10.10.30.0/25', devices: 2, gateway: '10.10.30.1', dns: [] },
     ];
-    c.st.setTab = 'vlans'; (await import('/js/04-settings.js')).openSettings();
+    c.st.setTab = 'subnets'; (await import('/js/04-settings.js')).openSettings();
   });
   await p.waitForSelector('#snUseAll');
   assert.match(await p.textContent('#snUseAll'), /Use all 3/);

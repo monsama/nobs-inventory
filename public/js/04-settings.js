@@ -6,7 +6,7 @@ import { renderSetTypes } from './settings-types.js';
 import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
 import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSetModels } from './settings-feed.js';
-import { renderSetLocs, renderSetVlans, renderSetSubnets, resetSubnetEdit } from './settings-network.js';
+import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, policyGrid, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
 import { $, LOCS, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
@@ -23,10 +23,10 @@ export * from './settings-types.js';
 /* ---------- settings ---------- */
 /* ---------- settings: tabs, as in NOBS SQL ---------- */
 /* What everyone sets up first comes first; the sources (each optional) after them. */
-export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
+export const SET_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['subnets','Subnets'],['domains','Domains'],['sources','Data sources'],['feed','Lansweeper'],['directory','Active Directory'],['entra','Entra & Intune'],['maintenance','Maintenance'],['backups','Backups'],['mail','E-mail'],['log','Log'],['about','About']];
 /* Six tabs: the sources (the field rules, Lansweeper, AD, Entra) under Data sources, and the log under Maintenance, each
    group with a row of its own; About is a link at the foot. */
-const SET_GROUPS = { sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'System'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
+const SET_GROUPS = { vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'Fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'System'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
 const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Object types'],['vlans','Network'],['sources','Data sources'],['maintenance','Maintenance']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
 export function openSettings(){
@@ -78,7 +78,7 @@ export function renderSetPane(){
     entra: '<div id="setGraph"></div>',
     sources: '<div id="setSources"></div>',
     locations: '<div id="setLocs"></div>',
-    vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div><div class="panelbox" id="setSubnets"></div><div class="panelbox" id="setDomains"></div>',
+    vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
     types: '<div class="panelbox"><div class="hdr">Object types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
     users: '<div id="setUsers"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>', backups: '<div id="setMaint"></div>', mail: '<div id="setMaint"></div>',
@@ -93,7 +93,7 @@ export function renderSetPane(){
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
   bindIntakeRows(document);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, sources: renderSetSources, locations: renderSetLocs, vlans: () => { renderSetVlans(); renderSetSubnets(); }, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 

@@ -51,7 +51,7 @@ try {
     if (small.length) problems.push(`${name}: controls too small to tap: ${small.slice(0, 5).join(', ')}`);
   }
   await p.click('#setBtn');
-  for (const tab of ['feed', 'directory', 'locations', 'vlans', 'types', 'users', 'maintenance', 'log', 'about']) {
+  for (const tab of ['feed', 'directory', 'locations', 'vlans', 'subnets', 'domains', 'types', 'users', 'maintenance', 'log', 'about']) {
     await openSetTab(p, tab).catch(() => {});
     await p.waitForTimeout(150);
     const extra = await sideways();
