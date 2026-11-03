@@ -1,25 +1,26 @@
 /* NOBS Inventory: the whole look of the page. Tokens (colours, radii) first, then the parts in the order of the page. */
 /* Layout: the NOBS editor frame - top bar, sidebar of filters, tab bar, toolbar, work area, status bar.
    Colours are the NOBS SQL Editor's own tokens, so both tools read as one family. */
-:root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
- --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
- --bg:#fff;--fg:#1b1d21;--panel:#f4f5f7;--panel2:#eaecef;--bd:#d6d9de;--bd2:#e7e9ec;--tile:#eef0f3;--oktext:#1d6b38;--badtext:#b42318;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%235c5c5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#8a4300;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
- --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
- --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
- --shadow:0 4px 16px rgba(0,0,0,.18)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
- --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
- --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
-:root[data-theme="dark"]{
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
- --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
- --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
+/* One set of colours: light-dark() picks the light or the dark value by color-scheme, which follows the system unless
+   the page sets data-theme (Settings: light or dark). The shadow and the chevron image are not colours and are set per scheme below. */
+:root{color-scheme:light dark;
+--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
+ --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;--bg:light-dark(#fff,#16181b);--fg:light-dark(#1b1d21,#e4e6ea);
+ --panel:light-dark(#f4f5f7,#1d2024);--panel2:light-dark(#eaecef,#272a2f);--bd:light-dark(#d6d9de,#34383e);--bd2:light-dark(#e7e9ec,#2a2d32);
+ --tile:light-dark(#eef0f3,#262a30);--oktext:light-dark(#1d6b38,#7ad59a);--badtext:light-dark(#b42318,#ff9b93);--hover:light-dark(#eaf2fb,#2c3744);
+ --accent:light-dark(#1565c0,#3b82f6);--accentbtn:light-dark(#1565c0,#1d4ed8);--accentfg:#fff;--muted:light-dark(#5c5c5c,#b4b4b4);
+ --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%235c5c5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+ --gridh:light-dark(#f6f6f7,#1d2024);--sub:light-dark(#eef3fa,#1e242c);--warntext:light-dark(#8a4300,#e0a35a);--linktext:light-dark(#1565c0,#6ea8fe);
+ --even:light-dark(#fafafa,#1a1c20);--btn:light-dark(#fafafa,#24272c);--in:light-dark(#fff,#1b1e22);--log:light-dark(#1e1e1e,#141414);--logfg:#d4d4d4;
+ --sb:light-dark(rgba(0,0,0,.28),rgba(255,255,255,.24));--port:light-dark(#dfe3e8,#3a3e44);--portbd:light-dark(#b8bec6,#555b63);--used:#2e7d46;
+ --upl:light-dark(#1565c0,#3b82f6);--poe:light-dark(#d9822b,#e0a828);--line:light-dark(#2a5a9e,#8fb8e8);--hi:#f5c518;--t-pc:light-dark(#1565c0,#6ea8fe);
+ --t-server:light-dark(#6a3fb5,#b49cf0);--t-sip:light-dark(#1a7a5e,#5dcaa5);--t-tablet:light-dark(#b5651d,#f0a868);
+ --t-monitor:light-dark(#4f5b66,#a9b4bf);--t-switch:light-dark(#a8442a,#f0997b);--t-printer:light-dark(#7a6a00,#d8c44a);
+ --t-patch:light-dark(#8a5a00,#d9a441);--shadow:0 4px 16px rgba(0,0,0,.18)}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}}
+:root[data-theme="dark"]{--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}
 
 *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
