@@ -1,6 +1,6 @@
 /* Edit fields…: one dialog that sets or clears fields of the picked devices (Cards or the Table), with a preview of what
    changes, saved as edits by hand with a history line per device and field, and one Undo. What changes is bulk-edit.js. */
-import { FIELD_LAYOUT, MODELS, TYPE_FIELDS, $, byId, feedOwns, fieldFixed, hist, now, restoreSnapshot, setByHand, snapshot, toastUndo } from './01-core.js';
+import { $$, FIELD_LAYOUT, MODELS, TYPE_FIELDS, $, byId, feedOwns, fieldFixed, hist, now, restoreSnapshot, setByHand, snapshot, toastUndo } from './01-core.js';
 import { who } from './04-settings.js';
 import { render } from './07-render.js';
 import { num } from './09-costs.js';
@@ -44,7 +44,7 @@ export function bulkEditModal(ids){
       <label class="pchk be-only"><input type="checkbox" class="be-empty"> Only where empty</label>
       <button type="button" class="icon ghost be-x" aria-label="Remove this field" title="Remove">×</button></div>`;
   };
-  const free = () => fields.find(f => ![...document.querySelectorAll('#beRows .be-f')].some(s => s.value === f.k));
+  const free = () => fields.find(f => ![...$$('#beRows .be-f')].some(s => s.value === f.k));
   modal(String(html`<div class="mh">Edit fields of ${devs(n)}</div><div class="mb be">
     <p class="note">Each field picked is set or cleared on every selected device that has it, as an edit by hand on its page: a line in its history, and one Undo for all. ${UNIQUE_WHY}</p>
     <div id="beRows"></div>

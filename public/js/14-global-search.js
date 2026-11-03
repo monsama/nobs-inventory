@@ -32,7 +32,7 @@ function results(q){
   const out = [];
   /* Devices first, those in use before retired ones; the code, name, addresses, serial, user and IDs are searched. */
   const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code)).filter(o => matchesQ(o, q))
-    .sort((a, b) => (a.status === 'retired') - (b.status === 'retired') || a.name.localeCompare(b.name));
+    .sort((a, b) => +(a.status === 'retired') - +(b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
     sub: [TYPES[o.type] ? TYPES[o.type].label : o.type, o.ip, (o.loc || '').replace(' / ', ' · '), o.status !== 'active' ? STATUS[o.status].label : ''].filter(Boolean).join(' · '),
@@ -109,7 +109,7 @@ const onList = () => LIST.includes(st.tab);
 /* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
 let redraw = 0;
 box.addEventListener('input', () => {
-  if (onList()){ st.q = box.value; clearTimeout(redraw); redraw = setTimeout(flush, 150); }
+  if (onList()){ st.q = box.value; clearTimeout(redraw); redraw = window.setTimeout(flush, 150); }
   show();
 });
 /* Escape or leaving the field draws the list at once (the filter chip and the browser history then say it). */
@@ -135,7 +135,7 @@ list.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i
 /* Leaving the field closes the list a moment later (a click on a hit comes first); coming back cancels that, so a
    search typed right after opening a hit is not closed by the one before. */
 let closing = 0;
-box.addEventListener('blur', () => { clearTimeout(closing); closing = setTimeout(() => { if (document.activeElement !== box) close(); }, 120); });
+box.addEventListener('blur', () => { clearTimeout(closing); closing = window.setTimeout(() => { if (document.activeElement !== box) close(); }, 120); });
 box.addEventListener('focus', () => clearTimeout(closing));
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k'){ e.preventDefault(); box.focus(); box.select(); }

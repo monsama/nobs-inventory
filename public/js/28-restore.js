@@ -50,9 +50,9 @@ export function bindHistory(o){
 /* A save that does not draw the page again: the timeline and the history take its new lines; a panel folded stays folded. */
 export function refreshHistory(o){
   for (const [id, html] of [['tlPanel', timelinePanel(o)], ['histPanel', historyPanel(o)]]){
-    const el = document.getElementById(id); if (!el) continue;
+    const el = /** @type {HTMLDetailsElement} */ (document.getElementById(id)); if (!el) continue;
     const open = el.open; el.outerHTML = html;
-    const now_ = document.getElementById(id); if (now_ && now_.hasAttribute('open') && !open && el.querySelector('li')) now_.open = false;
+    const now_ = /** @type {HTMLDetailsElement} */ (document.getElementById(id)); if (now_ && now_.hasAttribute('open') && !open && el.querySelector('li')) now_.open = false;
   }
   bindTimeline(o); bindHistory(o);
 }

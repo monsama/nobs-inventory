@@ -1,6 +1,6 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
-import { $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
+import { $$, $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
 import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
@@ -21,11 +21,11 @@ let planListDrag = null, listDragDone = false;   /* a device dragged from the li
 /* The rack pin under a point of the screen that a device can be mounted in, or null. */
 function rackPinAt(cx, cy, o){
   if (!o || !RACKABLE.includes(o.type)) return null;
-  const pin = document.elementsFromPoint(cx, cy).map(el => el.closest && el.closest('[data-pin]')).find(el => el && el.dataset.pin !== o.id);
+  const pin = document.elementsFromPoint(cx, cy).map(el => /** @type {HTMLElement} */ (el.closest && el.closest('[data-pin]'))).find(el => el && el.dataset.pin !== o.id);
   const r = pin ? byId(pin.dataset.pin) : null;
   return r && r.type === 'rack' ? r : null;
 }
-const markRack = r => document.querySelectorAll('[data-pin]').forEach(el => el.classList.toggle('pl-droprack', !!r && el.dataset.pin === r.id));
+const markRack = r => $$('[data-pin]').forEach(el => el.classList.toggle('pl-droprack', !!r && el.dataset.pin === r.id));
 /* Mount a device in a rack on the plan: the first free place from the top for its height is offered. */
 export function rackDropModal(o, rack){
   const h0 = TYPE_U[o.type] ?? 1, units = rackUnits(rack);
@@ -402,7 +402,7 @@ document.addEventListener('pointerup', e => {
     if (d.moved){
       listDragDone = true; setTimeout(() => { listDragDone = false; }, 0);
       d.ghost.remove(); document.body.classList.remove('pl-dragging');
-      document.querySelectorAll('.droptarget').forEach(el => el.classList.remove('droptarget'));
+      $$('.droptarget').forEach(el => el.classList.remove('droptarget'));
       const plan = planById(planSel), o = byId(d.id), spot = dropSpot(plan, e.clientX, e.clientY), rack = rackPinAt(e.clientX, e.clientY, o);
       markRack(null);
       if (o && rack) rackDropModal(o, rack);

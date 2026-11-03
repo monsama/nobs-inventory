@@ -93,7 +93,7 @@ export function takeBack(list, loc = ''){
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
 const SHOWN = 8;
 const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q))))
-  .sort((a, b) => (a.active === false) - (b.active === false) || a.name.localeCompare(b.name));
+  .sort((a, b) => +(a.active === false) - +(b.active === false) || a.name.localeCompare(b.name));
 
 /* Hand out the devices (ids) to a person picked here. */
 export function handOutModal(ids){

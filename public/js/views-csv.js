@@ -4,7 +4,7 @@ import { DELIMITER_NAME, DEVICE_FIELDS, guessDeviceMapping, planDeviceImport, re
 import { decodeText } from './contacts-import.js';
 import { parseDay } from './datefield.js';
 import { num } from './09-costs.js';
-import { HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
+import { $$, HISTORY, markHand, restoreSnapshot, snapshot, toastUndo, $, LOCS, O, STATUS, TYPES, hist, now, objs, toast } from './01-core.js';
 import { render } from './07-render.js';
 import { bindUser } from './04-settings.js';
 import { closeModal, modal } from './19-modal.js';
@@ -44,7 +44,7 @@ export function importCsvModal(){
     const rows = parseCsv(w.text);
     w.headers = (rows[0] || []).map(h => h.trim()); w.rows = rows.slice(1);
   };
-  const steps = () => document.querySelectorAll('[data-wstep]').forEach(li => {
+  const steps = () => $$('[data-wstep]').forEach(li => {
     const n = +li.dataset.wstep;
     li.className = n === w.step ? 'on' : n < w.step ? 'done' : '';
     if (n === w.step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
@@ -89,7 +89,7 @@ export function importCsvModal(){
       <div class="imp-map">${w.headers.map((h, i) => html`<label class="imp-col"><span class="imp-head" title="${h}">${h || `Column ${i + 1}`}</span>
         <select data-csvcol="${i}" aria-label="Field for the column ${h || `Column ${i + 1}`}">${opts(w.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '-'}</span></label>`)}</div>
       <p class="note" id="csvMapNote">${!has('name') ? html`<b>Pick the column with the name</b> to go on.` : !has('type') ? 'No column is the type: only rows that are devices here already can be imported.' : 'Each field comes from one column. The mapping is kept in this browser for the next file.'}</p>`;
-    document.querySelectorAll('[data-csvcol]').forEach(s => s.onchange = () => {
+    $$('[data-csvcol]').forEach(s => s.onchange = () => {
       const i = +s.dataset.csvcol, f = s.value;
       /* A field comes from one column: picking it for this one takes it from the other. */
       w.mapping = w.mapping.map((m, j) => j === i ? f : m === f ? '' : m);
@@ -114,7 +114,7 @@ export function importCsvModal(){
       <div class="imp-table csvprev" id="csvPrev"><table class="grid mini"><thead><tr><th>Line</th><th>Name</th><th>What</th><th>Details</th></tr></thead><tbody>
       ${w.plan.map(p => html`<tr class="imp-${p.action}" data-csvline="${p.line}"><td class="mono">${p.line}</td><td title="${p.v.name || ''}">${p.v.name || '-'}</td><td>${what(p)}</td><td>${detail(p)}</td></tr>`)}
       </tbody></table></div>`;
-    document.querySelectorAll('[data-csvdup]').forEach(s => s.onchange = () => { w.dup[s.dataset.csvdup] = s.value; step3(); });
+    $$('[data-csvdup]').forEach(s => s.onchange = () => { w.dup[s.dataset.csvdup] = s.value; step3(); });
     const all = $('#csvDupAll'); if (all) all.onchange = () => { if (!all.value) return; for (const p of dups) w.dup[p.line] = all.value === 'update' && p.fill.length ? 'update' : 'skip'; step3(); };
     $('#csvGo').textContent = fills && n('new') ? `Add ${n('new')} and update ${fills}` : fills ? `Update ${fills}` : `Import ${n('new')}`;
     $('#csvSum').textContent = [dups.length - fills ? `${dups.length - fills} skipped` : '', n('error') ? `${n('error')} with problems left out` : ''].filter(Boolean).join(' · ');

@@ -2,7 +2,7 @@
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
-import { $, LOCS, SITES, TYPES, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
+import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -39,7 +39,7 @@ export function renderStocktake(){
   $('#view').innerHTML = html`<div class="stk">${t ? activeHtml(t, edit) : startHtml(edit)}${historyHtml()}</div>`;
   if (t) wireActive(t, edit); else wireStart(edit);
   if (scanning && $('#stkScan')) $('#stkScan').focus();
-  document.querySelectorAll('[data-stkdel]').forEach(b => b.onclick = () => {
+  $$('[data-stkdel]').forEach(b => b.onclick = () => {
     const was = st.stocktakes;
     st.stocktakes = st.stocktakes.filter(x => x.id !== b.dataset.stkdel); queueServerSave(); renderStocktake();
     toastUndo('Stocktake removed from the list', () => { st.stocktakes = was; queueServerSave(); renderStocktake(); });
@@ -77,7 +77,7 @@ function activeHtml(t, edit){
   const done = list.filter(o => confirmedIn(o, t.id)).length, moved = objs.filter(o => confirmedIn(o, t.id) && o.verified.from !== undefined).length;
   const pct = list.length ? Math.round(done / list.length * 100) : 100;
   const shown = list.filter(o => FILTER === 'all' || (FILTER === 'open') !== confirmedIn(o, t.id));
-  const rooms = [...new Set(shown.map(o => o.loc || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+  const rooms = [...new Set(shown.map(o => o.loc || ''))].sort((a, b) => +(a === '') - +(b === '') || a.localeCompare(b));
   const row = o => { const ok = confirmedIn(o, t.id), d = daysSinceVerified(o);
     return html`<label class="stk-row${ok ? ' ok' : ''}"><input type="checkbox" data-stk="${o.id}" ${ok ? 'checked' : ''} ${edit ? '' : 'disabled'}>
       <span class="stk-name"><b>${o.name}</b> <span class="code">${o.code || ''}</span><small>${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.serial, userName(o)].filter(Boolean).join(' · ')}</small></span>
@@ -92,9 +92,9 @@ function activeHtml(t, edit){
     ${edit ? html`<div class="addrel stk-pad"><span class="grow"></span><button id="stkCancel" class="danger-text">Cancel the stocktake…</button></div>` : ''}</div>`;
 }
 function wireActive(t, edit){
-  document.querySelectorAll('[data-stkf]').forEach(b => b.onclick = () => { FILTER = b.dataset.stkf; renderStocktake(); });
+  $$('[data-stkf]').forEach(b => b.onclick = () => { FILTER = b.dataset.stkf; renderStocktake(); });
   if (!edit) return;
-  document.querySelectorAll('[data-stk]').forEach(c => c.onchange = () => {
+  $$('[data-stk]').forEach(c => c.onchange = () => {
     const o = objs.find(x => x.id === c.dataset.stk); if (!o) return;
     if (c.checked) confirm(o, t); else unconfirm(o);
     queueServerSave(); renderStocktake();
@@ -216,7 +216,7 @@ export function verifiedNote(o){
 }
 /* My devices: the calls the server allows the device's own user (server/app.js), then the inventory read again. */
 document.addEventListener('click', async e => {
-  const t = e.target.closest && e.target.closest('[data-mine], [data-myreport], [data-repdone]'); if (!t) return;
+  const t = evEl(e).closest && evEl(e).closest('[data-mine], [data-myreport], [data-repdone]'); if (!t) return;
   if (t.dataset.repdone){
     const o = objs.find(x => x.id === t.dataset.repdone); if (!o || !o.reported || o.reported.done) return;
     /* Kept, marked done, so the list of reported problems can show what was handled; Undo opens it again. */
@@ -244,14 +244,14 @@ document.addEventListener('click', async e => {
 });
 /* Missing in a finished stocktake: those devices in the Table (the ones still in the inventory), as one filter. */
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('[data-stkmiss]'); if (!b) return;
+  const b = evEl(e).closest && evEl(e).closest('[data-stkmiss]'); if (!b) return;
   const t = (st.stocktakes || []).find(x => x.id === b.dataset.stkmiss); if (!t || !t.result) return;
   resetFilters();
   st.ids = { label: `Missing in ${t.name}`, ids: t.result.missing.map(m => m.id) };
   st.scope = null; st.tab = 'table'; render();
 });
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('[data-verify]'); if (!b) return;
+  const b = evEl(e).closest && evEl(e).closest('[data-verify]'); if (!b) return;
   const o = objs.find(x => x.id === b.dataset.verify); if (!o) return;
   const was = o.verified;
   confirm(o, activeStocktake() && inScope(o, activeStocktake().scope) ? activeStocktake() : null);

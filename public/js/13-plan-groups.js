@@ -2,7 +2,7 @@
    one of them needs attention. Which pins are grouped follows the screen, not the data: zoom in and a group falls apart
    into its pins again. Clicking a group fans up to FAN_MAX pins out around it, each to be opened or dragged on as usual;
    a bigger group opens a list instead, from which a device is opened, or dragged to another place on the plan. */
-import { byId, filtered, scanOld, st, tico, TYPES, warrantyState } from './01-core.js';
+import { evEl, byId, filtered, scanOld, st, tico, TYPES, warrantyState } from './01-core.js';
 import { openObj } from './02-views.js';
 import { html, rawHtml } from './html.js';
 
@@ -81,7 +81,7 @@ function regroup(c, startDrag){
     m.setAttribute('aria-expanded', 'false');
     m.setAttribute('aria-label', `${devs.length} devices: ${names.join(', ')}`);
     m.title = names.slice(0, 12).join('\n') + (names.length > 12 ? `\nand ${names.length - 12} more` : '') + '\n\nClick to show them. Zoom in to see them apart.';
-    m.innerHTML = html`<b>${devs.length}</b>${kinds.slice(0, 3).map(t => rawHtml(tico(t, 'tico sm')))}${kinds.length > 3 ? html`<span class="muted">…</span>` : ''}${devs.some(needsAttention) ? html`<span class="pl-gdot" aria-hidden="true"></span>` : ''}`;
+    m.innerHTML = String(html`<b>${devs.length}</b>${kinds.slice(0, 3).map(t => rawHtml(tico(t, 'tico sm')))}${kinds.length > 3 ? html`<span class="muted">…</span>` : ''}${devs.some(needsAttention) ? html`<span class="pl-gdot" aria-hidden="true"></span>` : ''}`);
     m.onpointerdown = e => e.stopPropagation();
     m.onclick = e => { e.stopPropagation(); const was = open && open.marker === m; closeGroup(); if (!was) (members.length <= FAN_MAX ? fan(c, m, members) : list(c, m, members, devs, startDrag)); };
     c.appendChild(m);
@@ -149,21 +149,21 @@ function fan(c, m, members){
 
 /* A list of a big group's devices beside its marker: click one to open it, or drag it to another place on the plan. */
 function list(c, m, members, devs, startDrag){
-  const box = document.createElement('div');
+  const box = /** @type {import('./01-core.js').El} */ (document.createElement('div'));
   box.className = 'pl-glist';
   box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', `${devs.length} devices`);
   box.style.left = m.style.left; box.style.top = m.style.top;
   const sorted = [...devs].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  box.innerHTML = html`<div class="pl-ghead">${devs.length} devices here<span class="muted">Click to open, drag to move</span></div>
-    ${sorted.map(o => html`<button type="button" class="pl-grow${needsAttention(o) ? ' attn' : ''}" data-gopen="${o.id}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-gn">${o.name}</span><span class="muted mono">${o.code || ''}</span><span class="muted">${TYPES[o.type] ? TYPES[o.type].short : ''}</span></button>`)}`;
+  box.innerHTML = String(html`<div class="pl-ghead">${devs.length} devices here<span class="muted">Click to open, drag to move</span></div>
+    ${sorted.map(o => html`<button type="button" class="pl-grow${needsAttention(o) ? ' attn' : ''}" data-gopen="${o.id}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-gn">${o.name}</span><span class="muted mono">${o.code || ''}</span><span class="muted">${TYPES[o.type] ? TYPES[o.type].short : ''}</span></button>`)}`);
   let dragged = false;
   box.onpointerdown = e => {
     e.stopPropagation();
-    const b = e.target.closest('[data-gopen]'); if (!b || e.button !== 0) return;
+    const b = evEl(e).closest('[data-gopen]'); if (!b || e.button !== 0) return;
     dragged = false;
     startDrag(b.dataset.gopen, e, b.querySelector('.pl-gn').textContent, () => { dragged = true; closeGroup(); });
   };
-  box.onclick = e => { e.stopPropagation(); const b = e.target.closest('[data-gopen]'); if (!b || dragged) return; closeGroup(); openObj(b.dataset.gopen); };
+  box.onclick = e => { e.stopPropagation(); const b = evEl(e).closest('[data-gopen]'); if (!b || dragged) return; closeGroup(); openObj(b.dataset.gopen); };
   c.appendChild(box);
   /* Below the marker when there is room, else above it; never past the plan's sides. */
   const cr = c.getBoundingClientRect(), mr = m.getBoundingClientRect(), br = box.getBoundingClientRect();

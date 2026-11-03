@@ -6,7 +6,7 @@ import { sheetModal } from './08-sheets.js';
 import { SERVER, queueServerSave, render, flushSave, reloadFromServer } from './07-render.js';
 import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
-import { menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
+import { $$, menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
 import { html, rawHtml } from './html.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
@@ -45,16 +45,16 @@ function dupesHtml(devicesOfUser){
       <div class="udupe-acts"><span class="note">Keep the ticked one; the others are merged into it.</span><span class="grow"></span><button type="button" data-dnot="${gi}">Not the same</button><button type="button" class="primary" data-dmerge="${gi}">Merge</button></div></div>`; })}</details>`;
 }
 function wireDupes(){
-  const d = document.querySelector('.udupes'); if (d) d.ontoggle = () => { st.userDupesOpen = d.open; };
-  document.querySelectorAll('[data-dnot]').forEach(b => b.onclick = () => {
+  const d = $('.udupes'); if (d) d.ontoggle = () => { st.userDupesOpen = d.open; };
+  $$('[data-dnot]').forEach(b => b.onclick = () => {
     const g = DUPES[+b.dataset.dnot]; if (!g) return;
     const keys = new Set(st.peopleNotSame || []);
     for (let i = 0; i < g.people.length; i++) for (let j = i + 1; j < g.people.length; j++) keys.add(pairKey(g.people[i].id, g.people[j].id));
     st.peopleNotSame = [...keys]; queueServerSave(); renderSetUsers(); toast('Kept apart: not shown as duplicates again');
   });
-  document.querySelectorAll('[data-dmerge]').forEach(b => b.onclick = async () => {
+  $$('[data-dmerge]').forEach(b => b.onclick = async () => {
     const gi = +b.dataset.dmerge, g = DUPES[gi]; if (!g) return;
-    const keepId = (document.querySelector(`input[name="dk${gi}"]:checked`) || {}).value, keep = g.people.find(u => u.id === keepId); if (!keep) return;
+    const keepId = ($(`input[name="dk${gi}"]:checked`) || {}).value, keep = g.people.find(u => u.id === keepId); if (!keep) return;
     const drop = g.people.filter(u => u.id !== keepId);
     const logins = drop.filter(u => u.login && u.login !== keep.login);
     if (!confirm(`Merge ${drop.map(u => u.name).join(', ')} into ${keep.name}?\n\nTheir devices and entry sheets go to ${keep.name}; their names and logins stay as other names, so the syncs find the person again.${logins.length && keep.login ? `\n${logins.map(u => u.login).join(', ')} can no longer sign in: ${keep.name} signs in as ${keep.login}.` : ''}\nA backup is taken first.`)) return;
@@ -88,10 +88,10 @@ function seesModal(u){
     <div class="mf"><button id="seCancel">Cancel</button><button id="seOk" class="primary">Save</button></div>`, 'sm');
   $('#seCancel').onclick = closeModal;
   /* Ticking a site means "only these sites": that choice is made with it, so Save does what the boxes show. */
-  document.querySelectorAll('[data-site]').forEach(b => b.onchange = () => { if (b.checked) { const r = document.querySelector('input[name=sees][value=sites]'); if (r) r.checked = true; } });
+  $$('[data-site]').forEach(b => b.onchange = () => { if (b.checked) { const r = $('input[name=sees][value=sites]'); if (r) r.checked = true; } });
   $('#seOk').onclick = () => {
-    const how = (document.querySelector('input[name=sees]:checked') || {}).value;
-    const picked = [...document.querySelectorAll('[data-site]:checked')].map(c => c.dataset.site);
+    const how = ($('input[name=sees]:checked') || {}).value;
+    const picked = [...$$('[data-site]:checked')].map(c => c.dataset.site);
     if (how === 'sites' && !picked.length){ toast('Tick at least one site.'); return; }
     delete u.own; delete u.sites;
     if (how === 'own') u.own = true; else if (how === 'sites') u.sites = picked;
@@ -125,7 +125,7 @@ function groupRuleModal(i){
     const group = $('#grGroup').value.trim();
     if (!group){ toast('Name the group.'); $('#grGroup').focus(); return; }
     if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('This group is listed already.'); return; }
-    const next = { group, sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
+    const next = { group, sites: [...$$('[data-grsite]:checked')].map(c => c.dataset.grsite) };
     if (!next.sites.length) delete next.sites;
     st.groupRoles = i === null ? [...rules, next] : rules.map((x, j) => j === i ? next : x);
     queueServerSave(); closeModal(); renderSetAccess(); toast(`${group}: viewers${next.sites ? ` of ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
@@ -139,8 +139,8 @@ export function renderSetAccess(){
 }
 function wireGroupRoles(){
   const add = $('#grAdd'); if (add) add.onclick = () => groupRuleModal(null);
-  document.querySelectorAll('[data-gredit]').forEach(b => b.onclick = () => groupRuleModal(+b.dataset.gredit));
-  document.querySelectorAll('[data-grdel]').forEach(b => b.onclick = () => {
+  $$('[data-gredit]').forEach(b => b.onclick = () => groupRuleModal(+b.dataset.gredit));
+  $$('[data-grdel]').forEach(b => b.onclick = () => {
     const before = groupRules(), r = before[+b.dataset.grdel];
     st.groupRoles = before.filter((x, j) => j !== +b.dataset.grdel);
     queueServerSave(); renderSetAccess();
@@ -154,6 +154,7 @@ export function renderSetUsers(){
   const devicesOfUser = name => devCount.get(name) || 0;
   /* Where each person is known: in the directory (LDAP), in Entra, in both, or in neither. The filter shows one group. */
   const inLdap = u => u.source === 'ldap', inEntra = u => !!(u.entra && !u.entra.gone);
+  /** @type {Record<string, [string, (u: any) => boolean]>} */
   const DIRS = {both: ['LDAP and Entra', u => inLdap(u) && inEntra(u)], ldap: ['LDAP only', u => inLdap(u) && !inEntra(u)], entra: ['Entra only', u => !inLdap(u) && inEntra(u)], none: ['Neither', u => !inLdap(u) && !inEntra(u)]};
   const dirOn = USERS.some(inLdap) || USERS.some(u => u.entra);
   if (!dirOn || !DIRS[st.userDir]) st.userDir = '';
@@ -168,6 +169,7 @@ export function renderSetUsers(){
   /* Accounts (people who may sign in) and the people only known as device users (No access) are listed apart; a search
      or a role filter looks through everybody. */
   const noAccess = u => (u.role || 'viewer') === 'none';
+  /** @type {Record<string, [string, (u: any) => boolean]>} */
   const KINDS = {acc: ['Accounts', u => !noAccess(u)], ppl: ['People without access', noAccess], all: ['Everybody', () => true]};
   if (!KINDS[st.userKind]) st.userKind = USERS.some(noAccess) ? 'acc' : 'all';
   const kindOk = u => !!(String(st.userQ || '').trim() || st.userRole) || KINDS[st.userKind][1](u);

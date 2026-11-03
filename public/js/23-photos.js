@@ -6,7 +6,7 @@
    metadata behind: the camera, the time and the GPS
    position stay on this computer. The server checks the picture again and keeps it apart from the inventory
    (server/device-images.js). */
-import { $, byId, hist, now, st, toast } from './01-core.js';
+import { evEl, $, byId, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
 import { isAdmin, who } from './04-settings.js';
@@ -58,7 +58,7 @@ export function bindPhotos(o){
 /* A picture pasted on the device page (not into a field) is added to it. */
 document.addEventListener('paste', e => {
   const panel = $('#phPanel'), o = panel && openId && byId(openId);
-  if (!panel || !o || !isAdmin() || !$('#phAdd') || $('#mdl') || e.target.closest('input, textarea, [contenteditable]')) return;
+  if (!panel || !o || !isAdmin() || !$('#phAdd') || $('#mdl') || evEl(e).closest('input, textarea, [contenteditable]')) return;
   const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => /^image\//.test(f.type));
   if (files.length) { e.preventDefault(); add(o, files); }
 });
@@ -149,7 +149,7 @@ export async function prepare(file){
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch { throw new Error(`${file.name} cannot be read as a picture here. Save it as JPEG or PNG and add it again.`); }
-  const fit = max => { const k = Math.min(1, max / Math.max(bmp.width, bmp.height)); return [Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k))]; };
+  const fit = max => { const k = Math.min(1, max / Math.max(bmp.width, bmp.height)); return /** @type {[number, number]} */ ([Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k))]); };
   const draw = ([w, h], type, q) => new Promise((resolve, reject) => {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d');

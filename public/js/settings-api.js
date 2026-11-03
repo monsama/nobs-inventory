@@ -1,6 +1,6 @@
 /* Settings → Users → API access: read-only tokens for other tools (server/api-tokens.js). A new token is shown once,
    with how to use it. Admins only. */
-import { $, esc, toast } from './01-core.js';
+import { $$, $, esc, toast } from './01-core.js';
 import { isAdmin } from './04-settings.js';
 import { pushDate } from './settings-feed.js';
 
@@ -25,7 +25,7 @@ function wireTokens(){
     NEW_TOKEN = j.token; TOKENS = null; renderSetApi();
   };
   const cp = $('#tkCopy'); if (cp) cp.onclick = () => navigator.clipboard.writeText(NEW_TOKEN).then(() => toast('Token copied'), () => toast('Copy it by hand: the browser does not allow it.'));
-  document.querySelectorAll('[data-tkdel]').forEach(b => b.onclick = async () => {
+  $$('[data-tkdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Revoke this token? The tool using it can no longer read the inventory.')) return;
     const r = await fetch('api/tokens/' + encodeURIComponent(b.dataset.tkdel), { method: 'DELETE', credentials: 'same-origin' });
     if (r.ok){ TOKENS = (await r.json()).tokens; NEW_TOKEN = null; renderSetApi(); toast('Token revoked'); }

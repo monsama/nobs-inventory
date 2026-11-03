@@ -1,7 +1,7 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { html } from './html.js';
 import { unplace } from './03-object-modals.js';
@@ -171,7 +171,7 @@ function unmerge(list){
   }
 }
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('[data-unmerge]'); if (!b) return;
+  const b = evEl(e).closest && evEl(e).closest('[data-unmerge]'); if (!b) return;
   const o = REVIEW.find(x => x.id === b.dataset.unmerge); if (!o || !o.review || !o.review.merged) return;
   const t = byId(o.review.merged);
   withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To review`, () => unmerge([o]));
@@ -234,6 +234,7 @@ export function resolveModal(list){
   if (!list.length || !isAdmin()) return;
   const one = list.length === 1, o = list[0], t = dupOf(o);
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
+  /** @type {[string, (x: any) => any][]} */
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
     ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? html`<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
@@ -250,9 +251,9 @@ export function resolveModal(list){
   /* The button says what the choice does. */
   const okText = k => ({ dock: 'Add as attachment', desk: 'Keep as dock', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
   const ok = document.getElementById('dupOk');
-  const label = () => { ok.textContent = okText(document.querySelector('[name=dupWay]:checked').value); };
-  document.querySelectorAll('[name=dupWay]').forEach(r => r.onchange = label); label();
-  ok.onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
+  const label = () => { ok.textContent = okText($('[name=dupWay]:checked').value); };
+  $$('[name=dupWay]').forEach(r => r.onchange = label); label();
+  ok.onclick = () => { const k = $('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
@@ -263,7 +264,7 @@ export function reviewBanner(o){
     : html`<div class="rv-banner"><span>Waiting in To review: found by ${src}, not in any list, count or cost yet.</span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
 export function bindReviewBanner(o){
-  document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {
+  $$('[data-rvpage]').forEach(b => b.onclick = () => {
     const k = b.dataset.rvpage;
     /* The next one waiting, taken before this one leaves the list: opened once this one is done, so a record after
        record is worked through without going back to the list. */

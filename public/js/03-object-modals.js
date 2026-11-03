@@ -11,7 +11,7 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
@@ -56,6 +56,7 @@ function newPersonModal(o){
 /* What a device still holds when it is retired, each a tick box (ticked) in the dialog: the person who has it, the port
    it is plugged into, what is attached to it, its place on the floor plan, its contracts and its responsibles. A rack
    place is always given up. Only what applies is listed. */
+/** @returns {[string, import('./html.js').Html, () => void][]} */
 function retireTies(o){
   const plugs = rels.filter(r => r.from === o.id && r.kind === 'connected' && byId(r.to));
   const attached = rels.filter(r => r.to === o.id && r.kind === 'attached' && byId(r.from));
@@ -69,7 +70,7 @@ function retireTies(o){
     plan && ['plan', html`Take it off the floor plan ${plan.name}`, () => { delete o.planPos; }],
     cts.length && isAdmin() && ['contracts', html`Remove it from ${cts.map(c => c.name).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
     resp.length && ['resp', html`Remove ${resp.map(c => c.name).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
-  ].filter(Boolean);
+  ].filter(Boolean).map(t => /** @type {[string, import('./html.js').Html, () => void]} */ (t));
 }
 export function retireModal(o){
   const ties = retireTies(o);
@@ -595,7 +596,7 @@ export function renderObj(o){
       refreshHistory(o);
       $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();
       /* A new model is in the list now: its "added when saved" note goes. */
-      document.querySelectorAll('#view input[data-combo]:not([data-combo=ip])').forEach(comboNote);
+      $$('#view input[data-combo]:not([data-combo=ip])').forEach(comboNote);
     }
     return true;
   };

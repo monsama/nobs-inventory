@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
+import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
@@ -171,9 +171,9 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
     </div>${isNew ? '' : html`<p class="note">Responsible for ${devicesOf(cur).length} ${devicesOf(cur).length === 1 ? 'device' : 'devices'}.</p>`}<p class="note" id="cnErr" role="status"></p></div>
     <div class="mf">${isNew || !edit ? '' : html`<button id="cnDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="cnCancel">${edit ? 'Cancel' : 'Close'}</button>${edit ? html`<button id="cnOk" class="primary">Save</button>` : ''}</div>`, 'sm');
   /* Only an internal contact can be one of the users; picking one fills in the name the first time. */
-  const kindNow = () => (document.querySelector('[name=cnKindPick]:checked') || {}).value || 'internal';
-  const fit = () => document.querySelectorAll('.cn-in').forEach(el => { el.hidden = kindNow() !== 'internal'; });
-  fit(); document.querySelectorAll('[name=cnKindPick]').forEach(r => r.onchange = fit);
+  const kindNow = () => ($('[name=cnKindPick]:checked') || {}).value || 'internal';
+  const fit = () => $$('.cn-in').forEach(el => { el.hidden = kindNow() !== 'internal'; });
+  fit(); $$('[name=cnKindPick]').forEach(r => r.onchange = fit);
   $('#cn_user').onchange = e => { const u = USERS.find(x => x.id === e.target.value); if (u && !$('#cn_name').value.trim()) $('#cn_name').value = u.name; };
   $('#cnCancel').onclick = closeModal;
   if (!edit) return;
@@ -269,13 +269,13 @@ export function importModal(){
     $('#impOk').disabled = !picked.length;
     $('#impOk').textContent = picked.length ? `Import ${picked.length} ${picked.length === 1 ? 'contact' : 'contacts'}` : 'Import';
     $('#impSum').textContent = `${n('new') - plan.filter((p, i) => p.action === 'new' && skip.has(i)).length} new, ${n('update') - plan.filter((p, i) => p.action === 'update' && skip.has(i)).length} updated. A backup is taken first.`;
-    document.querySelectorAll('[data-impcol]').forEach(s => s.onchange = () => {
+    $$('[data-impcol]').forEach(s => s.onchange = () => {
       const i = +s.dataset.impcol, f = s.value;
       /* A field comes from one column: picking it for this one takes it from the other. */
       file.mapping = file.mapping.map((m, j) => j === i ? f : m === f ? '' : m);
       skip = new Set(); draw();
     });
-    document.querySelectorAll('[data-improw]').forEach(b => b.onchange = () => { const i = +b.dataset.improw; if (b.checked) skip.delete(i); else skip.add(i); draw(); });
+    $$('[data-improw]').forEach(b => b.onchange = () => { const i = +b.dataset.improw; if (b.checked) skip.delete(i); else skip.add(i); draw(); });
   };
   const load = async f => {
     if (!f) return;

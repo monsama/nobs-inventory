@@ -44,7 +44,7 @@ function startHtml(){
   ];
   const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
   if (steps.every(x => x[0])) return '';
-  const row = ([done, title, note, act, label], i) => html`<li class="start-step${done ? ' done' : ''}"><span class="start-n" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="start-t"><b>${title}</b><span class="muted">${note}</span></span>${done ? html`<span class="chip ok">Done</span>` : html`<button type="button" data-start="${act}">${label}</button>`}</li>`;
+  const row = (/** @type {any[]} */ [done, title, note, act, label], i) => html`<li class="start-step${done ? ' done' : ''}"><span class="start-n" aria-hidden="true">${done ? '✓' : i + 1}</span><span class="start-t"><b>${title}</b><span class="muted">${note}</span></span>${done ? html`<span class="chip ok">Done</span>` : html`<button type="button" data-start="${act}">${label}</button>`}</li>`;
   return html`<div class="panelbox start"><div class="hdr">Getting started <span class="cnt">${steps.filter(x => x[0]).length} of ${steps.length} done</span><button type="button" class="link" id="startHide" style="margin-left:auto">Hide</button></div>
     <ol class="start-list">${steps.map(row)}${row(optional, steps.length)}</ol></div>`;
 }
@@ -65,7 +65,7 @@ export function renderOverview(){
   const nOld = LS_ON() ? live.filter(o => scanOld(o)).length : 0;
   /* Operating systems, by family; those no longer updated also need attention. */
   const osRows = Object.entries(live.reduce((m, o) => { const f = osFamily(o); if (f) m[f] = (m[f] || 0) + 1; return m; }, {}))
-    .map(([f, n]) => ({ key: f, label: f, n })).sort((a, b) => b.n - a.n);
+    .map(([f, n]) => /** @type {{ key: string, label: string, n: number, hint?: string }} */ ({ key: f, label: f, n })).sort((a, b) => b.n - a.n);
   /* "Other" says what it holds: the names written most often, so a system the families miss can be spotted. */
   const other = osRows.find(r => r.key === 'Other');
   if (other){
@@ -83,11 +83,11 @@ export function renderOverview(){
   const pct = n => joinable.length ? Math.round(n / joinable.length * 100) + '%' : '';
   const joinNote = Object.fromEntries(joinKeys.map(k => [k, JOIN_INFO[k === 'adonly' ? 'AD joined' : GRAPH_FILTERS[k][0]] || 'Neither in Entra nor with a computer account in AD']));
   /* Intune, in three groups: how many are managed, their compliance, and what to clean up. */
-  const intuneGroups = SYNC.graph ? [
+  const intuneGroups = SYNC.graph ? /** @type {[string, string[]][]} */ ([
     ['Management', ['managed', 'unmanaged']],
     ['Compliance', ['compliant', 'grace', 'noncompliant', 'unencrypted', 'secureboot']],
     ['To clean up', ['stale', 'duplicates', 'missing', 'ambiguous']],
-  ].map(([title, keys]) => [title, keys.map(k => ({ key: k, label: GRAPH_FILTERS[k][0], n: live.filter(GRAPH_FILTERS[k][2]).length })).filter(r => r.n)]).filter(g => g[1].length) : [];
+  ]).map(([title, keys]) => [title, keys.map(k => ({ key: k, label: GRAPH_FILTERS[k][0], n: live.filter(GRAPH_FILTERS[k][2]).length })).filter(r => r.n)]).filter(g => g[1].length) : [];
   /* Data quality: how many devices are complete, and what the others lack. */
   const qRows = Object.entries(QUALITY).map(([k, [label, hint, test]]) => ({ key: k, label, hint, n: live.filter(test).length })).filter(r => r.n);
   const complete = live.filter(o => !Object.values(QUALITY).some(q => q[2](o))).length;
