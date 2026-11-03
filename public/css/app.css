@@ -199,7 +199,6 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-rider b{font-weight:600}
 .pl-pin.pl-droprack{outline:3px solid var(--accent);outline-offset:2px}
 
-
 .pl-pin:active{cursor:grabbing}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
@@ -313,9 +312,6 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .usrc-part{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .usrc-part.warn{color:var(--warntext)}
 
-
-
-
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--okdot);flex:none}
 .dot.off{background:transparent;box-shadow:inset 0 0 0 2px var(--muted)}
 .dot.warn{background:var(--warn)} .dot.bad{background:var(--danger)}
@@ -327,7 +323,6 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 #side>.hdr:first-child{height:38px}
 .item{display:flex;align-items:center;gap:8px;min-height:28px;padding:4px 10px 4px 12px;cursor:pointer;white-space:nowrap;border:none;background:none;width:100%;height:auto;justify-content:flex-start;border-radius:0;color:var(--fg);text-align:left}
 .item:hover{background:var(--hover);filter:none}
-
 
 .item .lbl{flex:1;overflow:hidden;text-overflow:ellipsis}
 .item .cnt{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
@@ -945,11 +940,11 @@ a.link:hover{text-decoration:underline}
 .ps{position:relative;padding-left:22px}
 .ps::before{content:"";position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--bd)}
 .ps:first-child::before{top:11px}
-.ps:last-child::before{bottom:auto;height:11px}
+
 .ps-hop{font-size:11px;color:var(--muted);font-family:var(--mono);padding:4px 0 2px}
 .ps-hop b{color:var(--fg);font-weight:600}
 .ps-row{display:flex;align-items:center;gap:8px;min-height:24px}
-.ps-dot{position:absolute;left:0;top:6px;width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--muted);box-sizing:border-box}
+.ps-dot{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--muted);box-sizing:border-box}
 .ps.me .ps-dot{background:var(--accent);border-color:var(--accent)}
 .ps-name{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0;font-family:var(--mono);font-size:12px;color:var(--fg);cursor:pointer}
 .ps-name:hover span{text-decoration:underline}
@@ -1179,7 +1174,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
 /* On a card the pencil sits in the top right corner, a little larger; the header keeps room for it. */
-.card{content-visibility:auto;contain-intrinsic-size:auto 150px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal;align-self:stretch;position:relative;border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
+.card{content-visibility:auto;contain-intrinsic-size:auto 150px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal;align-self:stretch;border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
 .card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
 /* Section headers: no grey bar; the panel's own background, a plain title and a thin line under it. Panels keep their
@@ -1217,7 +1212,6 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .port.sel{outline:2px solid var(--fg);outline-offset:1px;outline-color:var(--accent)}
 .sfp{gap:4px}
 .rack .unit{margin:1px 4px;border-radius:var(--r-s);border:1px solid var(--bd);border-left:5px solid var(--c,#888);padding:2px 8px;display:flex;flex-direction:column;justify-content:center;cursor:pointer;min-width:0;overflow:hidden;z-index:1;background:var(--panel2)}
-
 
 .settabs{display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--bd);overflow-x:auto;flex:none;background:transparent}
 /* Status chips side by side are one width, the widest one's, so a row of them reads as a set. */
@@ -1367,7 +1361,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .jbar.jbar4 .jb{padding-left:5px;padding-right:5px;gap:4px}
 /* "Seen … · source": as wide as what it says, the date and who saw it. */
 .chip.lsst.seen{width:auto}
-.card .cf .chip.lsst.seen{max-width:78%}
+
 /* The Sources panel on the device page: one tab per source in its header, the source's own note on the right. */
 .srctabs{gap:4px}
 .srctab-list{display:inline-flex;gap:2px}
@@ -1407,7 +1401,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-intro{padding:10px 12px 0;margin:0}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
-.ds-card.off{opacity:.65}
+
 .ds-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.ds-head b{flex:1}
 .ds-run{font-size:12px;margin-bottom:4px}.ds-run.err{color:var(--danger)}
 .ds-card ul{margin:4px 0 0;padding-left:16px;font-size:12px}
@@ -1420,8 +1414,8 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-order{margin:10px 12px 0;padding-left:22px;font-size:13px}.ds-order li{margin:2px 0}
 .ds-never{margin:10px 12px 12px;padding-left:18px;font-size:13px}
 .ds-scroll{overflow-x:auto;padding:8px 12px 0}
-.ds-matrix{width:100%;table-layout:fixed}.ds-matrix th:first-child{width:34%}.ds-matrix th[scope=row]{font-weight:500;text-align:left;white-space:nowrap}
-.ds-matrix td{text-align:center;font-size:12px;white-space:nowrap}
+.ds-matrix{width:100%}.ds-matrix th[scope=row]{font-weight:500;text-align:left}
+.ds-matrix td{font-size:12px}
 .ds-w{color:var(--ok);font-weight:700}.ds-f{color:var(--accent);font-weight:600}.ds-s{color:var(--muted)}.ds-o{color:var(--muted);opacity:.6}.ds-n{color:var(--muted);opacity:.4}
 .ds-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 12px 12px;font-size:12px}.ds-legend span{color:var(--muted)}.ds-legend b{margin-right:4px}
 .ds-legend .ds-w b{color:var(--ok)}.ds-legend .ds-f b{color:var(--accent)}
@@ -1446,19 +1440,19 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .dir-all{width:auto}
 @media (max-width:760px){.dir-row{grid-template-columns:auto minmax(0,1fr)}.dir-how{grid-column:2;text-align:left}}
 /* Settings → Data sources: the field sources, editable */
-.ds-matrix th:last-child{width:22%}
+
 table.grid.ds-edit{min-width:680px}.ds-edit th:first-child{width:24%}.ds-edit td{padding:3px 4px}
 .ds-sel{width:100%;min-width:0;font-size:12px;padding:3px 22px 3px 6px;height:auto;font-weight:inherit;color:inherit;background-color:var(--bg)}
-.ds-dim{opacity:.6}
+
 .ds-ord{font-size:12px;color:var(--muted)}
-.ds-matrix tr.ds-set th[scope=row]::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
+.ds-matrix tr.ds-set th[scope=row]::after{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
 .ds-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 12px 12px;font-size:12px}
 /* Merged records: name and address, the details below, Open and Unmerge as small buttons on the right. */
 .nics.merged li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 12px}
 .nics.merged .nic-addr{margin-left:0}
 .nics.merged .nic-meta{grid-column:1 / 3}
 .nics.merged .nic-acts{grid-column:3;grid-row:1 / 3;display:flex;gap:6px}
-.nics.merged .nic-name{white-space:normal;overflow-wrap:anywhere}.nics.merged .chip{margin-left:6px;vertical-align:baseline}
+.nics.merged .nic-name{white-space:normal}.nics.merged .chip{margin-left:6px;vertical-align:baseline}
 button.mini{height:24px;padding:0 8px;font-size:12px}
 /* Settings → Log: what a settings change changed, folded under its line. */
 .lg-detail{margin-top:4px}.lg-detail summary{cursor:pointer;color:var(--linktext);font-size:12px;width:max-content}
@@ -1522,7 +1516,7 @@ table.grid.ds-matrix td{white-space:normal;overflow:visible;text-overflow:clip;m
 a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weight:600}.lg-ms svg{width:18px;height:18px}
 .gs-uri{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2);font-size:12px;overflow-wrap:anywhere}.gs-uri .mono{flex:1;min-width:0}
 /* Stocktake: progress, the scan field, the devices by room to tick; the summary on finishing. */
-.stk{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1100px}
+.stk{display:flex;flex-direction:column;gap:12px;padding:12px}
 .stk-pad{padding-left:12px;padding-right:12px}
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
@@ -1587,7 +1581,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px 12px}
 .ph-grid .lempty{grid-column:1 / -1;margin:0}
 button.ph-thumb{padding:0;height:auto;aspect-ratio:1;border:1px solid var(--bd);border-radius:var(--r-s);overflow:hidden;background:var(--panel2);cursor:zoom-in}
-.ph-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-thumb img{width:100%;height:100%;display:block}
 .ph-thumb:hover{border-color:var(--accent)}
 .ph-thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ph-panel.ph-drop{outline:2px dashed var(--accent);outline-offset:-4px;background:color-mix(in srgb,var(--accent) 6%,var(--bg))}
@@ -1607,7 +1601,7 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .fbar .fb-person .grow{flex:1}
 /* To review: Accept, Merge and Ignore on the card itself. */
 .card .rv-acts{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 6px}
-.card .rv-act{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
+.card .rv-act{display:inline-flex;align-items:center;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
 .card .rv-act:hover,.card .rv-act:focus-visible{border-color:var(--accent);outline:none}
 .card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 50%,var(--bd))}
 .card .rv-act.no{color:var(--muted)}
@@ -1673,7 +1667,7 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 @media (max-width:640px){.mine{padding:10px}.mine-row{grid-template-columns:1fr}.mine-acts button{flex:1}}
 
 /* A small form in a dialog: labels left, fields right; one column on a phone. */
-.form2{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 12px;align-items:center;margin:8px 0}
+.form2{display:grid;gap:8px 12px;align-items:center;margin:8px 0}
 .form2 textarea,.form2>input{width:100%}
 @media (max-width:640px){.form2{grid-template-columns:1fr}}
 /* Maintenance on a device: what and how often, when last done, when due, Done…. */
@@ -1751,7 +1745,7 @@ details.how[open]>summary{margin-bottom:4px}
 .vswitch{display:inline-flex;border:1px solid var(--bd);border-radius:var(--r-m);overflow:hidden;flex:none}
 .vswitch>button{border:0;border-radius:0;background:var(--btn);min-height:30px;padding:4px 12px}
 .vswitch>button+button{border-left:1px solid var(--bd)}
-.vswitch>button.on{background:var(--accent);color:#fff}
+
 .vswitch>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
 @media (pointer:coarse){.vswitch>button{min-height:40px}}
 .nmore{margin-top:10px}
@@ -1809,3 +1803,11 @@ details.how[open]>summary{margin-bottom:4px}
 .jb.nc{--c:var(--muted)}
 .dot.gone{background:var(--muted)}
 .chip.gone{color:var(--muted);background:var(--panel2);border-color:var(--bd)}
+/* Someone who only reads sees a device's fields as text, not as greyed-out boxes. */
+.readonly .obj .form.props :is(input, select, textarea):disabled{background:transparent;border-color:transparent;box-shadow:none;padding-left:0;appearance:none;-webkit-appearance:none;resize:none}
+.readonly .obj .form.props .fsrc-slot,.readonly .obj .form.props .fm-slot{display:none}
+.readonly .obj .relist input.rport:disabled{background:transparent;border-color:transparent;padding-left:0}
+/* Data quality: the bar says how good it is, as every state does: green from 90 %, amber from 60 %, red below. */
+.ov-qbar.ok>span{background:var(--okdot)}.ov-qbar.warn>span{background:var(--warn)}.ov-qbar.bad>span{background:var(--danger)}
+.colhelp{min-height:0;height:auto;padding:0 3px;margin-left:2px;font-size:12px;font-weight:600}
+table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table.colours td:first-child{white-space:nowrap}

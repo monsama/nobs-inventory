@@ -36,7 +36,7 @@ function startHtml(){
   const steps = [
     [SITES.length > 0, 'Sites and rooms', 'Where devices are: a site per building or town, rooms in it.', 'locations', 'Add sites'],
     [USERS.length > 1 || !!(st.ldap && st.ldap.url), 'People', 'Who may sign in (admin or viewer), and the people devices are handed to. Or connect Active Directory.', 'users', 'Add people'],
-    [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'users', 'Set the name'],
+    [!!COMPANY.name, 'Company name and logo', 'Shown on entry sheets, hand-back lists and reports.', 'company', 'Set the name'],
     [objs.length > 0, 'The first devices', 'Add them by hand or import a CSV, or let a source bring them.', 'new', 'New device'],
   ];
   const optional = [LS_ON() && (!!SYNC.run || objs.some(o => o.feed)) || !!(st.ldap && st.ldap.url) || !!SYNC.graph, 'Connect a source (optional)', 'Lansweeper, Active Directory or Entra & Intune fill in and keep devices up to date.', 'sources', 'Data sources'];
@@ -151,7 +151,7 @@ export function renderOverview(){
         ${mtDue.length > 8 ? `<div class="chain"><button type="button" class="link" data-ovmt="all">Show all ${mtDue.length} in the Table</button></div>` : ''}</div>` : ''}
       ${planHtml(live)}
       <div class="panelbox"><div class="hdr">Data quality <span class="cnt">${compact(complete)} of ${compact(live.length)} complete</span></div>
-        <div class="ov-q"><div class="ov-qbar" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
+        <div class="ov-q"><div class="ov-qbar ${qPct >= 90 ? 'ok' : qPct >= 60 ? 'warn' : 'bad'}" role="img" aria-label="${qPct}% of the devices are complete"><span style="width:${qPct}%"></span></div><b>${qPct}%</b></div>
         ${qRows.length ? `<div class="ov-att">${qRows.map(r => `<button class="ov-row" data-ovq="${r.key}"><span class="chip warn">${compact(r.n)}</span><span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></span></button>`).join('')}</div>`
           : `<div class="chain"><span class="muted">${live.length ? 'Every device has its location, serial number and people, and its sources agree.' : 'No devices yet.'}</span></div>`}</div>
     </div>

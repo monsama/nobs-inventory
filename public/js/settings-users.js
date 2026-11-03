@@ -111,7 +111,7 @@ function groupRolesHtml(){
     <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a group…</button></div></div>`;
 }
 function groupRuleModal(i){
-  const rules = groupRules(), r = i === null ? { group: '', role: 'viewer', sites: [] } : rules[i];
+  const rules = groupRules(), r = i === null ? { group: '', sites: [] } : rules[i];
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
   modal(`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
       <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${esc(r.group)}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
@@ -124,11 +124,17 @@ function groupRuleModal(i){
     const group = $('#grGroup').value.trim();
     if (!group){ toast('Name the group.'); $('#grGroup').focus(); return; }
     if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('This group is listed already.'); return; }
-    const next = { group, role: 'viewer', sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
+    const next = { group, sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
     if (!next.sites.length) delete next.sites;
     st.groupRoles = i === null ? [...rules, next] : rules.map((x, j) => j === i ? next : x);
-    queueServerSave(); closeModal(); renderSetUsers(); toast(`${group}: viewers${next.sites ? ` of ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
+    queueServerSave(); closeModal(); renderSetAccess(); toast(`${group}: viewers${next.sites ? ` of ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
   };
+}
+/* Settings → Users → Access: who may look by their groups. The API tokens follow it (settings-api.js). */
+export function renderSetAccess(){
+  const el = $('#setAccess'); if (!el) return;
+  el.innerHTML = groupRolesHtml();
+  wireGroupRoles();
 }
 function wireGroupRoles(){
   const add = $('#grAdd'); if (add) add.onclick = () => groupRuleModal(null);
@@ -136,8 +142,8 @@ function wireGroupRoles(){
   document.querySelectorAll('[data-grdel]').forEach(b => b.onclick = () => {
     const before = groupRules(), r = before[+b.dataset.grdel];
     st.groupRoles = before.filter((x, j) => j !== +b.dataset.grdel);
-    queueServerSave(); renderSetUsers();
-    toastUndo(`Rule for ${r.group} removed`, () => { st.groupRoles = before; queueServerSave(); renderSetUsers(); });
+    queueServerSave(); renderSetAccess();
+    toastUndo(`${r.group} removed`, () => { st.groupRoles = before; queueServerSave(); renderSetAccess(); });
   });
 }
 export function renderSetUsers(){
@@ -195,7 +201,7 @@ export function renderSetUsers(){
     ${rows ? '' : '<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>'}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>${groupRolesHtml()}`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
   const root = $('#setUsers');
   /* The ⋯ menu of a row opens over the table (the table scrolls sideways, so a menu inside it would be cut off). */
   root.querySelectorAll('.umenu').forEach(d => d.ontoggle = () => {
@@ -204,7 +210,6 @@ export function renderSetUsers(){
     const r = d.querySelector('summary').getBoundingClientRect(), box = d.querySelector('.menubox');
     box.style.position = 'fixed'; box.style.top = `${r.bottom + 4}px`; box.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
   });
-  wireGroupRoles();
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
   /* The search redraws as one types; the field keeps the focus and the caret. */
   const uq = $('#uQ'); if (uq) uq.oninput = () => { st.userQ = uq.value; const at = uq.selectionStart; renderSetUsers(); const n = $('#uQ'); if (n){ n.focus(); n.setSelectionRange(at, at); } };
