@@ -6,6 +6,9 @@
 :root{color-scheme:light dark;
 /* The one space between the window edge and what lines up along it (top bar, tab bar, toolbar, views, status bar). */
 --gutter:12px;
+/* The width of a scrollbar in the views and dialogs (07-render.js measures it), so bars above and below end where the
+   content beside the scrollbar ends. */
+--sbw:0px;--edge:calc(var(--gutter) + var(--sbw));
 --danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;--bg:light-dark(#fff,#16181b);--fg:light-dark(#1b1d21,#e4e6ea);
  --panel:light-dark(#f4f5f7,#1d2024);--panel2:light-dark(#eaecef,#272a2f);--bd:light-dark(#d6d9de,#34383e);--bd2:light-dark(#e7e9ec,#2a2d32);
@@ -281,7 +284,7 @@ svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .code{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.3px}
 
 /* top bar */
-#bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(var(--gutter), env(safe-area-inset-right, 0px)) 6px max(var(--gutter), env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
+#bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px max(var(--edge), env(safe-area-inset-right, 0px)) 6px max(var(--gutter), env(safe-area-inset-left, 0px));background:var(--panel);border-bottom:1px solid var(--bd)}
 #brand{display:flex;align-items:center;gap:7px;font-weight:700;letter-spacing:.3px;margin-right:6px}
 #toolbar:empty{display:none}   /* a view with its own bar leaves no empty band above it */
 #brand .logo{width:24px;height:24px;flex:none;display:block}
@@ -348,12 +351,12 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 /* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
 @media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
 .sync-what .link{align-self:flex-start;font-size:12px;height:auto;padding:0}
-#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 var(--gutter) 0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
+#tabsbar{display:flex;gap:4px;background:var(--panel2);padding:0 var(--edge) 0 6px;overflow-x:auto;overflow-y:hidden;height:38px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
 /* The active tab: its own background and a short, soft line under the text, not a full-width blue bar. */
 
 .tab .x{color:var(--muted);font-size:14px;line-height:1;padding:0 2px;border-radius:2px}
 .tab .x:hover{color:var(--fg);background:var(--hover)}
-#objbar{display:flex;gap:4px;background:var(--panel);padding:0 6px;overflow-x:auto;overflow-y:hidden;height:34px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
+#objbar{display:flex;gap:4px;background:var(--panel);padding:0 var(--edge) 0 6px;overflow-x:auto;overflow-y:hidden;height:34px;align-items:center;border-bottom:1px solid var(--bd);flex:none}
 #objbar[hidden]{display:none}
 #objbar>*{flex:none}
 #objbar .tab.objtab{height:24px}
@@ -368,11 +371,11 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .port.single{opacity:.5;cursor:not-allowed}
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
-.toolbar{padding:4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
+.toolbar{padding:4px var(--edge) 4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
 .tbsep{width:1px;align-self:stretch;background:var(--bd);margin:2px 2px}
 /* Views and dialog bodies keep room for their scrollbar: content that starts to scroll moves nothing sideways. */
 .view{flex:1;overflow:auto;min-height:0;position:relative;scrollbar-gutter:stable}
-.statusbar{display:flex;gap:14px;padding:3px max(var(--gutter), env(safe-area-inset-right, 0px)) 3px max(var(--gutter), env(safe-area-inset-left, 0px));font-size:12px;border-top:1px solid var(--bd2);background:var(--panel);flex:none;white-space:nowrap;overflow:hidden}
+.statusbar{display:flex;gap:14px;padding:3px max(var(--edge), env(safe-area-inset-right, 0px)) 3px max(var(--gutter), env(safe-area-inset-left, 0px));font-size:12px;border-top:1px solid var(--bd2);background:var(--panel);flex:none;white-space:nowrap;overflow:hidden}
 .statusbar span{display:inline-flex;align-items:center;gap:5px}
 /* "? Shortcuts" at the right end of the status bar: small, like the rest of the bar. */
 .statusbar .sb-keys{margin-left:auto;height:auto;min-height:0;padding:0 2px;border:0;background:none;color:var(--muted);font-size:12px;cursor:pointer}
@@ -1039,7 +1042,7 @@ dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 /* Settings opens large: nearly the whole window (up to 1600px wide), with a small margin around it. */
 .modal .box.settings{width:min(1600px,calc(100vw - 32px));max-width:100%;height:calc(100vh - 32px);max-height:100%}
 .modal .box.settings>.mb{flex:1}
-.modal .mh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd);font-weight:600;font-size:14px}
+.modal .mh{display:flex;align-items:center;gap:10px;padding:10px calc(14px + var(--sbw)) 10px 14px;border-bottom:1px solid var(--bd);font-weight:600;font-size:14px}
 /* Minimize, maximize and close in the top right corner of a dialog. */
 .wctl{display:inline-flex;gap:2px;align-items:center;margin-left:auto;flex:none}
 .box>.wctl{position:absolute;top:8px;right:10px}
@@ -1056,7 +1059,7 @@ dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 #mdlTray .tray-x{padding:6px 8px;color:var(--muted)}
 #mdlTray .tray-x:hover{color:#fff;background:var(--danger-bg);border-radius:0 var(--r-m) var(--r-m) 0}
 .modal .mb{padding:14px;overflow:auto;scrollbar-gutter:stable;display:flex;flex-direction:column;gap:12px;background:var(--bg);min-height:0}
-.modal .mf{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px 14px;border-top:1px solid var(--bd)}
+.modal .mf{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px calc(14px + var(--sbw)) 10px 14px;border-top:1px solid var(--bd)}
 .src{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px;display:flex;gap:10px;cursor:pointer;background:var(--bg);align-items:flex-start}
 .src:has(input:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--hover)}
 .src input{height:auto;margin-top:2px}
@@ -1199,7 +1202,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .obj-saved{font-size:12px;color:var(--muted);white-space:nowrap}.obj-saved.dirty{color:var(--warntext)}
 /* The save state and its Save button stay together, also when the bar wraps on a phone. */
 .obj-save{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--bd2);background:var(--bg)}
+.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px var(--edge) 6px 12px;border-bottom:1px solid var(--bd2);background:var(--bg)}
 .fbar[hidden]{display:none}
 .fbar .fb-l{font-size:12px;color:var(--muted);margin-right:2px}
 .fchip{display:inline-flex;align-items:center;gap:6px;height:24px;min-height:0;padding:0 4px 0 9px;border-radius:12px;font-size:12px;border:1px solid var(--bd);background:var(--sub);color:var(--fg);cursor:pointer;white-space:nowrap;max-width:280px}

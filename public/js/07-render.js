@@ -23,6 +23,7 @@ export * from './signin.js';
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
 const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
+let lastSbw = -1;
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
@@ -51,6 +52,9 @@ export function render({ save = true } = {}){
   bindFullTextOnHover();
   $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'device' : 'devices'}`;
   renderStatus();
+  /* The scrollbar's width (the view keeps room for it): the bars above and below end where the view's content ends. */
+  const vw = $('#view'), sbw = vw ? vw.offsetWidth - vw.clientWidth : 0;
+  if (sbw !== lastSbw){ lastSbw = sbw; document.documentElement.style.setProperty('--sbw', sbw + 'px'); }
   renderBell(save);
   applyRole();
   noteNav();

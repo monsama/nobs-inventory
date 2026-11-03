@@ -41,6 +41,12 @@ try {
   await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === 4);
   assert.match(await p.textContent('#toolbar'), /4 selected/);
   assert.equal(await p.locator('#cards .card.picked').count(), 4);
+  // while cards are picked, a plain click picks another one (and takes it back), it does not open it
+  await cards.nth(5).click();
+  await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === 5);
+  assert.equal(await core(async () => (await import('/js/01-core.js')).st.tab), 'cards', 'a plain click while picking does not open the card');
+  await cards.nth(5).click();
+  await until(p, async () => (await import('/js/01-core.js')).st.bulk.size === 4);
   // Open them all as tabs
   await p.click('#cdOpen');
   await until(p, async () => (await import('/js/01-core.js')).st.open.length === 4);

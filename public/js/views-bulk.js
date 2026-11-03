@@ -85,12 +85,14 @@ export function openObjs(ids){
 /* A redraw that leaves the list where it was scrolled to. */
 export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 0; draw(); const w = $('#view'); if (w) w.scrollTop = y; };
 /* Picking cards (also of To review): Ctrl (⌘) + click or the tick in a card's corner picks one or takes it back;
-   Shift + click picks every card from the last one picked to this one. A plain click still opens the card. */
+   Shift + click picks every card from the last one picked to this one. While cards are picked, a plain click on a card
+   picks it (or takes it back) too; with none picked, it opens the card. */
 let lastPick = null;
 document.addEventListener('click', e => {
   const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card || e.target.closest('[data-rvc]')) return;
   const tick = e.target.closest('.cardtick');
-  if (!tick && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
+  const picking = !!$('#view .card.picked');
+  if (!tick && !picking && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
   e.preventDefault(); e.stopImmediatePropagation();
   const id = card.dataset.open, set = (st.bulk ??= new Set());
   if (e.shiftKey && lastPick && lastPick !== id){
