@@ -55,12 +55,22 @@ try {
   assert.equal(await how('Operating system'), 'Lansweeper keeps it up to date at every scan; Entra & Intune keeps it up to date where Lansweeper has no value; AD keeps it up to date where Lansweeper and Entra & Intune have no value.');
   assert.equal(await chain('Description'), '1AD', 'only AD knows it');
   assert.deepEqual(await p.locator('.ds-grp').allTextContents(), ['Network', 'Hardware', 'System', 'Place and description', 'Purchase and warranty']);
-  assert.match(await p.textContent('.ds-cards'), /Lansweeper[\s\S]*New devices go straight into the inventory/);
+  assert.match(await p.textContent('.ds-srcs'), /Lansweeper\s*Not set up[\s\S]*Active Directory\s*Not set up[\s\S]*Entra & Intune\s*Not set up/);
   assert.match(await p.textContent('#setSources'), /LAPS passwords and BitLocker recovery keys are never read/);
   const stored = (check, ms = 8000) => storedBy(() => loadState(db), check, ms);
-  // what the last sync changed, and the runs before it, each opening its devices
-  assert.match(await p.textContent('.ds-cards'), /Changed IP address on 1\s*Show the device[\s\S]*Earlier runs \(1\)/);
-  await p.click('.ds-earlier summary'); await p.click('.ds-earlier [data-dsrun="0"]');
+  // each source's page: the status header, its connection, and only its own fields
+  await p.click('[data-dstab=directory]'); await p.waitForSelector('#srcFields .ds-matrix');
+  assert.match(await p.textContent('[data-srcstatus=ad]'), /Active Directory\s*Not set up[\s\S]*Set up below, then sync/);
+  assert.equal(await p.locator('[data-srcstatus=ad] .dot.off').count(), 1, 'a source not set up has the grey ring');
+  assert.equal(await p.locator('#srcFields .ds-matrix tbody tr:not(.ds-grp)').count(), Object.keys(AD_FILL).length);
+  assert.equal(await p.isDisabled('[data-srchist=ad]'), true, 'no history yet');
+  await openSetTab(p, 'feed'); await p.waitForSelector('#srcFields .ds-matrix');
+  assert.equal(await p.inputValue('#intake_lansweeper'), 'direct');
+  assert.equal(await p.locator('#srcFields .ds-matrix tbody tr:not(.ds-grp)').count(), new Set([...LS_FIELDS, ...Object.keys(LS_FILL), 'loc']).size);
+  // what the syncs changed, run by run (the History of changes in the header), each opening its devices
+  await p.click('[data-srchist=ls]'); await p.waitForSelector('.src-hist');
+  assert.match(await p.textContent('.src-hist'), /Changed IP address on 1\s*Show the device[\s\S]*Changed Model on 2\s*Show the 2 devices/);
+  await p.click('[data-histrun="1"]');
   await p.waitForSelector('#fbar');
   assert.match(await p.textContent('#fbar'), /Changed by Lansweeper on/);
   assert.equal(await p.locator('table.grid tbody tr').count(), 2);

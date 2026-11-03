@@ -1434,6 +1434,22 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 
 /* Settings → Data sources: a card per source, the field matrix, and what each brings beyond the fields. */
 .ds-intro{padding:10px 12px 0;margin:0}
+/* The status header on top of each source's page: the dot in the app's colours, its state, the switch; the last sync; the buttons. */
+.src-status{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
+#setPane>div:not(.panelbox)>div.src-status:not(.panelbox){gap:6px}
+.src-st-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.src-st-top .dot{width:10px;height:10px}
+.src-st-state{font-size:12px;color:var(--muted)}
+.src-st-run{font-size:12.5px;overflow-wrap:anywhere}.src-err{color:var(--badtext)}
+.src-st-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.src-st-act .note{min-width:0;overflow-wrap:anywhere}
+.src-switch{font-weight:600}
+.src-offnote{padding:4px 2px 12px}
+.src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
+.ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
+.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
+.ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
+.ds-beyond-src{margin:6px 12px 12px}
+@media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
 
