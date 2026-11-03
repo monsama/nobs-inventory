@@ -8,28 +8,30 @@ import { queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
 import { dateBad, dateFieldHtml, dateValue } from './datefield.js';
+import { html, rawHtml } from './html.js';
 
 const newId = () => 'm' + Math.random().toString(36).slice(2, 9);
 /* The due date as a chip: overdue, due soon or later. */
 export function dueChip(m, today = todayDay()){
   const n = daysTo(m.due, today), s = dueState(m, today);
   const when = n < 0 ? `overdue since ${dateText(m.due)}` : n === 0 ? 'due today' : `due ${dateText(m.due)}`;
-  return `<span class="chip ${s === 'late' ? 'bad' : s === 'soon' ? 'warn' : 'ok'}">${esc(when)}</span>`;
+  return String(html`<span class="chip ${s === 'late' ? 'bad' : s === 'soon' ? 'warn' : 'ok'}">${when}</span>`);
 }
 
 export function maintPanel(o){
   const list = o.maint || [], edit = isAdmin(), today = todayDay();
+  const editIcon = rawHtml('<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>');
   const row = m => {
     const last = (m.log || [])[0];
-    return `<div class="relrow mt-row"><span class="t"><b>${esc(m.what)}</b><span class="muted"> · ${esc(everyText(m))}</span>
-        ${last ? `<small class="muted mt-last">Last done ${esc(dateText(last.at))}${last.by ? ` by ${esc(last.by)}` : ''}${last.note ? `: ${esc(last.note)}` : ''}</small>` : ''}</span>
-      ${dueChip(m, today)}
-      ${edit ? `<button type="button" data-mtdone="${esc(m.id)}">Done…</button><button class="icon ghost" data-mtedit="${esc(m.id)}" title="Change the task" aria-label="Change ${esc(m.what)}"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg></button>` : ''}</div>`;
+    return html`<div class="relrow mt-row"><span class="t"><b>${m.what}</b><span class="muted"> · ${everyText(m)}</span>
+        ${last && html`<small class="muted mt-last">Last done ${dateText(last.at)}${last.by && html` by ${last.by}`}${last.note && html`: ${last.note}`}</small>`}</span>
+      ${rawHtml(dueChip(m, today))}
+      ${edit && html`<button type="button" data-mtdone="${m.id}">Done…</button><button class="icon ghost" data-mtedit="${m.id}" title="Change the task" aria-label="Change ${m.what}">${editIcon}</button>`}</div>`;
   };
   const sorted = [...list].sort((a, b) => a.due.localeCompare(b.due));
-  return `<div class="panelbox" id="mtPanel"><div class="hdr">Maintenance <span class="cnt">${list.length || 'none'}</span></div>
-    <div class="relist">${sorted.map(row).join('') || '<p class="note lempty">No recurring maintenance: a battery to test, firmware to update, a filter to change.</p>'}</div>
-    ${edit && list.length < MAINT_MAX ? '<div class="addrel"><button type="button" id="mtAdd">Add maintenance…</button></div>' : ''}</div>`;
+  return String(html`<div class="panelbox" id="mtPanel"><div class="hdr">Maintenance <span class="cnt">${list.length || 'none'}</span></div>
+    <div class="relist">${sorted.length ? sorted.map(row) : html`<p class="note lempty">No recurring maintenance: a battery to test, firmware to update, a filter to change.</p>`}</div>
+    ${edit && list.length < MAINT_MAX && html`<div class="addrel"><button type="button" id="mtAdd">Add maintenance…</button></div>`}</div>`);
 }
 
 /* Done: on which day (today unless said), and a note; the next due date moves on from that day. */

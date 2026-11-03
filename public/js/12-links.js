@@ -1,6 +1,7 @@
 /* The Links panel of a device page: its web interface, shares and other addresses, each opened in a new tab or copied.
    An admin adds, edits and removes them; the rules are in links.js. */
-import { $, esc, hist, now, toast } from './01-core.js';
+import { $, hist, now, toast } from './01-core.js';
+import { html, rawHtml } from './html.js';
 import { LINK_MAX, isShare, linkHref, linkKind, linkProblem } from './links.js';
 import { isAdmin, who } from './04-settings.js';
 import { queueServerSave, render } from './07-render.js';
@@ -13,21 +14,24 @@ const suggestions = o => !o.ip ? [] : [`https://${o.ip}`, `http://${o.ip}`].filt
 
 export function deviceLinksPanel(o){
   const list = o.urls || [], edit = isAdmin();
-  const rows = list.map((l, i) => editing && editing.id === o.id && editing.i === i && edit ? `<div class="relrow lnkrow lnk-edit">
-      <input id="lnkEdLabel" value="${esc(l.label || '')}" placeholder="Label" maxlength="60" aria-label="Label of the link" style="width:170px">
-      <input id="lnkEdUrl" value="${esc(l.url)}" maxlength="500" aria-label="Address of the link" style="flex:1;min-width:160px">
-      <button id="lnkEdSave" class="primary">Save</button><button id="lnkEdCancel">Cancel</button></div>` : `<div class="relrow lnkrow"><span class="k"><span class="chip kept">${esc(linkKind(l.url))}</span></span>
-      <span class="t"><a class="lnk${l.label ? '' : ' lnk-addr'}" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="Open ${esc(l.url)} in a new tab">${esc(l.label || l.url)}</a>${l.label ? `<span class="muted mono lnk-url">${esc(l.url)}</span>` : ''}</span>
-      <button class="icon ghost" data-lnkcopy="${i}" title="Copy the address" aria-label="Copy ${esc(l.url)}"><svg class="i" viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg></button>
-      ${edit ? `<button class="icon ghost" data-lnkedit="${i}" title="Edit the link" aria-label="Edit ${esc(l.label || l.url)}"><svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg></button>` : ''}
-      ${edit ? `<button class="icon ghost" data-lnkdel="${i}" title="Remove the link" aria-label="Remove ${esc(l.label || l.url)}">×</button>` : ''}</div>`).join('');
+  const copyIcon = rawHtml('<svg class="i" viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg>');
+  const editIcon = rawHtml('<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>');
+  const rows = list.map((l, i) => editing && editing.id === o.id && editing.i === i && edit ? html`<div class="relrow lnkrow lnk-edit">
+      <input id="lnkEdLabel" value="${l.label || ''}" placeholder="Label" maxlength="60" aria-label="Label of the link" style="width:170px">
+      <input id="lnkEdUrl" value="${l.url}" maxlength="500" aria-label="Address of the link" style="flex:1;min-width:160px">
+      <button id="lnkEdSave" class="primary">Save</button><button id="lnkEdCancel">Cancel</button></div>` : html`<div class="relrow lnkrow"><span class="k"><span class="chip kept">${linkKind(l.url)}</span></span>
+      <span class="t"><a class="lnk${l.label ? '' : ' lnk-addr'}" href="${linkHref(l.url)}" target="_blank" rel="noopener noreferrer" title="Open ${l.url} in a new tab">${l.label || l.url}</a>${l.label && html`<span class="muted mono lnk-url">${l.url}</span>`}</span>
+      <button class="icon ghost" data-lnkcopy="${i}" title="Copy the address" aria-label="Copy ${l.url}">${copyIcon}</button>
+      ${edit && html`<button class="icon ghost" data-lnkedit="${i}" title="Edit the link" aria-label="Edit ${l.label || l.url}">${editIcon}</button>`}
+      ${edit && html`<button class="icon ghost" data-lnkdel="${i}" title="Remove the link" aria-label="Remove ${l.label || l.url}">×</button>`}</div>`);
   const quick = edit ? suggestions(o) : [];
-  return `<div class="panelbox"><div class="hdr">Links <span class="cnt">${list.length || 'none'}</span></div>
-    <div class="relist">${rows || '<p class="note lempty">No links yet: the web interface, a share, a remote console or documentation.</p>'}</div>
-    ${edit && list.length < LINK_MAX ? `<div class="addrel lnk-add">${quick.length ? `<span class="muted">Web interface</span>${quick.map(u => `<button class="lnk-quick" data-lnkquick="${esc(u)}" title="Add ${esc(u)} as Web interface"><span aria-hidden="true">+</span>${esc(u)}</button>`).join('')}<span class="lnk-break"></span>` : ''}
+  /* Text, as the other panels of the page are: the page joins and edits them as strings. */
+  return String(html`<div class="panelbox"><div class="hdr">Links <span class="cnt">${list.length || 'none'}</span></div>
+    <div class="relist">${rows.length ? rows : html`<p class="note lempty">No links yet: the web interface, a share, a remote console or documentation.</p>`}</div>
+    ${edit && list.length < LINK_MAX && html`<div class="addrel lnk-add">${quick.length > 0 && html`<span class="muted">Web interface</span>${quick.map(u => html`<button class="lnk-quick" data-lnkquick="${u}" title="Add ${u} as Web interface"><span aria-hidden="true">+</span>${u}</button>`)}<span class="lnk-break"></span>`}
       <input id="lnkLabel" placeholder="Label, e.g. Web interface" maxlength="60" aria-label="Label of the new link" style="width:170px">
       <input id="lnkUrl" placeholder="https://…, ssh://…, \\\\server\\share" maxlength="500" aria-label="Address of the new link" style="flex:1;min-width:160px">
-      <button id="lnkAdd">Add</button></div>` : ''}</div>`;
+      <button id="lnkAdd">Add</button></div>`}</div>`);
 }
 
 export function bindDeviceLinks(o){
