@@ -95,7 +95,7 @@ try {
   await p.waitForSelector('#mapSvg .mnode[data-id=s1]');
   assert.equal(await p.locator('#mapSvg .mnode[data-id=p2]').count(), 1, 'the PC linked to it is drawn too');
   assert.equal(await p.evaluate(async () => { const c = await import('/js/01-core.js'); return [c.st.type, c.st.q].join('|'); }), '|172.21.103.2');
-  assert.equal(await p.inputValue('#listQ'), '172.21.103.2', 'the list filter keeps the text');
+  assert.equal(await p.inputValue('#search'), '172.21.103.2', 'the list filter keeps the text');
 
   assert.deepEqual(errors, []);
   console.log('view zoom and hidden search hits: all checks passed');

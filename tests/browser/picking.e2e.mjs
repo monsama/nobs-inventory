@@ -82,12 +82,12 @@ try {
   assert.ok((await p.locator('table.grid thead th').allTextContents()).some(t => /Found by/.test(t)), 'To review has a Found by column');
   assert.match(await p.textContent('table.grid tbody tr:first-child'), /Lansweeper/);
   assert.equal(await p.locator('#rvAcceptAll').count(), 1, 'Accept all in the Table too');
-  await p.fill('#listQ', 'NEW-PC-4'); await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 1);
+  await p.fill('#search', 'NEW-PC-4'); await p.press('#search', 'Escape'); await until(p, () => document.querySelectorAll('table.grid tbody tr').length === 1);
   await p.locator('table.grid tbody tr input[data-sel]').check();
   await p.waitForSelector('#rvIgnore');
   await p.click('#rvIgnore');
   await until(p, async () => (await import('/js/01-core.js')).REVIEW.filter(o => o.review.ignored).length === 1);
-  await p.fill('#listQ', '');
+  await p.fill('#search', '');
   // the overview counts the waiting ones and leads to them
   await p.click('#tabsbar [data-tab=overview]');
   await p.waitForSelector('[data-ovrv]');

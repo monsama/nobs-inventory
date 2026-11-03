@@ -63,7 +63,7 @@ try {
 
   // typing in a list's filter is one step
   await tab('cards');
-  await p.fill('#listQ', 'P'); await p.fill('#listQ', 'PR'); await p.fill('#listQ', 'PRN');
+  await p.fill('#search', 'P'); await p.press('#search', 'Escape'); await p.fill('#search', 'PR'); await p.press('#search', 'Escape'); await p.fill('#search', 'PRN'); await p.press('#search', 'Escape');
   await until(p, async () => (await import('/js/01-core.js')).st.q === 'PRN');
   await tab('table');
   await p.goBack(); await until(p, async () => (await import('/js/01-core.js')).st.tab === 'cards');

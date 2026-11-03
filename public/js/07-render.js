@@ -15,6 +15,7 @@ import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
 import { renderPlans } from './20-plans.js';
 import { forgetPhotos } from './23-photos.js';
+import { syncSearchBox } from './14-global-search.js';
 /* ---------- render, saving and signing in ---------- */
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
@@ -42,7 +43,7 @@ export function render({ save = true } = {}){
   else if (st.tab === 'stocktake') renderStocktake();
   else if (st.tab === 'mine') renderMine();
   else renderObj(byId(st.tab));
-  viewSwitch();
+  viewSwitch(); syncSearchBox();
   renderFilterBar();
   fullTextTooltips();
   bindFullTextOnHover();
@@ -502,7 +503,7 @@ document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the list's own filter where the view has one (Cards, Table, Relationships, Contracts …), else to the search. */
-  if (e.key === '/'){ e.preventDefault(); const f = $('#listQ') || $('#plQ') || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
+  if (e.key === '/'){ e.preventDefault(); const f = ['cards', 'table', 'map'].includes(st.tab) ? $('#search') : $('#plQ') || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
   if (key === 'n' && canEdit()){ e.preventDefault(); newObjModal(); return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
   if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }

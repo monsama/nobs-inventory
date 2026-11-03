@@ -8,7 +8,7 @@ import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
 import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
-import { TBL, bindListFilter, cmpCells, listFilterHtml, saveTBL } from './06-topbar.js';
+import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { linkObjModal, newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
@@ -525,12 +525,12 @@ export const SHOW_FIRST = 500;
 export function renderCardsBody(){
   let list = filtered();
   const pool = scopePool();
-  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
     <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
     ${st.cardsGroup !== 'none' ? '<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>' : ''}
     ${joinCardsAvailable() ? `<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
     <div class="grow"></div>${pickBar(list)}`;
-  bindListFilter(); bindScopeActs(list);
+  bindScopeActs(list);
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
@@ -751,14 +751,14 @@ export function renderTable(){
   const colOpen = !!($('#colMenu') && $('#colMenu').open);
   st.bulk = pickedInPool();
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>
 <optgroup label="Move to location">${myLocs().map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && canEdit() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
-  bindListFilter(); bindScopeActs(list);
+  bindScopeActs(list);
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();
     setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);
@@ -1180,7 +1180,7 @@ export function renderMap(){
   }
   const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
   const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
-  $('#toolbar').innerHTML = `${listFilterHtml()}<span class="muted" id="mapCount"></span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
     <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
     <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All objects</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
@@ -1242,7 +1242,6 @@ export function renderMap(){
   }, {passive: false});
   bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
-  bindListFilter();
   $('#mapFind').addEventListener('input', e => {
     st.mapFind = e.target.value;
     const t = st.mapFind.trim().toLowerCase();
