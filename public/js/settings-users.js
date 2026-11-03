@@ -27,17 +27,18 @@ export function sourceChips(u){
 const ROLE_TIPS = { admin: 'Admin: can change everything', viewer: 'Viewer: can sign in and look, changes nothing', none: 'No access: cannot sign in; the inventory only names their devices' };
 /* People a directory or Lansweeper brought in who are viewers: the ones Remove access for imported viewers takes it from. */
 const foundViewers = () => USERS.filter(u => u.role === 'viewer' && ['ldap', 'entra', 'lansweeper'].includes(u.source) && u.id !== (me() || {}).id);
-/* Possible duplicates: the same person found twice (public/js/people-match.js). Each group says why, keeps the record
+/* Maybe the same person (public/js/people-match.js). A login or UPN shared with a record a sync made is merged at each
+   sync by itself; left here are the same name, or a login shared with a person made by hand. Each group says why, keeps the record
    the sources trust most (picked here, changeable), and merges on the server: devices, entry sheets and the sign-in go
    with it, the other names stay as aliases. Not the same hides the pair for good. Admins only. */
-const WHY = { login: 'Same login, e-mail or UPN', name: 'Same name' };
+const WHY = { login: 'Same login, e-mail or UPN (one of them made by hand)', name: 'Same name' };
 let DUPES = [];
 function dupesHtml(devicesOfUser){
   if (!isAdmin()) return '';
   DUPES = duplicateGroups(USERS, st.peopleNotSame || []).map(g => ({ ...g, people: g.ids.map(id => USERS.find(u => u.id === id)).filter(Boolean) })).filter(g => g.people.length > 1);
   if (!DUPES.length) return '';
   const who = u => [u.login, u.profile && u.profile.mail, u.entra && u.entra.upn].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
-  return `<details class="udupes" ${st.userDupesOpen === false ? '' : 'open'}><summary><b>Possible duplicates</b> <span class="chip warn">${DUPES.length}</span> <span class="muted">the same person found by more than one source</span></summary>
+  return `<details class="udupes" ${st.userDupesOpen === false ? '' : 'open'}><summary><b>Maybe the same person</b> <span class="chip warn">${DUPES.length}</span> <span class="muted">a shared login is merged at each sync; these only look alike</span></summary>
     ${DUPES.map((g, gi) => { const keep = keepOf(g.people); return `<div class="udupe" data-dupe="${gi}"><div class="udupe-why">${esc(WHY[g.why])}</div>
       ${g.people.map(u => `<label class="udupe-p"><input type="radio" name="dk${gi}" value="${esc(u.id)}" ${u.id === keep.id ? 'checked' : ''} ${u.source === 'ldap' || g.people.every(x => x.source !== 'ldap') ? '' : 'disabled'}> <span class="usrcs">${sourceChips(u)}</span> <b>${esc(u.name)}</b> <span class="muted">${esc(who(u))}${u.dept ? ' · ' + esc(u.dept) : ''} · ${devicesOfUser(u.name)} device${devicesOfUser(u.name) === 1 ? '' : 's'}${u.active === false ? ' · deactivated' : ''}</span></label>`).join('')}
       <div class="udupe-acts"><span class="note">Keep the ticked one; the others are merged into it.</span><span class="grow"></span><button type="button" data-dnot="${gi}">Not the same</button><button type="button" class="primary" data-dmerge="${gi}">Merge</button></div></div>`; }).join('')}</details>`;
@@ -96,38 +97,37 @@ function seesModal(u){
     queueServerSave(); closeModal(); renderSetUsers(); toast(`${u.name}: ${seesText(u).replace('Sees: ', 'sees ')}`);
   };
 }
-/* Roles from groups (public/js/group-roles.js): a group of AD (its name or DN) or of Entra (its object ID) gives a role
+/* Viewers from groups (public/js/group-roles.js): a group of AD (its name or DN) or of Entra (its object ID) gives a role
    and sites, at each directory sync and sign-in. */
 const groupRules = () => Array.isArray(st.groupRoles) ? st.groupRoles : [];
 function groupRolesHtml(){
   if (!isAdmin()) return '';
   const rules = groupRules(), by = g => USERS.filter(u => u.roleBy === g).length;
-  return `<div class="panelbox" id="groupRoles"><div class="hdr">Roles from groups <span class="cnt">${rules.length || 'none'}</span></div>
-    <p class="note">A person in one of these groups gets its role and sites at each directory sync and sign-in; the first rule that matches counts. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group, not from here. When no rule matches any more, a role a rule gave goes back to No access.</p>
-    ${rules.length ? `<table class="grid mini stack"><thead><tr><th>Group</th><th>Role</th><th>Sites</th><th>Given now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => `<tr>
-      <td class="mono">${esc(r.group)}</td><td>Viewer</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : '<span class="muted">All</span>'}</td><td class="n">${by(r.group)}</td>
-      <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the rule for ${esc(r.group)}">Remove</button></div></td></tr>`).join('')}</tbody></table>` : ''}
-    <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a rule…</button></div></div>`;
+  return `<div class="panelbox" id="groupRoles"><div class="hdr">Viewers from groups <span class="cnt">${rules.length || 'none'}</span></div>
+    <p class="note">A person in one of these groups may sign in and look (as a viewer), limited to the sites of the first group that matches; checked at each directory sync and sign-in. AD groups by name or distinguished name; Entra groups by their object ID, which Microsoft sign-in sends when the app registration includes the groups claim. Admins come from the directory's admin group. Out of every group again: No access.</p>
+    ${rules.length ? `<table class="grid mini stack"><thead><tr><th>Group</th><th>Sites</th><th>Viewers now</th><th><span class="sr-only">Change or remove</span></th></tr></thead><tbody>${rules.map((r, i) => `<tr>
+      <td class="mono">${esc(r.group)}</td><td>${(r.sites || []).length ? esc(r.sites.join(', ')) : '<span class="muted">All</span>'}</td><td class="n">${by(r.group)}</td>
+      <td data-label=""><div class="gr-acts"><button type="button" class="mini" data-gredit="${i}">Change…</button><button type="button" class="mini" data-grdel="${i}" aria-label="Remove the group ${esc(r.group)}">Remove</button></div></td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="addrel"><span class="grow"></span><button type="button" id="grAdd">Add a group…</button></div></div>`;
 }
 function groupRuleModal(i){
   const rules = groupRules(), r = i === null ? { group: '', role: 'viewer', sites: [] } : rules[i];
   const sites = SITES.map(x => typeof x === 'string' ? x : x && x.name).filter(Boolean);
-  modal(`<div class="mh">${i === null ? 'Add a rule' : 'Change the rule'}</div><div class="mb"><div class="form">
+  modal(`<div class="mh">${i === null ? 'Add a group' : 'Change the group'}</div><div class="mb"><div class="form">
       <label for="grGroup">Group</label><input id="grGroup" class="mono" maxlength="300" value="${esc(r.group)}" placeholder="IT-Bern, CN=IT-Bern,OU=… or an Entra group ID" list="grKnown">
       <datalist id="grKnown">${[...new Set(USERS.flatMap(u => u.groups || []))].sort().map(g => `<option value="${esc(g)}">`).join('')}</datalist>
-      <span class="lbl">Role</span><span>Viewer: signs in and looks</span>
       <span class="lbl">Sites</span><div class="usees-sites">${sites.length ? sites.map(n => `<label class="pchk" style="width:auto"><input type="checkbox" data-grsite="${esc(n)}" ${(r.sites || []).includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('') : '<span class="muted">No sites yet: the rule gives all sites.</span>'}</div>
-    </div><p class="note" id="grSitesNote">No site ticked: all sites. A rule takes effect at the next directory sync or sign-in of each person.</p></div>
+    </div><p class="note" id="grSitesNote">No site ticked: all sites. It takes effect at the next directory sync or sign-in of each person.</p></div>
     <div class="mf"><button id="grCancel">Cancel</button><button id="grOk" class="primary">Save</button></div>`, 'sm');
   $('#grCancel').onclick = closeModal;
   $('#grOk').onclick = () => {
     const group = $('#grGroup').value.trim();
     if (!group){ toast('Name the group.'); $('#grGroup').focus(); return; }
-    if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('There is a rule for this group already.'); return; }
+    if (rules.some((x, j) => j !== i && x.group.toLowerCase() === group.toLowerCase())){ toast('This group is listed already.'); return; }
     const next = { group, role: 'viewer', sites: [...document.querySelectorAll('[data-grsite]:checked')].map(c => c.dataset.grsite) };
     if (!next.sites.length) delete next.sites;
     st.groupRoles = i === null ? [...rules, next] : rules.map((x, j) => j === i ? next : x);
-    queueServerSave(); closeModal(); renderSetUsers(); toast(`${group}: ${next.role}${next.sites ? ` in ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
+    queueServerSave(); closeModal(); renderSetUsers(); toast(`${group}: viewers${next.sites ? ` of ${next.sites.join(', ')}` : ''}, from the next sync or sign-in`);
   };
 }
 function wireGroupRoles(){

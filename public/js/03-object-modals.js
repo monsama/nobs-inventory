@@ -7,7 +7,7 @@ import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } f
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { bindMaint, maintPanel } from './26-maintenance.js';
-import { handOutModal, takeBack } from './27-handout.js';
+import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { LOCS, sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
@@ -50,7 +50,7 @@ export function renderRack(){
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
+    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is a device of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
     const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
@@ -60,11 +60,11 @@ export function renderRack(){
   $('#toolbar').innerHTML = `<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => `<option value="${esc(r.id)}" ${r.id===R_.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
     ${isAdmin() ? '<button id="rkNew">New rack</button>' : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
     <span class="muted hide-n">${esc(R_.loc)} · ${slotted.reduce((n,o) => n + (o.h||1), 0)} of ${rackUnits(R_)} U used</span><div class="grow"></div>
-    <button id="rkMount">Mount device…</button>`;
+    ${isAdmin() ? '<button id="rkMount">Mount device…</button>' : ''}`;
   $('#rkSel').onchange = e => { st.rackId = e.target.value; render(); };
   const rn = $('#rkNew'); if (rn) rn.onclick = rackNewModal;
   $('#rkOpen').onclick = () => openObj(R_.id);
-  $('#rkMount').onclick = mountModal;
+  const mount = $('#rkMount'); if (mount) mount.onclick = mountModal;
   const cells = [];
   for (let n = rackUnits(R_); n >= 1; n--){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
@@ -292,7 +292,7 @@ export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
   const fromLs = !!o.feed && !o.excluded && o.feed.sys === 'Lansweeper';
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
-    <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
+    <div class="mb"><p class="note">This removes the device, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
     ${fromLs ? '<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>' : ''}</div>
     <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? '<button id="pgExcl" class="primary">Retire and exclude</button>' : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
@@ -416,10 +416,10 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   $('#toolbar').innerHTML = `${tico(o.type)}<b class="mono" id="objTitle" tabindex="-1">${esc(o.name)}</b><span class="code">${esc(o.code)}</span><span class="muted hide-n">${esc(TYPES[o.type].label)}</span>
     ${o.review ? `<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : `<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? `<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${esc(PLANS.find(p => p.id === o.planPos.plan).name)}</button>` : ''}<div class="grow"></div>${handBtn(o)}
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="relMapBtn">Relations map</button><button id="dupBtn">Duplicate</button>${canAddPorts(o.type) && !extraPorts && isAdmin() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? '<hr class="msep">' + (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}<hr class="msep"><button id="delBtn">Retire…</button>${isAdmin() ? '<button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
+    <details class="menu"><summary>More</summary><div class="menubox"><button id="relMapBtn">Relations map</button>${edit ? '<button id="dupBtn">Duplicate</button>' : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? '<button id="addPortsBtn">Add network ports…</button>' : ''}${o.uid && SERVER.on && isAdmin() ? `<button id="sheetBtn">Entry sheet for ${esc(o.user)}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? '<hr class="msep">' + (o.excluded ? '<button id="exclBtn">Include in sync</button>' : '<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>') : ''}${edit ? '<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>' : ''}</div></details><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + esc(savedAt(o.handAt)) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>`;
   $('#view').innerHTML = `${reviewBanner(o)}${twinBanner(o)}<div class="obj">
     <div class="col">
-      <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}">${fields.map(row).join('')}
+      <div class="panelbox"><div class="hdr">Properties</div><div class="form props${edit ? "" : " ro"}" data-edit>${fields.map(row).join('')}
         ${rackFields(o)}
         ${GRAPH_TYPES.includes(o.type) && joinCardsAvailable() ? `<label>Directory</label><div class="ctlrow">${joinBadges(o).replace(/class="jbar\b/, 'class="jbar jbar-page')}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
         ${o.type === 'pc' || o.type === 'notebook' || (o.accessories || []).length ? `<label>Attachments</label><div class="ctlrow entries">${accessoriesHtml(o)}<span class="fsrc-slot" aria-hidden="true"></span>${menuSlot}</div>` : ''}
@@ -432,13 +432,13 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${extras(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist">${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px"><span class="rvlan">${x.r.vlan ? `<span class="chip" title="VLAN ${esc(vlanLabel(x.r.vlan))}">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span>` : `${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
+        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => `${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${tico(x.other.type,'tico sm')}<a class="link" data-open="${x.other.id}">${esc(x.other.name)}</a>${x.r.lag == null && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? `<input class="rport" data-rport="${x.r.id}" value="${esc(x.r.port ?? '')}" placeholder="Port" aria-label="Port on ${esc(x.other.name)}" style="width:80px"><span class="rvlan">${x.r.vlan ? `<span class="chip" title="VLAN ${esc(vlanLabel(x.r.vlan))}">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}</span>` : `${x.port ? `<span class="p">${x.out ? '' : 'on '}${esc(x.port)}</span>` : ''}${x.r.vlan ? `<span class="chip">VLAN ${esc(vlanLabel(x.r.vlan))}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`).join('') : '<p class="note lempty">No relations yet. Add one below.</p>'}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="cnt">none</span>'}</summary>
-        ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This object does not hang off anything.</span></div>'}
+        ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This device does not hang off anything.</span></div>'}
       </details>
       <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="cnt">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
     </div></div>`;
@@ -591,7 +591,7 @@ export function renderObj(o){
   if (accAdd) accAdd.onclick = () => {
     const name = $('#accName').value.trim(), kind = $('#accKind').value.trim(), serial = $('#accSerial').value.trim();
     if (!name){ toast('Give the attachment a name.'); return; }
-    if ((o.accessories || []).length >= 100){ toast('An object holds up to 100 attachments.'); return; }
+    if ((o.accessories || []).length >= 100){ toast('A device holds up to 100 attachments.'); return; }
     o.accessories = [...(o.accessories || []), {name, ...(kind ? {kind} : {}), ...(serial ? {serial} : {})}];
     hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
   };
@@ -799,16 +799,16 @@ export function renderObj(o){
     avAdd.addEventListener('keydown', e => { if (e.key === 'Enter' && avAdd.closest('.combo').querySelector('.combo-list').hidden){ e.preventDefault(); add(); } });
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
-  $('#dupBtn').onclick = () => newObjModal({copy: o});
+  const dup = $('#dupBtn'); if (dup) dup.onclick = () => newObjModal({copy: o});
   $('#relMapBtn').onclick = () => { st.mapFocus = o.id; st.tab = 'map'; render(); };
   const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);
-  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBack([o]);
+  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBackModal([o]);
   /* Handing a device over: the entry sheet of the person who has it (their devices and a first password), from here. */
   const opb = $('#onPlanBtn'); if (opb) opb.onclick = () => showOnPlan(o);
   const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u, null, { only: o.id }); };
   const ap = $('#addPortsBtn');
   if (ap) ap.onclick = () => { st.addPorts = o.id; render(); const f = $('#view').querySelector('[data-k="ports"]'); if (f){ f.focus(); f.select(); } };
-  $('#delBtn').onclick = () => retireModal(o);
+  const del = $('#delBtn'); if (del) del.onclick = () => retireModal(o);
   const pg = $('#purgeBtn'); if (pg) pg.onclick = () => purgeModal(o);
   /* Excluded objects are not changed by a Lansweeper sync. The relations option also excludes the objects o is related to. */
   const eb = $('#exclBtn');
@@ -825,7 +825,7 @@ export function renderObj(o){
       const other = r.from === o.id ? byId(r.to) : r.to === o.id ? byId(r.from) : null;
       if (other && !other.excluded){ other.excluded = true; hist(other, now(), 'Excluded from Lansweeper sync with ' + o.name + ' by ' + who()); n++; }
     });
-    toast(o.name + ' and ' + n + ' related object' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
+    toast(o.name + ' and ' + n + ' related device' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
   };
 
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; o.detached = true; hist(o, now(), 'Detached from Lansweeper by ' + who()); toast(o.name + ' is detached. Its fields are yours now'); render(); };

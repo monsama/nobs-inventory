@@ -61,7 +61,7 @@ try {
   { const st = srv(), ids = st.objs.filter(o => o.type !== 'rack').map(o => o.id), keep = st.objs.find(o => o.name === 'SW-ZH-2OG-01');
     keep.rack = 'R-2OG'; keep.u = 1; keep.h = 1;
     saveState(db, { ...st, contracts: [{ id: 'c1', name: 'Support', kind: 'support', start: '2026-01-01', end: '2026-12-31', renew: 12, notice: 3, cost: 1, per: 'year', devices: ids }] }); }
-  await p.click('#setBtn'); await openSetTab(p, 'maintenance'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  await p.click('#setBtn'); await openSetTab(p, 'backups'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   assert.equal(await p.isChecked('#clrConn'), false, 'the connections stay unless asked');
   await p.fill('#clrWord', 'CLEAR'); await p.click('#clrOk');
   await waitServer(() => srv().objs.filter(o => o.type !== 'rack').length === 2 && srv().objs.filter(o => o.type === 'rack').length === 2, 'the clear keeps excluded objects and the racks');
@@ -71,7 +71,7 @@ try {
   assert.equal(srv().objs.find(o => o.name === 'SW-ZH-2OG-01').rack, 'R-2OG', 'a kept device stays in its kept rack');
 
   // With the racks box ticked, the racks go too, and a kept device leaves the deleted rack.
-  await p.click('#setBtn'); await openSetTab(p, 'maintenance'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  await p.click('#setBtn'); await openSetTab(p, 'backups'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrRacks'); await p.click('#clrOk');
   await waitServer(() => srv().objs.filter(o => o.type === 'rack').length === 0, 'the clear of the racks');
   assert.deepEqual(srv().objs.map(o => o.name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the excluded devices stay');
@@ -79,7 +79,7 @@ try {
   assert.equal(sw.rack, undefined, 'no place in a rack that is gone'); assert.equal(sw.u, undefined);
 
   // With the box ticked, the excluded objects go too.
-  await p.click('#setBtn'); await openSetTab(p, 'maintenance'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
+  await p.click('#setBtn'); await openSetTab(p, 'backups'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrAll'); await p.click('#clrOk');
   await waitServer(() => srv().objs.length === 0 && srv().rels.length === 0, 'the clear of protected objects');
 

@@ -7,17 +7,17 @@ import { nextTask } from './maintenance.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { QUALITY, twinsOf, portRangeError, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, lagLinkOf, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, vlanLabel, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, isUplink, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, pfxOf, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
-import { SERVER, queueServerSave, reloadFromServer, render, view } from './07-render.js';
+import { QUALITY, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
-import { linkObjModal, newObjModal } from './05-new-object.js';
+import { newObjModal } from './05-new-object.js';
 import { reportsModal } from './21-reports.js';
 import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, bindUser, isAdmin, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
-import { handOutToModal, takeBack } from './27-handout.js';
+import { handOutToModal, takeBackModal } from './27-handout.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
@@ -52,7 +52,7 @@ export function renderSide(){
   /* With an object type selected, the locations count only objects of that type. */
   const ofType = f => o => (!st.type || o.type === st.type) && f(o);
   /* Types without a device are folded away ("+ 8 more types"), so the places and states below come into view; the type
-     picked stays. "All objects" is marked only when nothing at all narrows the list. */
+     picked stays. "All devices" is marked only when nothing at all narrows the list. */
   const byType = pool.reduce((m, o) => (m[o.type] = (m[o.type] || 0) + 1, m), {});
   const typeBtn = ([k, v]) => `<button class="item ${st.type===k?'sel':''}" data-type="${k}">${tico(k,'tico sm')}<span class="lbl">${esc(v.label)}</span><span class="cnt">${byType[k] || 0}</span></button>`;
   const types = Object.entries(TYPES), shown = types.filter(([k]) => byType[k] || st.type === k || st.sideAllTypes), folded = types.length - shown.length;
@@ -114,7 +114,7 @@ export function renderSide(){
     mf.ontoggle = () => { try { if (mf.open) localStorage.setItem(MORE_KEY, '1'); else if (!mf.querySelector('.item.sel')) localStorage.removeItem(MORE_KEY); } catch { /* not kept */ } };
   }
   /* Retired devices left out, as the Overview counts: shown while it filters, with a way out. */
-  $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='repair'?'warn':k==='retired'?'bad':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
+  $('#statList').innerHTML = (st.live ? `<button class="item sel" data-live title="Retired devices are left out, as on the Overview. Click to show them too"><span class="dot"></span><span class="lbl">Not retired</span><span class="cnt">${cnt(o => o.status !== 'retired')}</span><span aria-hidden="true">×</span></button>` : '') + Object.entries(STATUS).map(([k,v]) => `<button class="item ${st.status===k?'sel':''}" data-status="${k}"><span class="dot ${k==='active'?'':k==='retired'?'gone':'off'}"></span><span class="lbl">${esc(v.label)}</span><span class="cnt">${cnt(o=>o.status===k)}</span></button>`).join('');
 }
 $('#side').addEventListener('click', e => {
   const more = e.target.closest('[data-alltypes]');
@@ -161,7 +161,10 @@ export function renderFilterBar(){
   const rc = contactOf(st.resp), person = st.person ? USERS.find(u => u.id === st.person) : null;
   /* A person removed meanwhile: the filter goes with them, so it never hides everything unseen. */
   if (st.person && !person) st.person = null;
-  const chips = !list ? [] : [
+  /* The other lists the search filters (Floor plans, Software, Contracts, Contacts) show its chip too, so a list
+     narrowed by text typed on another one is not read as everything. */
+  const qOnly = !list && ['plans', 'sw', 'contracts', 'contacts'].includes(st.tab) && st.q.trim();
+  const chips = qOnly ? [['q', 'Filter', '“' + st.q.trim() + '”']] : !list ? [] : [
     st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
     st.loc && ['loc', 'Location', st.loc],
     st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
@@ -210,7 +213,7 @@ $('#fbar').addEventListener('click', e => {
     if (pa.dataset.pact === 'sheet'){ sheetModal(person); return; }
     if (pa.dataset.pact === 'give'){ handOutToModal(person); return; }
     /* Everything the person has goes back into stock, with nobody assigned: one Undo takes it all back. */
-    takeBack(objs.filter(o => o.uid === person.id && o.status !== 'retired')); return;
+    takeBackModal(objs.filter(o => o.uid === person.id && o.status !== 'retired')); return;
   }
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;
@@ -227,7 +230,7 @@ export function hiddenHits(){
   const all = searchAll(), q = st.q.trim();
   if (!all.length) return '';
   const within = [st.type && TYPES[st.type] ? TYPES[st.type].label : '', st.loc || '', st.status && STATUS[st.status] ? STATUS[st.status].label.toLowerCase() : ''].filter(Boolean).join(', ') || 'the filters on the left';
-  return `<div class="empty">Nothing matches “${esc(q)}” within ${esc(within)}. ${all.length === 1 ? `1 object outside ${st.type ? 'this type' : 'these filters'} does: <b>${esc(all[0].name)}</b>` : `${all.length} objects outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all objects</button></div>`;
+  return `<div class="empty">Nothing matches “${esc(q)}” within ${esc(within)}. ${all.length === 1 ? `1 device outside ${st.type ? 'this type' : 'these filters'} does: <b>${esc(all[0].name)}</b>` : `${all.length} devices outside ${st.type ? 'this type' : 'these filters'} do`}. <button class="primary" id="searchAllBtn">Search all devices</button></div>`;
 }
 export function bindHiddenHits(){
   const b = $('#searchAllBtn');
@@ -299,10 +302,10 @@ export function renderTabs(){
     + (views.includes('review') ? viewTab('review').replace('class="tab ', 'class="tab tab-review ').replace(' draggable="true"', '') : '');
   /* The open objects have a row of their own under the views, shown while at least one is open. */
   $('#objbar').hidden = !objs.length;
-  $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open objects</span>' : '') + objs.map(id => {
+  $('#objbar').innerHTML = (objs.length ? '<span class="tabs-cap">Open devices</span>' : '') + objs.map(id => {
     const o = byId(id);
     return `<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${esc(o.name)}">${esc(o.name)}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
-  }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open objects">Close all</button>' : '');
+  }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
   document.querySelectorAll('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
     el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); });
@@ -549,7 +552,7 @@ export function renderCardsBody(){
   if (cj) cj.onchange = () => { cardJoin = cj.checked; try { localStorage.setItem('ni-card-join', cardJoin ? '1' : '0'); } catch { /* not kept */ } renderCards(); };
   if (!list.length){
     $('#view').innerHTML = pool.length
-      ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new object</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
+      ? hiddenHits() || (st.q.trim() ? `<div class="empty">Nothing matches “${esc(st.q.trim())}”. <button class="primary" id="newFromSearch">Create “${esc(st.q.trim())}” as a new device</button></div>` : `<div class="empty">Nothing matches these filters. <a class="link" id="clr2">Clear filters</a></div>`)
       : st.scope ? `<div class="empty">${st.scope === 'ignored' ? 'No ignored devices.' : 'Nothing waits for review. New devices from Lansweeper, Active Directory, Entra and Intune show up here.'} <button type="button" data-fx-go="scope">Back to inventory</button></div>`
       : (SERVER.on && !st.meId ? `<div class="empty">Sign in to see the inventory.</div>` : emptyHtml());
     const bk = $('[data-fx-go]'); if (bk) bk.onclick = () => { st.scope = null; st.rvSrc = ''; st.rvKnown = false; st.rvOld = false; st.bulk = new Set(); view(); };
@@ -775,11 +778,11 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
+    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? '<button id="csvImp">Import CSV…</button>' : ''}${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
 ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? '<option value="handout">Hand out to a person…</option>' : ''}
-<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
+${isAdmin() ? `<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
-${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
+${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -795,7 +798,7 @@ ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l])
     renderTable();
   });
   $('#csvBtn').onclick = () => exportCsv(list);
-  $('#csvImp').onclick = importCsvModal;
+  const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bulkLoc = to => {
@@ -919,7 +922,7 @@ export function exportCsv(list){
 const CSV_FIELDS = ['loc', 'model', 'serial', 'ip', 'mac', 'user'];
 const CSV_LABEL = { loc: 'Location', model: 'Model', serial: 'Serial number', ip: 'IP address', mac: 'MAC address', user: 'User' };
 export function importCsvModal(){
-  modal(`<div class="mh">Import objects from CSV</div>
+  modal(`<div class="mh">Import devices from CSV</div>
     <div class="mb">
       <p class="note">The first row is the header. Columns: <span class="mono">name, type, model, serial, ip, mac, location, user</span>. Type is an object type name. Location must match a location exactly. Comma or semicolon separated. Rows with a problem are shown and skipped. A row whose serial number (or else name) is a device here updates that device instead of adding it.</p>
       <div class="form" style="padding:0"><label for="csvFile">File</label><div class="filepick"><label class="btnlike" tabindex="0" role="button">Choose CSV file…<input id="csvFile" type="file" accept=".csv,text/csv" hidden></label><span class="muted" id="csvFileName">No file chosen</span></div></div>
@@ -990,461 +993,5 @@ export function importCsvModal(){
   };
 }
 
-/* ---------- relationship map ----------
-   Like the ER diagram in NOBS SQL: boxes with a header, right-angled lines between them, the line's kind and port
-   written on it. Hover a box to light up its lines. Drag a box to move it, drag the background to pan, Ctrl + wheel to zoom. */
-export const MAP = {zoom:1, px:24, py:24, drag:null, L:null, found:null};
-export const MAP_W = 200, MAP_STEP = 340;
-/* A text inside a box is cut to the box's width, with an ellipsis; the full text is the tooltip. */
-const fitMap = (t, px) => {
-  const text = String(t ?? ''), max = Math.floor((MAP_W - 16) / (px * 0.56));
-  return text.length > max ? text.slice(0, max - 1) + '…' : text;
-};
-export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
-/* Every box has the same height, so the rows line up across a column. */
-export const mapH = () => 91;
-
-export function mapLayout(nodes){
-  const ids = new Set(nodes.map(o => o.id));
-  /* Attached devices are left out of the map unless asked for, so the map shows the network. Showing one object's
-     relations shows all of them, its monitors and accessories included, and the object itself even without any. */
-  const focused = !!MAP.focused;
-  const E = rels.filter(r => ids.has(r.from) && ids.has(r.to) && (focused || st.mapAttached || !isAttached(r.kind)));
-  const connected = new Set(E.flatMap(r => [r.from, r.to]));
-  /* With attached devices off, a device that is only attached to another one (a monitor on a PC) is left out too, not
-     drawn as a loose box; a monitor attached to nothing still shows when objects without relations are shown. */
-  const attachedOnly = o => !connected.has(o.id) && rels.some(r => r.from === o.id && isAttached(r.kind) && ids.has(r.to));
-  const list = st.mapOnly && !focused ? nodes.filter(o => connected.has(o.id)) : nodes.filter(o => focused || st.mapAttached || !attachedOnly(o));
-  const inList = new Set(list.map(o => o.id));
-  const edges = E.filter(r => inList.has(r.from) && inList.has(r.to));
-  /* Columns by distance from the switches, so the core sits left and everything hangs off it to the right. */
-  const adj = {}; edges.forEach(r => { (adj[r.from] ??= []).push(r.to); (adj[r.to] ??= []).push(r.from); });
-  const depth = {}, q = list.filter(o => ['firewall','router','switch'].includes(o.type) && !edges.some(r => r.kind === 'uplink' && r.from === o.id)).map(o => o.id);
-  q.forEach(id => depth[id] = 0);
-  for (let i = 0; i < q.length; i++) (adj[q[i]] || []).forEach(n => { if (!(n in depth)){ depth[n] = depth[q[i]] + 1; q.push(n); } });
-  /* Groups without a switch, router or firewall (a PC with its monitors) start from their best-connected object, so the
-     monitors sit one column to the right of their PC instead of beside it. */
-  list.filter(o => (adj[o.id] || []).length && !(o.id in depth)).sort((a, b) => adj[b.id].length - adj[a.id].length).forEach(o => {
-    if (o.id in depth) return;
-    depth[o.id] = 0;
-    const qq = [o.id];
-    for (let i = 0; i < qq.length; i++) (adj[qq[i]] || []).forEach(n => { if (!(n in depth)){ depth[n] = depth[qq[i]] + 1; qq.push(n); } });
-  });
-  const maxD = Math.max(0, ...Object.values(depth));
-  list.forEach(o => { if (!(o.id in depth)) depth[o.id] = maxD + 1; });
-  const cols = {};
-  list.forEach(o => (cols[depth[o.id]] ??= []).push(o));
-  /* Each column is ordered by the height of the boxes it is linked to in the column before, so lines run mostly straight. */
-  const pos = {}, ypos = {};
-  Object.keys(cols).map(Number).sort((a,b) => a - b).forEach(d => {
-    const bary = o => {
-      const ns = (adj[o.id] || []).filter(n => depth[n] === d - 1 && n in ypos);
-      return ns.length ? ns.reduce((sum, n) => sum + ypos[n], 0) / ns.length : Infinity;
-    };
-    let y = 24;
-    cols[d].map(o => [o, bary(o)]).sort(([a, ba], [b, bb]) => {
-      if (ba !== bb) return ba === Infinity ? 1 : bb === Infinity ? -1 : ba - bb;
-      return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
-    }).forEach(([o]) => {
-      ypos[o.id] = y;
-      pos[o.id] = st.mapPos[o.id] ?? {x: 24 + d * MAP_STEP, y};
-      y += mapH(o) + 24;
-    });
-  });
-  return {list, edges, pos};
-}
-
-/* Right-angled routes, one per relation. Each end gets its own connection point on the box side it leaves from:
-   the points on a side are spread evenly and follow the order of the boxes at the other end, so lines do not fan out
-   from one spot. Lines that share a gap between two columns (or two stacked rows) get separate lanes in that gap,
-   so their runs stay apart. The label sits at the end that has the port. */
-export function mapRoutes(L){
-  const items = L.edges.map(r => {
-    const pa = L.pos[r.from], pb = L.pos[r.to];
-    if (pa.x + MAP_W < pb.x) return {r, pa, pb, sa: 'R', sb: 'L', across: true};
-    if (pb.x + MAP_W < pa.x) return {r, pa, pb, sa: 'L', sb: 'R', across: true};
-    return pa.y < pb.y ? {r, pa, pb, sa: 'B', sb: 'T', across: false} : {r, pa, pb, sa: 'T', sb: 'B', across: false};
-  });
-  const h = mapH(), sides = {};
-  items.forEach((it, i) => {
-    (sides[it.r.from + '|' + it.sa] ??= []).push({i, end: 'a', side: it.sa, id: it.r.from, o: it.pb});
-    (sides[it.r.to + '|' + it.sb] ??= []).push({i, end: 'b', side: it.sb, id: it.r.to, o: it.pa});
-  });
-  const pt = {};
-  Object.values(sides).forEach(group => {
-    group.sort((p, q) => p.o.y - q.o.y || p.o.x - q.o.x);
-    const p0 = L.pos[group[0].id];
-    group.forEach((g, k) => {
-      const f = (k + 0.5) / group.length;
-      const across = 16 + (MAP_W - 32) * f, down = 28 + (h - 38) * f;
-      pt[g.i + g.end] = g.side === 'R' ? {x: p0.x + MAP_W, y: p0.y + down}
-        : g.side === 'L' ? {x: p0.x, y: p0.y + down}
-        : g.side === 'T' ? {x: p0.x + across, y: p0.y}
-        : {x: p0.x + across, y: p0.y + h};
-    });
-  });
-  /* Lanes: the channel between two columns (or two rows), shared by every line that crosses it. */
-  const gaps = {};
-  items.forEach((it, i) => {
-    const A = pt[i + 'a'], B = pt[i + 'b'];
-    const key = it.across ? 'x' + Math.min(it.pa.x, it.pb.x) + '_' + Math.max(it.pa.x, it.pb.x) : 'y' + it.pa.x + '_' + Math.min(it.pa.y, it.pb.y) + '_' + Math.max(it.pa.y, it.pb.y);
-    const g = gaps[key] ??= it.across
-      ? {from: Math.min(it.pa.x, it.pb.x) + MAP_W, to: Math.max(it.pa.x, it.pb.x), list: []}
-      : {from: Math.min(it.pa.y, it.pb.y) + h, to: Math.max(it.pa.y, it.pb.y), list: []};
-    g.list.push({i, mid: it.across ? (A.y + B.y) / 2 : (A.x + B.x) / 2});
-  });
-  const lane = {};
-  Object.values(gaps).forEach(g => {
-    g.list.sort((p, q) => p.mid - q.mid);
-    g.list.forEach((e, k) => lane[e.i] = g.from + (g.to - g.from) * (k + 1) / (g.list.length + 1));
-  });
-  return items.map((it, i) => {
-    const A = pt[i + 'a'], B = pt[i + 'b'];
-    const d = it.across ? `M${A.x} ${A.y}H${lane[i]}V${B.y}H${B.x}` : `M${A.x} ${A.y}V${lane[i]}H${B.x}V${B.y}`;
-    const lx = it.sb === 'L' ? B.x - 6 : B.x + 6, ly = it.sb === 'B' ? B.y + 12 : B.y - 5;
-    return {d, A, B, lx, ly, anchor: it.sb === 'L' ? 'end' : 'start'};
-  });
-}
-export const MAP_SHORT = {attached:'attached', connected:'connected', uplink:'uplink', hosted:'runs on'};
-
-/* The drawing as SVG markup. The same markup is used on screen and in the export.
-   Line labels are hidden until a line is hovered, or until Labels is switched on. */
-export function mapInner(L){
-  const routes = mapRoutes(L);
-  const edges = L.edges.map((r, i) => {
-    const a = byId(r.from), b = byId(r.to), p = routes[i];
-    const label = MAP_SHORT[r.kind] + (r.port != null ? ' · ' + portLabel(b, r.port) : '');
-    return `<g class="mline" data-from="${esc(a.id)}" data-to="${esc(b.id)}">
-      <path class="mhit" d="${p.d}" fill="none" stroke="transparent" stroke-width="10"/>
-      <path d="${p.d}" fill="none" stroke="var(--line)" stroke-width="1.4"/>
-      <circle cx="${p.A.x}" cy="${p.A.y}" r="3" fill="var(--line)"/><circle cx="${p.B.x}" cy="${p.B.y}" r="3" fill="var(--line)"/>
-      <text class="mlab" x="${p.lx}" y="${p.ly}" text-anchor="${p.anchor}" font-size="10" font-family="var(--mono)" fill="var(--muted)" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(label)}</text></g>`;
-  }).join('');
-  const nodes = L.list.map(o => {
-    const p = L.pos[o.id], h = mapH(o), lines = mapLines(o), c = tcol(o.type);
-    /* The header names the type next to the code, so each box says what it is (PC, Switch, Server …). */
-    return `<g class="mnode${MAP.found === o.id ? ' found' : ''}" data-id="${esc(o.id)}" transform="translate(${p.x} ${p.y})"><title>${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}</title>
-      <rect width="${MAP_W}" height="${h}" rx="5" fill="var(--bg)" stroke="var(--bd)"/>
-      <rect width="${MAP_W}" height="20" rx="5" fill="var(--panel2)"/><rect y="12" width="${MAP_W}" height="8" fill="var(--panel2)"/>
-      <rect width="3" height="${h}" rx="1.5" fill="${c}"/>
-      <text x="9" y="14" font-size="10" fill="var(--muted)"><tspan font-family="var(--mono)">${esc(o.code)}</tspan> · ${esc(TYPES[o.type] ? (o.status !== 'active' ? TYPES[o.type].short : TYPES[o.type].label) : o.type)}</text>
-      <text x="8" y="36" font-size="13" font-weight="600" font-family="var(--mono)" fill="var(--fg)">${esc(fitMap(o.name, 13))}<title>${esc(o.name)}</title></text>
-      ${lines.map((t, i) => `<text x="8" y="${52 + i * 15}" font-size="11" fill="var(--muted)">${esc(fitMap(t, 11))}<title>${esc(t)}</title></text>`).join('')}
-      ${o.status !== 'active' ? `<text x="${MAP_W - 8}" y="14" text-anchor="end" font-size="10" fill="#fff">${esc(STATUS[o.status].label)}</text>` : ''}
-    </g>`;
-  }).join('');
-  return `<g class="medges">${edges}</g><g class="mnodes">${nodes}</g>`;
-}
-/* Key for the map: which colour is which type, and what a line label says. */
-export function mapLegend(L){
-  const types = [...new Set(L.list.map(o => o.type))];
-  return `<details class="maplegend" aria-label="Map key"><summary>Legend</summary><div class="lgbody">
-    <b>Boxes</b><div class="lgtypes">${types.map(t => `<span>${tico(t, 'tico sm')}${esc(TYPES[t].label)}</span>`).join('')}</div>
-    <b>Lines</b><div class="lgtext">Label: how the two are linked, and the port at the far end. Hover a box to light up its links, or a line to read its label. The chain runs left to right from the top.</div></div></details>`;
-}
-export function mapApply(){
-  const g = $('#mapG'); if (g) g.setAttribute('transform', `translate(${MAP.px} ${MAP.py}) scale(${MAP.zoom})`);
-  const z = $('#mapZoomReset'); if (z) z.textContent = Math.round(MAP.zoom * 100) + '%';
-}
-/* Zooms the map to z, keeping the point (mx, my) of the drawing area where it is: the pointer for Ctrl + wheel, the
-   middle for the buttons. */
-export function mapZoomTo(z, mx, my){
-  const svg = $('#mapSvg'); if (!svg) return;
-  if (mx === undefined){ mx = svg.clientWidth / 2; my = svg.clientHeight / 2; }
-  const z0 = MAP.zoom, z1 = Math.min(2.5, Math.max(0.3, z));
-  MAP.px = mx - (mx - MAP.px) * (z1 / z0); MAP.py = my - (my - MAP.py) * (z1 / z0); MAP.zoom = z1; mapApply();
-}
-export function mapBox(L){
-  const xs = L.list.map(o => L.pos[o.id].x), ys = L.list.map(o => L.pos[o.id].y);
-  const x0 = Math.min(...xs), y0 = Math.min(...ys);
-  const x1 = Math.max(...L.list.map(o => L.pos[o.id].x + MAP_W)), y1 = Math.max(...L.list.map(o => L.pos[o.id].y + mapH(o)));
-  return {x0, y0, x1, y1};
-}
-export function mapFit(){
-  const L = MAP.L; if (!L || !L.list.length || !$('#mapSvg')) return;
-  const svg = $('#mapSvg'), W = svg.clientWidth, H = svg.clientHeight, b = mapBox(L);
-  const z = Math.min((W - 60) / (b.x1 - b.x0), (H - 60) / (b.y1 - b.y0), 1.2);
-  MAP.zoom = z; MAP.px = (W - (b.x0 + b.x1) * z) / 2; MAP.py = (H - (b.y0 + b.y1) * z) / 2; mapApply();
-}
-export function mapHighlight(id){
-  const svg = $('#mapSvg'); if (!svg) return;
-  if (!id){ svg.classList.remove('focus'); svg.querySelectorAll('.hi').forEach(e => e.classList.remove('hi')); return; }
-  const nb = new Set([id]);
-  svg.querySelectorAll('.mline').forEach(l => { const hit = l.dataset.from === id || l.dataset.to === id; l.classList.toggle('hi', hit); if (hit){ nb.add(l.dataset.from); nb.add(l.dataset.to); } });
-  svg.querySelectorAll('.mnode').forEach(n => n.classList.toggle('hi', nb.has(n.dataset.id)));
-  svg.classList.add('focus');
-}
-export function mapExportSvg(){
-  const L = MAP.L, b = mapBox(L), pad = 20, w = b.x1 - b.x0 + 2 * pad, h = b.y1 - b.y0 + 2 * pad;
-  const shifted = {...L, pos: Object.fromEntries(Object.entries(L.pos).map(([k,p]) => [k, {x: p.x - b.x0 + pad, y: p.y - b.y0 + pad}]))};
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="system-ui, sans-serif">${mapInner(shifted)}</svg>`;
-  const cs = getComputedStyle(document.documentElement);
-  return s.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#888');
-}
-
-/* The toolbar controls that redraw the map; bound also when the map is empty, so it can be switched back. */
-function bindMapToolbar(){
-  $('#mapOnly').onchange = e => { st.mapOnly = e.target.checked; view(); };
-  $('#mapFocus').onchange = e => { st.mapFocus = e.target.value || null; MAP.found = null; view(); };
-  $('#mapAttached').onchange = e => { st.mapAttached = e.target.checked; MAP.found = null; view(); };
-  $('#mapLabels').onchange = e => { st.mapLabels = e.target.checked; const svg = $('#mapSvg'); if (svg) svg.classList.toggle('labels', st.mapLabels); };
-  /* The same zoom control as on the floor plan: the steps of the plan's buttons, around the middle of the map. */
-  $('#mapZoomOut').onclick = () => mapZoomTo(MAP.zoom / 1.25);
-  $('#mapZoomIn').onclick = () => mapZoomTo(MAP.zoom * 1.25);
-  $('#mapZoomReset').onclick = () => mapZoomTo(1);
-}
-export function renderMap(){
-  /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
-  /* Only a device in the inventory: a record in To review is not drawn, so it would leave an empty map. */
-  const focus = st.mapFocus && objs.find(o => o.id === st.mapFocus) || null;
-  if (st.mapFocus && !focus) st.mapFocus = null;
-  const around = focus ? new Set([focus.id, ...rels.filter(r => r.from === focus.id || r.to === focus.id).flatMap(r => [r.from, r.to])]) : null;
-  /* With a filter on (a type, a place, a search), the map shows the objects it finds and the objects linked to them, so
-     a notebook's monitor or switch is drawn with it; a relation needs both ends on the map. */
-  const found = around ? null : filtered(), narrowed = !!found && found.length < objs.length;
-  let nodes = around ? objs.filter(o => around.has(o.id)) : found;
-  if (narrowed){
-    const ids = new Set(found.map(o => o.id));
-    rels.filter(r => (ids.has(r.from) || ids.has(r.to)) && (st.mapAttached || !isAttached(r.kind))).forEach(r => { ids.add(r.from); ids.add(r.to); });
-    nodes = objs.filter(o => ids.has(o.id));
-  }
-  const linked = new Set(rels.flatMap(r => [r.from, r.to]));   /* once, not a pass over the relations per object */
-  const withRelations = objs.filter(o => o === focus || linked.has(o.id)).sort((a, b) => a.name.localeCompare(b.name));
-  $('#toolbar').innerHTML = `<span class="muted" id="mapCount"></span><span class="tbsep"></span>
-    <span class="tbgroup"><label class="muted" for="mapFocus">Relations of</label>
-    <select id="mapFocus" aria-label="Show only the relations of this object"><option value="">All devices</option>${withRelations.map(o => `<option value="${esc(o.id)}" ${focus && focus.id === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></span>
-    <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
-    <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
-    <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
-    <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></div></details></span>`;
-  MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
-  MAP.focused = !!focus;
-  MAP.L = mapLayout(nodes);
-  /* The first object the search finds is marked on the map. */
-  { const t = st.q.trim().toLowerCase(), hit = t && MAP.L.list.find(o => (o.code + ' ' + o.name).toLowerCase().includes(t)); MAP.found = hit ? hit.id : null; }
-  if (!MAP.L.list.length){
-    $('#mapCount').textContent = '0 objects';
-    $('#view').innerHTML = narrowed
-      ? (!found.length && hiddenHits()) || (found.length
-        ? `<div class="empty">None of the ${found.length} objects in the current filter ${found.length === 1 ? 'has' : 'have'} relations. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`
-        : `<div class="empty">No object matches the current filter. <a class="link" id="mapClr">Clear filters</a> to see the whole map.</div>`)
-      : '<div class="empty">Nothing to draw yet: link two objects on a device\'s page.</div>';
-    const clr = $('#mapClr'); if (clr) clr.onclick = () => $('#clearF').click();
-    bindHiddenHits();
-    bindMapToolbar();
-    return;
-  }
-  const nL = MAP.L.list.length, nE = MAP.L.edges.length;
-  $('#mapCount').textContent = `${nL} ${nL === 1 ? 'device' : 'devices'} · ${nE} ${nE === 1 ? 'relation' : 'relations'}`;
-  $('#view').innerHTML = `<div class="mapwrap"><svg id="mapSvg" role="img" aria-label="Relations map"><g id="mapG">${mapInner(MAP.L)}</g></svg>
-    <div class="maphint">Drag a box to move it · drag the background to pan · Ctrl + wheel to zoom · click a box to open it</div>${mapLegend(MAP.L)}</div>`;
-  const svg = $('#mapSvg');
-  /* A right click on a box shows only its relations (the same as Relations of in the toolbar). */
-  svg.addEventListener('contextmenu', e => {
-    const n = e.target.closest('.mnode'); if (!n) return;
-    e.preventDefault(); st.mapFocus = n.dataset.id; MAP.found = null; view();
-  });
-  svg.addEventListener('pointerdown', e => {
-    const n = e.target.closest('.mnode');
-    MAP.drag = n ? {id: n.dataset.id, sx: e.clientX, sy: e.clientY, ox: MAP.L.pos[n.dataset.id].x, oy: MAP.L.pos[n.dataset.id].y, moved: false}
-                 : {pan: true, sx: e.clientX, sy: e.clientY, ox: MAP.px, oy: MAP.py, moved: false};
-    svg.setPointerCapture(e.pointerId);
-  });
-  svg.addEventListener('pointermove', e => {
-    const d = MAP.drag;
-    if (!d){ const n = e.target.closest('.mnode'); mapHighlight(n ? n.dataset.id : null); return; }
-    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
-    if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
-    if (!d.moved) return;
-    if (d.pan){ MAP.px = d.ox + dx; MAP.py = d.oy + dy; mapApply(); return; }
-    st.mapPos[d.id] = {x: d.ox + dx / MAP.zoom, y: d.oy + dy / MAP.zoom};
-    MAP.L = mapLayout(MAP.nodes); $('#mapG').innerHTML = mapInner(MAP.L);
-    mapHighlight(d.id);
-  });
-  /* A box moved by an admin is saved (the layout is shared); a viewer's moves stay on this page until it is reloaded. */
-  svg.addEventListener('pointerup', () => { const d = MAP.drag; MAP.drag = null; if (d && !d.pan && !d.moved) openObj(d.id); else if (d && !d.pan && isAdmin()) queueServerSave(); });
-  svg.addEventListener('pointerleave', () => { if (!MAP.drag) mapHighlight(null); });
-  svg.addEventListener('wheel', e => {
-    e.preventDefault();
-    if (!e.ctrlKey){ MAP.px -= e.deltaX; MAP.py -= e.deltaY; mapApply(); return; }
-    const r = svg.getBoundingClientRect();
-    mapZoomTo(MAP.zoom * (e.deltaY < 0 ? 1.1 : 0.91), e.clientX - r.left, e.clientY - r.top);
-  }, {passive: false});
-  bindMapToolbar();
-  svg.classList.toggle('labels', st.mapLabels);
-  $('#mapFitBtn').onclick = mapFit;
-  $('#mapReset').onclick = () => { st.mapPos = {}; render(); mapFit(); };
-  $('#mapExport').onclick = e => {
-    e.target.closest('details').open = false;
-    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + mapExportSvg()], {type: 'image/svg+xml'});
-    const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'relations.svg'});
-    document.body.appendChild(a); a.click(); a.remove(); toast('Exported relations.svg');
-  };
-  mapApply();
-  requestAnimationFrame(mapFit);
-  setTimeout(mapFit, 60);
-}
-window.addEventListener('resize', () => { if (st.tab === 'map' && MAP.L) mapFit(); });
-
-/* ---------- switch ports ---------- */
-/* Why a port setup cannot be saved, or null. Ports in use and port groups must stay inside the new count. */
-export function portSetupError(sw, ports, sfp){
-  if (!Number.isInteger(ports) || ports < 0 || ports > 1000) return 'Copper ports: a whole number from 0 to 1000.';
-  if (!Number.isInteger(sfp) || sfp < 0 || sfp > 1000) return 'SFP ports: a whole number from 0 to 1000.';
-  const total = ports + sfp;
-  if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port > total)) return `Ports in use above ${total} block this change. Move or remove those connections first.`;
-  const g = (sw.portGroups || []).find(x => x.to > total);
-  if (g) return `The port group ${g.name} reaches port ${g.to}. Change or remove it first.`;
-  return null;
-}
-export function renderPorts(){
-  const devs = objs.filter(o => hasPorts(o));
-  if (!devs.length){
-    $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${isAdmin() ? ' <button class="primary" id="portsNew">New switch</button>' : ''}</div>`;
-    const b = $('#portsNew'); if (b) b.onclick = () => newObjModal({type: 'switch'});
-    return;
-  }
-  /* Without a device picked (or come from), the one used last in this browser, else the first switch: the ports people
-     look at most, not whichever device comes first. */
-  let last = null; try { last = localStorage.getItem('ni-ports-device'); } catch { /* not kept */ }
-  const first = ['switch', 'patch', 'router', 'firewall'].map(t => devs.find(o => o.type === t)).find(Boolean);
-  const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
-  try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
-  $('#toolbar').innerHTML = `<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.loc ? ' · ' + esc(s.loc.split(' / ')[0]) : ''}</option>`).join('')}</select>
-    <span class="muted hide-n">${esc(sw.model)} · ${esc(sw.ip)}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
-  $('#portsDevice').value = sw.id;
-  /* A port picked on another device, or one no longer there after the count was lowered, is not this device's: no port
-     is open, so nothing can be plugged in before the port exists. */
-  if (st.portNo != null && portRangeError(sw, st.portNo)) st.portNo = null;
-  $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; view(); };
-  $('#portsOpen').onclick = () => openObj(sw.id);
-  const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
-  /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
-  const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);
-  /* Each group has its own colour on the front panel, shown in the legend below it. A LAG group has dashed ports. */
-  const groupColour = i => `hsl(${(210 + i * 97) % 360} 28% 50%)`;   /* muted: a group is a group, not a warning */
-  /* A port in a linked LAG is in use by the device on the other end of the LAG. */
-  const lagUse = p => { const g = groupOf(p); const r = g && g.lag ? lagLinkOf(sw, g) : null; return r ? {r, d: byId(r.to === sw.id ? r.from : r.to), g} : null; };
-  const portBtn = p => {
-    const inc = onPort(p), lu = lagUse(p);
-    const dev = inc[0] ? byId(inc[0].from) : lu ? lu.d : null;
-    const isUp = (inc[0] && isUplink(inc[0].kind)) || (lu && isUplink(lu.r.kind));
-    const poe = dev && (dev.type === 'sip');
-    /* No description of its own: the description of the device plugged in, if it has one. */
-    const note = (sw.portNotes || {})[p] || (dev && dev.purpose) || '';
-    const tip = pfxOf(sw) + p + (note ? ' · ' + note : '') + (groupOf(p) ? ' · ' + groupOf(p).name + (groupOf(p).lag ? ' (LAG)' : '') : '') + (dev ? ' → ' + dev.name : ' · free');
-    /* A device with a single port has nothing to choose: its port is shown, but not selectable. */
-    const single = (sw.ports || 0) + (sw.sfp || 0) === 1;
-    const gi = (sw.portGroups || []).findIndex(g => p >= g.from && p <= g.to);
-    const grp = gi >= 0 ? ` grp${(sw.portGroups[gi].lag) ? ' lag' : ''}" style="--g:${groupColour(gi)}` : '';
-    return `<button class="port ${dev?(isUp?'upl':'used'):''} ${poe?'poe':''} ${st.portNo===p?'sel':''} ${single?'single':''}${grp}" data-port="${p}" ${single?'disabled':''} title="${esc(tip)}" aria-label="${esc(tip)}">${p}</button>`;
-  };
-  const groups0 = sw.portGroups || [];
-  /* A group being edited fills the form at the bottom; Save group writes it back in its place. */
-  if (st.pgEdit && (st.pgEdit.sw !== sw.id || !groups0[st.pgEdit.i])) st.pgEdit = null;
-  const pgEditing = st.pgEdit ? groups0[st.pgEdit.i] : null;
-  const groups = []; for (let g = 0; g < (sw.ports || 0); g += 12){ const ps = []; for (let p = g+1; p <= Math.min(g+12, sw.ports || 0); p++) ps.push(p); groups.push(ps); }
-  const sfps = []; for (let p = (sw.ports || 0)+1; p <= (sw.ports || 0)+(sw.sfp || 0); p++) sfps.push(p);
-  const usedN = used(sw);
-
-  /* Everything plugged into the switch, with what hangs behind each device (a PC behind a phone, monitors behind a PC). */
-  const behind = (o, depth=0) => rels.filter(r => r.to === o.id && !isUplink(r.kind)).map(r => { const d = byId(r.from); return {d, r, depth, kids: depth < 3 ? behind(d, depth+1) : []}; });
-  const flat = (arr, out=[]) => { arr.forEach(x => { out.push(x); flat(x.kids, out); }); return out; };
-  const rows = [];
-  for (let p = 1; p <= (sw.ports || 0) + (sw.sfp || 0); p++){
-    onPort(p).forEach(r => { const d = byId(r.from); rows.push({p, d, r, sub: flat(behind(d))}); });
-  }
-  /* A LAG link is a row of its own, named by the LAG, with the device on the other end. */
-  rels.forEach(r => {
-    if (r.lag != null && r.to === sw.id) rows.push({p: 'LAG ' + r.lag, d: byId(r.from), r, sub: flat(behind(byId(r.from)))});
-    if (r.fromLag != null && r.from === sw.id) rows.push({p: 'LAG ' + r.fromLag, d: byId(r.to), r, sub: flat(behind(byId(r.to)))});
-  });
-  const portDetail = st.portNo != null ? rows.filter(x => x.p === st.portNo) : [];
-  const selLag = st.portNo != null ? lagUse(st.portNo) : null;
-  const selGroup = st.portNo != null ? groupOf(st.portNo) : null;
-
-  /* What is on the picked port: the device and how it is plugged in, so it is known without opening it. */
-  const portInfo = x => {
-    const d = x.d, note = (sw.portNotes || {})[st.portNo];
-    const rows = [['Type', TYPES[d.type] ? TYPES[d.type].label : d.type], ['Model', d.model], ['IP address', d.ip], ['MAC address', d.mac], ['User', d.user],
-      ['Description', d.purpose], ['Location', d.loc], ['Link', isUplink(x.r.kind) ? 'Uplink / trunk' : 'Device'], ['VLAN', x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : '')],
-      ['Port description', note || ''], ['Status', d.status !== 'active' && STATUS[d.status] ? STATUS[d.status].label : '']].filter(([, v]) => v);
-    return `<dl class="kv portinfo">${rows.map(([k, v]) => `<dt>${k}</dt><dd${/IP|MAC/.test(k) ? ' class="mono"' : ''}>${esc(v)}</dd>`).join('')}${seenChip(d) ? `<dt>Last seen</dt><dd>${seenChip(d)}</dd>` : ''}</dl>`;
-  };
-  const portsBody = () => `<div class="panelbox"><div class="hdr">Front panel <span class="cnt">${usedN} of ${(sw.ports || 0) + (sw.sfp || 0)} ports in use</span></div>
-      <div class="face"><div class="chassis"><span class="model">${esc(sw.name)}</span>
-        <div class="pgroups">${groups.map(g => `<div class="pgroup">${g.map(portBtn).join('')}</div>`).join('')}<div class="pgroup sfp">${sfps.map(portBtn).join('')}</div></div></div></div>
-      ${groups0.length ? `<div class="pgrouplegend">${groups0.map((g, i) => `<span class="pgl${g.lag ? ' lag' : ''}" style="--g:${groupColour(i)}"><i></i>${esc(g.name)} <span class="muted">${esc(pfxOf(sw) + g.from)}${g.to !== g.from ? '–' + esc(pfxOf(sw) + g.to) : ''}</span>${g.lag ? '<b>LAG</b>' : ''}</span>`).join('')}</div>` : ''}
-      <div class="legend"><span><i></i>Free</span><span><i style="background:var(--used);border-color:var(--used)"></i>Device</span><span><i style="background:var(--upl);border-color:var(--upl)"></i>Uplink / trunk</span><span><i style="position:relative;background:var(--port)"><b style="position:absolute;top:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--poe)"></b></i>PoE powered</span>${((sw.sfp || 0) || 0) ? `<span>Ports ${(sw.ports || 0)+1}–${(sw.ports || 0)+(sw.sfp || 0)} are SFP+</span>` : ''}</div>
-    </div>
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Description of port ${esc(pfxOf(sw) + st.portNo)}</div><div class="addrel"><input id="pnDesc" maxlength="120" value="${esc((sw.portNotes || {})[st.portNo] || '')}" placeholder="${esc(portDetail[0] && portDetail[0].d.purpose ? `From the device: ${portDetail[0].d.purpose}` : 'What is on this port, e.g. Printer, 3rd floor')}" aria-label="Description of this port" style="flex:1"></div></div>` : ''}
-    ${st.portNo != null ? `<div class="panelbox"><div class="hdr">Port ${esc(pfxOf(sw) + st.portNo)}</div>${portDetail.length ? portDetail.map(x => `<div class="path">${[{o:x.d}, ...x.sub.map(s => ({o:s.d}))].map(n => `<button class="node" data-open="${n.o.id}">${tico(n.o.type,'tico sm')}${esc(n.o.name)}</button>`).join('<span class="edge">behind</span>')}</div>${portInfo(x)}`).join('') : `<div class="path">${selLag ? `<span class="muted">Part of the LAG ${esc(selLag.g.name)}, linked to</span> <button class="node" data-open="${selLag.d.id}">${tico(selLag.d.type,'tico sm')}${esc(selLag.d.name)}</button>` : selGroup && selGroup.lag ? `<span class="muted">Part of the LAG ${esc(selGroup.name)}, not linked yet. Link the LAG from a device page: Relations, then choose the LAG.</span>` : `<span class="muted">Port is free.</span><button id="assignBtn" class="primary">Plug in a device…</button><button id="assignNewBtn">New device…</button>`}</div>`}</div>` : ''}
-    <div class="panelbox"><div class="hdr">Port groups <span class="cnt">${groups0.length} ${groups0.length === 1 ? 'group' : 'groups'}</span></div>
-      <div class="relist">${groups0.length ? groups0.map((g, i) => `<div class="relrow"><span class="k">${esc(g.name)}</span><span class="t">${g.from === g.to ? 'Port ' : 'Ports '}${esc(pfxOf(sw) + g.from)}${g.from === g.to ? '' : '–' + esc(pfxOf(sw) + g.to)}${g.kind ? ` · ${esc(g.kind)}` : ''}${g.lag ? ' · link aggregate (LAG)' : ''}</span><button data-editgroup="${i}" aria-label="Edit group ${esc(g.name)}">Edit</button><button class="icon ghost" data-delgroup="${i}" title="Remove group" aria-label="Remove group ${esc(g.name)}">×</button></div>`).join('') : '<p class="note lempty">No port groups yet. A group names a range of ports, such as the uplinks.</p>'}</div>
-      <div class="addrel">${pgEditing ? `<span class="muted">Edit ${esc(pgEditing.name)}:</span>` : ''}<input id="pgName" placeholder="Group name, e.g. Uplinks" aria-label="Group name" value="${esc(pgEditing ? pgEditing.name : '')}"><input id="pgFrom" type="number" min="1" placeholder="From" style="width:80px" aria-label="First port" value="${pgEditing ? pgEditing.from : ''}"><input id="pgTo" type="number" min="1" placeholder="To" style="width:80px" aria-label="Last port" value="${pgEditing ? pgEditing.to : ''}"><input id="pgKind" placeholder="Kind, e.g. SFP+" style="width:120px" aria-label="Kind of port" value="${esc(pgEditing ? pgEditing.kind || '' : '')}"><label class="pchk" title="The ports act as one logical link, bundled with LACP or similar"><input type="checkbox" id="pgLag" ${pgEditing && pgEditing.lag ? 'checked' : ''}> LAG</label>${pgEditing ? '<button id="pgCancel">Cancel</button><button id="pgAdd" class="primary">Save group</button>' : '<button id="pgAdd">Add group</button>'}</div></div>
-    <div class="panelbox"><div class="hdr">Port map</div><div style="overflow-x:auto"><table class="grid mini"><thead><tr><th>Port</th><th>Device</th><th>Type</th><th>VLAN</th><th>Behind it</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td class="n">${esc(typeof x.p === 'number' ? pfxOf(sw) + x.p : x.p)}</td><td class="n"><a class="link" data-open="${x.d.id}">${esc(x.d.name)}</a></td><td>${isUplink(x.r.kind) ? 'Uplink' : esc(TYPES[x.d.type].short)}</td><td>${esc(x.r.vlan ? vlanLabel(x.r.vlan) : (isUplink(x.r.kind) ? 'Trunk' : ''))}</td>
-        <td>${x.sub.map(s => `<a class="link mono" data-open="${s.d.id}">${esc(s.d.name)}</a>`).join(', ')}</td></tr>`).join('')}
-    </tbody></table></div></div></div>`;
-  $('#view').innerHTML = `<div id="net">
-    <div class="panelbox"><div class="hdr">Port setup</div>
-      <div class="form" style="padding:10px 12px">
-        <label for="psPorts">Copper ports</label><input id="psPorts" type="number" min="0" max="1000" value="${sw.ports || 0}" style="width:180px">
-        <label for="psSfp">SFP ports</label><input id="psSfp" type="number" min="0" max="1000" value="${sw.sfp || 0}" style="width:180px">
-        <label for="psPfx">Port naming</label><input id="psPfx" class="mono" maxlength="20" value="${esc(sw.pfx || '')}" placeholder="e.g. 1/ or Gi1/0/" style="width:180px">
-      </div>
-      <div class="addrel"><span class="note" id="psMsg" style="flex:1">A port is the naming followed by its number, for example ${esc((sw.pfx || '') + '12')}.</span></div>
-    </div>
-    ${!sw.ports && !sw.sfp ? `<p class="note ports-none">${esc(sw.name)} has no ports yet. Enter the number of copper or SFP ports above.</p></div>` : portsBody()}`;
-
-  $('#view').querySelectorAll('.port').forEach(b => b.onclick = () => { st.portNo = +b.dataset.port; view(); });
-  const total = (sw.ports || 0) + (sw.sfp || 0);
-  $('#view').querySelectorAll('[data-delgroup]').forEach(b => b.onclick = () => {
-    const g = groups0[+b.dataset.delgroup];
-    if (rels.some(r => (r.to === sw.id && r.lag === g.name) || (r.from === sw.id && r.fromLag === g.name))){ toast(`${g.name} is linked. Remove its link first.`); return; }
-    sw.portGroups.splice(+b.dataset.delgroup, 1); queueServerSave(); toast('Port group removed'); render();
-  });
-  $('#view').querySelectorAll('[data-editgroup]').forEach(b => b.onclick = () => { st.pgEdit = {sw: sw.id, i: +b.dataset.editgroup}; render(); $('#pgName').focus(); });
-  const pgCancel = $('#pgCancel'); if (pgCancel) pgCancel.onclick = () => { st.pgEdit = null; render(); };
-  const pgAdd = $('#pgAdd'); if (pgAdd) pgAdd.onclick = () => {
-    const name = $('#pgName').value.trim(), from = +$('#pgFrom').value, to = +($('#pgTo').value || $('#pgFrom').value), kind = $('#pgKind').value.trim();
-    const editing = pgEditing, others = groups0.filter(g => g !== editing);
-    if (!name){ toast('Give the group a name.'); return; }
-    if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
-    if (others.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
-    if (others.some(g => g.name.toLowerCase() === name.toLowerCase())){ toast(`There is already a group named ${name}. Give it another name.`); return; }
-    /* A device on a port the group did not have yet must move first; one already in the group stays. */
-    const wasIn = p => editing && p >= editing.from && p <= editing.to;
-    if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to && !wasIn(r.port))){ toast('A device is on one of these ports. Move it first.'); return; }
-    const lag = $('#pgLag').checked;
-    const next = {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})};
-    if (!editing){ sw.portGroups = [...groups0, next]; queueServerSave(); toast('Port group added'); render(); return; }
-    /* A linked LAG stays a LAG of the same size, so it still matches the LAG on the other end; a new name moves with its link. */
-    const link = editing.lag ? lagLinkOf(sw, editing) : null;
-    if (link && (!lag || to - from !== editing.to - editing.from)){ toast(`${editing.name} is linked to a LAG of ${editing.to - editing.from + 1} ports. Keep it a LAG of that size, or remove the link first.`); return; }
-    if (link && name !== editing.name) for (const r of rels){ if (r.to === sw.id && r.lag === editing.name) r.lag = name; if (r.from === sw.id && r.fromLag === editing.name) r.fromLag = name; }
-    sw.portGroups = groups0.map(g => g === editing ? next : g);
-    st.pgEdit = null; queueServerSave(); toast('Port group saved'); render();
-  };
-  /* The port setup saves when a field is left, like every other field; a count that would drop a used port is refused
-     and said beside the fields. */
-  const savePorts = () => {
-    const ports = $('#psPorts').value === '' ? NaN : +$('#psPorts').value, sfp = $('#psSfp').value === '' ? NaN : +$('#psSfp').value, pfx = $('#psPfx').value.trim();
-    if (ports === sw.ports && sfp === (sw.sfp || 0) && pfx === (sw.pfx || '')) return;
-    const err = portSetupError(sw, ports, sfp);
-    if (err){ $('#psMsg').textContent = err; $('#psMsg').classList.add('err'); return; }
-    Object.assign(sw, {ports, sfp, pfx}); queueServerSave(); toast('Ports saved'); render();
-  };
-  ['#psPorts', '#psSfp', '#psPfx'].forEach(id => { const el = $(id); if (el) el.onchange = savePorts; });
-  const pn = $('#pnDesc'); if (pn) pn.onchange = () => {
-    const v = pn.value.trim(); sw.portNotes = {...(sw.portNotes || {})};
-    if (v) sw.portNotes[st.portNo] = v; else delete sw.portNotes[st.portNo];
-    queueServerSave(); toast('Description saved'); render();
-  };
-  /* A free port: plug in a device the inventory has, or create one already plugged in. */
-  const ab = $('#assignBtn'); if (ab) ab.onclick = () => { if (!portRangeError(sw, st.portNo)) linkObjModal({to: sw.id, port: st.portNo}); };
-  const an = $('#assignNewBtn'); if (an) an.onclick = () => { if (!portRangeError(sw, st.portNo)) newObjModal({sw: sw.id, port: st.portNo}); };
-}
-
+export * from './views-map.js';
+export * from './views-ports.js';

@@ -87,7 +87,7 @@ try {
   for (const tab of ['cards', 'table', 'map']) {
     await go(tab);
     await p.waitForSelector('#searchAllBtn');
-    assert.match(await p.textContent('#view'), /Nothing matches “172\.21\.103\.2” within PC\. 1 object outside this type does: 172\.21\.103\.2/, tab);
+    assert.match(await p.textContent('#view'), /Nothing matches “172\.21\.103\.2” within PC\. 1 device outside this type does: 172\.21\.103\.2/, tab);
     assert.equal(await p.locator('#newFromSearch').count(), 0, `${tab} offers to create what is already there`);
   }
   // "Search all objects" keeps the search, drops the type: the map shows the switch with its relation

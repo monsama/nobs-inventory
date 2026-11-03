@@ -28,13 +28,13 @@ export function feedPanel(o){
   const head = `<div class="hdr">Lansweeper${o.feed ? ` <span class="cnt">${esc(o.feed.sys)}${o.feed.ref ? ' · ' + esc(o.feed.ref) : ''}</span>` : ''}</div>`;
   const dl = (extra = '') => `<dl class="lsbox"><dt>Status</dt><dd>${scanOld(o) ? scanChip(o) : syncChip(o)}</dd>
     ${o.feed ? lsDates(o) : ''}
-    <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one object has</dd>${extra}</dl>`;
+    <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one device has</dd>${extra}</dl>`;
   if (!o.feed){
-    const note = o.detached ? 'Detached: the sync leaves this object alone and its fields are yours. Attach it to let the sync fill it in again.'
+    const note = o.detached ? 'Detached: the sync leaves this device alone and its fields are yours. Attach it to let the sync fill it in again.'
       : 'Entered by hand. The next sync links it when its serial number or unique name matches a Lansweeper record.';
     return `<div class="panelbox">${head}${dl()}<div class="addrel"><span class="note" style="flex:1">${note}</span>${o.detached ? '<button id="attachFeed" class="primary">Attach</button>' : ''}</div></div>`;
   }
-  const note = o.excluded ? 'Excluded from the sync, so Lansweeper does not change this object. Include it again from the More menu.'
+  const note = o.excluded ? 'Excluded from the sync, so Lansweeper does not change this device. Include it again from the More menu.'
     : 'Where a value comes from shows beside each field; click the mark to compare the sources or fix one. Name and serial number are never overwritten.';
   /* Software and Links sit in the same list as the rest, so their boxes line up with the values above. */
   const takenBox = (k, text) => `<label class="pchk lsbox-check"><input type="checkbox" data-lslist="${k}" ${feedOwns(o, k) ? 'checked' : ''}> ${text}</label>`;

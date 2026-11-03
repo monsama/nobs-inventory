@@ -261,7 +261,7 @@ async function sendNow(){
         SERVER.base.set(key, JSON.stringify(v));
       }
       if (j.conflicts && j.conflicts.length){
-        const KIND_NAME = { object: 'an object', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'an object type', history: 'a history entry' };
+        const KIND_NAME = { object: 'a device', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'a device type', history: 'a history entry' };
       const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });
         const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
           .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
@@ -503,7 +503,7 @@ export async function clearAll(){
   }
   leaveSettings(); closeModal();   /* the emptied inventory is shown, not Settings */
   await reloadFromServer();
-  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
+  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
 export const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];

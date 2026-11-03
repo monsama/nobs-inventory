@@ -65,6 +65,7 @@ try {
   // the one search at the top filters the software list too
   await p.fill('#search', 'RTR-EDGE');
   await p.waitForSelector('tr[data-sw="Tool X"] + tr.sw-detail');
+  await p.waitForSelector('#fbar [data-fx=q]');   // the list says it is filtered, as the device lists do
   await p.fill('#search', 'no such thing');
   await p.waitForSelector('#swBody >> text=Nothing matches');
   await p.fill('#search', ''); await p.keyboard.press('Escape');

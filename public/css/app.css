@@ -415,8 +415,6 @@ svg.cu{fill:currentColor;stroke:none}
 /* The same marks on the device page, in its Properties: no card edge around them. */
 .jbar.jbar-page{flex:1;padding:0;border-top:0}
 .jbar.jbar4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.jb.ad{--c:#7c3aed}.jb.en{--c:#2563eb}.jb.hy{--c:#0d9488}.jb.reg{--c:#d97706}
-.jb.ok{--c:var(--ok)}.jb.warn{--c:var(--warnbtn)}.jb.bad{--c:var(--danger-bg)}.jb.nc{--c:#64748b}
 
 /* table */
 .gridwrap{overflow:auto;height:100%}
@@ -1168,7 +1166,6 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .tab.objtab{padding-left:8px;border-radius:4px;background:transparent;border-color:var(--bd2)}
 .tab.objtab.active{background:var(--panel2);border-color:var(--bd);color:var(--fg)}
 .tsw{width:9px;height:9px;border-radius:2px;display:inline-block;flex:none;opacity:.75}
-.jb.ad,.jb.en,.jb.hy,.jb.reg{--c:var(--accent)}
 
 /* One line each: the dot, the name, and the state after it. */
 .jb{--c:var(--muted);grid-template-columns:auto minmax(0,1fr);column-gap:5px;row-gap:2px;min-width:0;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-left:3px solid var(--c);border-radius:var(--r-m);font-size:11px;line-height:1.15;white-space:nowrap;border-left-width:1px;background:color-mix(in srgb,var(--c) 7%,transparent);display:flex;align-items:center;gap:5px;padding:3px 7px;height:22px;box-sizing:border-box}
@@ -1205,7 +1202,7 @@ input.bad{border-color:var(--danger);outline-color:var(--danger)}
 .filepick{display:flex;align-items:center;gap:8px;min-width:0}.filepick>.muted{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;margin-right:8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer}
 /* Leftover colour outside plans and the map: shades of the one accent instead. */
-.j-entra{background:var(--accent)}.j-hybrid{background:color-mix(in srgb,var(--accent) 65%,var(--bg))}.j-adonly{background:color-mix(in srgb,var(--accent) 40%,var(--bg))}.j-registered{background:var(--warn)}
+.j-entra,.j-hybrid,.j-adonly{background:var(--okdot)}.j-registered{background:var(--warn)}
 .cn-card.internal{--cn:var(--muted)}.cn-card.external{--cn:var(--accent)}
 .sdot.ldap,.sdot.entra,.sdot.lansweeper{background:var(--muted)}
 .tdot .tsw,.tab.objtab .tsw{background:var(--muted)!important;opacity:.45}
@@ -1240,8 +1237,6 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 .pl-ghead .muted{font-weight:400;font-size:11px}
 :root[data-theme="dark"] .pl-canvas>img{filter:brightness(.82) contrast(1.05)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pl-canvas>img{filter:brightness(.82) contrast(1.05)}}
-:root[data-theme="dark"] .j-hybrid{background:color-mix(in srgb,var(--accent) 70%,#fff)}:root[data-theme="dark"] .j-adonly{background:color-mix(in srgb,var(--accent) 45%,#fff)}:root[data-theme="dark"] .j-notjoined{background:#6b7280}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .j-hybrid{background:color-mix(in srgb,var(--accent) 70%,#fff)}:root:not([data-theme="light"]) .j-adonly{background:color-mix(in srgb,var(--accent) 45%,#fff)}:root:not([data-theme="light"]) .j-notjoined{background:#6b7280}}
 /* Remove buttons on a page are neutral until pointed at; red stays for the dialog that confirms them. */
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--fg);border-color:var(--bd);font-weight:400}
@@ -1801,3 +1796,16 @@ details.how[open]>summary{margin-bottom:4px}
 .ps:last-child::before{height:auto;bottom:12px}
 /* Someone who only reads sees no adding or removing on a device page (rather than disabled controls). */
 .readonly .obj .addrel,.readonly .obj [data-delrel]{display:none}
+
+/* One meaning per colour, everywhere (badges, dots, chips, filters):
+   green = there and fine (in AD, joined to Entra, compliant, Defender active, in use, synced);
+   amber = there but needs a look (Entra registered only, grace period, inactive, medium risk, ending soon);
+   red = a problem (not compliant, high risk, ended, failed);
+   grey ring = not there or off (not joined, not managed, not onboarded, in stock, a source turned off);
+   grey = done (retired). Blue is for links, selection and actions only, never for a state. */
+.jb.ad,.jb.en,.jb.hy,.jb.ok{--c:var(--okdot)}
+.jb.reg,.jb.warn{--c:var(--warn)}
+.jb.bad{--c:var(--danger)}
+.jb.nc{--c:var(--muted)}
+.dot.gone{background:var(--muted)}
+.chip.gone{color:var(--muted);background:var(--panel2);border-color:var(--bd)}

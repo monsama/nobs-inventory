@@ -49,7 +49,7 @@ export function newObjModal(pre={}){
       <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
-    </div></details><p class="note">The object gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
+    </div></details><p class="note">The device gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.name) $('#nName').value = pre.name;
@@ -149,16 +149,16 @@ export function linkObjModal(pre = {}){
   const into = pre.to ? byId(pre.to) : null;
   const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o))
     .filter(o => !into || (o.id !== into.id && linkOf(o).port && linkOf(o).ok(into)));
-  if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create an object first.'); return; }
+  if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create a device first.'); return; }
   const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
   /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
   const atPort = into && pre.port != null;
-  modal(`<div class="mh">${atPort ? `Plug into ${esc(into.name)} · ${esc(pfxOf(into) + pre.port)}` : 'Link object'}</div>
+  modal(`<div class="mh">${atPort ? `Plug into ${esc(into.name)} · ${esc(pfxOf(into) + pre.port)}` : 'Link device'}</div>
     <div class="mb"><div class="form" style="padding:0">
       <label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${atPort ? '<option value="">Choose a device…</option>' : ''}${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
-    </div><p class="note" id="lkNote">Only the link is added; the object's details stay as they are.</p></div>
+    </div><p class="note" id="lkNote">Only the link is added; the device's details stay as they are.</p></div>
     <div class="mf"><button id="lkCancel">Cancel</button><button id="lkOk" class="primary">${atPort ? 'Plug in' : 'Link'}</button></div>`, 'sm');
   /* Opened on a device's page: that device is the one to link, or, when it cannot be linked itself (a switch), the one to
      link to. */

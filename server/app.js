@@ -8,14 +8,14 @@ import { settingDiff } from './audit-diff.js';
 import { healthReport } from './health.js';
 import { inScope, scopeKey, scopeOf, scopeState } from './scope.js';
 import { applyGroupRole, groupsOf } from '../public/js/group-roles.js';
-import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendReportMail, sendTestMail, mailFailure, smtpConfig, smtpSettingsProblem } from './digest.js';
-import { mergePeople } from '../public/js/people-match.js';
-import { stamp } from '../public/js/dates.js';
-import { apiDevice, checkApiToken, createApiToken, csvCellApi, listApiTokens, revokeApiToken, apiContract, apiLicence, apiPerson } from './api-tokens.js';
+import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest, sendTestMail, mailFailure, smtpConfig, smtpSettingsProblem } from './digest.js';
+
+import { registerApiRoutes } from './api-routes.js';
+import { registerPeopleRoutes } from './people-routes.js';
 import { PASSWORD_MIN, decryptBackup, exportSet, exportWhere, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { finishSso, startSso, userForClaims } from './sso.js';
-import { stateTag, stateSeq, changesSince, settingOf, ADMIN_SETTINGS, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, movePersonRows, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { stateTag, stateSeq, changesSince, settingOf, ADMIN_SETTINGS, CONNECTION_SETTINGS, KNOWN_TYPES, SETTING_KEYS, PAGE_SETTINGS, freeUserId, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { setPassword, passwordProblem, checkLocalPassword, createSession, sessionUserId, endSession, endOtherSessions, listSessions, endSessionById, readCookie } from './auth.js';
 import { ldapEnabled, ldapHint, ldapLogin, ldapMembership, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf, ldapPinProblem } from './ldap-config.js';
@@ -210,7 +210,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
       if (!user) { audit(db, null, `sign in with Microsoft refused: ${who} is not a user of the inventory`); return back('unknown'); }
       /* Entra groups in the token (when the app registration sends the groups claim): kept, and with the directory's
-         groups they give a role and sites (Settings → Users → Roles from groups). */
+         groups they give a role and sites (Settings → Users → Viewers from groups). */
       /* Without the groups claim (not set up, or more groups than a token holds) the Entra groups kept from before go: a
          role an Entra group gave is not kept on an old list. */
       {
@@ -1048,117 +1048,8 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
-  /* Two records of one person merged (public/js/people-match.js): devices, entry sheets and the sign-in go to the one
-     kept, the other's login and name stay as aliases so a sync finds the person again. A backup is taken first. */
-  app.post('/api/users/merge', requireUser, requireAdmin, (req, res, next) => {
-    try {
-      const { keep, drop } = req.body || {};
-      const s = loadState(db), k = s.users.find(u => u.id === keep), d = s.users.find(u => u.id === drop);
-      if (!k || !d) throw new HttpError(404, 'No such person.');
-      if (d.id === req.user.id) throw new HttpError(400, 'Your own account cannot be merged away: keep it.');
-      const hadLogin = !!k.login;
-      autoBackup(db, 'before merging two people');
-      let r;
-      try { r = mergePeople(s, k.id, d.id, stamp(new Date())); } catch (e) { throw new HttpError(400, e.message); }
-      saveState(db, s);
-      movePersonRows(db, k.id, d.id, hadLogin);
-      audit(db, req.user.id, `people merged: ${d.name} into ${k.name} (${r.moved} device${r.moved === 1 ? '' : 's'})`);
-      res.json({ ok: true, moved: r.moved });
-    } catch (e) { next(e); }
-  });
-  /* My devices: anyone signed in confirms they have a device they are the user of, or reports a problem with it (an
-     admin sees it on the device and in Data quality). Nothing else of the device can be changed this way. */
-  const myDevice = req => {
-    const s = loadState(db), o = s.objs.find(x => x.id === String(req.params.id) && !x.review);
-    if (!o || o.uid !== req.user.id) throw new HttpError(404, 'This is not one of your devices.');
-    return { s, o };
-  };
-  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  app.post('/api/my/devices/:id/confirm', requireUser, (req, res, next) => {
-    try {
-      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
-      const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
-      o.verified = { at: today(), by, ...(prev ? { prev } : {}) };
-      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Confirmed by its user ${by}` });
-      saveState(db, s); audit(db, req.user.id, `device confirmed by its user: ${o.name}`);
-      res.json({ ok: true });
-    } catch (e) { next(e); }
-  });
-  app.post('/api/my/devices/:id/report', requireUser, (req, res, next) => {
-    try {
-      const text = String((req.body || {}).text || '').trim().slice(0, 500);
-      if (!text) throw new HttpError(400, 'Say what is wrong.');
-      const { s, o } = myDevice(req), by = req.user.name || req.user.login;
-      o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
-      (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
-      saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);
-      /* At once to the admins, when turned on: after answering, so a slow mail server does not hold the page. */
-      res.json({ ok: true });
-      sendReportMail(db, o, o.reported, process.env, mailTransport, smtpNow()).then(sent => { if (sent) audit(db, null, `e-mail sent: problem reported on ${o.name}`); },
-        e => audit(db, null, `e-mail about the problem on ${o.name} failed: ${String(e.message || e).slice(0, 200)}`));
-    } catch (e) { next(e); }
-  });
-  /* Read-only API tokens for other tools (server/api-tokens.js): made and revoked by an admin. */
-  app.get('/api/tokens', requireUser, requireAdmin, (req, res) => res.set('Cache-Control', 'no-store').json({ tokens: listApiTokens(db) }));
-  app.post('/api/tokens', requireUser, requireAdmin, (req, res, next) => {
-    try {
-      const made = createApiToken(db, req.body || {}, req.user.name || req.user.login);
-      audit(db, req.user.id, `API token made: ${made.info.name}${made.info.people ? ' (with people)' : ''}`);
-      res.set('Cache-Control', 'no-store').json(made);
-    } catch (e) { next(e.status ? new HttpError(e.status, e.message) : e); }
-  });
-  app.delete('/api/tokens/:id', requireUser, requireAdmin, (req, res) => {
-    const t = listApiTokens(db).find(x => x.id === req.params.id);
-    if (revokeApiToken(db, req.params.id)) audit(db, req.user.id, `API token revoked: ${t ? t.name : req.params.id}`);
-    res.json({ tokens: listApiTokens(db) });
-  });
-  /* The API itself: Authorization: Bearer nobs_…; wrong tokens count against the address like wrong sign-ins. */
-  const apiAuth = (req, res, next) => {
-    const keys = ['api:' + (req.ip || '')];
-    if (throttle.blocked(keys)) return res.status(429).json({ error: 'Too many wrong tokens. Try again in 15 minutes.' });
-    const t = checkApiToken(db, (/^Bearer (.+)$/.exec(req.get('authorization') || '') || [])[1]);
-    if (!t) { throttle.recordFailure(keys); return res.status(401).set('WWW-Authenticate', 'Bearer').json({ error: 'A valid API token is needed (Authorization: Bearer nobs_…).' }); }
-    req.apiToken = t; res.set('Cache-Control', 'no-store'); next();
-  };
-  /* GET /api/v1/devices[?format=csv][&status=active][&type=notebook][&q=text]: the inventory's devices, not those in To review. */
-  app.get('/api/v1/devices', apiAuth, (req, res) => {
-    const s = loadState(db, { history: false }), q = String(req.query.q || '').trim().toLowerCase();
-    let list = s.objs.filter(o => !o.review);
-    if (req.query.status) list = list.filter(o => o.status === String(req.query.status));
-    if (req.query.type) list = list.filter(o => o.type === String(req.query.type));
-    if (q) list = list.filter(o => [o.code, o.name, o.serial, o.model, o.ip, o.mac].some(v => v && String(v).toLowerCase().includes(q)));
-    const out = list.map(o => apiDevice(o, s, { people: req.apiToken.people }));
-    if (req.query.format === 'csv') {
-      const cols = ['id', 'code', 'name', 'typeLabel', 'model', 'serial', 'status', 'location', 'ip', 'mac', 'os', 'purchased', 'warranty', ...(req.apiToken.people ? ['user', 'department'] : [])];
-      return res.type('text/csv').send('\ufeff' + [cols.join(','), ...out.map(d => cols.map(c => csvCellApi(d[c])).join(','))].join('\r\n'));
-    }
-    res.json({ count: out.length, devices: out });
-  });
-  /* GET /api/v1/contracts, /api/v1/licences[?format=csv]; /api/v1/people only for a token made with people. */
-  const apiList = (req, res, key, list, cols) => {
-    if (req.query.format === 'csv') return res.type('text/csv').send('\ufeff' + [cols.join(','), ...list.map(d => cols.map(c => csvCellApi(Array.isArray(d[c]) ? d[c].join(' ') : d[c])).join(','))].join('\r\n'));
-    res.json({ count: list.length, [key]: list });
-  };
-  app.get('/api/v1/contracts', apiAuth, (req, res) => {
-    const s = loadState(db, { history: false });
-    apiList(req, res, 'contracts', (s.contracts || []).map(c => apiContract(c, s)), ['id', 'name', 'kind', 'supplier', 'ref', 'start', 'end', 'renewMonths', 'noticeMonths', 'noticeBy', 'state', 'cost', 'per', 'devices']);
-  });
-  app.get('/api/v1/licences', apiAuth, (req, res) => {
-    const s = loadState(db, { history: false });
-    apiList(req, res, 'licences', (s.licences || []).map(l => apiLicence(l, s)), ['id', 'name', 'seats', 'used', 'free', 'over', 'cost', 'per', 'end']);
-  });
-  app.get('/api/v1/people', apiAuth, (req, res) => {
-    if (!req.apiToken.people) return res.status(403).json({ error: 'This token was made without people.' });
-    const s = loadState(db, { history: false });
-    apiList(req, res, 'people', (s.users || []).filter(u => u.source !== 'manual' || u.login !== 'admin').map(u => apiPerson(u, s)), ['id', 'name', 'department', 'active', 'left', 'devices']);
-  });
-  /* GET /api/v1/devices/INV-0001: one device by inventory number, id or serial number. */
-  app.get('/api/v1/devices/:code', apiAuth, (req, res) => {
-    const s = loadState(db, { history: false }), k = String(req.params.code);
-    const o = s.objs.find(x => !x.review && (x.code === k || x.id === k)) || s.objs.find(x => !x.review && x.serial && x.serial === k);
-    if (!o) return res.status(404).json({ error: 'No such device.' });
-    res.json(apiDevice(o, s, { people: req.apiToken.people }));
-  });
+  registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailTransport, smtpNow });
+  registerApiRoutes(app, { db, requireUser, requireAdmin, throttle });
   /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
   const exportInfo = () => ({ dir: exportSet(), where: exportWhere(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
   /* The restore test (server/restore-test.js): weekly from the scheduler, and on request here. */

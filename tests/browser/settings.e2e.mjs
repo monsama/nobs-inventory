@@ -146,7 +146,7 @@ try {
   // clear the inventory: two clicks, devices gone, admin and settings kept
   saveState(db, { ...loadState(db), objs: [{ id: 'o1', code: 'INV-0001', type: 'pc', name: 'PC-X', ovr: {}, feed: null }], rels: [], history: {} });
   await openSetTab(page, 'feed');
-  await openSetTab(page, 'maintenance'); await page.click('#setReset'); await page.waitForSelector('#clrOk');
+  await openSetTab(page, 'backups'); await page.click('#setReset'); await page.waitForSelector('#clrOk');
   await page.fill('#clrWord', 'clear'); assert.equal(await page.isDisabled('#clrOk'), true, 'lower case confirms');
   await page.fill('#clrWord', 'CLEAR'); await page.click('#clrOk');
   for (let t0 = Date.now(); loadState(db).objs.length && Date.now() - t0 < 8000;) await page.waitForTimeout(100);

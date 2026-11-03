@@ -99,7 +99,7 @@ export function renderTypeMap(){
   const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
     <select data-tmt="${i}" aria-label="Device type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
   $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
-    <p class="note" style="padding:10px 12px 6px">Sets the object type a Lansweeper type name becomes. It applies when a device syncs, and when a row is saved to devices already synced with that name. Names are matched without case. Names not listed here use the built-in rules.</p>
+    <p class="note" style="padding:10px 12px 6px">Sets the device type a Lansweeper type name becomes. It applies when a device syncs, and when a row is saved to devices already synced with that name. Names are matched without case. Names not listed here use the built-in rules.</p>
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Device type</span><span></span></div>
       ${rows || '<p class="note lempty">No names yet.</p>'}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Device type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>

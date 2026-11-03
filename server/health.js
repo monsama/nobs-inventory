@@ -31,7 +31,7 @@ export function healthReport(db, s, { version, on = {}, graphCert = null, photos
   let size = 0; for (const f of file ? [file, `${file}-wal`] : []) { try { size += fs.statSync(f).size; } catch { /* none */ } }
   /* Counted as everywhere in the app: the inventory's objects, not those waiting in To review or ignored there. */
   const docs = db.prepare("SELECT COUNT(*) AS n FROM docs WHERE kind = 'object' AND json_extract(data, '$.review') IS NULL").get().n;
-  add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} objects` : `${docs} objects (in memory)`);
+  add('Server', 'Database', 'ok', file ? `${mb(size)} · ${docs} records` : `${docs} records (in memory)`);
   if (photos && photos.n) add('Server', 'Device photos', photos.bytes > 3.5 * 1073741824 ? 'warn' : 'ok', `${photos.n} photo${photos.n === 1 ? '' : 's'} of ${photos.devices} device${photos.devices === 1 ? '' : 's'} · ${mb(photos.bytes)}`,
     photos.bytes > 3.5 * 1073741824 ? 'Close to the 4 GB the photos may take together: remove photos that are no longer needed.' : 'In the database, and in every backup (each photo stored once).');
   if (file) {
