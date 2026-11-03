@@ -10,7 +10,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 import { html } from './html.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
@@ -70,9 +70,9 @@ export function collapsibleSections(root, prefix){
 let typeAdvOpen = false;
 export function renderSetPane(){
   const grp = setGroupOf(st.setTab);
-  document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
-  document.querySelectorAll('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
-  document.querySelectorAll('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
+  $$('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
+  $$('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
+  $$('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
   const pane = $('#setPane');
   /* Each source's page: its status header and connection, then the fields it brings (#srcFields, settings-sources.js). */
   const fields = src => `<div id="srcFields" data-src="${src}"></div>`;
@@ -159,7 +159,7 @@ export function applyRole(){
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   /* A control that only picks what is shown (data-view: whose fields Settings → Device types lists) stays open. */
-  document.querySelectorAll(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
+  $$(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
     if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (!el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   });

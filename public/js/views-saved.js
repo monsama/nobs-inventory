@@ -2,7 +2,7 @@
    edit and delete them (setting savedViews, shared by all), and can have one sent by mail as an Excel file
    (server/view-mail.js); everyone can open them. */
 import { VIEWS_MAX, VIEW_MAIL_EVERY, WEEKDAYS, applyViewFilters, hiddenFor, mailList, mailText, nextMail, removeView, renameView, sameView, serializeView, setViewMail, tableStateFor, upsertView, viewMailProblem } from './saved-views.js';
-import { $, deleteButton, editButton, esc, rid, st, toast } from './01-core.js';
+import { $$, $, deleteButton, editButton, esc, rid, st, toast } from './01-core.js';
 import { flushSave, queueServerSave, render, view } from './07-render.js';
 import { dateTimeText, stamp } from './dates.js';
 import { html } from './html.js';
@@ -96,8 +96,8 @@ function editViewModal(v){
   };
   const shape = () => {
     const every = $('#svEvery').value;
-    document.querySelectorAll('#mdl .sv-day').forEach(el => { el.hidden = every !== 'weekly' && every !== 'monthly'; });
-    document.querySelectorAll('#mdl .sv-hour').forEach(el => { el.hidden = every === 'none'; });
+    $$('#mdl .sv-day').forEach(el => { el.hidden = every !== 'weekly' && every !== 'monthly'; });
+    $$('#mdl .sv-hour').forEach(el => { el.hidden = every === 'none'; });
     ['#svEvery', '#svDay', '#svHour', '#svTo', '#svSend'].forEach(id => { $(id).disabled = !smtp; });
   };
   fillDays(m0.every, m0.day ?? 1);

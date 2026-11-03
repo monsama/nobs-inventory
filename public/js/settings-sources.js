@@ -1,7 +1,7 @@
 /* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
    from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
    use) and from the current settings, so it changes with them and is never out of date. */
-import { $, DEFAULT_POLICY, SYNC, objs, st, toastUndo } from './01-core.js';
+import { $$, $, DEFAULT_POLICY, SYNC, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
 import { queueServerSave, render } from './07-render.js';
@@ -31,6 +31,7 @@ function presetOf(p){
   return { fieldOrder: fo, fieldMode: fm, policy };
 }
 /* The fields by topic, so the list reads like the device page. A field a sync learns later lands in Other. */
+/** @type {[string, string[]][]} */
 const FIELD_GROUPS = [
   ['Network', ['ip', 'ip6', 'mac', 'mask', 'gateway', 'dns', 'dhcp']],
   ['Hardware', ['model', 'cpu', 'ram', 'disk', 'fw']],
@@ -38,7 +39,8 @@ const FIELD_GROUPS = [
   ['Place and description', ['loc', 'purpose']],
   ['Purchase and warranty', ['purchased', 'warranty', 'price', 'supplier', 'invoice']],
 ];
-const groupsOf = () => { const known = FIELD_GROUPS.flatMap(g => g[1]); const other = ORDER_FIELDS.filter(k => !known.includes(k)); return [...FIELD_GROUPS.map(([n, ks]) => [n, ks.filter(k => ORDER_FIELDS.includes(k))]), ...(other.length ? [['Other', other]] : [])].filter(g => g[1].length); };
+/** @returns {[string, string[]][]} */
+const groupsOf = () => { const known = FIELD_GROUPS.flatMap(g => g[1]); const other = ORDER_FIELDS.filter(k => !known.includes(k)); return [...FIELD_GROUPS.map(([n, ks]) => /** @type {[string, string[]]} */ ([n, ks.filter(k => ORDER_FIELDS.includes(k))])), ...(other.length ? [/** @type {[string, string[]]} */ (['Other', other])] : [])].filter(g => g[1].length); };
 /* AD and Entra & Intune fill nothing while filling is turned off in their tab. */
 const globalOff = src => (src === 'graph' && st.fillGraph === false) || (src === 'ad' && st.fillAd === false);
 const list = names => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
@@ -139,7 +141,7 @@ function matrixHtml(on, only = null){
   const isSet = k => !!((st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]));
   const row = k => html`<tr${isSet(k) ? html` class="ds-set"` : ''}><th scope="row">${SYNC_FIELD_LABEL[k]}${isSet(k) ? html` <span class="chip ds-custom" title="Set here, not the default">Custom</span>` : ''}${hand[k] ? html`<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
     <td class="ds-chain">${chain(k)}</td><td class="ds-how">${orderSentence(k, fieldOrder(st, k))}</td>${edit ? html`<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${SYNC_FIELD_LABEL[k]}">Change…</button></td>` : ''}</tr>`;
-  const groups = groupsOf().map(([n, ks]) => [n, ks.filter(k => !only || SOURCES_OF(k).includes(only))]).filter(g => g[1].length);
+  const groups = groupsOf().map(([n, ks]) => /** @type {[string, string[]]} */ ([n, ks.filter(k => !only || SOURCES_OF(k).includes(only))])).filter(g => g[1].length);
   return html`<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
     ${groups.map(([name, keys]) => html`<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${name}</th></tr>${keys.map(row)}</tbody>`)}</table>`;
 }
@@ -209,7 +211,7 @@ export function renderSourceFields(){
   const extras = [src, ...(src === 'graph' ? ['autopilot'] : [])].flatMap(x => SOURCE_EXTRAS[x] || []);
   root.innerHTML = html`<div class="panelbox"><div class="hdr">Fields from this source</div>${fill}${fieldNote(edit)}<div class="ds-scroll">${matrixHtml(on, src)}</div>${lsWrites}
     ${extras.length ? html`<details class="how ds-beyond-src"><summary>What else it brings</summary><dl class="ds-dl ds-pad">${extras.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></details>` : ''}</div>
-    ${src === 'graph' ? rawHtml(intuneCoverageHtml()) : ''}`;
+    ${src === 'graph' ? intuneCoverageHtml() : ''}`;
   bindMatrix(root, on);
   if (!edit) return;
   /* Filling turned off makes the source "off" in its rules: they are drawn again. */
@@ -233,12 +235,12 @@ function editOrder(k, on){
       <span class="muted ds-li-note">${!on[x] ? 'not set up' : globalOff(x) ? 'filling is off in its tab' : use.has(x) ? '' : 'shown only'}</span>
       <span class="ds-move"><button type="button" class="icon ghost" data-dsup="${x}" aria-label="Move ${SOURCE_LABEL[x]} up" ${!use.has(x) || order.indexOf(x) === 0 ? 'disabled' : ''}>▲</button><button type="button" class="icon ghost" data-dsdown="${x}" aria-label="Move ${SOURCE_LABEL[x]} down" ${!use.has(x) || order.indexOf(x) === order.length - 1 ? 'disabled' : ''}>▼</button></span></li>`)}`;
     $('#dsSays').textContent = orderSentence(k, order, { ...(st.fieldMode || {}), [k]: modes });
-    document.querySelectorAll('[data-dsmode]').forEach(sel => sel.onchange = () => { modes[sel.dataset.dsmode] = sel.value; draw(); });
+    $$('[data-dsmode]').forEach(sel => sel.onchange = () => { modes[sel.dataset.dsmode] = sel.value; draw(); });
 
-    document.querySelectorAll('[data-dsuse]').forEach(c => c.onchange = () => { const x = c.dataset.dsuse; if (c.checked){ use.add(x); order.push(x); } else { use.delete(x); order = order.filter(y => y !== x); } draw(); document.querySelector(`[data-dsuse="${x}"]`)?.focus(); });
-    const move = (x, d) => { const i = order.indexOf(x), j = i + d; if (j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; draw(); (document.querySelector(`[data-ds${d < 0 ? 'up' : 'down'}="${x}"]:not([disabled])`) || document.querySelector(`[data-ds${d < 0 ? 'down' : 'up'}="${x}"]:not([disabled])`) || document.querySelector(`[data-dsuse="${x}"]`))?.focus(); };
-    document.querySelectorAll('[data-dsup]').forEach(b => b.onclick = () => move(b.dataset.dsup, -1));
-    document.querySelectorAll('[data-dsdown]').forEach(b => b.onclick = () => move(b.dataset.dsdown, 1));
+    $$('[data-dsuse]').forEach(c => c.onchange = () => { const x = c.dataset.dsuse; if (c.checked){ use.add(x); order.push(x); } else { use.delete(x); order = order.filter(y => y !== x); } draw(); $(`[data-dsuse="${x}"]`)?.focus(); });
+    const move = (x, d) => { const i = order.indexOf(x), j = i + d; if (j < 0 || j >= order.length) return; [order[i], order[j]] = [order[j], order[i]]; draw(); ($(`[data-ds${d < 0 ? 'up' : 'down'}="${x}"]:not([disabled])`) || $(`[data-ds${d < 0 ? 'down' : 'up'}="${x}"]:not([disabled])`) || $(`[data-dsuse="${x}"]`))?.focus(); };
+    $$('[data-dsup]').forEach(b => b.onclick = () => move(b.dataset.dsup, -1));
+    $$('[data-dsdown]').forEach(b => b.onclick = () => move(b.dataset.dsdown, 1));
   };
   const set = (st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]);
   modal(html`<div class="mh">${SYNC_FIELD_LABEL[k]}: where it comes from</div>

@@ -1,7 +1,7 @@
 /* The Sync button at the right of the tab bar, beside To review: runs a sync by hand (all at once, or one of them) and
    says when each last ran and how it went. Admins only; a source not set up or switched off is not offered. Lansweeper is run from
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
-import { $, esc, st, toast } from './01-core.js';
+import { evEl, $, esc, st, toast } from './01-core.js';
 import { isAdmin } from './04-settings.js';
 import { SERVER, reloadFromServer, render, flushSave } from './07-render.js';
 
@@ -23,10 +23,10 @@ export function sources(){
 export const runOf = src => (st.syncRuns || {})[src] || null;
 /* "today 06:00", "yesterday 14:12", "12.10.2026 06:00" */
 export function when(iso){
-  const d = new Date(iso); if (isNaN(d)) return '';
+  const d = new Date(iso); if (isNaN(+d)) return '';
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()), t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-  const diff = Math.round((today - day) / 864e5);
+  const diff = Math.round((+today - +day) / 864e5);
   return diff === 0 ? `today ${hm}` : diff === 1 ? `yesterday ${hm}` : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${hm}`;
 }
 /* What a run brought, in a few words: "4 updated · 3 new in To review". */
@@ -66,7 +66,7 @@ function closeMenu(){ const m = $('#syncMenu'); if (m) m.remove(); }
 function openMenu(){
   closeMenu();
   const b = $('#syncBtn'); if (!b) return;
-  const m = document.createElement('div');
+  const m = /** @type {import('./01-core.js').El} */ (document.createElement('div'));
   m.id = 'syncMenu'; m.className = 'sync-menu'; m.popover = 'auto'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sync');
   m.innerHTML = menuHtml();
   document.body.append(m);
@@ -106,7 +106,7 @@ async function run(which){
 }
 /* Bound once: the button is drawn again with the tab bar. */
 document.addEventListener('click', e => {
-  const b = e.target.closest('#syncBtn');
+  const b = evEl(e).closest('#syncBtn');
   if (!b) return;
   if ($('#syncMenu')) closeMenu(); else openMenu();
 });

@@ -1,4 +1,4 @@
-import { $, COSTS, REVIEW, UNDO, objs, rels, st } from './01-core.js';
+import { evEl, $$, $, COSTS, REVIEW, UNDO, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -81,7 +81,7 @@ $('#bellPop').addEventListener('click', e => {
 });
 
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */
-document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]') && !e.target.closest('a[href]')) openObj(t.dataset.open); });
+document.addEventListener('click', e => { const t = evEl(e).closest('[data-open]'); if (t && !evEl(e).closest('[data-close]') && !evEl(e).closest('a[href]')) openObj(t.dataset.open); });
 
 /* ---------- tables: columns can be resized and moved ----------
    The order and widths of each table are kept by its place (tab and position), in the browser. */
@@ -98,10 +98,10 @@ function redrawFromData(t, focusFilter = null, focusHeader = null){
   if (!t.dataset.data) return false;
   view();
   /* The new table gets its filter row now, not when the page notices it, so the cursor can go back into its box. */
-  document.querySelectorAll('table.grid').forEach(setupTable);
+  $$('table.grid').forEach(setupTable);
   /* Found by the column it filters, not by its place: moved columns put the boxes in another order. */
-  if (focusFilter !== null){ const box = document.querySelector(`table.grid tr.fr input[data-fci="${focusFilter}"]`); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
-  else if (focusHeader !== null){ const th = document.querySelector(`table.grid thead tr:first-child th[data-ci="${focusHeader}"]`); if (th) th.focus(); }
+  if (focusFilter !== null){ const box = $(`table.grid tr.fr input[data-fci="${focusFilter}"]`); if (box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); } }
+  else if (focusHeader !== null){ const th = $(`table.grid thead tr:first-child th[data-ci="${focusHeader}"]`); if (th) th.focus(); }
   return true;
 }
 export function tableKey(t){
@@ -190,7 +190,7 @@ export function setupTable(t){
       const c = document.createElement('th');
       if (th.querySelector('input')){ fr.appendChild(c); return; }   /* the select-all column has nothing to filter */
       const inp = document.createElement('input');
-      inp.placeholder = 'filter'; inp.dataset.fci = i; inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
+      inp.placeholder = 'filter'; inp.dataset.fci = String(i); inp.value = s.filters[i] || ''; inp.draggable = false; inp.setAttribute('aria-label', 'Filter ' + th.textContent.trim());
       inp.addEventListener('input', () => { const cur = TBL[tableKey(t)]; cur.filters[i] = inp.value; saveTBL(); if (!redrawFromData(t, i)) applyView(t); });
       c.appendChild(inp); fr.appendChild(c);
     });
@@ -231,13 +231,13 @@ export function setupTable(t){
 }
 /* Any table drawn later, in the page or in a dialog, gets the same behaviour. Links that only act on a click (no
    address), such as a table row's name, can be reached with Tab and used with Enter. */
-const keyboardReach = () => document.querySelectorAll('a.link:not([href]):not([tabindex])').forEach(el => {
+const keyboardReach = () => $$('a.link:not([href]):not([tabindex])').forEach(el => {
   el.tabIndex = 0;
   if (el.tagName === 'A') el.setAttribute('role', 'link');
 });
-new MutationObserver(() => { document.querySelectorAll('table.grid').forEach(setupTable); keyboardReach(); }).observe(document.body, {childList: true, subtree: true});
+new MutationObserver(() => { $$('table.grid').forEach(setupTable); keyboardReach(); }).observe(document.body, {childList: true, subtree: true});
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || e.defaultPrevented) return;
-  const el = e.target;
+  const el = evEl(e);
   if (el.matches && el.matches('a.link:not([href])')){ e.preventDefault(); el.click(); }
 });

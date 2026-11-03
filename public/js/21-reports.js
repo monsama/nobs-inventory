@@ -1,6 +1,6 @@
 /* Reports, from the Overview: which one, how it is grouped or for which year, and the file to get (PDF to print or
    pass on, Excel to work on). The server makes the file from what is saved (public/js/reports.js). */
-import { $, objs, toast } from './01-core.js';
+import { $$, $, objs, toast } from './01-core.js';
 import { USERS } from './04-settings.js';
 import { closeModal, modal } from './19-modal.js';
 import { flushSave } from './07-render.js';
@@ -29,17 +29,17 @@ export function reportsModal({ ids = null } = {}){
       </div>
       <p class="note">Made from what is saved now. The PDF is ready to print or pass on; the Excel file has one row per entry, with filters, to sort and sum.</p></div>
     <div class="mf"><button id="rpCancel">Close</button><span class="grow"></span><a class="btnlike" id="rpXlsx" href="#" download>Excel</a><a class="btnlike primary" id="rpPdf" href="#" download>PDF</a></div>`);
-  const kind = () => document.querySelector('[name=rpKind]:checked').value;
+  const kind = () => $('[name=rpKind]:checked').value;
   const sync = () => {
     last = { kind: kind(), group: $('#rpGroup').value, years: Math.min(15, Math.max(1, Number($('#rpYears').value) || 5)), year: Number($('#rpYear').value), person: $('#rpPerson').value };
-    document.querySelectorAll('.rp-opt').forEach(o => { o.hidden = !o.dataset.for.split(' ').includes(last.kind); });
-    const q = new URLSearchParams({ group: last.group, years: last.years, year: last.year, ...(last.kind === 'handback' ? { id: last.person } : {}) });
+    $$('.rp-opt').forEach(o => { o.hidden = !o.dataset.for.split(' ').includes(last.kind); });
+    const q = new URLSearchParams({ group: last.group, years: String(last.years), year: String(last.year), ...(last.kind === 'handback' ? { id: last.person } : {}) });
     const off = last.kind === 'handback' && !last.person;
     ['#rpPdf', '#rpXlsx'].forEach(id => { $(id).classList.toggle('disabled', off); $(id).setAttribute('aria-disabled', off ? 'true' : 'false'); });
     $('#rpPdf').href = `api/reports/${last.kind}?${q}&format=pdf`;
     $('#rpXlsx').href = `api/reports/${last.kind}?${q}&format=xlsx`;
   };
-  document.querySelectorAll('[name=rpKind], #rpGroup, #rpYears, #rpYear, #rpPerson, #rpOnly').forEach(el => { el.onchange = sync; el.oninput = sync; });
+  $$('[name=rpKind], #rpGroup, #rpYears, #rpYear, #rpPerson, #rpOnly').forEach(el => { el.onchange = sync; el.oninput = sync; });
   /* What is still being saved goes first, so the report has it. */
   /* Only the listed devices: their ids go in the body (too many for an address), and the file comes back as a download. */
   ['#rpPdf', '#rpXlsx'].forEach(id => $(id).addEventListener('click', async e => {

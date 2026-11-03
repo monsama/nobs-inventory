@@ -56,14 +56,14 @@ export function confirmModal(title, text, okLabel, onOk, { primary = false } = {
 const WSVG = p => html`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${rawHtml(p)}</svg>`;
 function addWindowControls(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
-  const strip = document.createElement('span'); strip.className = 'wctl';
-  strip.innerHTML = html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
+  const strip = /** @type {import('./01-core.js').El} */ (document.createElement('span')); strip.className = 'wctl';
+  strip.innerHTML = String(html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`);
   if (head) head.appendChild(strip); else box.insertBefore(strip, box.firstChild);
   strip.querySelector('.wc-min').onclick = minimizeModal;
   strip.querySelector('.wc-max').onclick = () => {
     const on = box.classList.toggle('maxed'), b = strip.querySelector('.wc-max');
     b.title = on ? 'Restore' : 'Maximize'; b.setAttribute('aria-label', b.title);
-    b.innerHTML = on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>');
+    b.innerHTML = String(on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>'));
   };
   strip.querySelector('.wc-close').onclick = closeModal;
   makeMovable(m);

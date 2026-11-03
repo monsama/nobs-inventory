@@ -2,7 +2,7 @@
 import { handOutModal } from './27-handout.js';
 import { setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
-import { scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
+import { evEl, scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
 import { render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { confirmModal } from './19-modal.js';
@@ -89,8 +89,8 @@ export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 
    picks it (or takes it back) too; with none picked, it opens the card. */
 let lastPick = null;
 document.addEventListener('click', e => {
-  const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card || e.target.closest('[data-rvc]')) return;
-  const tick = e.target.closest('.cardtick');
+  const card = evEl(e).closest && evEl(e).closest('#view .card[data-open]'); if (!card || evEl(e).closest('[data-rvc]')) return;
+  const tick = evEl(e).closest('.cardtick');
   const picking = !!$('#view .card.picked');
   if (!tick && !picking && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
   e.preventDefault(); e.stopImmediatePropagation();
@@ -105,7 +105,7 @@ document.addEventListener('click', e => {
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */
 document.addEventListener('keydown', e => {
-  if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
+  if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (evEl(e).closest && evEl(e).closest('input, textarea, select, [contenteditable]'))) return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a'){
     e.preventDefault();
     /* In the Table the same as its select-all box: every row its filters leave, also those past the first drawn. */

@@ -59,7 +59,7 @@ export async function renderSetGraph(){
   /* A step that is done says so at the right of its title, in the same chip as other states. */
   const done = ok => ok && html`<span class="chip ok gs-done">Done</span>`;
   const day = t => dayText(String(t || '').slice(0, 10));
-  const left = t => Math.floor((new Date(t) - Date.now()) / 86400000);
+  const left = t => Math.floor((+new Date(t) - Date.now()) / 86400000);
   const certRows = g.certs.map(c => html`<tr><td class="mono">${c.thumbprint}</td><td>${day(c.created)}</td>
       <td>${day(c.expires)}${left(c.expires) < 60 && html` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>`}</td>
       <td>${c.inUse ? html`<span class="chip ok">In use</span>` : c.onServer ? html`<button data-gcuse="${c.thumbprint}" ${fromServer && html`disabled title="The server settings decide the certificate"`}>Use this one</button>` : html`<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>`}</td>

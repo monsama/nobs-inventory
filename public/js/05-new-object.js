@@ -75,7 +75,7 @@ export function newObjModal(pre={}){
   const loc = pre.loc || (!c && ctx && ctx.loc) || '';
   if (loc && LOCS.includes(loc)) $('#nLoc').value = loc;
   /* The form follows the type: its examples, how it is connected, and a rack's height. */
-  const show = (id, on) => { const el = $('#' + id); el.hidden = !on; if (el.closest('.combo')) el.closest('.combo').hidden = !on; document.querySelector(`label[for="${id}"]`).hidden = !on; if (!on && id === 'nPort') portNote('nPort', ''); };
+  const show = (id, on) => { const el = $('#' + id); el.hidden = !on; if (el.closest('.combo')) el.closest('.combo').hidden = !on; $(`label[for="${id}"]`).hidden = !on; if (!on && id === 'nPort') portNote('nPort', ''); };
   const fitType = () => {
     const type = $('#nType').value, ex = EXAMPLES[type] || ['', ''], link = LINK_OF(type), keep = $('#nUp').value;
     $('#nName').placeholder = ex[0] ? 'e.g. ' + ex[0] : 'A name';
@@ -84,7 +84,7 @@ export function newObjModal(pre={}){
     show('nUp', !!link); show('nPort', !!(link && link.port));
     if ($('#nOutlet')) show('nOutlet', !!(link && link.kind === 'connected'));
     if (link){
-      document.querySelector('label[for="nUp"]').textContent = link.label;
+      $('label[for="nUp"]').textContent = link.label;
       $('#nUp').innerHTML = html`<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => html`<option value="${o.id}">${o.name}${TYPES[o.type] ? ' · ' + TYPES[o.type].short : ''}</option>`)}`;
       if ([...$('#nUp').options].some(x => x.value === keep)) $('#nUp').value = keep;
     } else $('#nUp').value = '';
@@ -186,11 +186,11 @@ export function linkObjModal(pre = {}){
   if (obj && list.some(o => o.id === obj)) $('#lkObj').value = obj;
   const fit = () => {
     const o = byId($('#lkObj').value) || list[0], link = linkOf(o), keep = $('#lkTo').value;
-    document.querySelector('label[for="lkTo"]').textContent = link.label;
+    $('label[for="lkTo"]').textContent = link.label;
     const opts = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => html`<option value="${t.id}">${t.name}${TYPES[t.type] ? ' · ' + TYPES[t.type].short : ''}</option>`);
     $('#lkTo').innerHTML = opts.length ? html`${opts}` : '<option value="">Nothing to link to</option>';
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
-    $('#lkPort').hidden = $('#lkPort').closest('.combo').hidden = document.querySelector('label[for="lkPort"]').hidden = !link.port;
+    $('#lkPort').hidden = $('#lkPort').closest('.combo').hidden = $('label[for="lkPort"]').hidden = !link.port;
     portNote('lkPort', '');
   };
   fit();

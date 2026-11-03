@@ -3,7 +3,7 @@
    never writes to AD. The server keeps each sheet encrypted, so it can be printed again; the password goes from the
    kept sheet once it is marked as changed, and at the latest after a set number of days. */
 import { dateText } from './dates.js';
-import { $, COMPANY, objs, toast } from './01-core.js';
+import { $$, $, COMPANY, objs, toast } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { closeModal, modal } from './19-modal.js';
 import { flushSave } from './07-render.js';
@@ -71,9 +71,9 @@ async function printSheet(sh){
   const svg = await loadLogo();
   document.getElementById('printHost')?.remove();
   const host = Object.assign(document.createElement('div'), { id: 'printHost' });
-  host.innerHTML = html`<style>${rawHtml(SHEET_CSS)}
+  host.innerHTML = String(html`<style>${rawHtml(SHEET_CSS)}
     @media screen{#printHost{display:none}}
-    @media print{body>:not(#printHost){display:none!important}body{background:#fff!important}}</style>${sheetHtml(sh, svg)}`;
+    @media print{body>:not(#printHost){display:none!important}body{background:#fff!important}}</style>${sheetHtml(sh, svg)}`);
   document.body.appendChild(host);
   const done = () => { host.remove(); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
@@ -123,7 +123,7 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
   $('#sheetMake').onclick = async () => {
     const login = $('#sheetLogin').value.trim();
     if (!login && $('#sheetPwOn').checked){ $('#sheetErr').textContent = 'Give the Windows sign-in name.'; $('#sheetLogin').focus(); return; }
-    const deviceIds = [...document.querySelectorAll('[data-sdev]:checked')].map(c => c.dataset.sdev);
+    const deviceIds = [...$$('[data-sdev]:checked')].map(c => c.dataset.sdev);
     try {
       const r = await call('POST', 'api/sheets', { userId: u.id, deviceIds, login, note: $('#sheetNote').value, password: $('#sheetPwOn').checked });
       await sheetModal(u, r, { only });
@@ -131,11 +131,11 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
     } catch (e) { $('#sheetErr').textContent = e.message; }
   };
   const open = async id => (await call('GET', 'api/sheets/' + encodeURIComponent(id))).sheet;
-  document.querySelectorAll('[data-sprint]').forEach(b => b.onclick = async () => { try { printSheet(await open(b.dataset.sprint)); } catch (e) { toast(e.message); } });
-  document.querySelectorAll('[data-schanged]').forEach(b => b.onclick = async () => {
+  $$('[data-sprint]').forEach(b => b.onclick = async () => { try { printSheet(await open(b.dataset.sprint)); } catch (e) { toast(e.message); } });
+  $$('[data-schanged]').forEach(b => b.onclick = async () => {
     try { await call('POST', `api/sheets/${encodeURIComponent(b.dataset.schanged)}/changed`); toast('The password is removed from the kept sheet'); sheetModal(u); } catch (e) { toast(e.message); }
   });
-  document.querySelectorAll('[data-sdel]').forEach(b => b.onclick = async () => {
+  $$('[data-sdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Delete this sheet? It cannot be printed again.')) return;
     try { await call('DELETE', 'api/sheets/' + encodeURIComponent(b.dataset.sdel)); toast('Sheet deleted'); sheetModal(u); } catch (e) { toast(e.message); }
   });

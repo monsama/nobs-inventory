@@ -16,7 +16,7 @@ const fitMap = (t, px) => {
 };
 export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
-export const mapH = () => 91;
+export const mapH = o => 91;
 
 export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));

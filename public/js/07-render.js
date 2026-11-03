@@ -1,7 +1,7 @@
 /* Drawing: the open tab, the status bar, back and forward, keyboard shortcuts. Saving, loading and signing in live in
    server-save.js, server-load.js and signin.js; their names are exported from here too, so importers need not change. */
 import { renderBell } from './06-topbar.js';
-import { lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
+import { evEl, $$, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { updateSync, bindFullTextOnHover, fullTextTooltips, $, byId, objs, st } from './01-core.js';
 import { html } from './html.js';
 import { applyRole, isAdmin, ownOnly } from './04-settings.js';
@@ -107,7 +107,7 @@ export function renderStatus(){
     offline: ['bad', 'No connection', 'Your changes are kept on this device and sent when the server answers again, also after the page is closed and opened again.'],
   }[SERVER.save] || ['', '', ''];
   /* The device page open has edits not saved yet: said here too, not "All changes saved" beside "Not saved yet". */
-  if (SERVER.save === 'saved' && document.querySelector('#objSaved.dirty')) S = ['warn', 'Device not saved yet', 'The device page has changes that are not saved: use Save on the page.'];
+  if (SERVER.save === 'saved' && $('#objSaved.dirty')) S = ['warn', 'Device not saved yet', 'The device page has changes that are not saved: use Save on the page.'];
   /* A change not saved is a red chip, so it is not read past like the usual "All changes saved". */
   save.innerHTML = S[0] === 'bad' ? html`<span class="chip bad">${S[1]}</span>` : S[0] === 'warn' ? html`<span class="chip warn">${S[1]}</span>` : html`<span class="dot ${S[0]}"></span>${S[1]}`; save.title = S[2];
   /* On a phone the status bar is short: a save that failed is shown there anyway. */
@@ -149,14 +149,14 @@ function shortcutsModal(){
 { const kb = $('#keysBtn'); if (kb) kb.onclick = shortcutsModal; }
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.target.closest('input, textarea, select') || $('#mdl')) return;
+  if (evEl(e).closest('input, textarea, select') || $('#mdl')) return;
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the search, which also filters the list open. */
   if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
   if (key === 'n' && isAdmin()){ e.preventDefault(); newObjModal(); return; }
   /* V: the next view of a tab that has a switch (Devices: Cards ↔ Table; Contracts: Contracts → Software → Contacts). */
-  if (key === 'v'){ const b = [...document.querySelectorAll('[data-vsw]')], i = b.findIndex(x => x.dataset.vsw === st.tab); if (b.length > 1 && i >= 0){ e.preventDefault(); b[(i + 1) % b.length].click(); } return; }
+  if (key === 'v'){ const b = [...$$('[data-vsw]')], i = b.findIndex(x => x.dataset.vsw === st.tab); if (b.length > 1 && i >= 0){ e.preventDefault(); b[(i + 1) % b.length].click(); } return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
   if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }
 });

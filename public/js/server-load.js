@@ -1,6 +1,6 @@
 /* Loading from the server: reloads, checks for other people's changes, unsaved changes put back on top. */
 import { applyDelta } from './delta.js';
-import { REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
+import { $, REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, bindUser, isAdmin } from './04-settings.js';
@@ -115,7 +115,7 @@ function keepServerCopy(d){
 }
 /* false when it was held back (see above) and asked the server nothing. */
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return false;
+  if (!SERVER.base || SERVER.busy || $('#mdl')) return false;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */

@@ -5,7 +5,7 @@ import { clearConfirm, documents, queueServerSave, flushSave, reloadFromServer, 
 import { settingChangedSince, settingRestore, valueAt } from './restore.js';
 import { pushDate } from './settings-feed.js';
 import { isAdmin } from './04-settings.js';
-import { $, esc, st, toast } from './01-core.js';
+import { $$, $, esc, st, toast } from './01-core.js';
 import { dateTimeText } from './dates.js';
 import { CERT, certAttention, certPanel, loadCert, wireCertPanel } from './certificate.js';
 import { forgetPhotos, prepare } from './23-photos.js';
@@ -157,14 +157,14 @@ export function wireBackups(edit){
     if (!r.ok){ msg('The backup could not be taken.'); return; }
     msg('Backup taken'); loadBackups();
   };
-  document.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+  $$('[data-bdel]').forEach(b => b.onclick = async () => {
     const at = b.closest('tr')?.querySelector('[data-bat]')?.dataset.bat || '';
     if (!confirm(`Delete the backup${at ? ' of ' + at : ''}? It cannot be brought back.`)) return;
     const r = await fetch('api/backups/' + b.dataset.bdel, {method: 'DELETE', credentials: 'same-origin'});
     if (r.ok){ msg('Backup deleted'); loadBackups(); }
     else msg((await r.json().catch(() => ({}))).error || 'The backup was not deleted.');
   });
-  document.querySelectorAll('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
+  $$('[data-brestore]').forEach(b => b.onclick = () => restoreModal(b.dataset.bat, () => fetch('api/backups/' + b.dataset.brestore + '/restore', {method: 'POST', credentials: 'same-origin'})));
   const file = $('#bkFile');
   if ($('#bkAuto')) $('#bkAuto').onchange = () => { st.autoBackups = $('#bkAuto').checked; queueServerSave(); toast(st.autoBackups ? 'Automatic backups are on' : 'Automatic backups are off'); renderSetMaint(); };
   if ($('#bkKeep')) $('#bkKeep').onchange = () => { const v = Math.max(1, Math.min(100, Math.floor(+$('#bkKeep').value) || 10)); st.backupKeep = v; queueServerSave(); toast('Keeping the last ' + v + ' backups'); renderSetMaint(); };
@@ -222,15 +222,15 @@ function healthGo(c){
   const t = hlTarget(c); if (!t) return;
   const [tab, at] = t;
   if (tab === 'log') LOG_FILTER = at || 'all';
-  if (tab !== st.setTab){ const b = document.querySelector(`#setTabs [data-st="${tab}"]`); if (b) b.click(); if (!['maintenance', 'backups', 'mail'].includes(tab)) return; }
-  const el = at && document.querySelector('#setMaint ' + at); if (!el) return;
+  if (tab !== st.setTab){ const b = $(`#setTabs [data-st="${tab}"]`); if (b) b.click(); if (!['maintenance', 'backups', 'mail'].includes(tab)) return; }
+  const el = at && $('#setMaint ' + at); if (!el) return;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   const f = el.matches('button, input, select, a') ? el : el.querySelector('button:not([disabled]), input:not([disabled])');
   if (f) f.focus({ preventScroll: true });
   el.classList.add('hl-flash'); setTimeout(() => el.classList.remove('hl-flash'), 1600);
 }
 function healthPanel(){
-  if (!HEALTH) return '<div class="panelbox"><div class="hdr">Health</div><p class="note" style="padding:12px">Checking…</p></div>';
+  if (!HEALTH) return html`<div class="panelbox"><div class="hdr">Health</div><p class="note" style="padding:12px">Checking…</p></div>`;
   /* The page's own certificate is checked by the page (Certificate below): its state is counted here too. */
   const att = certAttention();
   /* So is its live channel (live.js): the server cannot know about one page. Not connected, the page polls instead. */
@@ -369,7 +369,7 @@ export function renderSetMaint(){
     return;
   }
   if (part === 'mail'){ $('#setMaint').innerHTML = edit ? digestPanel() : '<p class="note" style="padding:12px">Only an admin sets up the e-mail.</p>'; if (edit) wireDigest(); return; }
-  $('#setMaint').innerHTML = html`${edit ? rawHtml(healthPanel()) : ''}${rawHtml(certPanel())}${edit ? rawHtml(photosShrinkPanel()) : ''}`;
+  $('#setMaint').innerHTML = html`${edit ? healthPanel() : ''}${rawHtml(certPanel())}${edit ? rawHtml(photosShrinkPanel()) : ''}`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
   wirePhotosShrink();
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });

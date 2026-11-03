@@ -7,7 +7,7 @@ import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
-import { $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, daysSince } from './01-core.js';
+import { $$, $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, daysSince } from './01-core.js';
 import { html, rawHtml } from './html.js';
 import { statusHeaderHtml } from './settings-status.js';
 /* The status header, with the switch that turns Lansweeper on or off for this inventory, and where its data comes from.
@@ -178,7 +178,7 @@ async function retypeModal(){
     <div class="mf"><button id="rtCancel">${list.length ? 'Cancel' : 'Close'}</button>${list.length > 0 && html`<button id="rtOk" class="primary">Change ${list.length} ${list.length === 1 ? 'device' : 'devices'}</button>`}</div>`, 'wide');
   $('#rtCancel').onclick = closeModal;
   if (!list.length) return;
-  const boxes = () => [...document.querySelectorAll('[data-rt]')];
+  const boxes = () => [...$$('[data-rt]')];
   const count = () => { const n = boxes().filter(b => b.checked).length; $('#rtOk').textContent = `Change ${n} ${n === 1 ? 'device' : 'devices'}`; $('#rtOk').disabled = !n; };
   $('#rtAll').onchange = e => { boxes().forEach(b => { b.checked = e.target.checked; }); count(); };
   boxes().forEach(b => b.onchange = count);

@@ -47,6 +47,6 @@ export function certPanel(){
     ${how}<div class="addrel" style="padding:10px 12px"><button id="certRefresh">Check again</button></div></div>`;
 }
 export function wireCertPanel(rerender){
-  const b = document.getElementById('certRefresh');
+  const b = /** @type {HTMLButtonElement} */ (document.getElementById('certRefresh'));
   if (b) b.onclick = async () => { b.disabled = true; await loadCert(true); rerender(); };
 }

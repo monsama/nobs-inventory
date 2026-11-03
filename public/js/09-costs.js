@@ -149,7 +149,7 @@ export function contractModal(c, preset = []){
   let people = (cur.contacts || []).filter(id => contactOf(id));
   const peopleList = () => {
     $('#ctPeople').innerHTML = html`${people.map(contactOf).filter(Boolean).map(k => html`<div class="ct-person"><span><b>${k.name}</b>${k.company ? html` <span class="muted">${k.company}</span>` : ''}<small>${[k.role, k.email, k.phone].filter(Boolean).join(' · ')}</small></span><button type="button" class="icon ghost" data-ctunlink="${k.id}" aria-label="Take ${k.name} off this contract" title="Take off">×</button></div>`)}`;
-    const rest = CONTACTS.list.filter(k => !people.includes(k.id)).sort((a, b) => (a.kind === 'internal') - (b.kind === 'internal') || a.name.localeCompare(b.name));
+    const rest = CONTACTS.list.filter(k => !people.includes(k.id)).sort((a, b) => +(a.kind === 'internal') - +(b.kind === 'internal') || a.name.localeCompare(b.name));
     $('#ctAddContact').innerHTML = html`<option value="">${CONTACTS.list.length ? (rest.length ? 'Add a contact…' : 'Every contact is on it') : 'No contacts yet (add them in Contacts)'}</option>${['external', 'internal'].map(kind => { const g = rest.filter(k => (k.kind || 'external') === kind); return g.length ? html`<optgroup label="${kind === 'external' ? 'External' : 'Internal'}">${g.map(k => html`<option value="${k.id}">${contactLabel(k)}</option>`)}</optgroup>` : ''; })}`;
     $('#ctAddContact').disabled = !rest.length || people.length >= 20;
     $('#ctPeople').querySelectorAll('[data-ctunlink]').forEach(b => b.onclick = () => { people = people.filter(id => id !== b.dataset.ctunlink); peopleList(); });
