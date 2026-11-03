@@ -4,7 +4,8 @@ import { scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
 import { isAdmin } from './04-settings.js';
 import { flushSave, reloadFromServer, queueServerSave } from './07-render.js';
 import { dateText } from './dates.js';
-import { st, esc, $, toast } from './01-core.js';
+import { st, $, toast } from './01-core.js';
+import { html, rawHtml } from './html.js';
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { statusHeaderHtml } from './settings-status.js';
 /* ---------- LDAP / Active Directory. The settings are saved in the inventory and used at the next sign-in or sync. The
@@ -18,10 +19,10 @@ const computerDefault = base => { const dcs = String(base || '').split(',').map(
    (port 389) and is encrypted before anything is sent; none sends the passwords readable. */
 const SECURITY_OPTS = [['', 'TLS: ldaps://, port 636'], ['starttls', 'StartTLS: ldap://, port 389, then encrypted'], ['plain', 'None: unencrypted (not recommended)']];
 const securityNote = L => {
-  const t = L.security === 'plain' ? '<span style="color:var(--danger)">Passwords cross the network readable: those of everyone who signs in, and the service account\'s. Only on a network you trust, and prefer StartTLS.</span>'
+  const t = L.security === 'plain' ? html`<span style="color:var(--danger)">Passwords cross the network readable: those of everyone who signs in, and the service account's. Only on a network you trust, and prefer StartTLS.</span>`
     : L.security === 'starttls' ? 'Encrypted like ldaps://, on the usual port 389. The certificate is checked the same way.'
     : 'The domain controller needs a certificate. If your company’s CA issued it (AD Certificate Services), add that CA’s certificate below.';
-  return `<p class="note" style="padding:4px 0 0;margin:0">${t}</p>`;
+  return html`<p class="note" style="padding:4px 0 0;margin:0">${t}</p>`;
 };
 /* Moves the address to the scheme and port of the security chosen: ldaps:// and 636, or ldap:// and 389. */
 export const ldapUrlFor = (url, security) => {
@@ -33,9 +34,9 @@ export const ldapUrlFor = (url, security) => {
 function caHtml(edit){
   const ca = st.ldapCa;
   const day = dateText;
-  const pick = `<label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
-  if (!ca) return `<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
-  return `<span style="flex:1;min-width:0">${ca.certs.map(c => `<span class="chip ok" style="flex:none">${esc(c.name)}</span> <span class="muted">until ${esc(day(c.expires))}</span>`).join(' ')}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
+  const pick = html`<label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button" style="flex:none" title="The root CA certificate, exported as .cer (DER or Base-64), .crt or .pem">${ca ? 'Replace…' : 'Add CA certificate…'}<input type="file" id="caFile" accept=".cer,.crt,.pem,.der" hidden ${edit ? '' : 'disabled'}></label>`;
+  if (!ca) return html`<span class="muted" style="flex:1">None: only certificates from public CAs are trusted</span>${pick}`;
+  return html`<span style="flex:1;min-width:0">${ca.certs.map((c, i) => html`${i ? ' ' : ''}<span class="chip ok" style="flex:none">${c.name}</span> <span class="muted">until ${day(c.expires)}</span>`)}</span>${pick}<button type="button" id="caRemove" class="danger-text" style="flex:none" ${edit ? '' : 'disabled'}>Remove</button>`;
 }
 function bindCa(){
   const f = $('#caFile');
@@ -65,26 +66,26 @@ export function renderSetLdap(){
   if (!st.ldap) st.ldap = {};
   const L = st.ldap, edit = isAdmin();
   const ro = edit ? '' : 'disabled';
-  const field = (k, label, hint) => `<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
+  const field = (k, label, hint) => html`<label for="lk_${k}">${label}</label><input id="lk_${k}" data-lk="${k}" class="mono" value="${L[k] || ''}" placeholder="${hint}" ${ro}>`;
   const ready = !!L.url && edit;
-  $('#setLdap').innerHTML = statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }) + `<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>
+  $('#setLdap').innerHTML = html`${rawHtml(statusHeaderHtml('ad', { test: { id: 'ldapTest', ready }, sync: { id: 'ldapSync', ready }, msg: 'ldapMsg' }))}<div class="panelbox"><div class="hdr">Connection <span class="cnt">LDAP</span></div>
     <div class="note" style="padding:10px 12px">Changes are saved in the inventory and used at the next sign-in or sync. The service account’s password is kept apart, encrypted on the server: it can be replaced or removed here, never shown, and it is not in backups.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('url', 'Server', 'ldaps://dc01.example.ch:636')}
       <label for="lk_security">Connection security</label><div><select id="lk_security" ${ro}>
-        ${SECURITY_OPTS.map(([v, t]) => `<option value="${v}" ${(L.security || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        ${SECURITY_OPTS.map(([v, t]) => html`<option value="${v}" ${(L.security || '') === v ? 'selected' : ''}>${t}</option>`)}</select>
         ${securityNote(L)}</div>
-      ${L.security === 'plain' ? '' : `<label>CA certificate</label><div class="ctlrow" id="ldapCa">${caHtml(edit)}</div>`}
-      ${L.security === 'plain' ? '' : `<label for="lk_legacyTls">Old certificates</label><div>
+      ${L.security !== 'plain' && html`<label>CA certificate</label><div class="ctlrow" id="ldapCa">${caHtml(edit)}</div>`}
+      ${L.security !== 'plain' && html`<label for="lk_legacyTls">Old certificates</label><div>
         <label class="pchk" style="width:auto"><input type="checkbox" id="lk_legacyTls" ${L.legacyTls === 'on' ? 'checked' : ''} ${ro}> Accept old certificates (RSA keys from 1024 bits)</label>
         <p class="note" style="padding:4px 0 0;margin:0">${L.legacyTls === 'on'
-          ? '<span class="chip warn">On</span> <span style="color:var(--danger)">Not recommended: a 1024-bit key is no longer considered safe. Only for compatibility, until the domain controller’s certificate is renewed with a 2048-bit key; then switch this off.</span>'
+          ? html`<span class="chip warn">On</span> <span style="color:var(--danger)">Not recommended: a 1024-bit key is no longer considered safe. Only for compatibility, until the domain controller’s certificate is renewed with a 2048-bit key; then switch this off.</span>`
           : 'Not recommended. Only for a domain controller whose certificate still has a 1024-bit key (“key too weak”), until it is renewed. The certificate is still checked against the CA and the name.'}</p></div>`}
       ${field('searchBase', 'Search base', 'OU=Users,DC=example,DC=ch')}
       ${field('serviceDn', 'Service account', 'CN=inventory-sync,OU=Service,DC=example,DC=ch')}
       <label for="lk_pw">Service password</label><div class="ctlrow" id="ldapPw"><span class="muted">…</span></div>
       ${field('group', 'Sign-in group', 'CN=Inventory-Users,OU=Groups,DC=example,DC=ch')}
-      ${L.url && !String(L.group || '').trim() ? '<span></span><p class="fieldnote warn">Without a sign-in group, the sync adds every account in the directory as a user (with no access until you give them a role).</p>' : ''}
+      ${L.url && !String(L.group || '').trim() ? html`<span></span><p class="fieldnote warn">Without a sign-in group, the sync adds every account in the directory as a user (with no access until you give them a role).</p>` : ''}
       ${field('adminGroup', 'Admin group', 'CN=IT-Inventory,OU=Groups,DC=example,DC=ch')}
     </div>
     <details class="ldap-adv" ${L.bindTemplate || L.loginAttr || L.userFilter || L.computerBase || L.computerGroups === 'off' ? 'open' : ''}><summary>Advanced: only when the defaults do not suit your directory</summary>
@@ -97,7 +98,7 @@ export function renderSetLdap(){
       </div>
       <p class="note" style="padding:0 12px 10px">Empty fields use the Active Directory defaults shown in them. The sign-in name defaults to the login at the domain of the search base.</p>
     </details>
-    ${intakeRowHtml('ad')}
+    ${rawHtml(intakeRowHtml('ad'))}
     <p class="note" style="padding:0 12px 4px">Computer accounts that match no device here are added as new devices; disabled accounts never do, and ones with no logon for 90 days always wait in To review.</p>
     <p class="note" style="padding:0 12px 4px">Only the fields listed under Fields from this source are read from a computer account, never its LAPS password or BitLocker keys.</p>
     <div style="padding:8px 12px 12px">${scheduleRowHtml('ldap', edit)}</div></div>`;
@@ -125,7 +126,7 @@ export function renderSetLdap(){
   if (edit) bindCa();
   bindIntakeRows($('#setLdap'));
   $('#lk_computerGroups').onchange = e => { if (e.target.checked) delete st.ldap.computerGroups; else st.ldap.computerGroups = 'off'; queueServerSave(); renderSetLdap(); };
-  const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
+  const bad = t => html`<span style="color:var(--danger)">${t}</span>`;
   if ($('#ldapTest')) $('#ldapTest').onclick = async () => {
     const msg = $('#ldapMsg'); msg.textContent = 'Testing…';
     await flushSave();
@@ -133,7 +134,7 @@ export function renderSetLdap(){
     const j = await r.json().catch(() => ({}));
     /* Connected, but nobody in the sign-in group: most often the group's name or DN is not the one in the directory. */
     msg.innerHTML = !r.ok ? bad(j.error || 'The directory cannot be reached.')
-      : j.people ? `<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`
+      : j.people ? html`<span style="color:var(--ok)">Connected. ${j.people} ${j.people === 1 ? 'user' : 'users'} can sign in, ${j.admins} of them ${j.admins === 1 ? 'admin' : 'admins'}.</span>`
       : bad('Connected, but no user is in the sign-in group. Check the group\'s name or DN, and the search base.');
   };
   if ($('#ldapSync')) $('#ldapSync').onclick = async () => {
@@ -162,7 +163,7 @@ async function loadLdapPassword(replace = false){
   const day = dateText;
   if (j.source === 'server'){ box.innerHTML = '<span class="muted">Set on the server (NI_LDAP_SERVICE_PASSWORD), which takes precedence</span>'; return; }
   if (j.source === 'app' && !replace){
-    box.innerHTML = `<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${esc(day(j.setAt))}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
+    box.innerHTML = html`<span class="chip ok" style="flex:none">Saved</span><span class="muted" style="flex:none">${day(j.setAt)}</span><span style="flex:1"></span><button type="button" id="lpReplace" style="flex:none">Replace</button><button type="button" id="lpRemove" class="danger-text" style="flex:none">Remove</button>`;
     q('#lpReplace').onclick = () => loadLdapPassword(true);
     q('#lpRemove').onclick = async () => {
       if (!confirm('Remove the saved password? The directory cannot be read until a new one is saved.')) return;
@@ -171,7 +172,7 @@ async function loadLdapPassword(replace = false){
     };
     return;
   }
-  box.innerHTML = `<input id="lk_pw" type="password" autocomplete="new-password" placeholder="The service account’s password" aria-label="Service account password"><button type="button" id="lpSave" style="flex:none">Save password</button>${replace ? '<button type="button" id="lpCancel" style="flex:none">Cancel</button>' : ''}`;
+  box.innerHTML = html`<input id="lk_pw" type="password" autocomplete="new-password" placeholder="The service account’s password" aria-label="Service account password"><button type="button" id="lpSave" style="flex:none">Save password</button>${replace && html`<button type="button" id="lpCancel" style="flex:none">Cancel</button>`}`;
   const save = async () => {
     const pw = q('#lk_pw').value;
     if (!pw){ q('#lk_pw').focus(); return; }

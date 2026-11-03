@@ -13,20 +13,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'public', 'js');
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort();
 
-/* Markup a module still builds by hand, and why: at most this many places in that file. A new one, here or anywhere
-   else, is an error. */
-const RAW_HTML_ALLOWED = {
-  '07-render.js': [10, 'dialogs (shortcuts, colours): every value goes through esc(); to convert'],
-  'server-save.js': [1, 'the conflict dialog, moved out of 07-render.js: every value goes through esc(); to convert'],
-  'signin.js': [3, 'sign-in and account dialogs, moved out of 07-render.js: every value goes through esc(); to convert'],
-  '05-new-object.js': [2, 'the New device and Link device dialogs: built with portField() and comboHtml(), still escaped with esc()'],
-  '08-sheets.js': [2, 'the entry sheet dialog and its print view: still escaped with esc()'],
-  'settings-feed.js': [6, 'Lansweeper settings (models, type map, type rules, push): still escaped with esc()'],
-  'settings-graph.js': [4, 'Entra & Intune settings: still escaped with esc()'],
-  'settings-ldap.js': [4, 'Active Directory settings: still escaped with esc()'],
-  'settings-network.js': [4, 'locations, VLANs, subnets and domains: still escaped with esc()'],
-  'settings-types.js': [4, 'device types, their fields and card lines: still escaped with esc()'],
-};
+/* Markup a module may still build by hand, and why: { 'file.js': [at most this many places, the reason] }. None is
+   left: every module builds its markup with html``, and a new place anywhere is an error. */
+/** @type {Record<string, [number, string]>} */
+const RAW_HTML_ALLOWED = {};
 
 /* A plain template string with values and a tag in it, where markup is set: the value itself, or either side of a
    ?:, || or +. What a function returns is not followed: the function is checked where it builds its string. */

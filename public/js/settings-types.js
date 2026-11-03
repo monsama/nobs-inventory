@@ -3,8 +3,9 @@
 import { typeFieldsOf, canAddPorts, fieldKind } from './17-fields.js';
 import { cardLines, CARD_FIELDS } from './02-views.js';
 import { queueServerSave, render } from './07-render.js';
-import { VIEWBOX_RE, ICON, iconSvg, esc, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol } from './01-core.js';
+import { VIEWBOX_RE, ICON, iconSvg, $, st, TYPES, TYPE_FIELDS, objs, toast, FIELD_LAYOUT, LS_ON, FIELD_LABEL, hiddenOf, BUILTIN, tcol } from './01-core.js';
 import { SVG_ELEMENTS, SVG_ATTRS } from './svg-rules.js';
+import { html, rawHtml } from './html.js';
 /* An uploaded icon keeps only its drawing: scripts, event handlers, styles and links to anything outside the file are dropped. */
 export function sanitizeSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
@@ -32,9 +33,10 @@ export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] 
    (above when there is no room), closed by a click elsewhere or Escape. */
 export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
-  const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${t.svgInner}</svg>` : iconSvg(n);
-  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" popovertarget="icl-${k}" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><svg class="icondd-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <div class="icondd-list" id="icl-${k}" role="listbox" popover>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
+  /* An uploaded icon's shapes were cleaned when it was uploaded (sanitizeSvg). */
+  const preview = n => n === 'custom' ? html`<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${rawHtml(t.svgInner)}</svg>` : rawHtml(iconSvg(n));
+  return html`<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" popovertarget="icl-${k}" aria-label="${iconLabel(t.icon)}, icon for ${t.label}">${preview(t.icon)}<span>${iconLabel(t.icon)}</span><svg class="icondd-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="icondd-list" id="icl-${k}" role="listbox" popover>${names.map(n => html`<button type="button" role="option" class="icondd-item" aria-selected="${String(n === t.icon)}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${iconLabel(n)}</span></button>`)}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${t.label}"></label></div></div>`;
 }
 /* A key for a field, from its name: lowercase letters, digits and underscores, starting with a letter. */
 export const fieldKey = label => {
@@ -50,8 +52,8 @@ export function renderSetTypeFields(){
   st.fieldType = type;
   const list = TYPE_FIELDS[type] || [];
   const nOf = objs.filter(o => o.type === type).length;
-  box.innerHTML = `<div class="panelbox tf-box"><div class="hdr">Per type</div>
-    <div class="tf-pick"><label for="tfType">Type</label><select id="tfType" data-view>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'}</span></div>
+  box.innerHTML = html`<div class="panelbox tf-box"><div class="hdr">Per type</div>
+    <div class="tf-pick"><label for="tfType">Type</label><select id="tfType" data-view>${Object.entries(TYPES).map(([k, t]) => html`<option value="${k}" ${k === type ? 'selected' : ''}>${t.label}</option>`)}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'}</span></div>
     <div id="tfBuiltin"></div>
     <div class="lpanel-add tf-add"><input id="tfLabel" maxlength="40" placeholder="Add a field of your own, e.g. Asset tag" aria-label="Name of a new field"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div>
     <div id="tfCard"></div></div>`;
@@ -73,10 +75,10 @@ export function renderSetTypeFields(){
 export function renderCardLines(box, type){
   const lay = FIELD_LAYOUT[type] || {}, cur = cardLines(type), own = Array.isArray(lay.card) && lay.card.length;
   const choices = [...Object.entries(CARD_FIELDS).map(([k, [l]]) => [k, l]), ...(TYPE_FIELDS[type] || []).map(f => ['custom.' + f.key, f.label])];
-  box.insertAdjacentHTML('beforeend', `<div class="tf-sub"><div class="tf-sh">On the ${esc(TYPES[type].label)} card</div>
-    <p class="note tf-note">The four lines every ${esc(TYPES[type].label)} card shows. A device without a value shows a dash, so all cards have the same height.</p>
-    <div class="cardlines">${cur.map((k, i) => `<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => `<option value="${esc(v)}" ${v === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}
-      <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`);
+  box.insertAdjacentHTML('beforeend', String(html`<div class="tf-sub"><div class="tf-sh">On the ${TYPES[type].label} card</div>
+    <p class="note tf-note">The four lines every ${TYPES[type].label} card shows. A device without a value shows a dash, so all cards have the same height.</p>
+    <div class="cardlines">${cur.map((k, i) => html`<label>Line ${i + 1}<select data-cl="${i}" aria-label="Card line ${i + 1}"><option value="">Nothing</option>${choices.map(([v, l]) => html`<option value="${v}" ${v === k ? 'selected' : ''}>${l}</option>`)}</select></label>`)}
+      <button id="clReset" ${own ? '' : 'disabled'}>Back to the default</button></div></div>`));
   const save = card => { const next = {...lay}; if (card) next.card = card; else delete next.card; FIELD_LAYOUT[type] = next; queueServerSave(); render(); renderSetTypeFields(); };
   box.querySelectorAll('[data-cl]').forEach(sel => sel.onchange = () => { const next = [...cur]; next[+sel.dataset.cl] = sel.value; save(next); });
   $('#clReset').onclick = () => save(null);
@@ -106,20 +108,20 @@ export function renderBuiltinFields(box, type){
   const put = patch => save({order: ordered.map(f => f[0]), hidden: [...hiddenOf(type)], labels: {...(lay.labels || {})}, ...(lay.card ? {card: lay.card} : {}), ...patch});
   const valueOf = (o, k) => k.startsWith('custom.') ? (o.custom || {})[k.slice(7)] : o[k];
   const filled = k => ofType.filter(o => { const v = valueOf(o, k); return v != null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length); }).length;
-  const tl = esc(TYPES[type].label);
-  box.innerHTML = `<p class="note tf-note">The fields a ${tl} page shows, top to bottom. Click a name to rename it. Hidden fields keep their values.</p>
+  const tl = TYPES[type].label;
+  box.innerHTML = html`<p class="note tf-note">The fields a ${tl} page shows, top to bottom. Click a name to rename it. Hidden fields keep their values.</p>
     <div class="tf-list"><div class="tf-row tf-head" aria-hidden="true"><span></span><span>Field</span><span></span><span class="fl-use">Filled in</span><span>On the page</span><span></span></div>${ordered.map((f, i) => {
       const k = f[0], mine = !!f[3], hidden = hiddenOf(type).includes(k), fixed = ALWAYS_SHOWN.includes(k), n = filled(k);
       const name = mine ? f[1] : ((lay.labels || {})[k] || f[1]);
-      return `<div class="tf-row${hidden ? ' off' : ''}">
-        <span class="fl-move"><button class="icon ghost" data-fup="${i}" aria-label="Move ${esc(name)} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon ghost" data-fdown="${i}" aria-label="Move ${esc(name)} down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span>
-        <input class="tf-name" data-flab="${esc(k)}" maxlength="40" value="${esc(name)}" aria-label="Name of field ${esc(f[1])}" title="${mine ? 'A field of your own' : 'Built in: ' + esc(f[1])}">
-        <span class="tf-tag">${mine ? `<span class="chip">Own · ${esc(f[2] || 'text')}</span>` : f[4] ? '<span class="chip" title="This type does not have it; Lansweeper fills it in on some devices">From Lansweeper</span>' : NOTES[k] ? `<span class="muted tf-note-k">${NOTES[k]}</span>` : ''}</span>
+      return html`<div class="tf-row${hidden ? ' off' : ''}">
+        <span class="fl-move"><button class="icon ghost" data-fup="${i}" aria-label="Move ${name} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon ghost" data-fdown="${i}" aria-label="Move ${name} down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span>
+        <input class="tf-name" data-flab="${k}" maxlength="40" value="${name}" aria-label="Name of field ${f[1]}" title="${mine ? 'A field of your own' : 'Built in: ' + f[1]}">
+        <span class="tf-tag">${mine ? html`<span class="chip">Own · ${f[2] || 'text'}</span>` : f[4] ? html`<span class="chip" title="This type does not have it; Lansweeper fills it in on some devices">From Lansweeper</span>` : NOTES[k] && html`<span class="muted tf-note-k">${NOTES[k]}</span>`}</span>
         <span class="fl-use ${n ? '' : 'muted'}" title="${n} of ${ofType.length} ${tl} devices have a value">${ofType.length ? `${n} of ${ofType.length}` : ''}</span>
-        ${fixed ? '<span class="muted tf-fixed">Always shown</span>' : `<label class="pchk tf-shown"><input type="checkbox" data-fhide="${esc(k)}" ${hidden ? '' : 'checked'}> Shown</label>`}
-        ${mine ? `<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${esc(name)}" title="Remove this field (its values are kept)">×</button>` : '<span></span>'}
+        ${fixed ? html`<span class="muted tf-fixed">Always shown</span>` : html`<label class="pchk tf-shown"><input type="checkbox" data-fhide="${k}" ${hidden ? '' : 'checked'}> Shown</label>`}
+        ${mine ? html`<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${name}" title="Remove this field (its values are kept)">×</button>` : html`<span></span>`}
       </div>`;
-    }).join('')}</div>`;
+    })}</div>`;
   box.querySelectorAll('[data-flab]').forEach(i => i.onchange = () => {
     const k = i.dataset.flab, name = i.value.trim(), f = ordered.find(x => x[0] === k);
     if (f[3]){
@@ -154,15 +156,15 @@ export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
     const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} devices` : '';
-    return `<tr>
-      <td style="width:1%"><input type="color" value="${esc(tcol(k))}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
-      <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
-      <td><input data-ts="${k}" value="${esc(t.short)}" aria-label="Short name"></td>
+    return html`<tr>
+      <td style="width:1%"><input type="color" value="${tcol(k)}" data-tc="${k}" aria-label="Colour for ${t.label}" style="width:40px;height:28px;padding:2px"></td>
+      <td><input data-tl="${k}" value="${t.label}" style="width:100%" aria-label="Name"></td>
+      <td><input data-ts="${k}" value="${t.short}" aria-label="Short name"></td>
       <td>${iconChoice(k, t)}</td>
       <td class="n">${n}</td>
-      <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? `disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
-  }).join('');
-  $('#setTypes').innerHTML = `<div style="overflow-x:auto"><table class="grid mini types stack" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:116px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? html`disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
+  });
+  $('#setTypes').innerHTML = html`<div style="overflow-x:auto"><table class="grid mini types stack" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:116px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd">Add type</button></div>`;
   const root = $('#setTypes');
   renderSetTypeFields();
