@@ -167,9 +167,21 @@ export function documents(){
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
   return m;
 }
+let LOAD_FIX = null;
 export function setBaseline(){
   SERVER.base = new Map();
   for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
+  /* Who is signed in is known only once the load is done: an admin's page then saves what the load made, anyone
+     else's takes it into the base again. */
+  const fix = LOAD_FIX ? [...LOAD_FIX.users.map(id => 'user|' + id), ...LOAD_FIX.objs.map(id => 'object|' + id)] : [];
+  LOAD_FIX = null;
+  if (!fix.length) return;
+  fix.forEach(k => SERVER.base.delete(k));
+  setTimeout(() => {
+    if (isAdmin()) return queueServerSave();
+    const now = documents();
+    fix.forEach(k => { if (!SERVER.base.has(k) && now.has(k)) SERVER.base.set(k, JSON.stringify(now.get(k).value)); });
+  }, 0);
 }
 /* What an editor may save (the server checks the same, server/scope.js): devices, their connections and history, new
    rooms and stocktakes. Other changes made on their page (a box moved on the map) are not sent, and go with the next
@@ -427,7 +439,12 @@ export function applyState(d){
   }
   /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
   Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
+  /* People made here for devices that named a user only by name (a Lansweeper record, an older inventory): they, and the
+     devices now linked to them, are left out of the baseline so the next save sends them (an admin's; an editor's page
+     keeps them as they are). */
+  const hadUsers = new Set(USERS.map(u => u.id)), hadUid = new Set([...objs, ...REVIEW].filter(o => o.uid).map(o => o.id));
   objs.forEach(bindUser); REVIEW.forEach(bindUser);
+  LOAD_FIX = { users: USERS.filter(u => !hadUsers.has(u.id)).map(u => u.id), objs: [...objs, ...REVIEW].filter(o => o.uid && !hadUid.has(o.id)).map(o => o.id) };
   SYNC.defender = objs.some(o => o.defender);   /* the cards show a Defender mark once Defender has been read */
 }
 /* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay, the

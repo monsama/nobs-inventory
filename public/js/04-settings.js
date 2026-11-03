@@ -201,7 +201,9 @@ export function bindUser(o){
   if (d && d.get) return;
   const name = o.user;
   delete o.user;
-  if (!o.uid) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
+  /* A device names its user by id; one whose id no longer finds a person (saved by a page that had made the person but
+     not saved it yet) is found again by the name it also keeps. */
+  if (!o.uid || (name && !personById(o.uid))) o.uid = name ? ensureUser(name, o.feed && o.feed.sys === 'Lansweeper' ? 'lansweeper' : 'manual').id : null;
   Object.defineProperty(o, 'user', {
     get(){ if (this.hotdesk) return 'Hot desk'; const u = personById(this.uid); return u ? u.name : ''; },
     set(v){ this.uid = v ? ensureUser(v).id : null; },
