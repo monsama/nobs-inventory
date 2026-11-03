@@ -1,4 +1,5 @@
 import { applyDelta } from './delta.js';
+import { pollForChanges, startLive } from './live.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
@@ -368,7 +369,8 @@ export function dropMissingTabs(){
   st.tabIds = st.tabIds.filter(id => !gone(id));
   if (gone(st.tab)) st.tab = 'table';
 }
-/* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
+/* Other people's saves show up here: when the server says something was saved (live.js), every 15 seconds without that
+   (every 2 minutes with it), and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
    (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
 /* The inventory as the server last sent it, untouched by the page, with its running number (cseq): the next check asks
@@ -377,16 +379,17 @@ function keepServerCopy(d){
   SERVER.copy = Number.isInteger(d.cseq) ? structuredClone(d) : null;
   SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
 }
+/* false when it was held back (see above) and asked the server nothing. */
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return false;
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
-  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return; }
+  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
   let r;
   const delta = SERVER.copy && SERVER.cseq !== null;
-  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
-  if (!r.ok) return;
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
+  if (!r.ok) return true;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
   if (d.delta){
@@ -394,12 +397,13 @@ export async function checkForChanges(){
     const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
     applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
     if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
-    return;
+    return true;
   }
   keepServerCopy(d);
   const revs = d.revs || {};
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
   if (changed) await reloadFromServer({ data: structuredClone(d) });
+  return true;
 }
 export function applyState(d){
   UNDO.epoch++;
@@ -583,7 +587,7 @@ export async function loadFromServer(user){
   st.meId = user.id;
   /* Someone who sees only their own devices starts on them. */
   if (ownOnly() && st.tab === 'cards') st.tab = 'mine';
-  if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
+  if (!SERVER.watching){ SERVER.watching = true; setInterval(pollForChanges, 15000); window.addEventListener('focus', checkForChanges); startLive(); }
   render();
   restoreOffline();
   openLinked();

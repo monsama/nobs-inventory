@@ -62,6 +62,16 @@ export function sessionUserId(db, token) {
   return row.user_id;
 }
 
+/* Whether a session is still open, as sessionUserId says it, but without counting as a use: an open live stream
+   (server/live-events.js) must not keep an idle session from ending. */
+export function sessionOpen(db, token) {
+  if (!token) return null;
+  const now = Date.now();
+  const row = db.prepare('SELECT user_id, expires, last FROM sessions WHERE token_hash = ?').get(sha(token));
+  if (!row || row.expires < now || (row.last != null && now - row.last > IDLE_MINUTES * 60e3)) return null;
+  return row.user_id;
+}
+
 /* The sessions of one user, for the account screen. The id is a short part of the stored hash, never the token itself. */
 export function listSessions(db, userId, currentToken) {
   const current = currentToken ? sha(currentToken) : '';
