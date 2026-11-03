@@ -723,7 +723,7 @@ test('a settings change is logged with what changed, before and after; secrets a
   } finally { await srv.close(); }
   // the diff: items changed in a list by name, secrets hidden, pictures named, order changes shown
   assert.deepEqual(settingDiff([{ name: 'Anna', mail: 'a@x' }, { name: 'Beat' }], [{ name: 'Anna', mail: 'b@x' }, { name: 'Cleo' }]), [{ path: '', changed: ['Anna'], added: ['Cleo'], removed: ['Beat'] }]);
-  assert.deepEqual(settingDiff({ url: 'ldaps://a', bindPassword: 'x' }, { url: 'ldaps://b', bindPassword: 'y' }), [{ path: 'url', before: 'ldaps://a', after: 'ldaps://b' }, { path: 'bindPassword', before: '(hidden)', after: '(hidden)' }]);
+  assert.deepEqual(settingDiff({ url: 'ldaps://a', bindPassword: 'x' }, { url: 'ldaps://b', bindPassword: 'y' }), [{ path: 'url', before: 'ldaps://a', after: 'ldaps://b', raw: { keys: ['url'], before: 'ldaps://a', after: 'ldaps://b' } }, { path: 'bindPassword', before: '(hidden)', after: '(hidden)' }]);
   assert.deepEqual(settingDiff({ logo: 'data:image/png;base64,AAA' }, { logo: 'data:image/png;base64,BBB' }), [{ path: 'logo', before: '(picture)', after: '(picture)' }]);
   assert.deepEqual(settingDiff(['a', 'b'], ['b', 'a']), [{ path: '', before: '["a","b"]', after: '["b","a"]' }]);
 });

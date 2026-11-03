@@ -1,7 +1,8 @@
 /* Settings → System: Health, Backups (taken, restored, deleted; clearing the inventory, the factory reset), E-mail, and
    the log with its filters. */
-import { modal, closeModal } from './19-modal.js';
-import { clearConfirm, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render.js';
+import { modal, closeModal, confirmModal } from './19-modal.js';
+import { clearConfirm, documents, queueServerSave, flushSave, reloadFromServer, SERVER } from './07-render.js';
+import { settingChangedSince, settingRestore, valueAt } from './restore.js';
 import { pushDate } from './settings-feed.js';
 import { isAdmin } from './04-settings.js';
 import { $, esc, st, toast } from './01-core.js';
@@ -39,23 +40,48 @@ function drawLog(){
   $('#logRefresh').onclick = () => renderSetLog();
   /* Typing narrows the list at once; only the list is drawn again, so the field keeps its focus. */
   const lq = $('#logQ'); lq.oninput = () => { LOG_Q = lq.value; $('#logBody').innerHTML = logRows(); };
+  $('#logBody').onclick = ev => {
+    const b = ev.target.closest('[data-lgr]'); if (!b) return;
+    const [i, j] = b.dataset.lgr.split(':').map(Number), e = LOG_DATA.entries[i];
+    if (e && e.detail) restoreLogged(e, e.detail.changes[j]);
+  };
+}
+/* Restore on a logged settings change: the old value set back on the server, which logs it; asked first, with the value
+   now and the one to set back. The page's own unsaved changes are saved before. */
+const shownValue = v => v === undefined || v === null || v === '' ? 'empty' : String(v);
+function restoreLogged(e, c){
+  const r = settingRestore(e.detail.setting, c); if (!r || !isAdmin()) return;
+  const cur = (documents().get('setting|' + e.detail.setting) || {}).value, now = r.keys.length ? valueAt(cur, r.keys) : cur;
+  const what = `${e.action.replace(/^setting changed: /, '')}${c.path ? ` · ${c.path}` : ''}`;
+  const since = settingChangedSince(cur, r) ? ' It was changed again since.' : '';
+  confirmModal(`Restore ${what}?`, `Sets it back to its value before the change of ${esc(pushDate(e.at))}.${since}<br>Now: <b>${esc(shownValue(now))}</b><br>Restore: <b>${esc(r.unset ? 'empty' : shownValue(r.value))}</b>`, 'Restore', async () => {
+    await flushSave();
+    const res = await fetch('api/log/restore', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({at: e.at, setting: e.detail.setting, path: c.path})});
+    if (!res.ok){ const j = await res.json().catch(() => ({})); toast(j.error || 'The setting could not be restored.'); return; }
+    await reloadFromServer({ flush: false });
+    toast(`${what} restored`);
+    renderSetLog();
+  }, { primary: true });
 }
 function logRows(){
   const q = LOG_Q.trim().toLowerCase();
   const entries = LOG_DATA.entries.filter(e => LOG_FILTER === 'all' || (LOG_FILTER === 'errors' ? e.level === 'error' : logKind(e) === LOG_FILTER))
     .filter(e => !q || `${e.action} ${e.who} ${e.detail ? JSON.stringify(e.detail.changes || []) : ''}`.toLowerCase().includes(q));
+  const idx = new Map(LOG_DATA.entries.map((e, i) => [e, i]));
   return entries.length ? `<div style="overflow-x:auto"><table class="grid mini stack" style="min-width:560px"><thead><tr><th style="width:170px">Time</th><th style="width:90px">Level</th><th style="width:160px">Who</th><th>What happened</th></tr></thead><tbody>
-      ${entries.map(e => `<tr class="${e.level === 'error' ? 'logerr' : ''}"><td class="mono">${esc(pushDate(e.at))}</td><td>${e.level === 'error' ? '<span class="chip warn">Error</span>' : '<span class="chip kept">Info</span>'}</td><td>${esc(e.who)}</td><td style="white-space:normal">${esc(e.action)}${detailHtml(e.detail)}</td></tr>`).join('')}
+      ${entries.map(e => `<tr class="${e.level === 'error' ? 'logerr' : ''}"><td class="mono">${esc(pushDate(e.at))}</td><td>${e.level === 'error' ? '<span class="chip warn">Error</span>' : '<span class="chip kept">Info</span>'}</td><td>${esc(e.who)}</td><td style="white-space:normal">${esc(e.action)}${detailHtml(e.detail, idx.get(e))}</td></tr>`).join('')}
       </tbody></table></div>` : `<p class="note" style="padding:12px">Nothing to show for this ${q ? 'search' : 'filter'}.</p>`;
 }
 /* What a settings change changed, under its log line: each value before and after, or the items added, changed and removed. */
-function detailHtml(d){
+/* A plain value the log kept whole has Restore (public/js/restore.js); secrets, lists and pictures do not. */
+function detailHtml(d, i){
   const list = d && Array.isArray(d.changes) ? d.changes : [];
   if (!list.length) return '';
-  const row = c => {
+  const restore = (c, j) => settingRestore(d.setting, c) ? ` <button type="button" class="link lg-restore" data-lgr="${i}:${j}" title="Set back to the value before this change">Restore</button>` : '';
+  const row = (c, j) => {
     const what = [c.changed && `changed ${c.changed.join(', ')}`, c.added && `added ${c.added.join(', ')}`, c.removed && `removed ${c.removed.join(', ')}`].filter(Boolean);
     return `<tr>${c.path ? `<th scope="row" class="mono">${esc(c.path)}</th>` : ''}<td${c.path ? '' : ' colspan="2"'}>${what.length ? esc(what.join('; '))
-      : `<span class="lg-was">${esc(c.before)}</span> <span aria-hidden="true">→</span><span class="sr-only">changed to</span> <span class="lg-now">${esc(c.after)}</span>`}</td></tr>`;
+      : `<span class="lg-was">${esc(c.before)}</span> <span aria-hidden="true">→</span><span class="sr-only">changed to</span> <span class="lg-now">${esc(c.after)}</span>${restore(c, j)}`}</td></tr>`;
   };
   return `<details class="lg-detail"><summary>${list.length} change${list.length === 1 ? '' : 's'}</summary><table class="lg-diff"><tbody>${list.map(row).join('')}</tbody></table></details>`;
 }

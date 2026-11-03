@@ -241,7 +241,8 @@ export const byName = n => objs.find(o => o.name === n);
 export const rels = [];
 export const HISTORY = {};
 /* The newest entries come first; the server keeps the same number (HISTORY_KEEP). */
-export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift({t, msg}); if (h.length > 500) h.length = 500; };
+/* extra: what an edit of one field changed (restore.js fieldNote), so the history can set it back. */
+export const hist = (o, t, msg, extra = null) => { const h = (HISTORY[o.id] ??= []); h.unshift(extra ? {t, msg, ...extra} : {t, msg}); if (h.length > 500) h.length = 500; };
 
 /* What Lansweeper may overwrite out of the box (Settings → Lansweeper, and the field order's default). */
 export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false};
@@ -564,6 +565,20 @@ export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedO
   : ['software', 'links'].includes(k) ? (st.policy || {})[k] !== false : !!(st.policy || {})[k]));
 /* A field (or list) set by hand: no sync writes it from then on. */
 export const pickHand = (o, k) => { o.pick = {...(o.pick || {}), [k]: 'hand'}; };
+/* Field k of o given value v by hand (on the device page, or set back from its history): on a device a sync fills in,
+   the value is kept from the syncs; the source mark says set by hand, or, emptied, nothing fills it again. True when it
+   was kept from a sync. */
+export function setByHand(o, k, v){
+  const changed = String(o[k] ?? '') !== String(v ?? ''), kept = changed && !!FIELD_LABEL[k] && (feedLinked(o) || !!(o.graph && o.graph.added));
+  if (kept) pickHand(o, k);
+  if (changed && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
+    if (String(v ?? '') === ''){
+      if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; pickHand(o, k); }
+    } else o.src = {...(o.src || {}), [k]: 'hand'};
+    keepByHand(o, k);
+  }
+  return kept;
+}
 
 /* ---------- helpers ---------- */
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */

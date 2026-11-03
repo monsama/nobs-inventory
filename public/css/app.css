@@ -993,6 +993,23 @@ a.link:hover{text-decoration:underline}
 .hist li{display:flex;gap:10px;align-items:center;padding:4px 0;line-height:1.5;border-bottom:1px dashed var(--bd2)}
 .hist li:last-child{border-bottom:none}
 .hist time{font-family:inherit;font-size:inherit;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+.hist .hist-restore{margin-left:auto;flex:none;font-size:12px}
+/* The timeline: one line per event on a thin rule, an icon per kind in the colours of the app (green fine, amber needs
+   a look, red a problem, grey retired); events still to come in italics. */
+.tl{list-style:none;margin:0;padding:6px 12px 6px;font-size:12px}
+.tl-ev{display:flex;gap:10px;align-items:center;padding:3px 0;line-height:1.45;position:relative}
+.tl-ev:not(:last-child)::before{content:"";position:absolute;left:10px;top:20px;bottom:-6px;border-left:1px solid var(--bd)}
+.tl-ico{width:21px;height:21px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--panel2);color:var(--muted);position:relative;z-index:1}
+.tl-ico svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tl-ok .tl-ico{background:color-mix(in srgb,var(--okdot) 16%,var(--bg));color:var(--oktext)}
+.tl-warn .tl-ico{background:color-mix(in srgb,var(--warn) 18%,var(--bg));color:var(--warntext)}
+.tl-bad .tl-ico{background:color-mix(in srgb,var(--danger) 16%,var(--bg));color:var(--badtext)}
+.tl-gone .tl-ico{background:var(--panel2);color:var(--muted)}
+.tl-gone .tl-text{color:var(--muted)}
+.tl time{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;min-width:72px}
+.tl-future .tl-text{font-style:italic}
+.tl-foot{padding:0 12px 10px 43px;font-size:12px}
+.lg-restore{margin-left:8px;font-size:12px}
 
 /* modal */
 /* Signed out: nothing of the app is drawn behind the sign-in dialog, and the dialog has a solid backdrop. */
