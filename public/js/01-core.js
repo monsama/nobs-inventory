@@ -794,7 +794,7 @@ if (typeof document !== 'undefined'){
   document.addEventListener('click', e => { if (evEl(e).closest && evEl(e).closest('#fsrcPop')) return; const m = evEl(e).closest && evEl(e).closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
   document.addEventListener('keydown', e => {
     const pop = document.getElementById('fsrcPop');
-    if (e.key === 'Escape' && pop){ closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(evEl(e).closest && evEl(e).closest('#fsrcPop'))); return; }
+    if (e.key === 'Escape' && pop){ e.preventDefault(); closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(evEl(e).closest && evEl(e).closest('#fsrcPop'))); return; }
     if (pop && evEl(e).closest && evEl(e).closest('#fsrcPop')){
       const items = [.../** @type {NodeListOf<HTMLElement>} */ (pop.querySelectorAll('[role=radio], .sp-foot button'))];
       const i = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
