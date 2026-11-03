@@ -119,7 +119,7 @@ export function renderBuiltinFields(box, type){
         <span class="fl-move"><button class="icon ghost" data-fup="${i}" aria-label="Move ${esc(name)} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon ghost" data-fdown="${i}" aria-label="Move ${esc(name)} down" ${i === ordered.length - 1 ? 'disabled' : ''}>↓</button></span>
         <input class="tf-name" data-flab="${esc(k)}" maxlength="40" value="${esc(name)}" aria-label="Name of field ${esc(f[1])}" title="${mine ? 'A field of your own' : 'Built in: ' + esc(f[1])}">
         <span class="tf-tag">${mine ? `<span class="chip">Own · ${esc(f[2] || 'text')}</span>` : f[4] ? '<span class="chip" title="This type does not have it; Lansweeper fills it in on some devices">From Lansweeper</span>' : NOTES[k] ? `<span class="muted tf-note-k">${NOTES[k]}</span>` : ''}</span>
-        <span class="fl-use ${n ? '' : 'muted'}" title="${n} of ${ofType.length} ${tl} objects have a value">${ofType.length ? `${n} of ${ofType.length}` : ''}</span>
+        <span class="fl-use ${n ? '' : 'muted'}" title="${n} of ${ofType.length} ${tl} devices have a value">${ofType.length ? `${n} of ${ofType.length}` : ''}</span>
         ${fixed ? '<span class="muted tf-fixed">Always shown</span>' : `<label class="pchk tf-shown"><input type="checkbox" data-fhide="${esc(k)}" ${hidden ? '' : 'checked'}> Shown</label>`}
         ${mine ? `<button class="icon ghost tf-del" data-tfd="${own.findIndex(x => 'custom.' + x.key === k)}" aria-label="Remove field ${esc(name)}" title="Remove this field (its values are kept)">×</button>` : '<span></span>'}
       </div>`;
@@ -157,7 +157,7 @@ const typeName = v => String(v || '').replace(/[<>]/g, '').trim().slice(0, 60);
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
-    const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} objects` : '';
+    const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} devices` : '';
     return `<tr>
       <td style="width:1%"><input type="color" value="${esc(tcol(k))}" data-tc="${k}" aria-label="Colour for ${esc(t.label)}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${esc(t.label)}" style="width:100%" aria-label="Name"></td>
@@ -211,6 +211,6 @@ export function renderSetTypes(){
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'type';
     let k = base, i = 2; while (TYPES[k]) k = base + '-' + i++;
     TYPES[k] = {label:name, short:name, color:'#5a6b7d', icon:'other'};
-    toast('Added ' + name + '. Pick it when you create an object.'); renderSetTypes(); render();
+    toast('Added ' + name + '. Pick it when you create a device.'); renderSetTypes(); render();
   };
 }

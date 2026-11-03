@@ -41,9 +41,9 @@ export function replacementPlan(objs, life, thisYear, span = 5) {
 }
 export function lifecycleProblem(v) {
   if (v === undefined || v === null) return '';
-  if (typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length > 100) return 'Lifetimes are set per object type.';
+  if (typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length > 100) return 'Lifetimes are set per device type.';
   for (const [k, x] of Object.entries(v)) {
-    if (k.length > 40 || !x || typeof x !== 'object') return 'Lifetimes are set per object type.';
+    if (k.length > 40 || !x || typeof x !== 'object') return 'Lifetimes are set per device type.';
     if (x.years !== undefined && !(Number.isInteger(x.years) && x.years >= 0 && x.years <= 40)) return 'A lifetime is a number of years, up to 40.';
     if (x.price !== undefined && !(typeof x.price === 'number' && x.price >= 0 && x.price < 1e9)) return 'A replacement price is a number.';
   }

@@ -326,7 +326,7 @@ function checkStateRules(s, size = true) {
     if (o.status === undefined) o.status = 'active';   /* a hand-written object is in use until it says otherwise */
     if (!types.has(o.type)) bad(`${o.name || o.id} has an unknown type: ${o.type}.`);
     if (!STATUSES.includes(o.status)) bad(`${o.name || o.id} has an unknown status: ${o.status}.`);
-    if (typeof o.name !== 'string' || !o.name.trim()) bad('Every object needs a name.');
+    if (typeof o.name !== 'string' || !o.name.trim()) bad('Every device needs a name.');
     /* Its links (web interface, shares): only addresses that cannot run anything in the page (public/js/links.js). */
     if (o.urls !== undefined) { const p = linksProblem(o.urls); if (p) bad(`${o.name}: ${p}`); }
     if (o.maint !== undefined) { const p = maintProblem(o.maint); if (p) bad(`${o.name}: ${p}`); }
@@ -404,13 +404,13 @@ function checkStateRules(s, size = true) {
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
   }
   const codes = s.objs.map(o => o.code).filter(Boolean);
-  if (new Set(codes).size !== codes.length) bad('Two objects have the same code.');
+  if (new Set(codes).size !== codes.length) bad('Two devices have the same code.');
   if (new Set(s.users.map(u => String(u.id))).size !== s.users.length) bad('Two users have the same id.');
   if (new Set(s.rels.map(r => String(r.id))).size !== s.rels.length) bad('Two relations have the same id.');
   const idSet = new Set(ids);
   const byId = new Map(s.objs.map(o => [o.id, o]));
   for (const r of s.rels) {
-    if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at an object that is not in the inventory.');
+    if (!idSet.has(r.from) || !idSet.has(r.to)) bad('A relation points at a device that is not in the inventory.');
     if (r.id === undefined || r.id === null || r.id === '') bad('Every relation needs an id.');
     if (!REL_KINDS.includes(r.kind)) bad(`A relation has an unknown kind: ${r.kind}.`);
     if (r.vlan != null && !(s.vlans || []).some(v => v.vid === r.vlan)) bad(`A connection uses VLAN ${r.vlan}, which is not in the VLAN list.`);
@@ -428,7 +428,7 @@ function checkStateRules(s, size = true) {
       const inLag = (t && t.portGroups || []).find(g => g.lag && r.port >= g.from && r.port <= g.to);
       if (inLag) bad(`Port ${r.port} on ${t.name} is part of the LAG ${inLag.name}. Connect the LAG instead.`);
     }
-    if (r.from === r.to) bad('An object cannot be related to itself.');
+    if (r.from === r.to) bad('A device cannot be related to itself.');
   }
   /* One device per port of a switch or patch panel. */
   const taken = new Set();

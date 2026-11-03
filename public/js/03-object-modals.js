@@ -50,7 +50,7 @@ export function renderRack(){
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];
   if (!R_){
     $('#toolbar').innerHTML = '';
-    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is an object of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
+    $('#view').innerHTML = `<div class="empty">No racks yet. A rack is a device of the type Rack.${isAdmin() ? ' <button class="primary" id="rackNew">New rack</button>' : ''}</div>`;
     const b = $('#rackNew'); if (b) b.onclick = rackNewModal;
     return;
   }
@@ -292,7 +292,7 @@ export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
   const fromLs = !!o.feed && !o.excluded && o.feed.sys === 'Lansweeper';
   modal(`<div class="mh">Delete ${esc(o.name)}?</div>
-    <div class="mb"><p class="note">This removes the object, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
+    <div class="mb"><p class="note">This removes the device, its relations and its history for good. Retire keeps the record instead. Devices that were plugged into it or mounted on top of it stay, without that link.</p>
     ${fromLs ? '<p class="fieldnote warn">Lansweeper still has this device: its next push adds it again, as a new device with a new code. To keep it out, retire it and exclude it from the sync instead.</p>' : ''}</div>
     <div class="mf"><button id="pgCancel">Cancel</button>${fromLs ? '<button id="pgExcl" class="primary">Retire and exclude</button>' : ''}<button id="pgOk" class="danger-text">Delete permanently</button></div>`, 'sm');
   $('#pgCancel').onclick = closeModal;
@@ -438,7 +438,7 @@ export function renderObj(o){
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => `<option value="${v.vid}">${v.vid} · ${esc(v.name)}</option>`).join('')}</select><button id="arAdd">Add</button></div><p class="note" id="arHint" role="status"></p>
       </div>
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="cnt">none</span>'}</summary>
-        ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This object does not hang off anything.</span></div>'}
+        ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This device does not hang off anything.</span></div>'}
       </details>
       <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="cnt">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
     </div></div>`;
@@ -591,7 +591,7 @@ export function renderObj(o){
   if (accAdd) accAdd.onclick = () => {
     const name = $('#accName').value.trim(), kind = $('#accKind').value.trim(), serial = $('#accSerial').value.trim();
     if (!name){ toast('Give the attachment a name.'); return; }
-    if ((o.accessories || []).length >= 100){ toast('An object holds up to 100 attachments.'); return; }
+    if ((o.accessories || []).length >= 100){ toast('A device holds up to 100 attachments.'); return; }
     o.accessories = [...(o.accessories || []), {name, ...(kind ? {kind} : {}), ...(serial ? {serial} : {})}];
     hist(o, now(), `Attachment added: ${name} by ${who()}`); queueServerSave(); render();
   };
@@ -825,7 +825,7 @@ export function renderObj(o){
       const other = r.from === o.id ? byId(r.to) : r.to === o.id ? byId(r.from) : null;
       if (other && !other.excluded){ other.excluded = true; hist(other, now(), 'Excluded from Lansweeper sync with ' + o.name + ' by ' + who()); n++; }
     });
-    toast(o.name + ' and ' + n + ' related object' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
+    toast(o.name + ' and ' + n + ' related device' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
   };
 
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; o.detached = true; hist(o, now(), 'Detached from Lansweeper by ' + who()); toast(o.name + ' is detached. Its fields are yours now'); render(); };
