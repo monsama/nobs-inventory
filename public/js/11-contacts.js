@@ -57,12 +57,11 @@ function contactCard(c){
 }
 
 export function renderContacts(){
-  const q = (st.cnQ || '').trim().toLowerCase(), kind = st.cnKind || '';
+  const q = (st.q || '').trim().toLowerCase(), kind = st.cnKind || '';
   const all = CONTACTS.list;
   const hit = c => (!kind || c.kind === kind) && (!q || [c.name, c.company, c.area, c.role, c.email, c.phone, c.mobile, c.note].some(v => String(v || '').toLowerCase().includes(q)));
   const shown = all.filter(hit);
-  $('#toolbar').innerHTML = `<input id="cnQ" type="search" placeholder="Find a contact, company or number…" aria-label="Find a contact" value="${esc(st.cnQ || '')}" style="width:260px">
-    <select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
+  $('#toolbar').innerHTML = `<select id="cnKind" aria-label="Show"><option value="">Internal and external</option><option value="internal" ${kind === 'internal' ? 'selected' : ''}>Internal only</option><option value="external" ${kind === 'external' ? 'selected' : ''}>External only</option></select>
     <span class="muted">${shown.length === all.length ? `${all.length} ${all.length === 1 ? 'contact' : 'contacts'}` : `${shown.length} of ${all.length}`}</span><div class="grow"></div>
     ${all.length ? '<button id="cnExport" title="All contacts as a CSV file for Excel">Export CSV</button>' : ''}
     ${isAdmin() ? `${dirPeople().length ? '<button id="cnDir" title="People from Active Directory or Entra, as internal contacts linked to them">From directory…</button>' : ''}<button id="cnImport" title="Contacts from a CSV file (Excel, Outlook, SharePoint) or vCards">Import…</button><button id="cnNew" class="primary">New contact</button>` : ''}`;
@@ -74,7 +73,6 @@ export function renderContacts(){
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $('#cnKind').onchange = e => { st.cnKind = e.target.value; renderContacts(); };
-  const box = $('#cnQ'); box.oninput = () => { st.cnQ = box.value; renderContacts(); const b = $('#cnQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
     $('#view').innerHTML = `<div class="empty">No contacts yet: your own IT people and the people at your IT partners. Add them, or import a CSV or vCards.</div>`;
     return;
@@ -88,7 +86,7 @@ export function renderContacts(){
   const group = (title, sub, list) => `<section class="cn-group"><div class="hdr">${esc(title)} <span class="cnt">${list.length}</span>${sub ? `<span class="cn-sub">${sub}</span>` : ''}</div><div class="cn-grid">${list.sort(byName).map(contactCard).join('')}</div></section>`;
   $('#view').innerHTML = `<div class="cn">${own.length ? group(COMPANY.name ? `Internal · ${COMPANY.name}` : 'Internal', '', own) : ''}
     ${companies.map(k => group(k || 'External, no company', 'IT partner', byCompany.get(k))).join('')}
-    ${shown.length ? '' : `<div class="empty">Nothing matches “${esc(st.cnQ || '')}”.</div>`}</div>`;
+    ${shown.length ? '' : `<div class="empty">Nothing matches “${esc(st.q || '')}”.</div>`}</div>`;
   const v = $('#view');
   v.querySelectorAll('[data-cnedit]').forEach(b => b.onclick = () => contactModal(contactOf(b.dataset.cnedit)));
   v.querySelectorAll('[data-cndel]').forEach(b => b.onclick = () => { const c = contactOf(b.dataset.cndel); if (c) deleteContact(c); });

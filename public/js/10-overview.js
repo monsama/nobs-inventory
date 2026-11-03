@@ -197,7 +197,7 @@ export function renderOverview(){
   v.querySelectorAll('[data-ovw]').forEach(b => b.onclick = () => go('table', { warranty: b.dataset.ovw, status: 'active' }));
   /* Contracts and Software open without a search left from before, so every due contract or over-used licence shows. */
   v.querySelectorAll('[data-ovcert]').forEach(b => b.onclick = () => { st.setTab = 'maintenance'; openSettings(); });
-  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.ctQ = st.swQ = ''; st.tab = b.dataset.ovtab; view(); });
+  v.querySelectorAll('[data-ovtab]').forEach(b => b.onclick = () => { st.q = ''; st.tab = b.dataset.ovtab; view(); });
 }
 
 /* Replacement planning (public/js/lifecycle.js): the devices due each year from now, with what replacing them costs. */

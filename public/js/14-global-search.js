@@ -50,11 +50,11 @@ function results(q){
   const contacts = (CONTACTS.list || []).filter(c => has(q, c.name, c.company, c.email, c.phone, c.mobile, c.area));
   if (contacts.length) out.push(['Contacts', contacts.length, contacts.slice(0, MAX.other).map(c => ({
     icon: ICON.contact, main: c.name, sub: [c.company, c.area || c.role].filter(Boolean).join(' · '),
-    go: () => { st.cnQ = c.name; st.cnKind = ''; st.tab = 'contacts'; render(); } }))]);
+    go: () => { st.q = c.name; st.cnKind = ''; st.tab = 'contacts'; render(); } }))]);
   const contracts = (COSTS.contracts || []).filter(c => has(q, c.name, c.supplier, c.ref));
   if (contracts.length) out.push(['Contracts', contracts.length, contracts.slice(0, MAX.other).map(c => ({
     icon: ICON.contract, main: c.name, sub: [c.supplier, c.ref].filter(Boolean).join(' · '),
-    go: () => { st.ctQ = c.name; st.ctDue = false; st.tab = 'contracts'; render(); } }))]);
+    go: () => { st.q = c.name; st.ctDue = false; st.tab = 'contracts'; render(); } }))]);
   const rooms = LOCS.filter(l => has(q, l));
   const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
@@ -100,9 +100,10 @@ function pick(i){
 }
 
 box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'); box.setAttribute('aria-expanded', 'false'); box.setAttribute('aria-autocomplete', 'list');
-/* On a list (Cards, Table, Relationships) the same field also narrows the list as one types (st.q, shown as a Filter
-   chip over it): one field, not two. Escape closes the hits and keeps the filter; a second Escape clears both. */
-const LIST = ['cards', 'table', 'map', 'plans'];
+/* On a list (Cards, Table, Relationships, Floor plans, Software, Contracts, Contacts) the same field also narrows the list
+   as one types (st.q): one search field in the whole app, not one per view. Escape closes the hits and keeps the filter;
+   a second Escape clears both. */
+const LIST = ['cards', 'table', 'map', 'plans', 'sw', 'contracts', 'contacts'];
 const onList = () => LIST.includes(st.tab);
 /* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
 let redraw = 0;

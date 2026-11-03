@@ -506,7 +506,7 @@ export async function clearAll(){
   toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded object' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
 }
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-export const SHORTCUTS = [['N','New object'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on Cards, Table and Relationships it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
+export const SHORTCUTS = [['N','New object'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
 export function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
     ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table></div>
@@ -519,8 +519,8 @@ document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, select') || $('#mdl')) return;
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
-  /* / goes to the list's own filter where the view has one (Cards, Table, Relationships, Contracts …), else to the search. */
-  if (e.key === '/'){ e.preventDefault(); const f = ['cards', 'table', 'map'].includes(st.tab) ? $('#search') : ($('#plQ') && $('#plQ').offsetParent ? $('#plQ') : null) || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
+  /* / goes to the search, which also filters the list open. */
+  if (e.key === '/'){ e.preventDefault(); $('#search').focus(); return; }
   if (key === 'n' && isAdmin()){ e.preventDefault(); newObjModal(); return; }
   /* V: the next view of a tab that has a switch (Devices: Cards ↔ Table; Contracts: Contracts → Software → Contacts). */
   if (key === 'v'){ const b = [...document.querySelectorAll('[data-vsw]')], i = b.findIndex(x => x.dataset.vsw === st.tab); if (b.length > 1 && i >= 0){ e.preventDefault(); b[(i + 1) % b.length].click(); } return; }

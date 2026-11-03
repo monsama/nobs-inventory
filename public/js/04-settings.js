@@ -147,7 +147,7 @@ export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ?
 export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
 export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
 /* Looking, not changing: searches, view switches and zoom. Settings → Object types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|ctQ|mapFind|mapFocus|mapOnly|mapLabels|cardJoin|cnQ|cnKind|mapAttached|grp|portsDevice|rkSel|swQ|swCollapse|plSel|plQ|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
+export const RO_INPUT_OK = /^(search|mapFocus|mapOnly|mapLabels|cardJoin|cnKind|mapAttached|grp|portsDevice|rkSel|swCollapse|plSel|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
 export function applyRole(){
   const ro = !isAdmin();
   document.body.classList.toggle('readonly', ro);

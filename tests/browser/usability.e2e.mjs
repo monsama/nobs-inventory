@@ -84,14 +84,14 @@ try {
   // people, contacts, contracts and rooms are found too, each opening where it lives
   const gs = async (q, group, name) => { await p.fill('#search', q); await p.waitForSelector(`#gsList li[data-i]:has-text("${name}")`); assert.match(await p.textContent('#gsList'), new RegExp(group)); await p.click(`#gsList li[data-i]:has-text("${name}")`); };
   await gs('Partner', 'Contacts', 'Peter Partner');
-  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contacts' && c.st.cnQ === 'Peter Partner'; });
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contacts' && c.st.q === 'Peter Partner'; });
   await gs('Lease', 'Contracts', 'Lease NB');
-  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contracts' && c.st.ctQ === 'Lease NB'; });
+  await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'contracts' && c.st.q === 'Lease NB'; });
   await gs('Jane', 'People', 'Jane Doe');
   /* A person opens their devices: the Table filtered by that person, with their bar on top. */
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.st.tab === 'table' && !!c.st.person && c.st.q === ''; });
   await p.waitForSelector('#fbar .fb-person:has-text("Jane Doe")');
-  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.cnQ = ''; c.st.ctQ = ''; c.st.person = null; c.st.live = false; (await import('/js/07-render.js')).render(); });
+  await core(async () => { const c = await import('/js/01-core.js'); c.st.q = ''; c.st.person = null; c.st.live = false; (await import('/js/07-render.js')).render(); });
   await p.fill('#search', 'zzz-nothing');
   await p.waitForSelector('#gsList .gs-none');
   await p.keyboard.press('Escape');
@@ -146,7 +146,7 @@ try {
   await until(p, async () => { const c = await import('/js/01-core.js'); return c.byId('nb2').user === 'Max Neu'; });
 
   // 10. a renewal whose notice date has passed is amber, and the due ones can be shown alone
-  await p.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'contracts');
+  await p.evaluate(async t => { const c = await import('/js/01-core.js'); c.st.tab = t; c.st.q = ''; (await import('/js/07-render.js')).view(); }, 'contracts');
   assert.match(await p.textContent('.contracts tbody'), /Notice passed · renews/);
   assert.match(await p.textContent('#ctDueBtn'), /1 notice passed/);
 
@@ -155,12 +155,12 @@ try {
   await p.click('#onPlanBtn');
   await p.waitForSelector('[data-pin=nb1].flash');
   assert.match(await p.textContent('[data-pin=nb1] .pl-code'), /NB-0001/);
-  // the plan's own search stays on the plan and marks what it finds
-  await p.fill('#plQ', 'NB-0001');
+  // the search at the top stays on the plan and marks what it finds
+  await p.fill('#search', 'NB-0001');
   assert.equal(await core(async () => (await import('/js/01-core.js')).st.tab), 'plans');
   await p.waitForSelector('#plCanvas.searching [data-pin=nb1].hit');
-  assert.equal(await core(() => document.activeElement.id), 'plQ');
-  await p.fill('#plQ', '');
+  assert.equal(await core(() => document.activeElement.id), 'search');
+  await p.fill('#search', ''); await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
   // placing a device of another site asks first
   await core(async () => { const r = await import('/js/20-plans.js'), c = await import('/js/01-core.js'); r.placeDevice(c.PLANS[0], c.byId('nb2'), 20, 20); });
   await p.waitForSelector('#pmOk');

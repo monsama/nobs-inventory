@@ -1215,12 +1215,13 @@ export function renderMap(){
     <label class="pchk"><input type="checkbox" id="mapOnly" ${st.mapOnly?'checked':''}> Only objects with relations</label>
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
-    <input id="mapFind" type="search" placeholder="Find object…" style="width:160px" value="${esc(st.mapFind)}" aria-label="Find object">
     <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
     <details class="menu"><summary>More</summary><div class="menubox"><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></div></details></span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);
+  /* The first object the search finds is marked on the map. */
+  { const t = st.q.trim().toLowerCase(), hit = t && MAP.L.list.find(o => (o.code + ' ' + o.name).toLowerCase().includes(t)); MAP.found = hit ? hit.id : null; }
   if (!MAP.L.list.length){
     $('#mapCount').textContent = '0 objects';
     $('#view').innerHTML = narrowed
@@ -1271,15 +1272,6 @@ export function renderMap(){
   }, {passive: false});
   bindMapToolbar();
   svg.classList.toggle('labels', st.mapLabels);
-  $('#mapFind').addEventListener('input', e => {
-    st.mapFind = e.target.value;
-    const t = st.mapFind.trim().toLowerCase();
-    const hit = t && MAP.L.list.find(o => (o.code + ' ' + o.name).toLowerCase().includes(t));
-    MAP.found = hit ? hit.id : null;
-    svg.querySelectorAll('.mnode').forEach(n => n.classList.toggle('found', n.dataset.id === MAP.found));
-    if (hit){ const p = MAP.L.pos[hit.id], W = svg.clientWidth, H = svg.clientHeight;
-      MAP.px = W / 2 - (p.x + MAP_W / 2) * MAP.zoom; MAP.py = H / 2 - (p.y + mapH(hit) / 2) * MAP.zoom; mapApply(); }
-  });
   $('#mapFitBtn').onclick = mapFit;
   $('#mapReset').onclick = () => { st.mapPos = {}; render(); mapFit(); };
   $('#mapExport').onclick = e => {

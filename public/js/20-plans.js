@@ -164,7 +164,7 @@ export function renderPlans(){
     </div>`;
   const body = plan ? `<div class="pl-body${sideOpen() ? '' : ' side-off'}">
       <aside class="pl-side"><div class="pl-shead">Devices not on this plan</div>
-        <div class="pl-q"><input id="plQ" type="search" placeholder="Find devices…  /" aria-label="Find devices: marks them on the plan and narrows this list" value="${esc(st.q)}">
+        <div class="pl-q">
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => `<option value="${k}" ${st.plType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? `<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${esc(plan.site)}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
@@ -214,8 +214,6 @@ export function renderPlans(){
   on('#plDel', () => deletePlanModal(plan));
   if (!plan) return;
   renderPlanList(plan);
-  /* The plan's own search: it narrows the list beside it and marks what it finds on the plan. */
-  $('#plQ').oninput = () => { st.q = $('#plQ').value; renderPlans(); const f = $('#plQ'); if (f){ f.focus(); f.setSelectionRange(f.value.length, f.value.length); } };
   $('#plType').onchange = e => { st.plType = e.target.value || null; renderPlanList(plan); };
   $('#plWhere').onchange = e => { st.plWhere = e.target.value || null; renderPlanList(plan); };
   $('#plList').onclick = e => { const b = e.target.closest('[data-plitem]'); if (!b || listDragDone) return; const o = byId(b.dataset.plitem); planPlace = planPlace && planPlace.id === o.id ? null : o; planMode = 'view'; renderPlans(); };
@@ -320,7 +318,8 @@ export function planCanvas(plan){
   </div>`;
 }
 export function renderPlanList(plan){
-  const q = (($('#plQ') && $('#plQ').value) || '').trim().toLowerCase();
+  /* The search at the top narrows this list and marks what it finds on the plan. */
+  const q = (st.q || '').trim().toLowerCase();
   const placed = planDevices(plan).map(o => o.id), onPlan = new Set(placed);
   const rides = o => { const h = planHostOf(o); return h && onPlan.has(h.id); };
   /* The list can be narrowed to one type, and to the devices at the plan's site or those without a location. */

@@ -144,8 +144,7 @@ export function renderSoftware(){
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));
   st.swSort ??= 'name';
   const devCount = objs.filter(o => (o.software || []).length).length;
-  $('#toolbar').innerHTML = `<input id="swQ" type="search" placeholder="Find software, version or device…" aria-label="Find software" value="${esc(st.swQ || '')}" style="width:260px">
-    <span class="muted" id="swCount"></span><div class="grow"></div>
+  $('#toolbar').innerHTML = `<span class="muted" id="swCount"></span><div class="grow"></div>
     <button id="swCollapse" ${st.swOpen.length ? '' : 'hidden'}>Collapse all</button><span class="muted hide-n">Add software on a PC or server</span>`;
   if (!all.length){ $('#view').innerHTML = `<div class="sw-page">${licencesPanel()}<div class="empty">No software recorded yet. Add it on a PC or server.</div></div>`; bindLicences(); return; }
   /* data-tb: the generic column tools (filter row, drag, resize) stay off; this table has its own search and sort. */
@@ -154,7 +153,7 @@ export function renderSoftware(){
   bindLicences();
   const max = Math.max(...all.map(r => r.devices.length));
   const body = () => {
-    const q = (st.swQ || '').trim().toLowerCase();
+    const q = (st.q || '').trim().toLowerCase();
     /* A search for a device opens the packages it has, so the match is in sight. */
     const hits = r => !q ? 'none' : r.name.toLowerCase().includes(q) || r.versions.some(([v]) => v.toLowerCase().includes(q)) ? 'package' : r.devices.some(d => d.name.toLowerCase().includes(q)) ? 'device' : '';
     const rows = all.filter(r => hits(r)).sort(st.swSort === 'devices' ? (a, b) => b.devices.length - a.devices.length || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
@@ -168,7 +167,7 @@ export function renderSoftware(){
         <td><b>${esc(r.name)}</b>${licencesFor(r.name).map(l => ' ' + licenceMark(l)).join('')}</td>
         <td class="sw-ver"><span class="vchips">${shown.map(([v, n]) => `<span class="vchip">${esc(v)}${r.versions.length > 1 ? `<i>${n}</i>` : ''}</span>`).join('')}${r.versions.length > 4 ? `<span class="muted">+${r.versions.length - 4} more</span>` : ''}</span></td>
         <td class="n"><span class="sw-bar"><span style="width:${Math.max(4, Math.round(r.devices.length / max * 100))}%"></span></span>${r.devices.length}</td></tr>${open ? swDetailHtml(r) : ''}`;
-    }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.swQ)}”.</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="muted" style="padding:14px">Nothing matches “${esc(st.q)}”.</td></tr>`;
     $('#swCollapse').hidden = !st.swOpen.length;
   };
   body();
@@ -187,7 +186,6 @@ export function renderSoftware(){
     if (e.target.closest('[data-open]')) return;   /* a device link opens the device */
     const tr = e.target.closest('tr.sw-row'); if (tr) toggle(tr);
   });
-  $('#swQ').addEventListener('input', e => { st.swQ = e.target.value; body(); });
   $('#swCollapse').onclick = () => { st.swOpen = []; body(); };
   $('#view').querySelectorAll('[data-swsort]').forEach(th => th.onclick = () => { st.swSort = th.dataset.swsort; renderSoftware(); });
 }

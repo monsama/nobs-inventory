@@ -68,7 +68,7 @@ function costSummary(all){
   <details class="how ct-sum-note"><summary>How the years are counted</summary><p class="note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p></details>`;
 }
 export function renderContracts(){
-  const q = (st.ctQ || '').trim().toLowerCase();
+  const q = (st.q || '').trim().toLowerCase();
   const all = COSTS.contracts;
   const hit = c => !q || [c.name, c.supplier, c.ref, CONTRACT_KINDS[c.kind], c.note, ...(c.contacts || []).map(id => (contactOf(id) || {}).name)].some(v => String(v || '').toLowerCase().includes(q))
     || (c.devices || []).some(id => (byId(id) || {}).name?.toLowerCase().includes(q));
@@ -78,11 +78,9 @@ export function renderContracts(){
   const live = all.filter(c => runningNow(c));
   const year = live.reduce((t, c) => t + yearlyCost(c), 0);
   const due = contractsDue().length, late = contractsLate().length;
-  $('#toolbar').innerHTML = `<input id="ctQ" type="search" placeholder="Find a contract, supplier or device…" aria-label="Find a contract" value="${esc(st.ctQ || '')}" style="width:260px">
-    <span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
+  $('#toolbar').innerHTML = `<span class="muted">${q ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'contract' : 'contracts'}`}</span>${due || late ? `<button type="button" class="chip-btn ${st.ctDue ? 'on' : ''}" id="ctDueBtn" aria-pressed="${!!st.ctDue}" title="${st.ctDue ? 'Show all contracts again' : 'Show only the contracts that need someone now'}">${[due ? `${due} due within ${NOTICE_SOON_DAYS} days` : '', late ? `${late} notice passed` : ''].filter(Boolean).join(' · ')}${st.ctDue ? ' ×' : ''}</button>` : ''}<div class="grow"></div>
     ${isAdmin() ? '<button id="ctNew" class="primary">New contract</button>' : ''}`;
   const ctNew = $('#ctNew'); if (ctNew) ctNew.onclick = () => contractModal(null);
-  const box = $('#ctQ'); box.oninput = () => { st.ctQ = box.value; renderContracts(); const b = $('#ctQ'); b.focus(); b.setSelectionRange(b.value.length, b.value.length); };
   if (!all.length){
     $('#view').innerHTML = `<div class="empty">No contracts yet.${isAdmin() ? ' <button type="button" class="primary" id="ctNewEmpty">New contract</button>' : ''}</div>`;
     const ne = $('#ctNewEmpty'); if (ne) ne.onclick = () => contractModal(null);
@@ -94,7 +92,7 @@ export function renderContracts(){
       <td>${esc(CONTRACT_KINDS[c.kind])}</td><td>${esc(c.supplier || '')}${contactsLine(c)}</td><td class="num">${(c.devices || []).filter(byId).length || ''}</td>
       <td class="num">${c.cost > 0 ? `${money(c.cost)} <span class="muted">${esc(PERIODS[c.per || 'year'])}</span>` : ''}</td><td>${noticeCell(c)}</td><td>${contractChip(c)}</td>
       <td class="num"><span class="rowacts">${editButton(`data-contract="${esc(c.id)}"`, c.name, isAdmin())}${isAdmin() ? deleteButton(`data-ctdel="${esc(c.id)}"`, c.name) : ''}</span></td></tr>`).join('')
-      || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.ctQ)}”.`}</td></tr>`}
+      || `<tr><td colspan="8" class="muted" style="padding:14px">${st.ctDue ? 'No contract needs anyone now.' : `Nothing matches “${esc(st.q)}”.`}</td></tr>`}
     </tbody>${year ? `<tfoot><tr><td colspan="4">Running contracts per year</td><td class="num"><b>${money(year)}</b></td><td colspan="3"></td></tr></tfoot>` : ''}</table></div>`;
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
   $('#view').querySelectorAll('[data-ctcontact]').forEach(b => b.onclick = () => { const k = contactOf(b.dataset.ctcontact); if (k) contactModal(k); });

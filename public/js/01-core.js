@@ -252,7 +252,7 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    policy: which fields the feed may overwrite by default. Name and serial number are match keys, never overwritten.
    Each object can override these on its own page: the source picked for a field (o.pick). */
 export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
-  rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFind:'', mapFocus:null, mapPos:{},
+  rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
   policy:{ ...DEFAULT_POLICY },
   ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
 export let APP_VERSION = '';

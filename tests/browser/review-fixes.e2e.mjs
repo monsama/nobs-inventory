@@ -41,9 +41,9 @@ const ev = (p, f, a) => p.evaluate(f, a);
 try {
   const v = await login('viewer', 'viewerpass123');
   await v.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'sw'); await v.waitForTimeout(200);
-  assert.equal(await v.isDisabled('#swQ'), false, 'a viewer can search software'); assert.equal(await v.locator('.sw-tg').first().isDisabled(), false, 'a viewer can open a package');
+  assert.equal(await v.isDisabled('#search'), false, 'a viewer can search software'); assert.equal(await v.locator('.sw-tg').first().isDisabled(), false, 'a viewer can open a package');
   await v.click('[data-tab=plans]'); await v.waitForTimeout(200);
-  for (const id of ['#plQ', '#plZoomIn', '#plSel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), false, 'a viewer can use ' + id);
+  for (const id of ['#plZoomIn', '#plSel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), false, 'a viewer can use ' + id);
   for (const id of ['#plNew', '#plDel']) if (await v.locator(id).count()) assert.equal(await v.isDisabled(id), true, 'a viewer cannot use ' + id);
   await v.click('#setBtn'); await openSetTab(v, 'types'); await v.waitForTimeout(200);
   assert.equal(await v.isDisabled('#tfType'), false, 'a viewer can look at another type\'s fields');
