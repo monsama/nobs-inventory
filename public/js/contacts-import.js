@@ -8,7 +8,7 @@ import { CONTACT_KINDS, contactProblem } from './contacts.js';
    are read. A file that is not valid UTF-8 is read as Windows-1252. */
 export function decodeText(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(u8).replace(/^﻿/, ''); }
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(u8).replace(/^\uFEFF/, ''); }
   catch { return new TextDecoder('windows-1252').decode(u8); }
 }
 
@@ -72,7 +72,7 @@ export function readContactFile(text, fileName = '') {
 
 const KIND_WORDS = { internal: ['internal', 'intern', 'interne', 'interner', 'eigene', 'own', 'staff'], external: ['external', 'extern', 'externe', 'externer', 'partner', 'it partner', 'supplier', 'lieferant'] };
 const kindOf = v => Object.keys(KIND_WORDS).find(k => KIND_WORDS[k].includes(norm(v))) || '';
-const clean = v => String(v ?? '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').trim();
+const clean = v => String(v ?? '').replace(/\u00A0/g, ' ').replace(/[ \t]+/g, ' ').trim();
 /* A phone number as people write it, kept as written apart from spaces and the dashes Word makes ("-"). */
 const cleanPhone = v => clean(v).replace(/[‐-―]/g, '-');
 

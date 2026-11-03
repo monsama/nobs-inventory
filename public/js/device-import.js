@@ -25,7 +25,7 @@ export const FILLABLE = ['model', 'serial', 'ip', 'mac', 'loc', 'user', 'purchas
 export const DELIMITER_NAME = { ',': 'comma', ';': 'semicolon', '\t': 'tab' };
 
 /* A heading as compared: no case, spaces, punctuation or byte-order mark ("Serial Number" and "serial_number" are one). */
-export const normHead = h => String(h ?? '').replace(/^﻿/, '').toLowerCase().replace(/[\s_\-./\\#:()]+/g, '');
+export const normHead = h => String(h ?? '').replace(/^\uFEFF/, '').toLowerCase().replace(/[\s_\-./\\#:()]+/g, '');
 
 /* Which field each column fills ('' for none). A heading met before keeps the field chosen for it then (remembered:
    normalized heading → field, '' meaning ignored); else it is matched by its name. Each field comes from one column. */

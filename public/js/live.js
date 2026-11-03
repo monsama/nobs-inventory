@@ -15,7 +15,7 @@ async function catchUp(){
   if (SERVER.cseq !== null && SERVER.cseq !== undefined && SERVER.cseq >= want) return;
   if (running){ again = true; return; }
   running = true;
-  let ran = true;
+  let ran;
   try { ran = await checkForChanges(); } finally { running = false; }
   if (again){ again = false; return catchUp(); }
   if (ran === false) held = setTimeout(catchUp, HELD_MS);

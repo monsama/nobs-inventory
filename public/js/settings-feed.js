@@ -307,7 +307,7 @@ export function renderSetFeed(){
   /* After a copy the token is hidden again; it can only be read once, then a new token is made. */
   if ($('#pushCopy')) $('#pushCopy').onclick = async () => {
     const box = $('#pushTok'); box.select();
-    let copied = false;
+    let copied;
     try { await navigator.clipboard.writeText(pushNew); copied = true; } catch { copied = document.execCommand('copy'); }
     if (!copied){ pushMsg('Could not copy. Select the token and copy it by hand.'); return; }
     pushNew = ''; pushNote = 'Copied. The token is hidden now. Make a new one if you need it again.'; renderSetFeed();
