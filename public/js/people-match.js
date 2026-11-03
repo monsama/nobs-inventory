@@ -80,6 +80,7 @@ export const exactKeys = u => new Set([u.login, u.entra && u.entra.upn, ...(u.al
    by its own password (hand-made), or a pair marked as not the same. Returns how many records were merged away. */
 /* The merges a sync made, on s (not saved with it): the server moves the entry sheets and the sign-in with them on save. */
 export const MERGED = Symbol.for('nobs.mergedPeople');
+/* Does the merge described above on s.users and notes each one under s[MERGED] for the server. */
 export function mergeSamePeople(s, stamp = '') {
   const skip = new Set(s.peopleNotSame || []), byKey = new Map();
   for (const u of s.users || []) for (const k of exactKeys(u)) byKey.set(k, [...(byKey.get(k) || []), u]);
@@ -97,5 +98,3 @@ export function mergeSamePeople(s, stamp = '') {
   }
   return n;
 }
-/* A person a source names by login or name, also by an alias a merge left (for the syncs). */
-export const matchesAlias = (u, v) => !!v && (u.aliases || []).some(a => low(a) === low(v) || loginCore(a) === loginCore(v));

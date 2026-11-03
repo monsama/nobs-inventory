@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+/* Local sign-in: password hashing (scrypt), password rules, and sessions with their idle and absolute time limits. */
 
 const SESSION_HOURS = 12;   /* a session ends this long after sign-in... */
 const IDLE_MINUTES = 120;   /* ...or after this long without any use */

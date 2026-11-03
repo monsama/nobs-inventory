@@ -9,6 +9,8 @@ export const CONTACT_MAX = { name: 120, company: 120, area: 120, role: 120, emai
 const EMAIL = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/;
 const PHONE = /^[+\d][\d\s()./-]{2,39}$/;
 
+/* Checks one contact: an id, a name, internal or external, text fields within CONTACT_MAX, a plausible e-mail and
+   phone numbers. Returns what is wrong as a sentence for the person, or null when it is fine. */
 export function contactProblem(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return 'A contact is a record.';
   if (typeof c.id !== 'string' || !/^[\w-]{1,40}$/.test(c.id)) return 'Every contact needs an id.';

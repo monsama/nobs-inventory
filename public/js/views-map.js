@@ -16,8 +16,10 @@ const fitMap = (t, px) => {
 };
 export const mapLines = o => [o.model, o.ip || o.user || (o.ext ? 'Ext ' + o.ext : ''), o.type === 'patch' ? (o.ports || 24) + ' ports · ' + used(o) + ' used' : o.type === 'storage' ? [o.cap, o.proto].filter(Boolean).join(' · ') : o.kind === 'vm' ? 'Virtual machine' : ''].filter(Boolean);
 /* Every box has the same height, so the rows line up across a column. */
-export const mapH = () => 91;
+export const mapH = o => 91;
 
+/* Which of the nodes are drawn, which relations, and where each box goes: columns by distance from the switches,
+   routers and firewalls, ordered so lines run straight. A box moved by hand keeps its place (st.mapPos). */
 export function mapLayout(nodes){
   const ids = new Set(nodes.map(o => o.id));
   /* Attached devices are left out of the map unless asked for, so the map shows the network. Showing one object's
@@ -188,6 +190,8 @@ export function mapHighlight(id){
   svg.querySelectorAll('.mnode').forEach(n => n.classList.toggle('hi', nb.has(n.dataset.id)));
   svg.classList.add('focus');
 }
+/* The map as the text of an SVG file: the whole drawing, cropped with a margin, with the colour tokens turned into the
+   colours on screen now. */
 export function mapExportSvg(){
   const L = MAP.L, b = mapBox(L), pad = 20, w = b.x1 - b.x0 + 2 * pad, h = b.y1 - b.y0 + 2 * pad;
   const shifted = {...L, pos: Object.fromEntries(Object.entries(L.pos).map(([k,p]) => [k, {x: p.x - b.x0 + pad, y: p.y - b.y0 + pad}]))};
@@ -214,6 +218,8 @@ function bindMapToolbar(){
   $('#mapZoomIn').onclick = () => mapZoomTo(MAP.zoom * 1.25);
   $('#mapZoomReset').onclick = () => mapZoomTo(1);
 }
+/* Draws the Relations tab: the toolbar and the map of the filtered devices with those linked to them. Wires drag, pan,
+   zoom, hover and click to open; a box an admin moves is saved. */
 export function renderMap(){
   /* Showing one object's relations: that object and the objects linked to it directly, and nothing else. */
   /* Only a device in the inventory: a record in To review is not drawn, so it would leave an empty map. */

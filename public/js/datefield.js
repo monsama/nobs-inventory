@@ -2,7 +2,7 @@
    has: a date field's own picker writes 12/31/2026 or 06:00 AM in an English browser. A date field is a text field
    with a calendar button; the button opens the browser's own calendar, whose choice is written back in this format.
    The value is kept as ISO (2026-12-31) for saving: read it with dateValue(el). */
-import { esc, toast } from './01-core.js';
+import { evEl, esc, toast } from './01-core.js';
 
 const pad = n => String(n).padStart(2, '0');
 /* 31.12.2026, 31.12.26, 31/12/2026, 2026-12-31 or 31122026 → 2026-12-31; '' for empty, null for something else. */
@@ -54,7 +54,7 @@ function settle(el){
 }
 if (typeof document !== 'undefined'){
   document.addEventListener('change', e => {
-    const el = e.target;
+    const el = evEl(e);
     if (el.matches && el.matches('input[data-date]')){ if (!settle(el)) e.stopImmediatePropagation(); }
     else if (el.matches && el.matches('input[data-time]')){
       const t = parseTime(el.value); el.classList.toggle('bad', t === null);
@@ -62,13 +62,13 @@ if (typeof document !== 'undefined'){
     } else if (el.matches && el.matches('.df-native')){
       /* A day picked in the calendar: into the text field, which then saves as if typed. */
       e.stopImmediatePropagation();
-      const txt = el.parentElement.querySelector('input[data-date]');
+      const txt = /** @type {HTMLInputElement} */ (el.parentElement.querySelector('input[data-date]'));
       txt.value = dayShown(el.value) || ''; txt.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }, true);
   document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('.df-cal'); if (!b) return;
-    const nat = b.parentElement.querySelector('.df-native');
+    const b = evEl(e).closest && evEl(e).closest('.df-cal'); if (!b) return;
+    const nat = /** @type {HTMLInputElement} */ (b.parentElement.querySelector('.df-native'));
     try { nat.showPicker(); } catch { nat.focus(); }
   });
 }

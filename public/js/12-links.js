@@ -12,6 +12,8 @@ let editing = null;
 
 const suggestions = o => !o.ip ? [] : [`https://${o.ip}`, `http://${o.ip}`].filter(u => !(o.urls || []).some(l => l.url === u));
 
+/* The Links panel as HTML text: each link with its kind, to open or copy, and for admins to edit in place or remove,
+   plus the quick Web interface links from its address and the Add row. */
 export function deviceLinksPanel(o){
   const list = o.urls || [], edit = isAdmin();
   const copyIcon = rawHtml('<svg class="i" viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg>');
@@ -34,6 +36,8 @@ export function deviceLinksPanel(o){
       <button id="lnkAdd">Add</button></div>`}</div>`);
 }
 
+/* Wires the Links panel: add (checked by linkProblem, no link twice), edit in place (Enter saves, Escape cancels),
+   remove and copy. Each change gets a history line and is saved. */
 export function bindDeviceLinks(o){
   const v = $('#view');
   const add = (label, url) => {

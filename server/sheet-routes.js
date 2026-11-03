@@ -8,6 +8,9 @@ import { buildReport, reportOptions } from '../public/js/reports.js';
 import { PASSWORD_DAYS, createSheet, deleteSheet, getSheet, listSheets, markChanged, purgePasswords } from './sheets.js';
 import { HttpError } from './errors.js';
 
+/* Adds the entry sheets for admins (/api/sheets: list, make, open, PDF, password marked as changed, delete) and the
+   report files for everyone signed in (GET or POST /api/reports/:kind, a PDF or ?format=xlsx, cut to what the person
+   may see). Passwords past their days are removed before a sheet is read. */
 export function registerSheetRoutes(app, ctx) {
   const { db, requireUser, requireAdmin, SHEET_KEY } = ctx;
   /* Entry sheets: admins only. The password is in the answer that makes the sheet and in a re-download until it is

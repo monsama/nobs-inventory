@@ -1,7 +1,7 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { evEl, $, $$, byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { html } from './html.js';
 import { unplace } from './03-object-modals.js';
@@ -114,6 +114,8 @@ function withUndo(list, msg, change, { reload = false } = {}){
     render(); queueServerSave();
   }, { anyEpoch: reload });
 }
+/* Does a To review action (kind) on the records in list: accept, ignore, merge, restore, or one of the RESOLVE ways.
+   Accepting a record the inventory seems to have already asks first, offering Merge instead. Each can be undone. */
 export function reviewDo(kind, list, { asked = false } = {}){
   if (!list.length) return;
   const n = list.length, what = n === 1 ? list[0].name : `${n} devices`;
@@ -171,7 +173,7 @@ function unmerge(list){
   }
 }
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('[data-unmerge]'); if (!b) return;
+  const b = evEl(e).closest && evEl(e).closest('[data-unmerge]'); if (!b) return;
   const o = REVIEW.find(x => x.id === b.dataset.unmerge); if (!o || !o.review || !o.review.merged) return;
   const t = byId(o.review.merged);
   withUndo([o, ...(t ? [t] : [])], `${o.name} unmerged: waiting in To review`, () => unmerge([o]));
@@ -192,6 +194,8 @@ const RESOLVE = [
 /* The device a record stands for: by serial number or name in the inventory, else the device of its DNS name's first
    part, also while that one still waits in To review. */
 export const dupOf = o => mergeTarget(o) || twinOf(o);
+/* Does the RESOLVE way kind for each record and the device it most likely is (dupOf): merges it, keeps it as a shared
+   dock, marks it as no duplicate, or makes it obsolete (retired and excluded, or ignored while still in To review). */
 function resolve(kind, list){
   const pairs = list.map(o => [o, dupOf(o)]).filter(([, t]) => t);
   if (!pairs.length) return;
@@ -229,11 +233,14 @@ const seenBy = o => {
   return [['Lansweeper', o.feed && (o.feed.scanned || o.feed.seen)], ['AD', o.ad && o.ad.logon], ['Entra', g && (g.lastSignIn || g.lastSync)], ['Defender', o.defender && o.defender.lastSeen]]
     .filter(([, v]) => v).map(([k, v]) => `${k} ${dayText(String(v).slice(0, 10))}`).join(' · ');
 };
+/* The Resolve dialog for probable duplicates (admin only): one record beside its device with the differing fields
+   marked, or a list for several, and the RESOLVE ways to pick from. Resolve passes the choice to reviewDo. */
 export function resolveModal(list){
   list = list.filter(o => dupOf(o));
   if (!list.length || !isAdmin()) return;
   const one = list.length === 1, o = list[0], t = dupOf(o);
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
+  /** @type {[string, (x: any) => any][]} */
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
     ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
   const table = one ? html`<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
@@ -250,9 +257,9 @@ export function resolveModal(list){
   /* The button says what the choice does. */
   const okText = k => ({ dock: 'Add as attachment', desk: 'Keep as dock', same: 'Merge', obsolete: list.every(x => x.review) ? 'Ignore' : 'Retire', notdup: 'Keep both' })[k];
   const ok = document.getElementById('dupOk');
-  const label = () => { ok.textContent = okText(document.querySelector('[name=dupWay]:checked').value); };
-  document.querySelectorAll('[name=dupWay]').forEach(r => r.onchange = label); label();
-  ok.onclick = () => { const k = document.querySelector('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
+  const label = () => { ok.textContent = okText($('[name=dupWay]:checked').value); };
+  $$('[name=dupWay]').forEach(r => r.onchange = label); label();
+  ok.onclick = () => { const k = $('[name=dupWay]:checked').value; closeModal(); reviewDo(k, list); };
 }
 /* The device page of a device waiting for review says so, with the same two buttons. */
 export function reviewBanner(o){
@@ -262,8 +269,10 @@ export function reviewBanner(o){
     ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
     : html`<div class="rv-banner"><span>Waiting in To review: found by ${src}, not in any list, count or cost yet.</span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
+/* Wires the buttons of the review banner on device o's page. After an accept, ignore or merge that went through, the
+   next record waiting opens in the same tab. */
 export function bindReviewBanner(o){
-  document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {
+  $$('[data-rvpage]').forEach(b => b.onclick = () => {
     const k = b.dataset.rvpage;
     /* The next one waiting, taken before this one leaves the list: opened once this one is done, so a record after
        record is worked through without going back to the list. */

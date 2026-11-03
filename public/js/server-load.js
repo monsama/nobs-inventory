@@ -1,6 +1,6 @@
 /* Loading from the server: reloads, checks for other people's changes, unsaved changes put back on top. */
 import { applyDelta } from './delta.js';
-import { REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
+import { $, REVIEW, UNDO, CONTACTS, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
 import { USERS, bindUser, isAdmin } from './04-settings.js';
@@ -25,6 +25,8 @@ export function restoreOffline(){
   if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
 }
 let LOAD_FIX = null;
+/* Makes what the page holds now the base the next save is compared with (SERVER.base). Records the load itself made
+   (LOAD_FIX) are left out, so an admin's page saves them; a viewer's page takes them into the base instead. */
 function setBaseline(){
   SERVER.base = new Map();
   for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
@@ -115,7 +117,7 @@ function keepServerCopy(d){
 }
 /* false when it was held back (see above) and asked the server nothing. */
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return false;
+  if (!SERVER.base || SERVER.busy || $('#mdl')) return false;
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
@@ -142,6 +144,8 @@ export async function checkForChanges(){
   if (changed) await reloadFromServer({ data: structuredClone(d) });
   return true;
 }
+/* Puts the server's inventory d into the page's shared lists and settings, replacing what was there, with defaults
+   for what an older or new server does not send. Also links devices to people and forgets the cached photos. */
 function applyState(d){
   UNDO.epoch++;
   /* The photos are read again when a device page opens: the server may have others now (a restore, another admin). */

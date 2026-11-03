@@ -62,6 +62,8 @@ export function fieldModeProblem(v) {
   }
   return '';
 }
+/* Whether source src may set field k of device o now: the rules in the comment above MODES, with a field's 'fill'
+   mode keeping any value already there, and Lansweeper first on a device it reports. */
 export function maySet(s, o, k, src) {
   const pick = o.pick && o.pick[k];
   if (pick) return pick === src;
@@ -137,8 +139,6 @@ export const PEOPLE_SOURCES = [
   ['Contacts', 'People from AD or Entra are added as internal contacts only when picked (Contacts → From directory…), with their title, department, e-mail, phones and office'],
 ];
 
-/* Who wins when several sources know a field. */
-export const PRECEDENCE = ['A value set by hand, or the source picked for the field on the device', 'Then the sources in the order set for the field below: the first one sets it, the next ones fill it while it is empty', 'Without an order set: Lansweeper (where "Feed may overwrite" allows it), then Intune, then Active Directory'];
 
 /* What is never read, and never written. */
 export const NEVER = ['LAPS passwords and BitLocker recovery keys are never read from Active Directory.', 'Nothing is written back: every source is read only.', 'Passwords, tokens and keys stay on the server: never on the page, in backups or in the log.'];

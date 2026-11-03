@@ -5,6 +5,8 @@ import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
 import { netChain } from './cabling.js';
+/* The page's shared core: the device types and their icons, the inventory in memory (objs, rels, users, settings in st),
+   field labels and rules, the colour chips and badges, toasts with Undo, and small helpers used by every view. */
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -138,7 +140,7 @@ export { WARRANTY_SOON_DAYS, warrantyState };
    all the same, and flagged so someone checks it by hand. */
 export const SCAN_OLD_DAYS = 90;
 const isDay = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
-const daysAgo = (day, today) => (today - new Date(day + 'T00:00:00')) / 86400000;
+const daysAgo = (day, today) => (+today - +new Date(day + 'T00:00:00')) / 86400000;
 /* A device Lansweeper tries to scan but has never scanned (it only knows it from Active Directory, or cannot log on):
    none of its details come from a scan. A week's grace for one it found only just now. */
 export const NEVER_SCANNED_GRACE_DAYS = 7;
@@ -165,7 +167,7 @@ export const KINDS = {
 };
 /* Fields get their placeholder as a tooltip, and a select shows its chosen text, so nothing is unreadable on hover. */
 export function fullTextTooltips(root = document.body){
-  root.querySelectorAll('input[placeholder], textarea[placeholder]').forEach(el => { if (!el.title) el.title = el.placeholder; });
+  /** @type {NodeListOf<HTMLInputElement>} */ (root.querySelectorAll('input[placeholder], textarea[placeholder]')).forEach(el => { if (!el.title) el.title = el.placeholder; });
   root.querySelectorAll('select').forEach(el => { const o = el.selectedOptions[0]; if (o && !el.title) el.title = o.textContent.trim(); });
 }
 /* Cut-off text gets its full wording when the pointer reaches it. Only the element under the pointer is measured, so a
@@ -258,8 +260,8 @@ export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true,
    Each object can override these on its own page: the source picked for a field (o.pick). */
 export const st = {scope:null, rvSrc:'', rvKnown:false, rvOld:false, type:null, loc:null, status:null, scanOld:false, twins:false, q:'', tab:'cards', open:[], tabIds:['mine','overview','review','cards','table','map','plans','net','rack','sw','contracts','contacts'], portsDevice:null, cardsGroup:'none', portNo:3,
   rackId:null, setTab:'locations', feedOn:true, feedSync:true, mapOnly:true, mapAttached:false, mapLabels:false, mapFocus:null, mapPos:{},
-  policy:{ ...DEFAULT_POLICY },
-  ldap:{url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}, lansweeper:{}};
+  policy:/** @type {Record<string, boolean>} */ ({ ...DEFAULT_POLICY }),
+  ldap:/** @type {Record<string, any>} */ ({url:'', bindDn:'', base:'', filter:'', group:'', nightly:true, disable:true, last:null}), lansweeper:{}};
 export let APP_VERSION = '';
 export const setAppVersion = v => { APP_VERSION = v; };
 try { const t = localStorage.getItem('ni-theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
@@ -279,7 +281,7 @@ export const GRAPH_TYPES = ['pc', 'notebook', 'ios', 'android', 'mobile'];
 /* Intune's last contact with a device, else Entra's last sign-in; a device not heard of for 30 days may be gone. */
 export const GRAPH_STALE_DAYS = 30;
 export const graphLast = o => (o.graph && (o.graph.lastCheckIn || o.graph.lastSync || o.graph.lastSignIn)) || '';
-export const graphStale = (o, today = new Date()) => { const t = Date.parse(graphLast(o)); return !isNaN(t) && (today - t) / 864e5 > GRAPH_STALE_DAYS; };
+export const graphStale = (o, today = new Date()) => { const t = Date.parse(graphLast(o)); return !isNaN(t) && (+today - t) / 864e5 > GRAPH_STALE_DAYS; };
 /* How Intune names a compliance state, and how it reads here. */
 export const COMPLIANCE = { compliant: ['ok', 'Compliant'], noncompliant: ['bad', 'Not compliant'], inGracePeriod: ['warn', 'In grace period'], conflict: ['warn', 'Conflict'],
   error: ['bad', 'Error'], configManager: ['', 'Config Manager'], unknown: ['', 'Unknown'] };
@@ -303,6 +305,7 @@ export const joinOf = o => {
 export const graphAmbiguousOf = o => (st.graphAmbiguous || []).find(a => a.devices.includes(o.id)) || null;
 const inGraph = o => !!o.graph && !o.graph.gone && o.status !== 'retired';
 /* Each filter: its label, its colour, the test, and whether it is listed only when a device has it. */
+/** @type {Record<string, [string, string, (o: any) => boolean, boolean?, boolean?]>} */
 export const GRAPH_FILTERS = {
   noncompliant: ['Not compliant', 'bad', o => inGraph(o) && ['noncompliant', 'error'].includes(o.graph.compliance)],
   unencrypted: ['Not encrypted', 'warn', o => inGraph(o) && o.graph.encrypted === 'no'],
@@ -382,6 +385,8 @@ export const graphChip = o => {
    Intune: managed, coloured by compliance. */
 export const JOIN_STATE = { 'Entra joined': ['en', 'joined'], 'Hybrid joined': ['hy', 'hybrid'], 'Entra registered': ['reg', 'registered'] };
 export const COMPLIANCE_SHORT = { compliant: 'compliant', noncompliant: 'not compliant', inGracePeriod: 'grace', conflict: 'conflict', error: 'error' };
+/* The AD, Entra and Intune marks of a device (and Defender, once read) as HTML, as described above. '' for a type
+   Graph does not cover. */
 export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
   /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
@@ -422,13 +427,14 @@ export function defenderState(o){
 /* A device waiting in To review that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
    and left out of Accept all unless asked. */
 export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
+/* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
 export function lastSeenOf(o){
   const g = o.graph && !o.graph.gone ? o.graph : null;
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && (g.lastCheckIn || g.lastSync)],
     ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
     .map(([src, v]) => [src, String(v || '').slice(0, 10), String(v || '')]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
   if (!all.length) return null;
-  const when = ([, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
+  const when = (/** @type {string[]} */ [, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
   const best = all.sort((a, b) => when(b) - when(a))[0], [src, day, raw] = best;
   const t = new Date(), today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
   const timed = /T\d{2}:\d{2}/.test(raw) && Date.parse(raw);
@@ -442,6 +448,7 @@ let PEOPLE_LIST = [], PEOPLE = new Map();
 export const setPeople = list => { PEOPLE_LIST = list || []; PEOPLE = new Map(); };
 /* Made again when people were added or removed since. */
 const personOf = id => { if (PEOPLE.size !== PEOPLE_LIST.length) PEOPLE = new Map(PEOPLE_LIST.map(u => [u.id, u])); return PEOPLE.get(id); };
+/** @type {Record<string, [string, string, (o: any) => boolean]>} */
 export const QUALITY = {
   noloc: ['No location', 'Where it is is not recorded', o => !o.loc],
   noresp: ['No responsible', 'No internal responsible, though there are internal contacts', o => !o.respIn && CONTACTS.list.some(c => c.kind === 'internal')],
@@ -588,7 +595,17 @@ export function setByHand(o, k, v){
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
 export const VIEWBOX_RE = /^-?[\d.]+([\s,]+-?[\d.]+){3}$/;
 export const COLOR_RE = /^#[0-9a-f]{3,8}$/i;
+/* The elements a selector finds, and the one an event is on. Typed for the type check (tsconfig.json) by what the
+   callers use: $ loosely (any), as the callers know what element they look for and set markup from html`` (an Html,
+   not a string); $$ and evEl as El, an input whose closest() and querySelector() give an El too, so value, checked,
+   dataset and onclick can be used and a misspelt property is still found. */
+/** @typedef {{ closest(s: string): El, querySelector(s: string): El, querySelectorAll(s: string): NodeListOf<El> } & HTMLInputElement} El */
+/** @param {string} s @returns {any} */
 export const $ = s => document.querySelector(s);
+/** @param {string} s @returns {NodeListOf<El>} */
+export const $$ = s => document.querySelectorAll(s);
+/** @param {Event} e @returns {El} */
+export const evEl = e => /** @type {El} */ (e.target);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* A type's colour goes into a style attribute: only a hex colour is used. */
 export const tcol = t => COLOR_RE.test(TYPES[t]?.color || '') ? TYPES[t].color : '#888';
@@ -628,16 +645,18 @@ export const menuHtml = (label, body, { id = '', cls = '', boxCls = '', btn = ''
 /* Over a modal dialog the page is inert and drawn below it, so the toast moves into the open dialog while there is one
    (leaving: the dialog is about to go). */
 export function keepToastOnTop(leaving = false){
-  const t = $('#toast'), host = (!leaving && document.querySelector('#mdl:modal')) || document.body;
+  const t = $('#toast'), host = (!leaving && $('#mdl:modal')) || document.body;
   if (t && t.parentNode !== host) host.append(t);
 }
+/* The timer that hides the message at the bottom: a new message starts it again. */
+let toastTimer;
 /* A short message at the bottom. One that says a change was not saved is red and stays longer (a click hides it). */
 export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
   const t = $('#toast'); keepToastOnTop();
   t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
   t.classList.toggle('err', kind === 'err');
   t.onclick = () => t.classList.add('off');
-  t.classList.remove('off'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), kind === 'err' ? 8000 : 2800);
+  t.classList.remove('off'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('off'), kind === 'err' ? 8000 : 2800);
 }
 /* A message with Undo: for a change made to many devices at once, or one hard to set back by hand (retire, a bulk move,
    a room renamed). Undo is offered for 10 seconds; the page that made the change says what undoing does. */
@@ -650,12 +669,12 @@ export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   t.innerHTML = html`<span>${msg}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
-    t.classList.add('off'); clearTimeout(toast.h);
+    t.classList.add('off'); clearTimeout(toastTimer);
     if (!e.target.closest('.t-undo')) return;
     if (!anyEpoch && UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
     undo(); toast('Undone');
   };
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('off'), 10000);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('off'), 10000);
 }
 /* The devices as they are now, to put back on Undo: every field, so what the change touched is set back and nothing else. */
 export const snapshot = list => list.filter(Boolean).map(o => [o, JSON.parse(JSON.stringify(o))]);
@@ -741,10 +760,12 @@ function closeSrcPop(refocus = false){
   const p = document.getElementById('fsrcPop'); if (p) p.remove();
   if (refocus && srcPopMark){
     const { oid, fk } = srcPopMark;
-    const m = document.querySelector(`.fsrc[data-oid="${CSS.escape(oid)}"][data-fk="${CSS.escape(fk)}"]`);
+    const m = $(`.fsrc[data-oid="${CSS.escape(oid)}"][data-fk="${CSS.escape(fk)}"]`);
     if (m) m.focus();
   }
 }
+/* Opens the popover of a source mark: the value picker when srcPicker offers one, else the mark's tooltip text. A click
+   on the mark whose popover is open only closes it. */
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
   closeSrcPop();
@@ -765,35 +786,35 @@ function openSrcPop(mark){
   p.style.top = `${top + window.scrollY}px`;
   p.style.left = `${Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, r.left + r.width / 2 - p.offsetWidth / 2)) + window.scrollX}px`;
   /* The picker takes the focus on the value in use, so it works from the keyboard: arrows move, Enter picks. */
-  if (picker){ const cur = p.querySelector('[role=radio][aria-checked=true]') || p.querySelector('[role=radio]'); if (cur) cur.focus(); }
+  if (picker){ const cur = /** @type {HTMLElement} */ (p.querySelector('[role=radio][aria-checked=true]') || p.querySelector('[role=radio]')); if (cur) cur.focus(); }
 }
 if (typeof document !== 'undefined'){
-  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#fsrcPop')) return; const m = e.target.closest && e.target.closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
+  document.addEventListener('click', e => { if (evEl(e).closest && evEl(e).closest('#fsrcPop')) return; const m = evEl(e).closest && evEl(e).closest('.fsrc'); if (m) openSrcPop(m); else closeSrcPop(); });
   document.addEventListener('keydown', e => {
     const pop = document.getElementById('fsrcPop');
-    if (e.key === 'Escape' && pop){ closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(e.target.closest && e.target.closest('#fsrcPop'))); return; }
-    if (pop && e.target.closest && e.target.closest('#fsrcPop')){
-      const items = [...pop.querySelectorAll('[role=radio], .sp-foot button')];
-      const i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape' && pop){ closeSrcPop(pop.classList.contains('pick') || document.activeElement === document.body || !!(evEl(e).closest && evEl(e).closest('#fsrcPop'))); return; }
+    if (pop && evEl(e).closest && evEl(e).closest('#fsrcPop')){
+      const items = [.../** @type {NodeListOf<HTMLElement>} */ (pop.querySelectorAll('[role=radio], .sp-foot button'))];
+      const i = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
       if (['ArrowDown', 'ArrowUp'].includes(e.key) && items.length){ e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); return; }
       /* Tab stays in the picker; leaving it is Escape. */
       if (e.key === 'Tab' && items.length){ e.preventDefault(); items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus(); return; }
     }
-    else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
+    else if ((e.key === 'Enter' || e.key === ' ') && evEl(e).classList && evEl(e).classList.contains('fsrc')){ e.preventDefault(); openSrcPop(evEl(e)); }
   });
   /* On a phone, More in the top bar opens the account, sign-out and display buttons (a popover: a click elsewhere or
      Escape closes it); any choice closes it too. The search hint for Ctrl+K is left out where there is no keyboard. */
   const more = document.getElementById('barMore');
-  if (more) more.addEventListener('click', e => { if (e.target.closest('button, a') && more.matches(':popover-open')) more.hidePopover(); });
-  if (window.matchMedia && matchMedia('(hover:none)').matches){ const q = document.getElementById('search'); if (q) q.placeholder = 'Search…'; }
+  if (more) more.addEventListener('click', e => { if (evEl(e).closest('button, a') && more.matches(':popover-open')) more.hidePopover(); });
+  if (window.matchMedia && matchMedia('(hover:none)').matches){ const q = /** @type {HTMLInputElement} */ (document.getElementById('search')); if (q) q.placeholder = 'Search…'; }
   /* A file button (a label around a hidden file field) opens the file dialog from the keyboard too. */
   document.addEventListener('keydown', e => {
-    const l = (e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('label.btnlike[role=button]') ? e.target : null;
+    const l = (e.key === 'Enter' || e.key === ' ') && evEl(e).matches && evEl(e).matches('label.btnlike[role=button]') ? evEl(e) : null;
     if (!l || l.classList.contains('disabled')) return;
     e.preventDefault(); const f = l.querySelector('input[type=file]'); if (f && !f.disabled) f.click();
   });
   /* Scrolling closes it, except the scroll that brought the mark into view just before (it arrives after the click). */
-  document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(e.target.closest && e.target.closest('#fsrcPop'))) closeSrcPop(); }, true);
+  document.addEventListener('scroll', e => { if (Date.now() - srcPopAt > 400 && !(evEl(e).closest && evEl(e).closest('#fsrcPop'))) closeSrcPop(); }, true);
 }
 
 /* A field set by hand anywhere but its own field (a bulk move, a rack, a plan, a refused save applied again) is noted as
@@ -821,6 +842,6 @@ const labelStack = t => {
 };
 if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
   let queued = false;
-  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; document.querySelectorAll('table.stack').forEach(labelStack); }); })
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; $$('table.stack').forEach(labelStack); }); })
     .observe(document.documentElement, { childList: true, subtree: true });
 }

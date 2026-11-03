@@ -36,6 +36,8 @@ const SHA256_RSA = seq(oid('1.2.840.113549.1.1.11'), nullValue);
 
 const pem = (label, der) => `-----BEGIN ${label}-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
 
+/* A self-signed RSA 2048 certificate (SHA-256, not a CA, for signing only), valid from an hour ago for days. Returns {
+   certPem, keyPem, thumbprint, expires }; the thumbprint is graph.js's SHA-256 one, not the SHA-1 that Entra shows. */
 export function generateGraphCert({ commonName = 'NOBS Inventory', days = CERT_DAYS, now = new Date() } = {}) {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const keyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });

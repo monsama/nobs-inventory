@@ -4,6 +4,8 @@ import { audit } from './db.js';
 import { feedChanged, mergeRecords } from './feed.js';
 import { autoBackup } from './backup.js';
 import { readSecret } from './secrets.js';
+/* Lansweeper's cloud API (GraphQL): the connection settings, the asset query, and turning its records into the
+   inventory's own shape for the merge in feed.js. Read only. */
 
 export const DEFAULT_ENDPOINT = 'https://api.lansweeper.com/api/v2/graphql';
 const MAX_PAGES = 200;
@@ -11,6 +13,8 @@ const MAX_PAGES = 200;
 /* The Lansweeper settings in use: the address, site and scheme saved in the inventory (Settings → Feed), with the token
    from the server's environment (NI_LS_TOKEN or NI_LS_TOKEN_FILE). The NI_LS_* variables are the fallback. */
 const clean = v => (typeof v === 'string' ? v.trim().slice(0, 500) : '');
+/* null when the server has no token, so the API sync is off. Read on each use, so a change in Settings needs no
+   restart. An address the token may not go to is left out and named in endpointProblem. */
 export function lansweeperConfigOf(db, env) {
   const token = readSecret(env, 'NI_LS_TOKEN');
   if (!token) return null;
@@ -44,6 +48,8 @@ export const ASSETS_QUERY = `query Assets($siteId: ID!, $after: String) {
   }
 }`;
 
+/* Sends one GraphQL query with the token and returns its data. Every failure (not reached, the token refused, an HTTP
+   or GraphQL error) becomes a 502 with a short reason. */
 export async function graphql(cfg, query, variables = {}, fetchImpl = fetch) {
   if (cfg.endpointProblem) throw new HttpError(400, cfg.endpointProblem);
   let r;
@@ -64,6 +70,7 @@ export async function graphql(cfg, query, variables = {}, fetchImpl = fetch) {
   return j.data;
 }
 
+/* One asset from the API as a record for mergeRecords in feed.js, with Lansweeper's id as ref. */
 export const toRecord = item => ({
   name: item.name || '',
   serial: item.serialNumber || '',
@@ -76,6 +83,8 @@ export const toRecord = item => ({
   ref: String(item.id ?? '')
 });
 
+/* Every asset of the site, page by page (up to MAX_PAGES); without a site set, the first site the token may read.
+   Returns them as records (toRecord). */
 export async function fetchAssets(cfg, fetchImpl = fetch) {
   let siteId = cfg.site;
   if (!siteId) {

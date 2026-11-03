@@ -1,6 +1,6 @@
 /* The status header every source page in Settings starts with: on or off, a dot for how it is doing, its last sync and
    what it brought, Sync now and Test connection, and the history of what its syncs changed on the devices. */
-import { $, AD_ON, GRAPH_ON, LS_ON, SYNC, esc, st } from './01-core.js';
+import { evEl, $$, $, AD_ON, GRAPH_ON, LS_ON, SYNC, esc, st } from './01-core.js';
 import { closeModal, leaveSettings, modal } from './19-modal.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { isAdmin, renderSetPane } from './04-settings.js';
@@ -75,6 +75,8 @@ const says = r => {
   const x = [part(r.changed, 'changed'), part(r.filled, 'filled in')].filter(Boolean).join('; ');
   return x.charAt(0).toUpperCase() + x.slice(1);
 };
+/* The History of changes dialog of source src: each sync run that changed fields, newest first, with what it changed
+   or filled in. A run's link opens its devices in the Table and closes Settings. */
 function historyModal(src){
   const runs = changesOf(src), c = (st.syncChanges || {})[src];
   modal(html`<div class="mh">${SOURCE_LABEL[src]}: history of changes</div>
@@ -82,7 +84,7 @@ function historyModal(src){
       ${runs.length ? html`<ul class="src-hist">${runs.map((r, i) => html`<li><span class="muted">${when(r.at)}</span> ${says(r)} <button type="button" class="link" data-histrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button></li>`)}</ul>` : html`<p class="note">No sync has changed a field yet.</p>`}</div>
     <div class="mf"><span class="grow"></span><button id="histClose" class="primary">Close</button></div>`, 'sm');
   $('#histClose').onclick = closeModal;
-  document.querySelectorAll('[data-histrun]').forEach(b => b.onclick = () => {
+  $$('[data-histrun]').forEach(b => b.onclick = () => {
     const i = +b.dataset.histrun, r = runs[i];
     resetFilters(); st.ids = { label: i === 0 && c.n ? `Changed by ${SOURCE_LABEL[src]} at the last sync` : `Changed by ${SOURCE_LABEL[src]} on ${when(r.at)}`, ids: r.ids || [] };
     st.scope = null; st.tab = 'table'; leaveSettings(); closeModal(); render();
@@ -90,8 +92,8 @@ function historyModal(src){
 }
 /* Bound once: the headers are drawn again with their pages. The AD and Entra switches keep useAd and useGraph. */
 document.addEventListener('change', e => {
-  const c = e.target.closest('#useAd, #useGraph'); if (!c || !isAdmin()) return;
+  const c = evEl(e).closest('#useAd, #useGraph'); if (!c || !isAdmin()) return;
   st[c.id] = c.checked; queueServerSave(); renderSetPane(); render();
   const again = $('#' + c.id); if (again) again.focus();
 });
-document.addEventListener('click', e => { const b = e.target.closest('[data-srchist]'); if (b && !b.disabled) historyModal(b.dataset.srchist); });
+document.addEventListener('click', e => { const b = evEl(e).closest('[data-srchist]'); if (b && !b.disabled) historyModal(b.dataset.srchist); });

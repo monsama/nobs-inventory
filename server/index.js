@@ -22,6 +22,8 @@ import { purgePasswords, sheetKeyOf } from './sheets.js';
 import { readSecret } from './secrets.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { ldapConfigOf } from './ldap-config.js';
+/* Starting the server: the first admin account, the scheduler (syncs, backups, digest, mail of saved views, restore
+   test) and the HTTP server itself. */
 
 /* First start: one admin account, so someone can sign in and add the rest. Its password comes from
    NI_ADMIN_PASSWORD; without that a random one is printed once. An inventory that has an admin under another login
@@ -135,6 +137,9 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
 export { configFromEnv } from './ldap-config.js';
 
 
+/* Starts the server from the environment: opens the database in NI_DATA, prepares it (bootstrap: the first admin, older
+   data upgraded), builds the app, listens on NI_PORT (8080) and starts the scheduler. Closing the server stops the
+   scheduler and closes the database. Returns { server, db }. */
 export function start(env = process.env) {
   const dataDir = env.NI_DATA || path.resolve('data');
   fs.mkdirSync(dataDir, { recursive: true });

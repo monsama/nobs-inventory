@@ -30,7 +30,7 @@ export function feedPanel(o){
   if (!LS_ON()) return '';
   const s = syncOf(o);
   const head = html`<div class="hdr">Lansweeper${o.feed ? html` <span class="cnt">${o.feed.sys}${o.feed.ref ? ' · ' + o.feed.ref : ''}</span>` : ''}</div>`;
-  const dl = (extra = '') => html`<dl class="lsbox"><dt>Status</dt><dd>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o))}</dd>
+  const dl = (/** @type {string | import('./html.js').Html} */ extra = '') => html`<dl class="lsbox"><dt>Status</dt><dd>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o))}</dd>
     ${o.feed ? lsDates(o) : ''}
     <dt>Matched by</dt><dd style="font-family:inherit">Serial number, or a name that only one device has</dd>${extra}</dl>`;
   if (!o.feed){
@@ -49,6 +49,9 @@ export function feedPanel(o){
    encryption, its primary user and when it was last heard of. A device of a type expected there that was not found
    says so. */
 const graphTime = dateTimeText;
+/* The Entra & Intune tab, as described above; '' while that sync is off. Also says when the device was not found,
+   is listed there more than once, is gone or disabled, or matched several devices here. A server only in Defender
+   gets a Defender panel instead. */
 export function graphPanel(o){
   if (!SYNC.graph) return '';
   const g = o.graph;
@@ -134,7 +137,7 @@ export function sourcesPanel(o){
   if (parts.length < 2) return parts.map(([, h]) => String(h)).join('');
   const t = document.createElement('template');
   const tabs = parts.map(([k, h]) => {
-    t.innerHTML = h;
+    t.innerHTML = String(h);
     const box = t.content.firstElementChild, hdr = box.querySelector(':scope > .hdr'), cnt = hdr.querySelector('.cnt');
     const title = [...hdr.childNodes].filter(n => n !== cnt).map(n => n.textContent).join('').trim();
     return { k, title, meta: cnt ? cnt.outerHTML : '', body: [...box.children].filter(x => x !== hdr).map(x => x.outerHTML).join('') };

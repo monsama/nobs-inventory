@@ -9,6 +9,9 @@ import { ldapEnabled, ldapLogin, ldapMembership } from './ldap.js';
 import { feedTokenInfo } from './feed-token.js';
 import { HttpError } from './errors.js';
 
+/* Adds the sign-in routes: GET /api/me (who is signed in, which connections are set up), sign-in with Microsoft
+   (/api/sso/start and /api/sso/callback), POST /api/login and /api/logout, your own details, sessions and password
+   (/api/me...), and an admin setting a local user's password (POST /api/users/:id/password). */
 export function registerSessionRoutes(app, ctx) {
   const { db, throttle, auditQuiet, requireUser, requireAdmin, currentUser, me, userDoc, saveUserDoc, bumpUser, COOKIE, cookie, secureCookie, loginFailMs, cfgLs, cfgLdap, cfgGraph, graphSettings, feedToken, graphFetch } = ctx;
   app.get('/api/me', (req, res) => {
@@ -201,6 +204,8 @@ export function registerSessionRoutes(app, ctx) {
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
+  /* Your own new password: local accounts only, with the current one (wrong tries are throttled). Your other sessions
+     end. */
   app.post('/api/me/password', requireUser, (req, res, next) => {
     try {
       const u = userDoc(req.user.id);
@@ -224,6 +229,8 @@ export function registerSessionRoutes(app, ctx) {
     res.json({ ok: true });
   });
 
+  /* An admin sets a local user's password: every session of that user ends but the one making the request. Directory
+     users are refused. */
   app.post('/api/users/:id/password', requireUser, requireAdmin, (req, res, next) => {
     try {
       const u = userDoc(req.params.id);

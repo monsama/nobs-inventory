@@ -2,7 +2,7 @@
 import { handOutModal } from './27-handout.js';
 import { setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
-import { scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
+import { evEl, scopePool, REVIEW_STALE_DAYS, pickHand, markHand, CONTACTS, feedLinked, $, LOCS, STATUS, byId, filtered, hist, now, restoreSnapshot, snapshot, toastUndo, st, toast } from './01-core.js';
 import { render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { confirmModal } from './19-modal.js';
@@ -36,6 +36,8 @@ export function mergeBtn(){
   const m = mergeable().length;
   return m ? `<button id="rvResolve" title="Say what ${m === 1 ? 'it is' : 'they are'}: a dock's record, the same device, obsolete or no duplicate">Resolve ${m}…</button>` : '';
 }
+/* Wires the To review buttons that scopeActs and mergeBtn draw. list: the devices shown, for the All buttons, which ask
+   first. */
 export function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
   on('rvResolve', () => resolveModal(mergeable()));
@@ -89,8 +91,8 @@ export const keepScroll = draw => { const v = $('#view'), y = v ? v.scrollTop : 
    picks it (or takes it back) too; with none picked, it opens the card. */
 let lastPick = null;
 document.addEventListener('click', e => {
-  const card = e.target.closest && e.target.closest('#view .card[data-open]'); if (!card || e.target.closest('[data-rvc]')) return;
-  const tick = e.target.closest('.cardtick');
+  const card = evEl(e).closest && evEl(e).closest('#view .card[data-open]'); if (!card || evEl(e).closest('[data-rvc]')) return;
+  const tick = evEl(e).closest('.cardtick');
   const picking = !!$('#view .card.picked');
   if (!tick && !picking && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
   e.preventDefault(); e.stopImmediatePropagation();
@@ -105,7 +107,7 @@ document.addEventListener('click', e => {
 /* Ctrl (⌘) + A in Cards or the Table picks every device shown (in the Table, the rows its column filters leave); Escape
    takes the pick back. Not while typing or in a dialog, where they keep their usual meaning. */
 document.addEventListener('keydown', e => {
-  if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
+  if (!['cards', 'table'].includes(st.tab) || $('#mdl') || (evEl(e).closest && evEl(e).closest('input, textarea, select, [contenteditable]'))) return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a'){
     e.preventDefault();
     /* In the Table the same as its select-all box: every row its filters leave, also those past the first drawn. */
@@ -123,6 +125,8 @@ ${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>
 ${isAdmin() ? html`<optgroup label="Move to location">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => html`<option value="status:${k}">${v.label}</option>`)}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => html`<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => html`<option value="resp:${k}:${c.id}">${contactLabel(c)}</option>`)}<option value="resp:${k}:">- no ${l.toLowerCase()} responsible</option></optgroup>`) : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`);
+/* Wires the Table's bar for the n selected rows: Clear, Open in tabs, and the Actions menu (open, hand out, edit, move,
+   set the status or the responsible). Each change has one Undo. */
 export function bindTableBulk(n){
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bulkLoc = to => {

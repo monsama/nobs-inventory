@@ -1,7 +1,7 @@
 /* Contacts: the company's own IT people and the people at its IT partners who look after the devices. The Contacts tab
    lists them, the company's own first, then each partner company; a device names one internal and one external
    responsible, on its page or for many devices at once in the table. */
-import { deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
+import { $$, deleteButton, toastUndo, editButton, CONTACTS, COMPANY, COSTS, $, contactOf, hist, now, objs, st, toast } from './01-core.js';
 import { CONTACT_KINDS, CONTACT_MAX, contactLabel, contactProblem } from './contacts.js';
 import { COMBO_SOURCES, comboHtml } from './17-fields.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
@@ -44,6 +44,8 @@ function deleteContact(c){
     });
   });
 }
+/* One contact's card as HTML: name and role, what to ask them about, how to reach them, the note, and their devices.
+   Delete only for admins. */
 function contactCard(c){
   const n = devicesOf(c).length, k = (COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).length;
   const ways = reach(c);
@@ -58,6 +60,8 @@ function contactCard(c){
   </div>`;
 }
 
+/* The Contacts tab: a toolbar (internal or external, Export CSV, and for admins From directory, Import and New), then the
+   cards the search leaves, own people first, then each partner company. */
 export function renderContacts(){
   const q = (st.q || '').trim().toLowerCase(), kind = st.cnKind || '';
   const all = CONTACTS.list;
@@ -108,6 +112,8 @@ export function contactFromUser(u, id){
   for (const k of ['email', 'phone', 'mobile']) if (c[k] && contactProblem(c)) delete c[k];
   return contactProblem(c) ? null : c;
 }
+/* The From directory dialog: pick AD or Entra people, by search or department, to add as linked internal contacts.
+   People already linked are listed but cannot be picked. Saved at once, with Undo. */
 function directoryModal(){
   const people = dirPeople().sort((a, b) => a.name.localeCompare(b.name));
   const linked = new Set(CONTACTS.list.map(c => c.userId).filter(Boolean));
@@ -171,9 +177,9 @@ export function contactModal(c, { kind = 'internal', assignTo = null } = {}){
     </div>${isNew ? '' : html`<p class="note">Responsible for ${devicesOf(cur).length} ${devicesOf(cur).length === 1 ? 'device' : 'devices'}.</p>`}<p class="note" id="cnErr" role="status"></p></div>
     <div class="mf">${isNew || !edit ? '' : html`<button id="cnDel" class="danger-text">Delete</button>`}<div class="grow"></div><button id="cnCancel">${edit ? 'Cancel' : 'Close'}</button>${edit ? html`<button id="cnOk" class="primary">Save</button>` : ''}</div>`, 'sm');
   /* Only an internal contact can be one of the users; picking one fills in the name the first time. */
-  const kindNow = () => (document.querySelector('[name=cnKindPick]:checked') || {}).value || 'internal';
-  const fit = () => document.querySelectorAll('.cn-in').forEach(el => { el.hidden = kindNow() !== 'internal'; });
-  fit(); document.querySelectorAll('[name=cnKindPick]').forEach(r => r.onchange = fit);
+  const kindNow = () => ($('[name=cnKindPick]:checked') || {}).value || 'internal';
+  const fit = () => $$('.cn-in').forEach(el => { el.hidden = kindNow() !== 'internal'; });
+  fit(); $$('[name=cnKindPick]').forEach(r => r.onchange = fit);
   $('#cn_user').onchange = e => { const u = USERS.find(x => x.id === e.target.value); if (u && !$('#cn_name').value.trim()) $('#cn_name').value = u.name; };
   $('#cnCancel').onclick = closeModal;
   if (!edit) return;
@@ -232,6 +238,7 @@ export const respText = o => [contactOf(o.respIn), contactOf(o.respEx)].filter(B
    changes nothing, repeats an earlier row or cannot be read, and why. Rows can be left out. A backup is taken first. */
 const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 const ACTION = { new: ['ok', 'New'], update: ['info', 'Update'], same: ['kept', 'Unchanged'], duplicate: ['warn', 'Twice in file'], error: ['bad', 'Not imported'] };
+/* The Import contacts dialog described above. Import takes a backup on the server first, then saves the rows picked. */
 export function importModal(){
   let file = null, kind = 'external', plan = [], skip = new Set();
   modal(html`<div class="mh">Import contacts</div>
@@ -269,13 +276,13 @@ export function importModal(){
     $('#impOk').disabled = !picked.length;
     $('#impOk').textContent = picked.length ? `Import ${picked.length} ${picked.length === 1 ? 'contact' : 'contacts'}` : 'Import';
     $('#impSum').textContent = `${n('new') - plan.filter((p, i) => p.action === 'new' && skip.has(i)).length} new, ${n('update') - plan.filter((p, i) => p.action === 'update' && skip.has(i)).length} updated. A backup is taken first.`;
-    document.querySelectorAll('[data-impcol]').forEach(s => s.onchange = () => {
+    $$('[data-impcol]').forEach(s => s.onchange = () => {
       const i = +s.dataset.impcol, f = s.value;
       /* A field comes from one column: picking it for this one takes it from the other. */
       file.mapping = file.mapping.map((m, j) => j === i ? f : m === f ? '' : m);
       skip = new Set(); draw();
     });
-    document.querySelectorAll('[data-improw]').forEach(b => b.onchange = () => { const i = +b.dataset.improw; if (b.checked) skip.delete(i); else skip.add(i); draw(); });
+    $$('[data-improw]').forEach(b => b.onchange = () => { const i = +b.dataset.improw; if (b.checked) skip.delete(i); else skip.add(i); draw(); });
   };
   const load = async f => {
     if (!f) return;

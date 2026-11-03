@@ -6,7 +6,7 @@
    metadata behind: the camera, the time and the GPS
    position stay on this computer. The server checks the picture again and keeps it apart from the inventory
    (server/device-images.js). */
-import { $, byId, hist, now, st, toast } from './01-core.js';
+import { evEl, $, byId, hist, now, st, toast } from './01-core.js';
 import { dateText } from './dates.js';
 import { closeModal, modal } from './19-modal.js';
 import { isAdmin, who } from './04-settings.js';
@@ -23,6 +23,8 @@ const fullUrl = p => `api/images/${encodeURIComponent(p.id)}`;
 
 /* How many photos a device has, once read (null before). */
 export const photoCount = id => { const c = CACHE.get(id); return c && !c.failed ? c.images.length : null; };
+/* The Photos panel of device o's page: previews of its photos once read (Loading… before), and for an admin the
+   Add photos row with the count and limit. Nothing without a server or for a record still in To review. */
 export function photosPanel(o){
   if (!SERVER.on || o.review) return '';
   const c = CACHE.get(o.id), list = c ? c.images : null, edit = isAdmin();
@@ -58,7 +60,7 @@ export function bindPhotos(o){
 /* A picture pasted on the device page (not into a field) is added to it. */
 document.addEventListener('paste', e => {
   const panel = $('#phPanel'), o = panel && openId && byId(openId);
-  if (!panel || !o || !isAdmin() || !$('#phAdd') || $('#mdl') || e.target.closest('input, textarea, [contenteditable]')) return;
+  if (!panel || !o || !isAdmin() || !$('#phAdd') || $('#mdl') || evEl(e).closest('input, textarea, [contenteditable]')) return;
   const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => /^image\//.test(f.type));
   if (files.length) { e.preventDefault(); add(o, files); }
 });
@@ -90,6 +92,8 @@ function redraw(o){
     }
   }
 }
+/* Reads device o's photo list from the server into CACHE and draws the panel again when it changed. A list that
+   could not be read is marked failed and asked for again on the next drawing. */
 async function load(o){
   const was = CACHE.get(o.id);
   if (was) was.at = Date.now();
@@ -149,7 +153,7 @@ export async function prepare(file){
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch { throw new Error(`${file.name} cannot be read as a picture here. Save it as JPEG or PNG and add it again.`); }
-  const fit = max => { const k = Math.min(1, max / Math.max(bmp.width, bmp.height)); return [Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k))]; };
+  const fit = max => { const k = Math.min(1, max / Math.max(bmp.width, bmp.height)); return /** @type {[number, number]} */ ([Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k))]); };
   const draw = ([w, h], type, q) => new Promise((resolve, reject) => {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d');
@@ -180,6 +184,8 @@ async function base64(blob){
   return btoa(s);
 }
 
+/* Adds the pictures in files to device o, one after the other, up to its limit: each is made smaller (prepare) and
+   uploaded, the panel showing progress. Notes the photos added in the history; stops at the first error. */
 async function add(o, files){
   const pics = files.filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
   if (!pics.length) { toast('Choose a picture: JPEG, PNG or WebP.'); return; }

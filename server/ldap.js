@@ -44,6 +44,8 @@ const chain = dn => `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(dn)})`;
    NI_LDAP_ALLOW_PLAIN=1), since it sends the passwords readable. The certificate is checked against the server's name. */
 export const LEGACY_CIPHERS = 'DEFAULT@SECLEVEL=1';
 export const PLAIN_LDAP_ERROR = 'The directory address starts with ldap://, which sends passwords unencrypted. Choose StartTLS under Connection security in Settings, or use ldaps://. Unencrypted can be allowed there too (or with NI_LDAP_ALLOW_PLAIN=1).';
+/* Checks the settings first (port, no LAPS or BitLocker attribute, no plain ldap:// unless chosen) and returns a client
+   that is connected but not signed in. The caller binds and closes it. */
 async function connect(config) {
   if (config.portProblem) throw new Error(config.portProblem);
   const settingsProblem = ldapSettingsProblem(config);
@@ -100,6 +102,8 @@ export async function ldapSearch(client, base, filter, attributes = USER_ATTRS) 
   } catch (e) { throw readable(e); }
 }
 
+/* A person from their directory entry (attribute names in lower case, as normalize gives them); config.loginAttr picks
+   the login. Gives both AD logins, the groups by name and by DN, and the profile fields. */
 export function profileOf(attrs, config) {
   const first = k => attrs[k.toLowerCase()]?.[0] ?? '';
   const login = first(config.loginAttr);
@@ -192,6 +196,8 @@ export async function ldapMembership(config, login) {
 const cnOf2 = name => (String(name || '').match(/CN=([^\n,]+)/) || [])[1] || String(name || '').split('\n')[0];
 const day = t => t ? dateText(t) || String(t) : '';
 export const isCertError = message => /certificate|self[- ]signed|UNABLE_TO_VERIFY|CERT_|altnames|unable to (verify|get)/i.test(String(message || ''));
+/* The certificate the directory server presents, with its issuers, read without trusting it (and with any cipher, so an
+   old key still answers): over ldaps:// directly, over ldap:// only with StartTLS. null without TLS. */
 async function peerChain(config) {
   if (config.portProblem) return null;
   const u = new URL(config.url), host = u.hostname.replace(/^\[|\]$/g, ''), servername = isIP(host) ? undefined : host;
@@ -211,6 +217,8 @@ async function peerChain(config) {
     return secured && secured.getPeerCertificate ? secured.getPeerCertificate(true) : null;
   } finally { close(client); }
 }
+/* Returns { text, subject, issuer, validTo, names, matches, expired, bits, weak, trustedByAdded }, the text saying what
+   to fix, or null when no certificate could be read. Used when a test or sync fails on a certificate. */
 export async function ldapCertReport(config, now = new Date()) {
   const peer = await peerChain(config);
   if (!peer || !peer.raw) return null;
@@ -312,6 +320,8 @@ export function computerOf(a, dn = '') {
     location: String(a.location?.[0] || '').trim().slice(0, 200), services: servicesOf(a.serviceprincipalname) };
 }
 
+/* Every computer account under the computer base, read with the service account, as computerOf gives them (one without
+   a name is left out). The directory sync uses it for the devices. */
 export async function ldapListComputers(config) {
   if (!config.serviceDn) throw new Error('NI_LDAP_SERVICE_DN is not set, so the directory cannot be read.');
   /* No password is never sent: an empty one is an anonymous sign-in to Active Directory. */

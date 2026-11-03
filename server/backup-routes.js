@@ -9,6 +9,9 @@ import { backupPhotos, backupStorage, collectParts, loadBackup, writeBackupFile 
 import { getAppSecret, setAppSecret, appSecretSetAt } from './app-secrets.js';
 import { HttpError } from './errors.js';
 
+/* Adds the backup routes, all for admins: /api/backups (list, take one, download, restore from the list, a file or an
+   encrypted copy, delete), the copy outside the server (/api/backup-export: settings, password, copy now) and the
+   restore test. Every restore takes a backup first. It also puts restoreTest on app.locals for the scheduler. */
 export function registerBackupRoutes(app, ctx) {
   const { db, requireUser, requireAdmin, SECRET_KEY, SHEET_KEY } = ctx;
   /* Backups: the list, a new one by hand, download, restore (from the list or from a file), and delete. Admins only. */

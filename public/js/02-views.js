@@ -1,7 +1,7 @@
 /* The device lists: the sidebar, the filter bar, the tabs and the empty states. Cards, Table, bulk actions, CSV, the map and
    the ports are in views-*.js, re-exported at the end. */
 import { syncButtonHtml } from './16-sync.js';
-import { QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
+import { evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -27,6 +27,8 @@ const GRAPH_TIPS = {
 const LIST_TABS = ['cards', 'table', 'map'];
 const MORE_KEY = 'ni-more-filters';
 const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
+/* Draws the sidebar: To review, types, sites and rooms, More filters, the active one-off filters, status and the saved
+   views, each with how many of the listed devices it holds. A click on an item is handled below. */
 export function renderSide(){
   /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
@@ -66,11 +68,11 @@ export function renderSide(){
   /* Duplicates, whatever found them: a second record by DNS name (Lansweeper, e.g. a docking station), more than one record
      in Entra, and a Graph record that fits two devices here. Each is listed only when it has devices; the group only when
      one is. */
-  const dups = [
+  const dups = /** @type {[string, string, string, (o: any) => boolean, boolean, () => boolean][]} */ ([
     ['twins', 'By DNS name', 'Named by a DNS name, with no serial number, beside a device of that name: most likely a second record of it, e.g. from a docking station', o => !!twinOf(o), st.twins, () => LS_ON()],
     ['duplicates', 'More than one in Entra', GRAPH_TIPS.duplicates, GRAPH_FILTERS.duplicates[2], st.intune === 'duplicates', () => SYNC.graph],
     ['ambiguous', 'Name or serial used twice', GRAPH_TIPS.ambiguous, GRAPH_FILTERS.ambiguous[2], st.intune === 'ambiguous', () => SYNC.graph],
-  ].map(([k, l, tip, f, on, live]) => [k, l, tip, live() ? cnt(f) : 0, on]).filter(([, , , n, on]) => n || on);
+  ]).map(([k, l, tip, f, on, live]) => [k, l, tip, live() ? cnt(f) : 0, on]).filter(([, , , n, on]) => n || on);
   $('#dupHdr').hidden = $('#dupList').hidden = !dups.length;
   $('#dupList').innerHTML = html`${dups.map(([k, l, tip, n, on]) => html`<button class="item ${on ? 'sel' : ''}" ${k === 'twins' ? html`data-twins="1"` : html`data-intune="${k}"`} title="${tip}"><span class="dot warn"></span><span class="lbl">${l}</span><span class="cnt">${n}</span></button>`)}`;
   /* Microsoft Graph: devices that are not compliant, not encrypted, not heard of for a while, or not in Entra and Intune.
@@ -234,9 +236,9 @@ export function bindHiddenHits(){
   if (b) b.onclick = () => { const q = st.q; resetFilters(); st.q = q; view(); };
 }
 $('#sideBtn').onclick = () => document.body.classList.toggle('side-open');
-document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-empty-new]')) newObjModal(); });
+document.addEventListener('click', e => { if (evEl(e).closest && evEl(e).closest('[data-empty-new]')) newObjModal(); });
 document.addEventListener('click', async e => {
-  const b = e.target.closest && e.target.closest('#reloadBtn'); if (!b || b.disabled) return;
+  const b = evEl(e).closest && evEl(e).closest('#reloadBtn'); if (!b || b.disabled) return;
   b.disabled = true; b.classList.add('spinning');
   try { if (await reloadFromServer()) toast('Up to date'); } finally { const n = $('#reloadBtn'); if (n){ n.disabled = false; n.classList.remove('spinning'); } }
 });
@@ -247,7 +249,7 @@ export function emptyHtml(){
   return String(n ? html`<div class="empty">No devices in the inventory yet, but <b>${n}</b> found by the syncs ${n === 1 ? 'waits' : 'wait'} in To review. <button type="button" class="primary" data-tab-go="review">Open To review</button></div>`
     : html`<div class="empty">The inventory is empty.${isAdmin() ? html` <button type="button" class="primary" data-empty-new>New device</button>` : ''}</div>`);
 }
-document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
+document.addEventListener('click', e => { const b = evEl(e).closest && evEl(e).closest('[data-tab-go]'); if (b){ st.tab = b.dataset.tabGo; view(); } });
 /* ---------- tabs ---------- */
 /* Tabs: the views and the open objects, in one row that can be reordered by dragging, as in NOBS SQL. */
 export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To review', cards:'Cards', table:'Table', map:'Relations', plans:'Floor plans', net:'Ports', rack:'Racks', sw:'Software', contracts:'Contracts', contacts:'Contacts', stocktake:'Stocktake'};
@@ -255,6 +257,7 @@ export const FIXED_TABS = {mine:'My devices', overview:'Overview', review:'To re
    lists (Cards, Table); the others show nothing they can use. */
 const OWN_TABS = ['mine', 'cards', 'table'];
 export const tabAllowed = id => !FIXED_TABS[id] || (ownOnly() ? OWN_TABS.includes(id) : id !== 'mine');
+/** @type {Record<string, [string, string[]]>} */
 export const TAB_GROUPS = { devices: ['Devices', ['cards', 'table']], business: ['Contracts', ['contracts', 'sw', 'contacts']] };
 const TAB_GROUP_OF = Object.fromEntries(Object.entries(TAB_GROUPS).flatMap(([g, [, m]]) => m.map(id => [id, g])));
 const groupLast = g => { const m = TAB_GROUPS[g][1], l = (st.tabLast || {})[g]; return m.includes(l) && tabAllowed(l) ? l : m.find(tabAllowed) || m[0]; };
@@ -270,6 +273,8 @@ export function viewSwitch(){
 /* A view that draws its toolbar again on its own (ticking rows, typing in its search) would drop the switch: it is put
    back whenever the toolbar changes. */
 { const tb = document.getElementById('toolbar'); if (tb) new MutationObserver(() => { if (!tb.querySelector('.vswitch')) viewSwitch(); }).observe(tb, { childList: true }); }
+/* Draws the tab bar (the views, Devices and Contracts as one tab each, Reload or Sync and To review at the right) and the
+   row of open devices under it. Wires drag to reorder, Enter, middle-click to close and the right-click menu. */
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
@@ -303,7 +308,7 @@ export function renderTabs(){
     const o = byId(id);
     return html`<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${o.name}">${o.name}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
   }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
-  document.querySelectorAll('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
+  $$('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
     el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
@@ -351,6 +356,7 @@ function placeMenu(el, x, y){
   el.style.left = Math.max(m, Math.min(x, window.innerWidth - w - m)) + 'px';
   el.style.top = Math.max(m, Math.min(y, window.innerHeight - h - m)) + 'px';
 }
+/* The right-click menu of an open device's tab, at the pointer: close this tab, the others or all of them. */
 export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
@@ -368,6 +374,7 @@ export function showTabMenu(e, id){
     if (a === 'all') closeObjTabs(null);
   });
 }
+/* A click in either tab bar: close one or all device tabs, or go to the tab clicked. */
 const onTabClick = e => {
   flushSearch();
   if (e.target.closest('#closeAllTabs')){ closeObjTabs(null); return; }

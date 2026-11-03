@@ -54,16 +54,18 @@ export function confirmModal(title, text, okLabel, onOk, { primary = false } = {
    typed in it and waits as a chip at the bottom right; opening another dialog takes its place. A sign-in dialog has none. */
 /* p: the icon's shapes, written here. */
 const WSVG = p => html`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${rawHtml(p)}</svg>`;
+/* Adds the minimize, maximize and close buttons to dialog m's title bar (or the top of its box when it has none),
+   and makes it movable. */
 function addWindowControls(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
-  const strip = document.createElement('span'); strip.className = 'wctl';
-  strip.innerHTML = html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`;
+  const strip = /** @type {import('./01-core.js').El} */ (document.createElement('span')); strip.className = 'wctl';
+  strip.innerHTML = String(html`<button type="button" class="wc-min" title="Minimize" aria-label="Minimize">${WSVG('<path d="M5 12h14"/>')}</button><button type="button" class="wc-max" title="Maximize" aria-label="Maximize">${WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>')}</button><button type="button" class="wc-close" title="Close (Esc)" aria-label="Close">${WSVG('<path d="M6 6l12 12M18 6L6 18"/>')}</button>`);
   if (head) head.appendChild(strip); else box.insertBefore(strip, box.firstChild);
   strip.querySelector('.wc-min').onclick = minimizeModal;
   strip.querySelector('.wc-max').onclick = () => {
     const on = box.classList.toggle('maxed'), b = strip.querySelector('.wc-max');
     b.title = on ? 'Restore' : 'Maximize'; b.setAttribute('aria-label', b.title);
-    b.innerHTML = on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>');
+    b.innerHTML = String(on ? WSVG('<rect x="8" y="4" width="12" height="12" rx="1"/><path d="M4 8v12h12"/>') : WSVG('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/>'));
   };
   strip.querySelector('.wc-close').onclick = closeModal;
   makeMovable(m);
@@ -74,6 +76,8 @@ function addWindowControls(m){
 const PLACES_KEY = 'ni-dlg-pos';
 const places = () => { try { return JSON.parse(localStorage.getItem(PLACES_KEY)) || {}; } catch { return {}; } };
 const keepPlace = (key, xy) => { try { const all = places(); if (xy) all[key] = xy; else delete all[key]; localStorage.setItem(PLACES_KEY, JSON.stringify(all)); } catch { /* not kept: the dialog opens in the middle */ } };
+/* Lets dialog m be dragged by its title bar, puts it back where it was last left and saves where it is dropped.
+   A double-click on the bar maximizes it. Does nothing for Settings or a dialog without a title bar. */
 function makeMovable(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
   if (!head || box.classList.contains('settings') || box.querySelector('#setPane')) return;

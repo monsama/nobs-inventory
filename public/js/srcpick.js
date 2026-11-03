@@ -34,6 +34,9 @@ function choicesOf(o, k){
 const AUTO_TEXT = 'Lansweeper, then Entra & Intune, then Active Directory';
 const LOCK = '<svg class="sp-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 
+/* Builds the source picker for the clicked source mark: each source's value and time, the newest and the one in use
+   marked. An admin's click fixes the field to a value or sets it back to automatic, noted in the history. Returns
+   the box, or null when there is nothing to show. Read-only for viewers. */
 function pickerOf(mark, close){
   const o = byId(mark.dataset.oid), k = mark.dataset.fk;
   if (!o || !k) return null;
@@ -44,8 +47,8 @@ function pickerOf(mark, close){
   const mode = fixed ? html`${rawHtml(LOCK)}${fixed === 'hand' ? 'Kept as typed' : `Fixed to ${NAMES[fixed]}`}` : 'Automatic';
   /* What fixing means: a value kept as typed is left alone by every sync; a picked source is the only one that writes it. */
   const fixedText = fixed === 'hand' ? 'The syncs leave it as it is.' : fixed ? `Only ${NAMES[fixed]} writes it from now on; the other sources are still shown here.` : '';
-  const box = document.createElement('div');
-  box.innerHTML = html`<div class="sp-head"><b>${label}</b><span class="sp-mode${fixed ? ' fixed' : ''}">${mode}</span></div>
+  const box = /** @type {import('./01-core.js').El} */ (document.createElement('div'));
+  box.innerHTML = String(html`<div class="sp-head"><b>${label}</b><span class="sp-mode${fixed ? ' fixed' : ''}">${mode}</span></div>
     ${list.length ? html`<div class="sp-list" role="radiogroup" aria-label="Value of ${label}">${list.map(c => {
       const cur = c.src === inUse && String(o[k] ?? '') === c.value;
       return html`<button type="button" class="sp-row${cur ? ' cur' : ''}" role="radio" aria-checked="${String(cur)}" data-pick="${c.src}" ${edit ? '' : 'disabled'}>
@@ -56,7 +59,7 @@ function pickerOf(mark, close){
     })}</div>` : html`<p class="sp-none muted">No source has a value for it.</p>`}
     <div class="sp-foot">${!edit ? html`<span class="muted">${fixed ? fixedText : `Filled automatically: ${AUTO_TEXT}.`}</span>`
       : fixed ? html`<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
-      : html`<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`;
+      : html`<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`);
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const src = b.dataset.pick === 'unknown' ? 'hand' : b.dataset.pick, c = list.find(x => x.src === b.dataset.pick);
     /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand

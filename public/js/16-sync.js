@@ -1,7 +1,7 @@
 /* The Sync button at the right of the tab bar, beside To review: runs a sync by hand (all at once, or one of them) and
    says when each last ran and how it went. Admins only; a source not set up or switched off is not offered. Lansweeper is run from
    here only through its API: a push comes from the script on the Lansweeper server, so for it only the last push shows. */
-import { $, esc, st, toast } from './01-core.js';
+import { evEl, $, esc, st, toast } from './01-core.js';
 import { isAdmin } from './04-settings.js';
 import { SERVER, reloadFromServer, render, flushSave } from './07-render.js';
 
@@ -23,10 +23,10 @@ export function sources(){
 export const runOf = src => (st.syncRuns || {})[src] || null;
 /* "today 06:00", "yesterday 14:12", "12.10.2026 06:00" */
 export function when(iso){
-  const d = new Date(iso); if (isNaN(d)) return '';
+  const d = new Date(iso); if (isNaN(+d)) return '';
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()), t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-  const diff = Math.round((today - day) / 864e5);
+  const diff = Math.round((+today - +day) / 864e5);
   return diff === 0 ? `today ${hm}` : diff === 1 ? `yesterday ${hm}` : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${hm}`;
 }
 /* What a run brought, in a few words: "4 updated · 3 new in To review". */
@@ -46,6 +46,8 @@ export function syncButtonHtml(){
   const failed = list.some(([src]) => runOf(src) && !runOf(src).ok);
   return `<button type="button" id="syncBtn" class="tab sync-btn${running ? ' spinning' : ''}${failed ? ' failed' : ''}" aria-haspopup="dialog" title="${failed ? 'A sync failed: open for details' : 'Sync now, and when each sync last ran'}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg><span class="tlbl">Sync</span></button>`;
 }
+/* The Sync menu's rows: Sync all (when more than one source can run), each source with its last run, failure and a
+   Sync button (Lansweeper by push has none), and Reload for this page. */
 function menuHtml(){
   const list = sources();
   const line = ([src, canRun]) => {
@@ -66,7 +68,7 @@ function closeMenu(){ const m = $('#syncMenu'); if (m) m.remove(); }
 function openMenu(){
   closeMenu();
   const b = $('#syncBtn'); if (!b) return;
-  const m = document.createElement('div');
+  const m = /** @type {import('./01-core.js').El} */ (document.createElement('div'));
   m.id = 'syncMenu'; m.className = 'sync-menu'; m.popover = 'auto'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sync');
   m.innerHTML = menuHtml();
   document.body.append(m);
@@ -85,6 +87,8 @@ async function syncOne(src){
   const j = await r.json().catch(() => ({}));
   return r.ok ? { ok: true, text: `${SOURCES[src].label}: ${summary(src, j.counts)}` } : { ok: false, text: `${SOURCES[src].label}: ${j.error || 'failed'}` };
 }
+/* Runs one sync, or all ('all') in the server's order, after saving what is pending. The button spins meanwhile; then
+   the inventory is loaded again, the menu redrawn if it was open, and a toast says what each sync found. */
 async function run(which){
   if (running) return;
   running = which;
@@ -106,7 +110,7 @@ async function run(which){
 }
 /* Bound once: the button is drawn again with the tab bar. */
 document.addEventListener('click', e => {
-  const b = e.target.closest('#syncBtn');
+  const b = evEl(e).closest('#syncBtn');
   if (!b) return;
   if ($('#syncMenu')) closeMenu(); else openMenu();
 });

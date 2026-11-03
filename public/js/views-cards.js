@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -82,6 +82,8 @@ const cardSeen = o => {
   if (o.review || o.feed || o.inAd || o.graph) return `<span class="chip warn lsst seen" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never seen</span>`;
   return (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o);
 };
+/* One device's card as HTML text: name, model, status, its type's lines, the join marks when join is on, the To review
+   actions and chips, and a footer with code, last seen and relations. idx: the relation index (relIndex). */
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
@@ -107,6 +109,8 @@ const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip war
 const twinChip = o => html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
 /* How many cards or table rows are drawn before "Show all". */
 export const SHOW_FIRST = 500;
+/* Draws the Cards toolbar (count, Group by, the join marks, Save view, the pick bar) and the cards, in one list or in
+   groups that fold. The first SHOW_FIRST are drawn, the rest after Show all. An empty list says why. */
 export function renderCardsBody(){
   let list = filtered();
   const pool = scopePool();
@@ -168,10 +172,10 @@ const rvAct = e => {
   return true;
 };
 document.addEventListener('click', rvAct, true);
-document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('#view [data-rvc]')) rvAct(e); }, true);
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && evEl(e).matches && evEl(e).matches('#view [data-rvc]')) rvAct(e); }, true);
 /* The "Probably …" chip on a card opens Resolve instead of the card. */
 document.addEventListener('click', e => {
-  const c = e.target.closest && e.target.closest('#view [data-resolve]'); if (!c) return;
+  const c = evEl(e).closest && evEl(e).closest('#view [data-resolve]'); if (!c) return;
   e.preventDefault(); e.stopImmediatePropagation();
   resolveModal(c.dataset.resolve.split(',').map(byId).filter(Boolean));
 }, true);

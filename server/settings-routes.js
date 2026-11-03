@@ -13,6 +13,9 @@ import { setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 import { imageStats } from './device-images.js';
 
+/* Adds the Settings → System routes: the certificate people see (/api/certificate, anyone signed in), and for admins
+   the log, the health details, the mail server (/api/smtp and its test) and the weekly e-mail (/api/digest, its preview
+   and send now). It also puts sendDigest on app.locals for the scheduler. */
 export function registerSettingsRoutes(app, ctx) {
   const { db, requireUser, requireAdmin, cfgLs, cfgLdap, cfgGraph, SECRET_KEY, feedToken, mailTransport, certProbe, diskSpace, smtpNow, APP_VERSION } = ctx;
   /* The certificate people get when they open the inventory: names, issuer, end, and whether it expires soon. Read from

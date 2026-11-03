@@ -30,7 +30,6 @@ export const lsWrites = (s, o, k) => s.feedOn !== false && (ORDER_FIELDS.include
 /* What each source says of a field, kept beside the value so a person can see them side by side and pick one:
    o.vals[k][src] = [value, as of], where "as of" is the source's own time for it (Lansweeper's last scan, Intune's last
    check-in, the last AD logon). A source that says nothing of the field any more is dropped from it. */
-export const PICK_SOURCES = ['ls', 'graph', 'ad', 'hand'];
 export function noteValue(o, k, src, value, asOf = '') {
   const v = String(value ?? '').trim();
   if (!v) {
@@ -60,12 +59,6 @@ export function liftOvr(o, policy = {}) {
 
 /* Notes where field k's value came from: 'hand', 'ls' (Lansweeper), 'graph' or 'ad'. */
 export function markSource(o, k, src) { (o.src ??= {})[k] = src; }
-/* A field left empty is nobody's. */
-export function dropFill(o, k) {
-  if (!o.src || !(k in o.src)) return;
-  delete o.src[k];
-  if (!Object.keys(o.src).length) delete o.src;
-}
 
 /* What a person's card says of them, from the directory or Entra: job title, phones, office, manager and e-mail. Only
    the fields that have something, each cut to 200 characters. */

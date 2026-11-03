@@ -1,7 +1,7 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
-import { LOCS, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { evEl, $$, LOCS, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
@@ -39,6 +39,9 @@ export function accessoriesHtml(o){
 export function notesHtml(o, edit){
   return `<textarea id="objNotes" class="notes-box" rows="${Math.min(12, Math.max(3, String(o.notes || '').split('\n').length + 1))}" maxlength="20000" placeholder="${edit ? 'Anything worth knowing about this device: where its papers are, a known quirk, a link…' : ''}" aria-label="Notes" ${edit ? '' : 'readonly'}>${esc(o.notes || '')}</textarea>`;
 }
+/* The input for field [k, label, kind] of device o on its page, as markup: a select for the kinds with set choices
+   (location, user, type, subnet, domain, status …), a combo for the model and the address, else a text input. The
+   id is idp + device id + field; data-k names the field for the save. */
 export function fieldCtl(o, [k, label, kind], idp = 'f_'){
   const id = idp + o.id + '_' + k;
   let ctl;
@@ -86,6 +89,8 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
 /* Antivirus: one entry per product, as chips. A product can be added from the list of those seen on the devices and
    common ones, or typed; each chip can be removed. Kept on the device as one text, entries separated by "; ". */
 export const avEntries = o => String(o.av || '').split(';').map(x => x.trim()).filter(Boolean);
+/* The antivirus field: one entry per product, with Lansweeper's scan state as chips while its sync keeps it current.
+   With edit, a remove button per entry, a combo to add one and a hidden input holding the whole text (data-k="av"). */
 export function avCtl(o, id, edit){
   const items = avEntries(o);
   /* The scan state Lansweeper adds ("scanning on, up to date") is only shown while the sync keeps it current. */
@@ -168,6 +173,8 @@ export function ipClash(o, ip){
   }
   return { level: 'warn', other, text: `${ip} is also used by ${other.name}`, html: `In use by ${link}.` };
 }
+/* The address combo's list: the free addresses of the device's subnet (the picked one, or the one its address is in),
+   starting with what was typed, with the current and first free marked. A remark instead when there are none. */
 function ipChoices(input, all){
   const o = ipOwner(input); if (!o) return [];
   const sub = ipSubnet(o);
@@ -187,7 +194,7 @@ function ipChoices(input, all){
 /* Under the address: taken by another device, or the gateway of its subnet. */
 function ipNote(input, note){
   const o = ipOwner(input), v = input.value.trim();
-  const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };
+  const show = on => { note.hidden = !on; if (note.previousElementSibling) /** @type {HTMLElement} */ (note.previousElementSibling).hidden = !on; };
   const clash = o && v ? ipClash(o, v) : null, sub = o && v ? subnetFor({...o, ip: v, subnet: ''}) : null;
   if (clash){ note.className = 'fieldnote ' + (clash.level === 'warn' ? 'warn' : 'info'); note.innerHTML = clash.html; show(true); return; }
   const t = sub && sub.gateway === v ? `This address is the gateway of ${subnetName(sub)}.` : '';
@@ -196,6 +203,8 @@ function ipNote(input, note){
 /* A subnet by its name, or by its network when it has none of its own. */
 export const subnetName = n => n.name && n.name !== n.cidr ? n.name : n.cidr;
 const subnetLabel = n => n.name && n.name !== n.cidr ? `${n.name} · ${n.cidr}` : n.cidr;
+/* Opens combo c's list with the choices of its source, filtered by what was typed unless all is set or the source
+   filters itself. Opens upwards near the bottom of a dialog or the window, and is never taller than the room there. */
 function comboOpen(c, all){
   const input = c.querySelector('input'), list = c.querySelector('.combo-list');
   if (input.disabled) return;
@@ -244,31 +253,31 @@ export function comboNote(input){
   const note = document.getElementById(input.id + '_note'); if (!note) return;
   if (input.dataset.combo === 'ip') return ipNote(input, note);
   const v = input.value.trim(), names = (COMBO_SOURCES[input.dataset.k] || (() => []))();
-  const show = on => { note.hidden = !on; if (note.previousElementSibling) note.previousElementSibling.hidden = !on; };   /* the note and its empty first column */
+  const show = on => { note.hidden = !on; if (note.previousElementSibling) /** @type {HTMLElement} */ (note.previousElementSibling).hidden = !on; };   /* the note and its empty first column */
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
   const near = closeModel(v, names);
   note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
-  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model - added to the list when saved.';
+  note.innerHTML = String(near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model - added to the list when saved.');
   show(true);
 }
-document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });
+document.addEventListener('input', e => { const c = comboOf(evEl(e)); if (c && evEl(e).matches('input')){ comboOpen(c, false); comboNote(evEl(e)); } });
 /* "Use it": the model from the list replaces the one typed, and is saved like a pick. */
 document.addEventListener('click', e => {
-  const b = e.target.closest('.combo-use'); if (!b) return;
-  const note = b.closest('.fieldnote'), input = document.getElementById(note.id.replace(/_note$/, ''));
+  const b = evEl(e).closest('.combo-use'); if (!b) return;
+  const note = b.closest('.fieldnote'), input = /** @type {HTMLInputElement} */ (document.getElementById(note.id.replace(/_note$/, '')));
   if (!input || input.disabled) return;
   input.value = b.dataset.v; comboNote(input); input.dispatchEvent(new Event('change', {bubbles: true})); input.focus();
 });
 document.addEventListener('mousedown', e => {
   const c = comboOf(e.target);
-  document.querySelectorAll('.combo .combo-list:not([hidden])').forEach(l => { if (l.closest('.combo') !== c) comboClose(l.closest('.combo')); });
+  $$('.combo .combo-list:not([hidden])').forEach(l => { if (l.closest('.combo') !== c) comboClose(l.closest('.combo')); });
   if (!c) return;
-  const li = e.target.closest('.combo-list li');
+  const li = evEl(e).closest('.combo-list li');
   if (li){ e.preventDefault(); comboPick(c, li); return; }
-  if (e.target.closest('.combo-arrow')){ e.preventDefault(); const list = c.querySelector('.combo-list'); if (list.hidden){ comboOpen(c, true); c.querySelector('input').focus(); } else comboClose(c); }
+  if (evEl(e).closest('.combo-arrow')){ e.preventDefault(); const list = c.querySelector('.combo-list'); if (list.hidden){ comboOpen(c, true); c.querySelector('input').focus(); } else comboClose(c); }
 });
 document.addEventListener('keydown', e => {
-  const c = comboOf(e.target); if (!c || !e.target.matches('input')) return;
+  const c = comboOf(evEl(e)); if (!c || !evEl(e).matches('input')) return;
   const list = c.querySelector('.combo-list'), items = [...list.querySelectorAll('li')];
   const at = items.findIndex(li => li.classList.contains('active'));
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
@@ -276,7 +285,7 @@ document.addEventListener('keydown', e => {
     if (list.hidden){ comboOpen(c, true); return; }
     const next = items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
     items.forEach(li => li.classList.toggle('active', li === next));
-    if (next){ next.scrollIntoView({block: 'nearest'}); e.target.setAttribute('aria-activedescendant', next.id); }
+    if (next){ next.scrollIntoView({block: 'nearest'}); evEl(e).setAttribute('aria-activedescendant', next.id); }
   } else if (e.key === 'Enter' && !list.hidden && at >= 0){ e.preventDefault(); comboPick(c, items[at]); }
   else if (e.key === 'Escape' && !list.hidden){ e.preventDefault(); e.stopPropagation(); comboClose(c); }
 });
@@ -288,7 +297,7 @@ export const fieldKind = k => { const f = Object.values(FIELDS).flat().find(x =>
    fields save as they are left. A field that handles Enter itself says so (preventDefault) and is left alone. */
 document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing) return;
-  const el = e.target, m = el.closest && el.closest('#mdl:not(.minimized)');
+  const el = evEl(e), m = el.closest && el.closest('#mdl:not(.minimized)');
   if (!m || m.querySelector('#setPane') || !el.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button])')) return;
   if (el.form || el.closest('.addrel, .lpanel-add, .tf-add, .mf')) return;   /* a form (sign-in) submits by itself */
   const ok = m.querySelector('.mf button.primary:not(:disabled), .mf button[id$="Ok"]:not(:disabled)');

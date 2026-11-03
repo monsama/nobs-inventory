@@ -15,7 +15,6 @@ export const OUTLET_LOC_MAX = 500;
 const PORTED = ['switch', 'router', 'firewall', 'server'];
 export const cordTarget = o => !!o && o.type !== 'patch' && (PORTED.includes(o.type) || o.ports > 0);
 
-export const isCord = r => !!r && r.kind === 'patched';
 export const outletOf = (panel, port) => (panel && panel.outlets && panel.outlets[port]) || null;
 /* The panel's one link to a switch from before per-port cords: used for every port without a cord of its own. */
 export const trunkOf = (panel, rels) => rels.find(r => r.from === panel.id && r.kind === 'connected') || null;

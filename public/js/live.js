@@ -15,12 +15,14 @@ async function catchUp(){
   if (SERVER.cseq !== null && SERVER.cseq !== undefined && SERVER.cseq >= want) return;
   if (running){ again = true; return; }
   running = true;
-  let ran = true;
+  let ran;
   try { ran = await checkForChanges(); } finally { running = false; }
   if (again){ again = false; return catchUp(); }
   if (ran === false) held = setTimeout(catchUp, HELD_MS);
 }
 
+/* Opens the event stream, once and only where the browser has EventSource. Each number heard starts a catch-up;
+   a stream the server closed is opened again after RETRY_MS. */
 export function startLive(){
   if (source || typeof EventSource !== 'function') return;
   clearTimeout(retry); retry = null;

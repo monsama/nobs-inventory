@@ -3,7 +3,8 @@
    never writes to AD. The server keeps each sheet encrypted, so it can be printed again; the password goes from the
    kept sheet once it is marked as changed, and at the latest after a set number of days. */
 import { dateText } from './dates.js';
-import { $, COMPANY, esc, objs, toast } from './01-core.js';
+import { $$, $, COMPANY, objs, toast } from './01-core.js';
+import { html, rawHtml } from './html.js';
 import { closeModal, modal } from './19-modal.js';
 import { flushSave } from './07-render.js';
 
@@ -44,24 +45,26 @@ const SHEET_CSS = `.sheet{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Robot
 let logo = '';
 const loadLogo = async () => { if (!logo) logo = await fetch('logo.svg').then(r => r.ok ? r.text() : '').catch(() => ''); return logo; };
 
+/* A person's entry sheet as HTML, for the dialog and for printing: their details, the first password (or why it is
+   gone), the devices handed out and the lines to sign. logoSvg is used when the company has set no logo. */
 export function sheetHtml(sh, logoSvg = ''){
-  const devices = sh.devices.length ? `<table><thead><tr><th>Inventory no.</th><th>Type</th><th>Name</th><th>Model</th><th>Serial number</th></tr></thead><tbody>${
-    sh.devices.map(d => `<tr><td>${esc(d.code)}</td><td>${esc(d.type)}</td><td>${esc(d.name)}</td><td>${esc(d.model)}</td><td>${esc(d.serial)}</td></tr>`).join('')}</tbody></table>`
-    : '<p class="gone">No devices are handed out with this sheet.</p>';
+  const devices = sh.devices.length ? html`<table><thead><tr><th>Inventory no.</th><th>Type</th><th>Name</th><th>Model</th><th>Serial number</th></tr></thead><tbody>${
+    sh.devices.map(d => html`<tr><td>${d.code}</td><td>${d.type}</td><td>${d.name}</td><td>${d.model}</td><td>${d.serial}</td></tr>`)}</tbody></table>`
+    : html`<p class="gone">No devices are handed out with this sheet.</p>`;
   const pw = sh.password
-    ? `<div class="pw"><p>Initial password of your Windows account</p><div class="val">${esc(sh.password)}</div>
+    ? html`<div class="pw"><p>Initial password of your Windows account</p><div class="val">${sh.password}</div>
       <p>Windows asks you to choose your own password when you first sign in. Keep this sheet private and do not write your new password on it.</p></div>`
-    : sh.noPassword ? `<p>Sign in with your Windows account${sh.login ? ` <b>${esc(sh.login)}</b>` : ''} as before.</p>`
-    : `<p class="gone">The initial password is no longer on this copy of the sheet. It has been changed, or ${esc(String(sh.passwordDays || 14))} days have passed. IT can set a new one.</p>`;
-  return `<div class="sheet">
-    <div class="top"><div class="logo">${COMPANY.logo ? `<img src="${esc(COMPANY.logo)}" alt="">` : logoSvg}</div><div><div class="brand">${esc(COMPANY.name || 'NOBS Inventory')}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${esc(day(sh.issued))}<br>by ${esc(sh.by)}</div></div>
+    : sh.noPassword ? html`<p>Sign in with your Windows account${sh.login && html` <b>${sh.login}</b>`} as before.</p>`
+    : html`<p class="gone">The initial password is no longer on this copy of the sheet. It has been changed, or ${String(sh.passwordDays || 14)} days have passed. IT can set a new one.</p>`;
+  return html`<div class="sheet">
+    <div class="top"><div class="logo">${COMPANY.logo ? html`<img src="${COMPANY.logo}" alt="">` : rawHtml(logoSvg)}</div><div><div class="brand">${COMPANY.name || 'NOBS Inventory'}</div><h1>Entry sheet</h1></div><div class="meta">Issued ${day(sh.issued)}<br>by ${sh.by}</div></div>
     <h2>Person</h2>
-    <dl><dt>Name</dt><dd>${esc(sh.person.name)}</dd><dt>Department</dt><dd>${esc(sh.person.dept || '-')}</dd>${[['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['mail', 'E-mail']].filter(([f]) => sh.person[f]).map(([f, l]) => `<dt>${l}</dt><dd>${esc(sh.person[f])}</dd>`).join('')}<dt>Windows sign-in name</dt><dd>${esc(sh.login)}</dd></dl>
+    <dl><dt>Name</dt><dd>${sh.person.name}</dd><dt>Department</dt><dd>${sh.person.dept || '-'}</dd>${[['title', 'Title'], ['office', 'Office'], ['manager', 'Manager'], ['mail', 'E-mail']].filter(([f]) => sh.person[f]).map(([f, l]) => html`<dt>${l}</dt><dd>${sh.person[f]}</dd>`)}<dt>Windows sign-in name</dt><dd>${sh.login}</dd></dl>
     <h2>Sign-in</h2>${pw}
     <h2>Devices handed out</h2>${devices}
-    ${sh.note ? `<h2>Note</h2><div class="note">${esc(sh.note)}</div>` : ''}
+    ${sh.note && html`<h2>Note</h2><div class="note">${sh.note}</div>`}
     <p class="confirm">I have received the devices listed above in working order. I will look after them and give them back when I leave or when IT asks.</p>
-    <div class="sign"><div>Date, signature of ${esc(sh.person.name)}</div><div>Date, signature of IT</div></div>
+    <div class="sign"><div>Date, signature of ${sh.person.name}</div><div>Date, signature of IT</div></div>
   </div>`;
 }
 
@@ -70,18 +73,18 @@ async function printSheet(sh){
   const svg = await loadLogo();
   document.getElementById('printHost')?.remove();
   const host = Object.assign(document.createElement('div'), { id: 'printHost' });
-  host.innerHTML = `<style>${SHEET_CSS}
+  host.innerHTML = String(html`<style>${rawHtml(SHEET_CSS)}
     @media screen{#printHost{display:none}}
-    @media print{body>:not(#printHost){display:none!important}body{background:#fff!important}}</style>${sheetHtml(sh, svg)}`;
+    @media print{body>:not(#printHost){display:none!important}body{background:#fff!important}}</style>${sheetHtml(sh, svg)}`);
   document.body.appendChild(host);
   const done = () => { host.remove(); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   window.print();
 }
 const stateText = (s, days) => s.password === 'kept'
-  ? `<span class="chip warn" title="The password is on the kept sheet until it is marked as changed">On the sheet until ${esc(day(new Date(new Date(s.created).getTime() + days * 86400000).toISOString()))}</span>`
-  : s.password === 'none' ? '<span class="chip">No password</span>'
-  : s.password === 'changed' ? '<span class="chip ok">Changed</span>' : `<span class="chip kept" title="Removed after ${days} days">Removed</span>`;
+  ? html`<span class="chip warn" title="The password is on the kept sheet until it is marked as changed">On the sheet until ${day(new Date(new Date(s.created).getTime() + days * 86400000).toISOString())}</span>`
+  : s.password === 'none' ? html`<span class="chip">No password</span>`
+  : s.password === 'changed' ? html`<span class="chip ok">Changed</span>` : html`<span class="chip kept" title="Removed after ${days} days">Removed</span>`;
 
 /* The window in Settings → Users: a new sheet for the person, and the sheets kept for them. */
 /* only: the sheet is made from one device, so only that one is ticked (the person may have others already). */
@@ -92,21 +95,21 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
   catch (e) { toast(e.message); return; }
   const days = list.passwordDays;
   const mine = objs.filter(o => String(o.uid) === String(u.id));
-  const devs = mine.length ? mine.map(o => `<label class="pchk"><input type="checkbox" data-sdev="${esc(o.id)}"${!only || String(o.id) === String(only) ? ' checked' : ''}> ${esc(o.name)} <span class="note">${esc([o.code, o.model, o.serial].filter(Boolean).join(' · '))}</span></label>`).join('')
-    : `<p class="note">${esc(u.name)} has no devices in the inventory. Give them their devices first, or make a sheet without devices.</p>`;
-  const kept = list.sheets.length ? `<table class="grid mini" style="min-width:820px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:17%"><col style="width:25%"><col style="width:41%"></colgroup><thead><tr><th>Issued</th><th>By</th><th>Password</th><th></th></tr></thead><tbody>${
-    list.sheets.map(s => `<tr><td>${esc(day(s.created))}</td><td>${esc(s.by)}</td><td>${stateText(s, days)}</td>
-      <td class="act"><div class="sheet-acts"><button data-sprint="${esc(s.id)}">Print</button><a class="btnlink" href="api/sheets/${encodeURIComponent(s.id)}/pdf" download>Download PDF</a>${s.password === 'kept' ? `<button data-schanged="${esc(s.id)}" title="The person has signed in and chosen their own password: remove it from the kept sheet">Password changed</button>` : ''}<button class="icon ghost" data-sdel="${esc(s.id)}" aria-label="Delete this sheet">×</button></div></td></tr>`).join('')}</tbody></table>`
-    : '<p class="note">No sheet has been made for this person yet.</p>';
-  const made = fresh && fresh.sheet.password ? `<div class="panelbox sheet-new"><div class="hdr">New initial password</div><div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
-      <div class="sheet-pw"><code class="mono" id="sheetPw">${esc(fresh.sheet.password)}</code><button id="sheetCopy">Copy</button></div>
-      <p class="note">Set it on the AD account <b class="mono">${esc(fresh.sheet.login)}</b> with "User must change password at next logon". It is printed on the sheet.</p></div></div>` : '';
-  modal(`<div class="mh">Entry sheet for ${esc(u.name)}</div>
+  const devs = mine.length ? mine.map(o => html`<label class="pchk"><input type="checkbox" data-sdev="${o.id}"${!only || String(o.id) === String(only) ? ' checked' : ''}> ${o.name} <span class="note">${[o.code, o.model, o.serial].filter(Boolean).join(' · ')}</span></label>`)
+    : html`<p class="note">${u.name} has no devices in the inventory. Give them their devices first, or make a sheet without devices.</p>`;
+  const kept = list.sheets.length ? html`<table class="grid mini" style="min-width:820px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:17%"><col style="width:25%"><col style="width:41%"></colgroup><thead><tr><th>Issued</th><th>By</th><th>Password</th><th></th></tr></thead><tbody>${
+    list.sheets.map(s => html`<tr><td>${day(s.created)}</td><td>${s.by}</td><td>${stateText(s, days)}</td>
+      <td class="act"><div class="sheet-acts"><button data-sprint="${s.id}">Print</button><a class="btnlink" href="api/sheets/${encodeURIComponent(s.id)}/pdf" download>Download PDF</a>${s.password === 'kept' && html`<button data-schanged="${s.id}" title="The person has signed in and chosen their own password: remove it from the kept sheet">Password changed</button>`}<button class="icon ghost" data-sdel="${s.id}" aria-label="Delete this sheet">×</button></div></td></tr>`)}</tbody></table>`
+    : html`<p class="note">No sheet has been made for this person yet.</p>`;
+  const made = fresh && fresh.sheet.password && html`<div class="panelbox sheet-new"><div class="hdr">New initial password</div><div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+      <div class="sheet-pw"><code class="mono" id="sheetPw">${fresh.sheet.password}</code><button id="sheetCopy">Copy</button></div>
+      <p class="note">Set it on the AD account <b class="mono">${fresh.sheet.login}</b> with "User must change password at next logon". It is printed on the sheet.</p></div></div>`;
+  modal(html`<div class="mh">Entry sheet for ${u.name}</div>
     <div class="mb">${made}
       <div class="panelbox"><div class="hdr">New sheet</div>
         <p class="note">The sheet lists the devices handed out and a new initial password for the person's Windows account. Set that password in Active Directory with "User must change password at next logon". The app does not change anything in AD.</p>
         <div class="form sheet-form" style="padding:10px 12px">
-          <label for="sheetLogin">Windows sign-in name</label><input id="sheetLogin" class="mono" autocomplete="off" value="${esc(u.login || '')}">
+          <label for="sheetLogin">Windows sign-in name</label><input id="sheetLogin" class="mono" autocomplete="off" value="${u.login || ''}">
           <label for="sheetPwOn">Password</label><div class="sheet-pwopt"><label class="pchk"><input type="checkbox" id="sheetPwOn"${only ? '' : ' checked'}> <span>A new initial password for the Windows account</span></label><p class="note">Leave it off when the person already has their account.</p></div>
           <label>Devices</label><div class="sheet-devs">${devs}</div>
           <label for="sheetNote">Note</label><textarea id="sheetNote" rows="2" maxlength="500" placeholder="First day, desk, anything else to write on the sheet"></textarea>
@@ -122,7 +125,7 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
   $('#sheetMake').onclick = async () => {
     const login = $('#sheetLogin').value.trim();
     if (!login && $('#sheetPwOn').checked){ $('#sheetErr').textContent = 'Give the Windows sign-in name.'; $('#sheetLogin').focus(); return; }
-    const deviceIds = [...document.querySelectorAll('[data-sdev]:checked')].map(c => c.dataset.sdev);
+    const deviceIds = [...$$('[data-sdev]:checked')].map(c => c.dataset.sdev);
     try {
       const r = await call('POST', 'api/sheets', { userId: u.id, deviceIds, login, note: $('#sheetNote').value, password: $('#sheetPwOn').checked });
       await sheetModal(u, r, { only });
@@ -130,11 +133,11 @@ export async function sheetModal(u, fresh = null, { only = null } = {}){
     } catch (e) { $('#sheetErr').textContent = e.message; }
   };
   const open = async id => (await call('GET', 'api/sheets/' + encodeURIComponent(id))).sheet;
-  document.querySelectorAll('[data-sprint]').forEach(b => b.onclick = async () => { try { printSheet(await open(b.dataset.sprint)); } catch (e) { toast(e.message); } });
-  document.querySelectorAll('[data-schanged]').forEach(b => b.onclick = async () => {
+  $$('[data-sprint]').forEach(b => b.onclick = async () => { try { printSheet(await open(b.dataset.sprint)); } catch (e) { toast(e.message); } });
+  $$('[data-schanged]').forEach(b => b.onclick = async () => {
     try { await call('POST', `api/sheets/${encodeURIComponent(b.dataset.schanged)}/changed`); toast('The password is removed from the kept sheet'); sheetModal(u); } catch (e) { toast(e.message); }
   });
-  document.querySelectorAll('[data-sdel]').forEach(b => b.onclick = async () => {
+  $$('[data-sdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Delete this sheet? It cannot be printed again.')) return;
     try { await call('DELETE', 'api/sheets/' + encodeURIComponent(b.dataset.sdel)); toast('Sheet deleted'); sheetModal(u); } catch (e) { toast(e.message); }
   });

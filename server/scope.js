@@ -9,6 +9,9 @@ export function scopeOf(u) {
 }
 export const inScope = (o, sc) => !sc || (sc.own ? !!o && o.uid === sc.own && !o.review : sc.sites.includes(siteOf(o)));
 export const scopeKey = sc => (!sc ? '' : sc.own ? 'own' : 'sites:' + sc.sites.join('|'));
+/* Cuts an inventory down to what the scope sc (from scopeOf) lets a viewer see: changes s in place and returns it; no
+   scope leaves it whole. Someone who sees only their own devices also gets no contracts or licences, and of the people
+   only themselves and the admins. */
 export function scopeState(s, sc) {
   if (!sc) return s;
   s.objs = (s.objs || []).filter(o => inScope(o, sc));

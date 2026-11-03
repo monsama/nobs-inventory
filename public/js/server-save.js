@@ -1,6 +1,7 @@
 /* Saving to the server: what changed since the last load, sent in batches, conflicts, changes kept offline. */
 import { markHand, REVIEW, CONTACTS } from './01-core.js';
-import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, esc, objs, rels, st, toast } from './01-core.js';
+import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast } from './01-core.js';
+import { html } from './html.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { render, renderStatus } from './07-render.js';
@@ -30,6 +31,8 @@ export function saveData(){ queueServerSave(); }
    (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
    changed on the server since is not saved; the page then shows the newer version. */
 const PREFERENCES = ['mapPos'];
+/* Everything the page holds as the records the server stores, by key (kind|id): devices, devices under review,
+   connections, users, types, history and one record per setting. Compared with SERVER.base to find the changes. */
 export function documents(){
   const m = new Map();
   objs.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
@@ -38,6 +41,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
+  /** @type {Record<string, any>} */
   const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, useAd: st.useAd !== false, useGraph: st.useGraph !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, stockRooms: st.stockRooms || {}, savedViews: st.savedViews || [], fieldOrder: st.fieldOrder || {}, fieldMode: st.fieldMode || {}, stocktakes: st.stocktakes || [], peopleNotSame: st.peopleNotSame || [], groupRoles: st.groupRoles || [], lifecycle: st.lifecycle || {}, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
@@ -88,6 +92,9 @@ export function sendChanges(){
   SERVER.inflight = sendNow();
   return SERVER.inflight;
 }
+/* Sends the pending changes to api/changes in batches (admin only). Takes in the codes and revisions given back;
+   a refused record (403) is taken back, a conflict shows the newer version and what was not saved. Without a
+   connection the changes are kept on this device and the save shows offline. */
 async function sendNow(){
   if (!isAdmin()) return;
   const pending = pendingChanges();
@@ -152,11 +159,11 @@ function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_ED
 const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
 /* Shows what a person changed and the newer version, so a refused edit is not lost. */
 function refusedModal(items){
-  modal(`<div class="mh">Not saved: changed by someone else</div>
+  modal(html`<div class="mh">Not saved: changed by someone else</div>
     <div class="mb"><p class="note">Someone else saved these records first, so your changes were not saved. The inventory shows their version. You can apply your changes again.</p>
-      ${items.map(it => `<div class="panelbox"><div class="hdr">${esc(it.name)}${it.gone ? ' <span class="muted">· deleted by someone else</span>' : ''}</div>
-        ${it.fields.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => `<tr><td>${esc(FIELD_LABEL[f.k] || f.k)}</td><td>${esc(shown(f.mine))}</td><td>${esc(shown(f.theirs))}</td></tr>`).join('')}</tbody></table>` : ''}
-      </div>`).join('')}</div>
+      ${items.map(it => html`<div class="panelbox"><div class="hdr">${it.name}${it.gone && html` <span class="muted">· deleted by someone else</span>`}</div>
+        ${it.fields.length > 0 && html`<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => html`<tr><td>${FIELD_LABEL[f.k] || f.k}</td><td>${shown(f.mine)}</td><td>${shown(f.theirs)}</td></tr>`)}</tbody></table>`}
+      </div>`)}</div>
     <div class="mf"><button id="rfKeep">Keep theirs</button><button id="rfApply" class="primary">Apply mine again</button></div>`, 'wide');
   $('#rfKeep').onclick = closeModal;
   $('#rfApply').onclick = () => {
@@ -169,7 +176,7 @@ function refusedModal(items){
    racks too unless their box is ticked.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
-  modal(`<div class="mh">Clear the whole inventory?</div>
+  modal(html`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → System → Backups) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>

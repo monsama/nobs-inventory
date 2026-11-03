@@ -1,6 +1,6 @@
 /* Settings → Users → API access: read-only tokens for other tools (server/api-tokens.js). A new token is shown once,
    with how to use it. Admins only. */
-import { $, esc, toast } from './01-core.js';
+import { $$, $, esc, toast } from './01-core.js';
 import { isAdmin } from './04-settings.js';
 import { pushDate } from './settings-feed.js';
 
@@ -16,6 +16,8 @@ function tokensPanel(){
     ${list.length ? `<div style="overflow-x:auto"><table class="grid mini stack" style="min-width:0"><thead><tr><th>Name</th><th>People</th><th>Made</th><th>Last used</th><th></th></tr></thead><tbody>${list.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${t.people ? 'With names' : 'No names'}</td><td>${esc(pushDate(t.created))} · ${esc(t.by)}</td><td>${t.used ? esc(pushDate(t.used)) : '<span class="muted">Never</span>'}</td><td class="act"><button data-tkdel="${esc(t.id)}" class="danger-text">Revoke</button></td></tr>`).join('')}</tbody></table></div>` : ''}
     <div class="addrel" style="padding:10px 12px"><input id="tkName" placeholder="What uses it, e.g. Monitoring" maxlength="80" aria-label="Name of the token" style="min-width:220px"><label class="pchk" style="width:auto"><input type="checkbox" id="tkPeople"> With people's names</label><button id="tkMake">Make a token</button></div></div>`;
 }
+/* Wires the API access pane: making a token (shown once, with a copy button) and revoking one after a confirm.
+   Each goes straight to api/tokens and draws the pane again. */
 function wireTokens(){
   const mk = $('#tkMake'); if (!mk) return;
   mk.onclick = async () => {
@@ -25,7 +27,7 @@ function wireTokens(){
     NEW_TOKEN = j.token; TOKENS = null; renderSetApi();
   };
   const cp = $('#tkCopy'); if (cp) cp.onclick = () => navigator.clipboard.writeText(NEW_TOKEN).then(() => toast('Token copied'), () => toast('Copy it by hand: the browser does not allow it.'));
-  document.querySelectorAll('[data-tkdel]').forEach(b => b.onclick = async () => {
+  $$('[data-tkdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Revoke this token? The tool using it can no longer read the inventory.')) return;
     const r = await fetch('api/tokens/' + encodeURIComponent(b.dataset.tkdel), { method: 'DELETE', credentials: 'same-origin' });
     if (r.ok){ TOKENS = (await r.json()).tokens; NEW_TOKEN = null; renderSetApi(); toast('Token revoked'); }

@@ -2,6 +2,7 @@
    wherever such a control appears (the views, the device page, Settings, dialogs): a control that has its own title
    keeps it. Each entry is a selector and a text, or a function of the element for a text that depends on it. */
 const label = el => (el.querySelector('.lbl') || el).textContent.trim();
+/** @type {[string, string | ((el: any) => string)][]} */
 const TIPS = [
   /* The top bar and the sidebar. */
   ['#newBtn', 'Add a device to the inventory (N)'],
@@ -140,7 +141,7 @@ const TIPS = [
 ];
 /* Gives each control on the page its hover text, unless it has one. */
 export function addTips(root = document){
-  for (const [sel, tip] of TIPS) root.querySelectorAll(sel).forEach(el => {
+  for (const [sel, tip] of TIPS) /** @type {NodeListOf<HTMLElement>} */ (root.querySelectorAll(sel)).forEach(el => {
     if (el.title || el.hasAttribute('data-tip-own')) return;
     const t = typeof tip === 'function' ? tip(el) : tip;
     if (t) el.title = t;

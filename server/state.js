@@ -18,6 +18,8 @@ import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
 import { cordProblem, outletClash, outletsProblem } from '../public/js/cabling.js';
+/* The inventory as stored: loading and saving the documents, the settings the page may change and how each is
+   checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
 export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'viewMailRuns', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'useAd', 'useGraph', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
@@ -99,6 +101,9 @@ const hasTable = (db, name) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE t
    roles from groups. Nobody else's page uses them. */
 export const ADMIN_SETTINGS = ['digest', 'digestRun', 'viewMailRuns', 'smtp', 'backupExport', 'backupExportRun', 'restoreTest', 'autoBackups', 'backupKeep', 'groupRoles'];
 export const CONNECTION_SETTINGS = ['ldap', 'ldapCa', 'graph', 'graphCerts', 'graphUnmatched', 'graphAmbiguous', 'graphFields', 'adUnmatched', 'syncRuns', 'lansweeper'];
+/* Disconnect: removes the connection settings listed above, the Lansweeper push token, Graph's stored keys and every
+   sealed app secret (the passwords saved in Settings), in one transaction. Only an admin's POST /api/connections/clear
+   calls it. */
 export function clearConnections(db) {
   db.exec('BEGIN');
   try {
@@ -172,6 +177,9 @@ export function checkState(s, { size = true } = {}) {
   try { checkStateRules(s, size); }
   catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
 }
+/* The checks of checkState: throws an HttpError 400 at the first rule broken (413 when the inventory is too large).
+   Kept apart so a TypeError from a malformed record is answered as a 400 there. It also tidies a few values in place:
+   the old roles and statuses, a missing role or status, addresses in their stored form, comments in icons. */
 function checkStateRules(s, size = true) {
   const bad = msg => { throw new HttpError(400, msg); };
   /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
@@ -585,6 +593,8 @@ export const SETTING_NAMES = { stockRooms: 'store rooms', savedViews: 'saved vie
   locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
   fillAd: 'AD fills fields', mergeTwins: 'merge docking-station records', skipIpOnly: 'devices named by an IP address', autoBackups: 'automatic backups', backupKeep: 'backups kept',
   feedOn: 'Lansweeper feed', feedSync: 'Lansweeper sync', useLansweeper: 'use Lansweeper', useAd: 'Active Directory sync', useGraph: 'Entra & Intune sync', lsSource: 'Lansweeper source', lansweeper: 'Lansweeper', syncSchedule: 'sync schedule', currency: 'currency' };
+/* body is the page's save ({ puts, dels }); before is the inventory before it, for the names of the records deleted.
+   Returns the line for the log, "saved: ...", or "saved history notes" when nothing else changed. */
 export function describeChanges(body, before) {
   const puts = (body && body.puts) || [], dels = (body && body.dels) || [];
   const names = list => list.length <= 5 ? list.join(', ') : `${list.slice(0, 5).join(', ')} and ${list.length - 5} more`;

@@ -1,6 +1,6 @@
 /* Patch panel page: a row per port with its wall outlet, patch cord and device; the per-port dialog, the bulk helpers
    (name outlets, patch a range) and the patch list import, each with one Undo. The pure rules are in cabling.js. */
-import { $, LOCS, TYPES, byId, hist, now, objs, portLabel, rels, restoreSnapshot, rid, snapshot, toast, toastUndo } from './01-core.js';
+import { $$, $, LOCS, TYPES, byId, hist, now, objs, portLabel, rels, restoreSnapshot, rid, snapshot, toast, toastUndo } from './01-core.js';
 import { allOutlets, cordOf, cordTarget, outletOf, outletPlan, outletNames, panelPort, patchPlan, plugAt, portState, swPortProblem, trunkOf } from './cabling.js';
 import { PATCH_FIELDS, guessPatchMapping, patchChanges, planPatchImport } from './patch-import.js';
 import { csvDelimiter, parseCsv } from './csv.js';
@@ -69,7 +69,7 @@ export function bindPatchPanel(o){
   $('#ppBox').querySelectorAll('[data-ppedit]').forEach(b => b.onclick = () => portModal(o, b.dataset.ppedit));
   $('#ppName').onclick = () => nameOutletsModal(o);
   $('#ppPatch').onclick = () => patchRangeModal(o);
-  $('#ppImport').onclick = () => patchImportModal(o);
+  $('#ppImport').onclick = () => patchImportModal();
 }
 
 const roomOptions = sel => html`<option value="">No room</option>${LOCS.map(l => html`<option value="${l}" ${l === sel ? 'selected' : ''}>${l}</option>`)}`;
@@ -92,7 +92,8 @@ export function portModal(panel, port){
   const fitPorts = () => {
     const sw = byId($('#ppSw').value);
     const keep = cord && sw && cord.to === sw.id ? [{ v: String(cord.port), label: portLabel(sw, cord.port) }] : [];
-    const list = sw ? [...keep, ...freePorts(sw)].sort((a, b) => +a.v - +b.v) : [];
+    /* A switch's free ports, each with its label (a patch panel's would be names only). */
+    const list = sw ? [...keep, .../** @type {{ v: string, label: string }[]} */ (freePorts(sw))].sort((a, b) => +a.v - +b.v) : [];
     $('#ppSwPort').innerHTML = html`${list.length ? list.map(p => html`<option value="${p.v}">${p.label}</option>`) : html`<option value="">${sw ? 'No free port' : DASH}</option>`}`;
     if (keep.length) $('#ppSwPort').value = keep[0].v;
     $('#ppSwPort').disabled = !sw;
@@ -216,7 +217,7 @@ export function patchImportModal(){
   $('#piCancel').onclick = closeModal;
   const read = () => { const rows = parseCsv(w.text); w.headers = (rows[0] || []).map(h => h.trim()); w.rows = rows.slice(1); };
   const foot = (next, go) => {
-    document.querySelectorAll('[data-pistep]').forEach(li => { const n = +li.dataset.pistep; li.className = n === w.step ? 'on' : n < w.step ? 'done' : ''; });
+    $$('[data-pistep]').forEach(li => { const n = +li.dataset.pistep; li.className = n === w.step ? 'on' : n < w.step ? 'done' : ''; });
     $('#piBack').hidden = w.step === 1; $('#piNext').hidden = w.step === 3; $('#piGo').hidden = w.step !== 3;
     $('#piNext').disabled = !next; $('#piGo').disabled = !go;
   };
@@ -240,7 +241,7 @@ export function patchImportModal(){
     const opts = sel => html`<option value="">Ignore</option>${Object.entries(PATCH_FIELDS).map(([k, f]) => html`<option value="${k}" ${sel === k ? 'selected' : ''}>${f.label}</option>`)}`;
     $('#piBody').innerHTML = html`<div class="imp-map">${w.headers.map((h, i) => html`<label class="imp-col"><span class="imp-head" title="${h}">${h || `Column ${i + 1}`}</span><select data-picol="${i}" aria-label="Field for the column ${h || `Column ${i + 1}`}">${opts(w.mapping[i])}</select></label>`)}</div>
       <p class="note">${w.mapping.includes('panel') && w.mapping.includes('port') ? 'Each field comes from one column.' : html`<b>Pick the columns with the panel and its port</b> to go on.`}</p>`;
-    document.querySelectorAll('[data-picol]').forEach(s => s.onchange = () => { const i = +s.dataset.picol, f = s.value; w.mapping = w.mapping.map((m, j) => j === i ? f : m === f ? '' : m); step2(); });
+    $$('[data-picol]').forEach(s => s.onchange = () => { const i = +s.dataset.picol, f = s.value; w.mapping = w.mapping.map((m, j) => j === i ? f : m === f ? '' : m); step2(); });
     foot(w.mapping.includes('panel') && w.mapping.includes('port'), false);
   };
   const step3 = () => {

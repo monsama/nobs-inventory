@@ -7,6 +7,8 @@ export function csvDelimiter(text) {
   const count = c => head.split(c).length - 1;
   return [';', ',', '\t'].reduce((best, c) => count(c) > count(best) ? c : best, ',');
 }
+/* Splits CSV text into rows of cells. Quotes hold delimiters and line breaks, a doubled quote is a quote, and
+   rows with only blank cells are left out. */
 export function parseCsv(text) {
   const rows = []; let row = [], cell = '', q = false;
   const delim = csvDelimiter(text);

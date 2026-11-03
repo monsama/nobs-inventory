@@ -8,6 +8,9 @@ import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
 import { purgeOrphanImages } from './device-images.js';
 
+/* Adds the inventory routes: GET /api/state (all of it, or what changed since, cut to what the person may see, without
+   the admin-only settings and sign-in names for a viewer), PUT /api/state, POST /api/changes (the page's saves),
+   factory reset, clearing the connections, and the floor-plan images. Only admins change anything. */
 export function registerStateRoutes(app, ctx) {
   const { db, requireUser, requireAdmin } = ctx;
   /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
@@ -86,6 +89,8 @@ export function registerStateRoutes(app, ctx) {
     res.json(s);
   });
 
+  /* The whole inventory replaced in one save (the page itself saves only its changes, below). It must keep the admin
+     asking and at least one active admin. */
   app.put('/api/state', requireUser, requireAdmin, (req, res, next) => {
     try {
       const incoming = req.body;

@@ -10,7 +10,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 import { html } from './html.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
@@ -31,6 +31,7 @@ export const SET_TABS = [['locations','Locations'],['users','People'],['access',
 const SET_GROUPS = { users: [['users', 'People'], ['access', 'Access'], ['company', 'Company']], vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'All fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
 const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['sources','Data sources'],['maintenance','System']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
+/* Opens the Settings dialog: the top row of tabs, a second row for a group's tabs, and the pane of st.setTab. */
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
@@ -68,11 +69,13 @@ export function collapsibleSections(root, prefix){
 }
 /* The Lansweeper type names and type rules: under Advanced, kept open while Settings is, once opened. */
 let typeAdvOpen = false;
+/* Draws the Settings tab in st.setTab: its empty boxes, then each filled by its settings-*.js module. Someone who is not
+   an admin gets a Read only note on top. */
 export function renderSetPane(){
   const grp = setGroupOf(st.setTab);
-  document.querySelectorAll('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
-  document.querySelectorAll('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
-  document.querySelectorAll('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
+  $$('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
+  $$('#setTabs [data-sg]').forEach(b => b.classList.toggle('active', b.dataset.sg === grp));
+  $$('#setTabs [data-sub]').forEach(r => { r.hidden = r.dataset.sub !== grp; });
   const pane = $('#setPane');
   /* Each source's page: its status header and connection, then the fields it brings (#srcFields, settings-sources.js). */
   const fields = src => `<div id="srcFields" data-src="${src}"></div>`;
@@ -159,7 +162,7 @@ export function applyRole(){
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
   /* A control that only picks what is shown (data-view: whose fields Settings → Device types lists) stays open. */
-  document.querySelectorAll(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
+  $$(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
     if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
     if (!el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
   });

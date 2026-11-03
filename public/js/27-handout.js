@@ -48,6 +48,8 @@ const proposeOffice = u => {
 /* Take back into stock: asked where they go (where they are, or a room; the room last used for this is proposed,
    kept in this browser), then done with Undo. */
 const STOCK_ROOM = 'ni-stock-room';
+/* The Take back dialog for the devices in list (retired ones left out): where they go, the site's store room or the
+   room used last proposed. Remembers the room in this browser and passes it to takeBack. */
 export function takeBackModal(list){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
@@ -76,6 +78,8 @@ export function takeBackModal(list){
   };
   $('#tbOk').focus();
 }
+/* Takes the devices back into stock: no person, status stock, moved to loc when one is given, with a history line
+   each. Saves, draws the page again and offers Undo. */
 export function takeBack(list, loc = ''){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
@@ -93,7 +97,7 @@ export function takeBack(list, loc = ''){
 /* The people to choose from: active ones first, by name; the search finds by name, login or department. */
 const SHOWN = 8;
 const people = q => USERS.filter(u => (u.active !== false || q) && (!q || [u.name, u.login, u.dept].some(x => low(x).includes(q))))
-  .sort((a, b) => (a.active === false) - (b.active === false) || a.name.localeCompare(b.name));
+  .sort((a, b) => +(a.active === false) - +(b.active === false) || a.name.localeCompare(b.name));
 
 /* Hand out the devices (ids) to a person picked here. */
 export function handOutModal(ids){

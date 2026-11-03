@@ -8,6 +8,8 @@ import { audit } from './db.js';
 import { HttpError } from './errors.js';
 import { PAGE_SETTINGS, SETTING_NAMES, applyChanges, settingOf } from './state.js';
 
+/* Adds POST /api/log/restore, for admins: the old value is saved through applyChanges against the current revision (a
+   409 when someone saved it at the same moment) and logged as a new change. */
 export function registerLogRoutes(app, { db, requireUser, requireAdmin }) {
   /* body { at, setting, path }: the logged change, found again in the log; its old value is read from there, never from the page. */
   app.post('/api/log/restore', requireUser, requireAdmin, (req, res, next) => {
