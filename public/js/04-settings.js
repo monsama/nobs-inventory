@@ -143,11 +143,9 @@ export const ownOnly = () => { const u = me(); return !!u && u.role === 'viewer'
 /* The sites a viewer limited to some sees, or null: the sidebar lists only those. */
 export const seenSites = () => { const u = me(); return u && u.role !== 'admin' && Array.isArray(u.sites) && u.sites.length ? u.sites : null; };
 export const roleLabel = u => u.role === 'admin' ? 'Admin' : u.role === 'none' ? 'No access' : 'Viewer';
-/* Viewers: controls in the page are disabled, navigation stays. */
-export const RO_KEEP = /Cancel|Close|Back|^setTab|^setClose$/;
-export const RO_NAV = 'button[data-mine],button[data-myreport],#myRep,#myRepOk,#myRepNo,.wctl button,.tray-chip button,button[data-adg],button.ov-tile,button.ov-row,button.ov-bar,button[data-open],button[data-devs],button.sw-tg,button[data-person],button[data-loc],button[data-st],button[data-tab],button[data-close],button.item,button.tab,button.card,button.port,button.node,button.link,a';
-/* Looking, not changing: searches, view switches and zoom. Settings → Device types: tfType picks whose fields are shown. */
-export const RO_INPUT_OK = /^(search|mapFocus|mapOnly|mapLabels|cardJoin|cnKind|mapAttached|grp|portsDevice|rkSel|swCollapse|plSel|plZoomIn|plZoomOut|plZoomReset|tfType|rkOpen)$/;
+/* Someone who only reads: each view draws no adding, removing or other changing for them (isAdmin), so lists, views,
+   search, zoom and opening things work as for an admin. What is shown as a form (a device's fields, Settings, the port
+   setup: marked data-edit) is shown locked. */
 export function applyRole(){
   const ro = !isAdmin();
   document.body.classList.toggle('readonly', ro);
@@ -155,11 +153,11 @@ export function applyRole(){
   $('#newBtn').disabled = ro; $('#newBtn').hidden = ro;
   $('#whoBtn').textContent = me() ? me().name + ' · ' + roleLabel(me()) : (USERS.length ? 'Signed out · read only' : 'No users yet');
   $('#signOutBtn').hidden = !me();
-  ['#view', '#toolbar', '#modalHost'].forEach(sel => $(sel).querySelectorAll('button, input, select, textarea').forEach(el => {
+  /* A control that only picks what is shown (data-view: whose fields Settings → Device types lists) stays open. */
+  document.querySelectorAll(':is(#setPane, [data-edit]) :is(button, input, select, textarea):not([data-view])').forEach(el => {
     if (!ro){ if (el.dataset.roLocked){ el.disabled = false; delete el.dataset.roLocked; } return; }
-    if (el.closest('.box.free') || el.matches(RO_NAV) || RO_KEEP.test(el.id) || RO_INPUT_OK.test(el.id) || el.closest('.fr') || el.closest('.hits') || el.closest('#setTabs')) return;
-    if (el.matches('button, input, select, textarea') && !el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
-  }));
+    if (!el.disabled){ el.dataset.roLocked = '1'; el.disabled = true; }
+  });
 }
 export const userId = () => 'u' + Math.random().toString(36).slice(2, 9);
 /* source: 'lansweeper' for a person first named as a device's user by the feed; they are kept like one added by hand. */

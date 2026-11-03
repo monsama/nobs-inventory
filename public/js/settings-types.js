@@ -55,7 +55,7 @@ export function renderSetTypeFields(){
   const list = TYPE_FIELDS[type] || [];
   const nOf = objs.filter(o => o.type === type).length;
   box.innerHTML = `<div class="panelbox tf-box"><div class="hdr">Per type</div>
-    <div class="tf-pick"><label for="tfType">Type</label><select id="tfType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'}</span></div>
+    <div class="tf-pick"><label for="tfType">Type</label><select id="tfType" data-view>${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select><span class="muted">${nOf} ${nOf === 1 ? 'object' : 'objects'}</span></div>
     <div id="tfBuiltin"></div>
     <div class="lpanel-add tf-add"><input id="tfLabel" maxlength="40" placeholder="Add a field of your own, e.g. Asset tag" aria-label="Name of a new field"><select id="tfKind" aria-label="Kind of value"><option value="text">Text</option><option value="number">Number</option></select><button id="tfAdd">Add field</button></div>
     <div id="tfCard"></div></div>`;
