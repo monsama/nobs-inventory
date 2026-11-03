@@ -799,12 +799,10 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .relgroup{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
 .mk{display:inline-block;margin-left:6px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle;white-space:nowrap}
 .mk-new{background:var(--accent);color:#fff}
-/* Edited by hand: a small pencil in the muted text colour, on the name's line; its title says what it means. */
-.mk-hand{display:inline-flex;align-items:center;margin-left:6px;color:var(--muted);vertical-align:middle;flex:none}
+/* Edited by hand: a quiet outlined word in the muted colour; its title says what it means. */
+.mk-hand{border:1px solid var(--bd);color:var(--muted);font-weight:500;line-height:14px;flex:none}
+.card .cf .mk-hand{margin-left:0}
 .card .nmrow{display:flex;align-items:center;min-width:0}
-.card .mk-hand{position:absolute;top:9px;right:10px;margin:0}
-.card .mk-hand svg{width:15px;height:15px}
-.card:has(.mk-hand) .ch{padding-right:34px}
 .card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
@@ -1223,7 +1221,6 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .card .jb{justify-content:center}
 /* With thousands of cards or rows, the browser lays out only those near the screen; the rest keep an estimated size. */
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
-/* On a card the pencil sits in the top right corner, a little larger; the header keeps room for it. */
 .card{content-visibility:auto;contain-intrinsic-size:auto 150px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal;align-self:stretch;border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
 .card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
