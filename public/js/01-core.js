@@ -1,7 +1,9 @@
 import { pad2, stamp, stampTime } from './dates.js';
+import { html } from './html.js';
 import { isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
+import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -113,6 +115,9 @@ export let PLANS = [];
 export const setPlans = v => { PLANS = v; };
 /* Whether Lansweeper is used at all (Settings → Feed). When it is not, none of its data or panels are shown. */
 export const LS_ON = () => st.useLansweeper !== false;
+/* Whether the AD and the Entra & Intune syncs run (Settings → Active Directory, Entra & Intune). Sign-in does not depend on it. */
+export const AD_ON = () => st.useAd !== false;
+export const GRAPH_ON = () => st.useGraph !== false;
 /* Lansweeper in use here: switched on, and set up or having sent something. A new inventory that never had it shows no
    Lansweeper status or filters, however the switch stands. */
 export const LS_USED = () => LS_ON() && (!!(st.lansweeper && (st.lansweeper.endpoint || st.lansweeper.site)) || st.lsSource === 'api' || !!(SYNC && (SYNC.run || SYNC.lansweeper)) || objs.some(o => o.feed) || REVIEW.some(o => o.feed));
@@ -126,13 +131,8 @@ export const FIELD_LABEL = {ip:'IP address', ip6:'IPv6 address', mac:'MAC addres
 /* What else the feed brings, not a field of its own: each has a box in "Feed may overwrite" too. */
 export const FEED_EXTRA = {ipRoom:'Room from IP location', software:'Installed software', links:'Monitors attached to PCs', dept:'Departments of people'};
 export const FEED_EXTRA_HINT = {ipRoom:'A device without a location gets the room its IP address is in, from Lansweeper\'s IP locations', software:'The software Lansweeper finds replaces what it found before; software added by hand stays', links:'Monitors are attached to the PC Lansweeper scanned them on', dept:'A person named by Lansweeper gets the department from the directory Lansweeper reads, when they have none'};
-/* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
-export const WARRANTY_SOON_DAYS = 90;
-export const warrantyState = (o, today = new Date()) => {
-  if (!o.warranty || !/^\d{4}-\d{2}-\d{2}$/.test(o.warranty)) return null;
-  const days = Math.floor((new Date(o.warranty + 'T23:59:59') - today) / 86400000);
-  return days < 0 ? 'ended' : days <= WARRANTY_SOON_DAYS ? 'soon' : 'ok';
-};
+/* Warranty: soon or ended (public/js/notices.js, shared with the server). */
+export { WARRANTY_SOON_DAYS, warrantyState };
 /* A device Lansweeper has not scanned for over three months may be gone, or Lansweeper cannot log on to it: it is sent
    all the same, and flagged so someone checks it by hand. */
 export const SCAN_OLD_DAYS = 90;
@@ -643,7 +643,7 @@ export const UNDO = { epoch: 0 };
 /* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
 export function toastUndo(msg, undo, { anyEpoch = false } = {}){
   const t = $('#toast'), epoch = UNDO.epoch; keepToastOnTop();
-  t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
+  t.innerHTML = html`<span>${msg}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
     t.classList.add('off'); clearTimeout(toast.h);

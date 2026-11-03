@@ -1,23 +1,24 @@
-import { applyDelta } from './delta.js';
-import { pollForChanges, startLive } from './live.js';
-import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
-import { setUsers } from './04-settings.js';
-import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
-import { USERS, applyRole, bindUser, isAdmin, me, ownOnly, pushDate } from './04-settings.js';
+/* Drawing: the open tab, the status bar, back and forward, keyboard shortcuts. Saving, loading and signing in live in
+   server-save.js, server-load.js and signin.js; their names are exported from here too, so importers need not change. */
+import { renderBell } from './06-topbar.js';
+import { lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
+import { updateSync, bindFullTextOnHover, fullTextTooltips, $, byId, esc, objs, st } from './01-core.js';
+import { applyRole, isAdmin, ownOnly } from './04-settings.js';
 import { renderContracts } from './09-costs.js';
 import { renderContacts } from './11-contacts.js';
 import { renderOverview } from './10-overview.js';
 import { renderMine, renderStocktake } from './22-stocktake.js';
-/* An address with ?o=INV-0001 (a link in an e-mail): the inventory number in it. */
-const linkedCode = v => { const m = /[?&]o=([^&#\s]+)/.exec(String(v || '')); if (!m) return ''; try { return decodeURIComponent(m[1]); } catch { return ''; } };
-import { openObjs, FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
+import { FIXED_TABS, tabAllowed, renderCards, renderFilterBar, renderMap, renderPorts, renderSide, renderTable, renderTabs, viewSwitch } from './02-views.js';
 import { renderObj, renderRack, renderSoftware } from './03-object-modals.js';
-import { leaveSettings, closeModal, modal } from './19-modal.js';
+import { closeModal, modal } from './19-modal.js';
 import { newObjModal } from './05-new-object.js';
 import { renderPlans } from './20-plans.js';
-import { forgetPhotos } from './23-photos.js';
 import { syncSearchBox } from './14-global-search.js';
-/* ---------- render, saving and signing in ---------- */
+import { SERVER, saveData } from './server-save.js';
+export * from './server-save.js';
+export * from './server-load.js';
+export * from './signin.js';
+/* ---------- render ---------- */
 /* Draws the open tab, the sidebar and the status bar. A redraw after a change also checks what is unsaved and sends it
    (saveData); a redraw that only shows something else (a filter, a search, another tab) skips that check, which goes
    through every record. */
@@ -50,6 +51,7 @@ export function render({ save = true } = {}){
   bindFullTextOnHover();
   $('#stObjs').textContent = `${objs.length} ${objs.length === 1 ? 'device' : 'devices'}`;
   renderStatus();
+  renderBell(save);
   applyRole();
   noteNav();
   if (save) saveData();
@@ -88,11 +90,8 @@ window.addEventListener('popstate', e => {
 });
 /* A redraw that changes nothing: another tab, filter or search. */
 export const view = () => render({ save: false });
-/* The connection to the server: what it offers (LDAP, Lansweeper, Graph), the revision of each record this page has,
-   and the state of the save in progress. Every change is sent to it; nothing is kept only in this browser. */
-export const SERVER = {on: false, ldap: false, lansweeper: false, graph: false, timer: null, revs: {}, base: null, busy: false, again: false, watching: false, save: 'saved'};
 /* Lansweeper is late when nothing came for two days: the push normally runs every night. */
-export const SYNC_LATE_DAYS = 2;
+const SYNC_LATE_DAYS = 2;
 /* The status bar: whether changes reached the server, and when Lansweeper last sent data. */
 export function renderStatus(){
   const save = $('#stSave'), sync = $('#stSync'); if (!save || !sync) return;
@@ -120,415 +119,22 @@ export function renderStatus(){
   sync.innerHTML = `<span class="dot ${late ? 'warn' : ''}"></span>Lansweeper ${esc(last.at)}`;
   sync.title = late ? `Lansweeper has not sent data for ${Math.floor(last.days)} days. Check the push on the Lansweeper server.` : 'The last time Lansweeper sent data.';
 }
-const setSave = v => { SERVER.save = v; renderStatus(); };
-/* Without a connection (a stocktake in a basement, a phone between floors) what is not saved yet is also kept on this
-   device, so closing the page or the phone dropping it loses nothing: after the next sign-in on it, by the same person,
-   it goes back on top and is saved. Only this person's own unsaved changes; removed once saved or on sign-out. */
-const OFFLINE_KEY = 'ni-offline';
-function keepOffline(){
-  try {
-    const { puts, dels } = pendingChanges();
-    if (!puts.length && !dels.length) return;
-    localStorage.setItem(OFFLINE_KEY, JSON.stringify({ user: st.meId, at: new Date().toISOString(),
-      puts: puts.map(({ kind, id, key, json, base }) => ({ kind, id, key, json, base })), dels: dels.map(({ kind, id, key, base }) => ({ kind, id, key, base })) }));
-  } catch { /* storage full or blocked: the changes stay in the page, as before */ }
-}
-export function dropOffline(){ try { localStorage.removeItem(OFFLINE_KEY); } catch { /* none */ } }
-export const offlineKept = () => { try { const v = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); return v && v.user === st.meId ? v : null; } catch { return null; } };
-/* After sign-in: changes kept offline on this device go back on top of the server's inventory and are saved. */
-function restoreOffline(){
-  const kept = offlineKept(); if (!kept || !isAdmin()) return;
-  /* Of the settings, the stocktakes (what a stocktake found and noted) are what is changed without a connection. */
-  const stk = kept.puts.find(c => c.kind === 'setting' && c.id === 'stocktakes');
-  if (stk) st.stocktakes = JSON.parse(stk.json);
-  /* Rooms added there come back too. */
-  const locs = kept.puts.find(c => c.kind === 'setting' && c.id === 'locs');
-  if (locs) for (const l of JSON.parse(locs.json)) if (!LOCS.includes(l)) LOCS.push(l);
-  const n = replayLocal({ puts: kept.puts.filter(c => c.kind !== 'setting'), dels: kept.dels }, []) + (stk ? 1 : 0);
-  /* Each is saved on the revision it was made on: what someone else changed meanwhile comes back as a conflict, to be
-     decided, instead of being overwritten. */
-  for (const c of [...kept.puts, ...kept.dels]) if (Number.isInteger(c.base) && c.base !== null) SERVER.revs[c.key] = c.base;
-  if (n){ toast(`${n} change${n === 1 ? '' : 's'} made without a connection ${n === 1 ? 'is' : 'are'} saved now`); render(); queueServerSave(); }
-}
-if (typeof window !== 'undefined') window.addEventListener('online', () => { if (SERVER.base && SERVER.save === 'offline') sendChanges(); });
-export function saveData(){ queueServerSave(); }
-/* Saving. The page remembers, for every record, what it last saw (SERVER.base) and the revision the server gave it
-   (SERVER.revs). A save sends only the records that differ from what it saw, each with that revision. A record that
-   changed on the server since is not saved; the page then shows the newer version. */
-export const PREFERENCES = ['mapPos'];
-export function documents(){
-  const m = new Map();
-  objs.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
-  REVIEW.forEach(o => m.set('object|' + o.id, {kind:'object', id:o.id, value:o}));
-  rels.forEach(r => m.set('rel|' + r.id, {kind:'rel', id:String(r.id), value:r}));
-  USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
-  Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
-  Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, stockRooms: st.stockRooms || {}, savedViews: st.savedViews || [], fieldOrder: st.fieldOrder || {}, fieldMode: st.fieldMode || {}, stocktakes: st.stocktakes || [], peopleNotSame: st.peopleNotSame || [], groupRoles: st.groupRoles || [], lifecycle: st.lifecycle || {}, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
-  /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
-  if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
-  Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
-  return m;
-}
-let LOAD_FIX = null;
-export function setBaseline(){
-  SERVER.base = new Map();
-  for (const [k, d] of documents()) SERVER.base.set(k, JSON.stringify(d.value));
-  /* Who is signed in is known only once the load is done: an admin's page then saves what the load made, anyone
-     else's takes it into the base again. */
-  const fix = LOAD_FIX ? [...LOAD_FIX.users.map(id => 'user|' + id), ...LOAD_FIX.objs.map(id => 'object|' + id)] : [];
-  LOAD_FIX = null;
-  if (!fix.length) return;
-  fix.forEach(k => SERVER.base.delete(k));
-  setTimeout(() => {
-    if (isAdmin()) return queueServerSave();
-    const now = documents();
-    fix.forEach(k => { if (!SERVER.base.has(k) && now.has(k)) SERVER.base.set(k, JSON.stringify(now.get(k).value)); });
-  }, 0);
-}
-/* Only an admin saves: a viewer's page sends nothing (what moved on their screen, a box on the map, goes with the next
-   reload). */
-export function pendingChanges(){
-  const now = documents(), puts = [], dels = [];
-  if (!isAdmin()) return {puts, dels};
-  for (const [k, d] of now){
-    const json = JSON.stringify(d.value);
-    if (SERVER.base.get(k) === json) continue;
-    const pref = d.kind === 'setting' && PREFERENCES.includes(d.id);
-    puts.push({key:k, kind:d.kind, id:d.id, value:d.value, json, base: pref ? null : (SERVER.revs[k] ?? 0)});
-  }
-  for (const k of SERVER.base.keys()){
-    if (now.has(k)) continue;
-    const i = k.indexOf('|');
-    dels.push({key:k, kind:k.slice(0, i), id:k.slice(i + 1), base: SERVER.revs[k] ?? 0});
-  }
-  return {puts, dels};
-}
-/* Saves now, without waiting for the pause after an edit: a new object gets its code straight away. */
-export function flushSave(){ clearTimeout(SERVER.timer); return sendChanges(); }
-export function queueServerSave(){
-  if (!SERVER.base) return;   /* nothing has been loaded yet */
-  clearTimeout(SERVER.timer);
-  SERVER.timer = setTimeout(sendChanges, 400);
-}
-/* Changes are sent in batches of about BATCH.bytes, so a large edit is not refused as too big. Each batch is saved on its own. */
-export const BATCH = { bytes: 2000000 };
-export function batches(puts, dels){
-  const out = []; let cur = {puts: [], dels: []}, size = 0;
-  const add = (kind, c) => {
-    const n = (c.json || '').length + String(c.id || '').length + 100;
-    if (size + n > BATCH.bytes && (cur.puts.length || cur.dels.length)){ out.push(cur); cur = {puts: [], dels: []}; size = 0; }
-    cur[kind].push(c); size += n;
-  };
-  puts.forEach(c => add('puts', c)); dels.forEach(c => add('dels', c));
-  if (cur.puts.length || cur.dels.length) out.push(cur);
-  return out;
-}
-/* A save that asks while another is in progress waits for that one, so the caller knows what was sent. */
-export function sendChanges(){
-  if (SERVER.busy){ SERVER.again = true; return SERVER.inflight; }
-  SERVER.inflight = sendNow();
-  return SERVER.inflight;
-}
-async function sendNow(){
-  if (!isAdmin()) return;
-  const pending = pendingChanges();
-  if (!pending.puts.length && !pending.dels.length) return;
-  SERVER.busy = true; SERVER.saves = (SERVER.saves || 0) + 1; setSave('saving');
-  let ok = false;
-  try {
-    for (const {puts, dels} of batches(pending.puts, pending.dels)) {
-      const body = {puts: puts.map(({kind, id, value, base}) => ({kind, id, value, base})), dels: dels.map(({kind, id, base}) => ({kind, id, base}))};
-      const r = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)});
-      if (r.status === 401){ loginModal('Your sign-in has ended. Sign in again.'); setSave('failed'); return; }
-      const j = await r.json().catch(() => ({}));
-      /* Refused for good (403: not this person's to change): those changes are taken back from the server's version, so
-         they neither block every later save nor come back with a reload. */
-      if (r.status === 403){
-        toast('Not saved: ' + (j.error || 'not yours to change') + ' The change was taken back.');
-        SERVER.busy = false;
-        await reloadFromServer({ flush: false, skip: [...puts, ...dels].map(c => c.key) });
-        setSave('saved'); return;
-      }
-      if (!r.ok){ toast('Not saved: ' + (j.error || r.status)); setSave('failed'); return; }
-      for (const [id, code] of Object.entries(j.codes || {})){ const o = byId(id); if (o) o.code = code; }
-      if (Object.keys(j.codes || {}).length) render();
-      const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
-      for (const [key, rev] of Object.entries(j.revs || {})){
-        SERVER.revs[key] = rev;
-        /* A record the server wrote along with this save (the code counter): only its version is kept. */
-        const c = sent.get(key); if (!c) continue;
-        if (c.json === undefined){ SERVER.base.delete(key); continue; }
-        const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
-        SERVER.base.set(key, JSON.stringify(v));
-      }
-      if (j.conflicts && j.conflicts.length){
-        const KIND_NAME = { object: 'a device', rel: 'a connection', setting: 'a setting', user: 'a user', type: 'a device type', history: 'a history entry' };
-      const names = j.conflicts.map(k => { const c = sent.get(k); return c && c.value && c.value.name ? c.value.name : KIND_NAME[k.split('|')[0]] || k; });
-        const refused = j.conflicts.map(k => sent.get(k)).filter(c => c && c.kind === 'object' && c.json)
-          .map(c => ({ id: c.id, name: c.value.name, mine: JSON.parse(c.json), base: JSON.parse(SERVER.base.get(c.key) || 'null') }));
-        toast('Not saved, changed by someone else: ' + names.join(', ') + '. The newer version is shown.');
-        /* Only the records someone else changed take their version; edits made meanwhile stay and are saved next. */
-        await reloadFromServer({ flush: false, skip: j.conflicts });
-        const items = refused.map(r => {
-          const now = byId(r.id);
-          return { id: r.id, name: r.name, gone: !now, fields: now ? changedFields(r.mine, r.base).map(k => ({ k, mine: r.mine[k], theirs: now[k] })) : [] };
-        }).filter(i => i.gone || i.fields.length);
-        if (items.length) refusedModal(items);
-      }
-    }
-    ok = true;
-  } catch {
-    if (SERVER.save !== 'offline') toast('No connection: your changes are kept on this device and sent when it is back.');
-    keepOffline();
-    setSave('offline');
-  } finally {
-    SERVER.busy = false;
-    if (ok){ setSave('saved'); if (!pendingChanges().puts.length) dropOffline(); }
-    if (SERVER.again){ SERVER.again = false; queueServerSave(); }
-  }
-}
-/* The fields a person changed on an object, to offer them again after a refused save. */
-export const NOT_EDITED = ['id', 'code', 'feed'];
-export function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_EDITED.includes(k) && JSON.stringify(mine[k]) !== JSON.stringify((base || {})[k])); }
-export const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
-/* Shows what a person changed and the newer version, so a refused edit is not lost. */
-export function refusedModal(items){
-  modal(`<div class="mh">Not saved: changed by someone else</div>
-    <div class="mb"><p class="note">Someone else saved these records first, so your changes were not saved. The inventory shows their version. You can apply your changes again.</p>
-      ${items.map(it => `<div class="panelbox"><div class="hdr">${esc(it.name)}${it.gone ? ' <span class="muted">· deleted by someone else</span>' : ''}</div>
-        ${it.fields.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => `<tr><td>${esc(FIELD_LABEL[f.k] || f.k)}</td><td>${esc(shown(f.mine))}</td><td>${esc(shown(f.theirs))}</td></tr>`).join('')}</tbody></table>` : ''}
-      </div>`).join('')}</div>
-    <div class="mf"><button id="rfKeep">Keep theirs</button><button id="rfApply" class="primary">Apply mine again</button></div>`, 'wide');
-  $('#rfKeep').onclick = closeModal;
-  $('#rfApply').onclick = () => {
-    let n = 0;
-    for (const it of items){ const o = byId(it.id); if (!o || it.gone) continue; for (const f of it.fields){ o[f.k] = f.mine; if (f.k !== 'src') markHand(o, f.k); n++; } }
-    closeModal(); saveData(); render(); toast(n ? 'Your changes are applied again' : 'Nothing to apply');
-  };
-}
-/* Loads the inventory and its revisions from the server, and makes it the base for the next save. Changes not saved
-   yet are saved first; what still cannot be saved (offline, signed out) is put back on top and saved later, so a
-   reload never drops an edit. Records in skip are the ones someone else changed: their newer version is kept. After a restore (discard), the
-   restored inventory replaces everything here. */
-export async function reloadFromServer({ flush = true, skip = [], discard = false, data = null } = {}){
-  let d = data;
-  if (flush && !discard && SERVER.base && isAdmin()){
-    if (SERVER.busy) await SERVER.inflight;
-    const had = pendingChanges();
-    await flushSave();
-    /* An edit made while the changes were loading was just saved: the copy loaded before it is older, so read again. */
-    if (had.puts.length || had.dels.length) d = null;
-  }
-  if (!d){
-    const r = await fetch('api/state', {credentials: 'same-origin'});
-    if (r.status === 401){ loginModal(); return false; }
-    if (!r.ok){ toast('The inventory could not be loaded.'); return false; }
-    d = await r.json();
-    keepServerCopy(d);
-  }
-  /* Taken just before the server's version replaces the page's, so an edit made while it loaded is kept too. */
-  const keep = !discard && SERVER.base && isAdmin() ? pendingChanges() : null;
-  applyState(d);
-  SERVER.revs = d.revs || {};
-  setBaseline();
-  /* Settings changed here while it loaded (contracts, plans, locations …) go back on top too; the base stays the
-     server's, so they are saved. */
-  const sets = keep ? keep.puts.filter(c => c.kind === 'setting' && !skip.includes(c.key)) : [];
-  if (sets.length){ const mine = { ...d }; for (const c of sets) mine[c.id] = JSON.parse(c.json); applyState(mine); }
-  if (keep && replayLocal(keep, skip)) queueServerSave();
-  dropMissingTabs();
-  render();
-  return true;
-}
-/* Puts unsaved records back after a reload: objects, connections, users, types and history. */
-function replayLocal({ puts, dels }, skip){
-  const lists = { object: objs, rel: rels, user: USERS };
-  const maps = { type: TYPES, history: HISTORY };
-  let n = 0;
-  for (const c of puts){
-    if (skip.includes(c.key)) continue;
-    const v = JSON.parse(c.json);
-    /* A change kept by a page from before 0.9.88 can still say Not in use or In repair: In stock now, as on the server. */
-    if (c.kind === 'object' && (v.status === 'unused' || v.status === 'repair')) v.status = 'stock';
-    if (c.kind === 'object'){ for (const a of [objs, REVIEW]){ const i = a.findIndex(x => x.id === c.id); if (i >= 0) a.splice(i, 1); } (v.review ? REVIEW : objs).push(v); n++; }
-    else if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0) a[i] = v; else a.push(v); n++; }
-    else if (maps[c.kind]){ maps[c.kind][c.id] = v; n++; }
-  }
-  for (const c of dels){
-    if (skip.includes(c.key)) continue;
-    if (c.kind === 'object'){ for (const a of [objs, REVIEW]){ const i = a.findIndex(x => x.id === c.id); if (i >= 0){ a.splice(i, 1); n++; } } }
-    else if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0){ a.splice(i, 1); n++; } }
-    else if (maps[c.kind] && c.id in maps[c.kind]){ delete maps[c.kind][c.id]; n++; }
-  }
-  return n;
-}
-/* An object open in a tab may have been deleted by someone else: its tab is closed. */
-export function dropMissingTabs(){
-  const gone = id => !FIXED_TABS[id] && !byId(id);
-  st.open = st.open.filter(id => !gone(id));
-  st.tabIds = st.tabIds.filter(id => !gone(id));
-  if (gone(st.tab)) st.tab = 'table';
-}
-/* Other people's saves show up here: when the server says something was saved (live.js), every 15 seconds without that
-   (every 2 minutes with it), and when the window gets focus. Nothing is replaced while there
-   are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
-   (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
-/* The inventory as the server last sent it, untouched by the page, with its running number (cseq): the next check asks
-   only for what changed since (api/state?since=) and applies that to this copy. */
-function keepServerCopy(d){
-  SERVER.copy = Number.isInteger(d.cseq) ? structuredClone(d) : null;
-  SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
-}
-/* false when it was held back (see above) and asked the server nothing. */
-export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return false;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
-  const {puts, dels} = pendingChanges();
-  /* Changes that could not be sent while the server was away are sent again here. */
-  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
-  let r;
-  const delta = SERVER.copy && SERVER.cseq !== null, saves = SERVER.saves;
-  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
-  if (!r.ok) return true;
-  if (SERVER.save === 'offline') setSave('saved');
-  const d = await r.json();
-  /* A save started while this was on its way: the answer may be older than the page's own change, which would then look
-     like someone else's and reload (losing Undo). It is dropped; the next check asks again. */
-  if (SERVER.busy || SERVER.saves !== saves) return false;
-  if (d.delta){
-    /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
-    const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
-    applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
-    if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
-    return true;
-  }
-  keepServerCopy(d);
-  const revs = d.revs || {};
-  const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
-  if (changed) await reloadFromServer({ data: structuredClone(d) });
-  return true;
-}
-export function applyState(d){
-  UNDO.epoch++;
-  /* The photos are read again when a device page opens: the server may have others now (a restore, another admin). */
-  forgetPhotos();
-  objs.splice(0, objs.length, ...d.objs.filter(o => !o.review));
-  REVIEW.splice(0, REVIEW.length, ...d.objs.filter(o => o.review));
-  rels.splice(0, rels.length, ...d.rels);
-  Object.keys(HISTORY).forEach(k => delete HISTORY[k]); Object.assign(HISTORY, d.history);
-  setUsers(d.users); LOCS.splice(0, LOCS.length, ...d.locs);
-  SITES.splice(0, SITES.length, ...(d.sites || []));
-  VLANS.splice(0, VLANS.length, ...(d.vlans || []));
-  DOMAINS.splice(0, DOMAINS.length, ...(d.domains || []));
-  MODELS.splice(0, MODELS.length, ...(d.models || []));
-  CONTACTS.list = Array.isArray(d.contacts) ? d.contacts : [];
-  COSTS.contracts = Array.isArray(d.contracts) ? d.contracts : []; COSTS.licences = Array.isArray(d.licences) ? d.licences : []; COSTS.currency = d.currency || 'CHF';
-  st.typeRules = Array.isArray(d.typeRules) ? d.typeRules : null;
-  st.graphUnmatched = Array.isArray(d.graphUnmatched) ? d.graphUnmatched : []; st.graphFields = d.graphFields && typeof d.graphFields === 'object' ? d.graphFields : null;
-  st.graphAmbiguous = Array.isArray(d.graphAmbiguous) ? d.graphAmbiguous : [];
-  st.adUnmatched = Array.isArray(d.adUnmatched) ? d.adUnmatched : [];
-  st.ldapCa = d.ldapCa && Array.isArray(d.ldapCa.certs) ? d.ldapCa : null;
-  st.syncSchedule = d.syncSchedule && typeof d.syncSchedule === 'object' ? d.syncSchedule : null;
-  COMPANY.name = (d.company && d.company.name) || ''; COMPANY.logo = (d.company && d.company.logo) || '';
-  SUBNETS.splice(0, SUBNETS.length, ...(d.subnets || []));
-  for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
-  Object.assign(FIELD_LAYOUT, d.fieldLayout || {});
-  for (const k of Object.keys(TYPE_FIELDS)) delete TYPE_FIELDS[k];
-  Object.assign(TYPE_FIELDS, d.typeFields || {});
-  PLANS.splice(0, PLANS.length, ...(d.plans || []));
-  st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
-  st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
-  LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
-  if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
-    Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
-  }
-  /* A new server has no saved policy yet: start from the defaults so the Settings panes can be drawn. */
-  Object.assign(st, {policy: d.policy || {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, ip6:true, patch:true, software:true, links:true, dept:true, ipRoom:true}, feedOn: d.feedOn ?? true, feedSync: d.feedSync ?? true, ldap: d.ldap ?? {url: '', bindDn: '', base: '', filter: '', group: '', nightly: true, disable: true, last: null}, mapPos: d.mapPos || {}, lansweeper: d.lansweeper || {}});
-  /* People made here for devices that named a user only by name (a Lansweeper record, an older inventory): they, and the
-     devices now linked to them, are left out of the baseline so the next save sends them (an admin's; a viewer's page
-     keeps them as they are). */
-  const hadUsers = new Set(USERS.map(u => u.id)), hadUid = new Set([...objs, ...REVIEW].filter(o => o.uid).map(o => o.id));
-  objs.forEach(bindUser); REVIEW.forEach(bindUser);
-  LOAD_FIX = { users: USERS.filter(u => !hadUsers.has(u.id)).map(u => u.id), objs: [...objs, ...REVIEW].filter(o => o.uid && !hadUid.has(o.id)).map(o => o.id) };
-  SYNC.defender = objs.some(o => o.defender);   /* the cards show a Defender mark once Defender has been read */
-}
-/* Clears the devices, relations and history on the server for everyone; users, locations, types and settings stay, the
-   racks too unless their box is ticked.
-   It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
-export function clearConfirm(){
-  modal(`<div class="mh">Clear the whole inventory?</div>
-    <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → System → Backups) brings the devices back.</p>
-      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
-      <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>
-      <label class="pchk" style="display:flex;gap:6px;align-items:flex-start;margin:8px 0"><input type="checkbox" id="clrConn" style="margin-top:2px"> Also remove the connections: LDAP, Microsoft Graph with its certificates and keys, the Lansweeper API settings and push token</label>
-      <label class="note" for="clrWord" style="display:block;margin-top:6px">Type CLEAR to confirm</label><input id="clrWord" autocomplete="off" aria-label="Type CLEAR" style="width:100%"></div>
-    <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text" disabled>Clear inventory</button></div>`, 'sm');
-  $('#clrWord').oninput = () => { $('#clrOk').disabled = $('#clrWord').value.trim() !== 'CLEAR'; };
-  $('#clrWord').focus();
-  $('#clrCancel').onclick = closeModal;
-  $('#clrOk').onclick = () => clearAll();
-}
-/* Clears the devices, relations and history on the server, all of them, including any another person added since
-   this page loaded. Users, locations, types and settings stay. */
-export async function clearAll(){
-  if (!isAdmin()){ toast('Only an admin can clear the inventory.'); return; }
-  const r = await fetch('api/state', {credentials: 'same-origin'});
-  if (!r.ok){ toast('The inventory could not be loaded.'); return; }
-  const d = await r.json();
-  /* Objects excluded from sync are kept, unless the box to delete protected objects is ticked. Relations and history of
-     the removed objects go with them; relations between kept objects stay. */
-  const deleteAll = !!($('#clrAll') && $('#clrAll').checked), racksToo = !!($('#clrRacks') && $('#clrRacks').checked);
-  /* Racks stay unless their box is ticked: they are objects, so they are kept here as well. */
-  const removed = new Set(d.objs.filter(o => (racksToo || o.type !== 'rack') && (deleteAll || !o.excluded)).map(o => o.id));
-  const kept = d.objs.length - removed.size;
-  const base = (kind, id) => d.revs[kind + '|' + id] ?? 0;
-  /* What stays must not point at what goes: a kept device leaves a deleted rack (or the device it sat on), and the
-     contracts no longer list the deleted devices. */
-  const puts = d.objs.filter(o => !removed.has(o.id) && (removed.has(o.rack) || removed.has(o.ontop))).map(o => {
-    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) delete v.ontop;
-    return {kind: 'object', id: o.id, value: v, base: base('object', o.id)};
-  });
-  if (Array.isArray(d.contracts) && d.contracts.some(c => (c.devices || []).some(id => removed.has(id))))
-    puts.push({kind: 'setting', id: 'contracts', value: d.contracts.map(c => c.devices ? {...c, devices: c.devices.filter(id => !removed.has(id))} : c), base: base('setting', 'contracts')});
-  const dels = [
-    ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),
-    ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
-    ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
-  ].map(c => ({...c, base: base(c.kind, c.id)}));
-  /* A backup first, kept until someone deletes it: without one nothing is cleared. */
-  const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
-  if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
-  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts, dels})});
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
-  /* The connections go after the devices, so the save above cannot write their settings back. */
-  let connMsg = '';
-  if ($('#clrConn') && $('#clrConn').checked){
-    const c = await fetch('api/connections/clear', {method: 'POST', credentials: 'same-origin'});
-    connMsg = c.ok ? ' Connections removed.' : ' The connections could not be removed.';
-  }
-  leaveSettings(); closeModal();   /* the emptied inventory is shown, not Settings */
-  await reloadFromServer();
-  toast((j.conflicts && j.conflicts.length ? 'Cleared, except ' + j.conflicts.length + ' record(s) that someone changed meanwhile' : (kept ? 'Cleared. ' + kept + ' excluded device' + (kept === 1 ? ' kept' : 's kept') : 'Inventory cleared')) + connMsg);
-}
 /* Keyboard: N new object, / search, C T M R switch views, ? the list. Not while typing or in a dialog. */
-export const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
+const SHORTCUTS = [['N','New device'],['Ctrl + K','Search everything: devices, people, contacts, contracts, rooms'],['/','The search (on a list it filters the list too)'],['↑ ↓ Enter','In the search: pick a hit and open it'],['C','Cards'],['T','Table'],['V','Next view of the tab: Cards ↔ Table, Contracts → Software → Contacts'],['M','Relationships'],['R','Racks'],['Enter','In a dialog: its main button (Create, Save …)'],['Esc','Close a dialog'],['Ctrl + A','Cards and Table: select every device shown (Esc clears)'],['Ctrl + click','Select a card; Shift + click a range'],['Ctrl + wheel','Zoom the floor plan or the relationship map'],['?','This list']];
 /* What the colours of states mean: the same everywhere (badges, dots, chips, bars). */
-export const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
+const COLOURS = [['', 'Green', 'There and fine: in AD, joined to Entra, compliant, Defender active, in use, synced'],
   ['warn', 'Amber', 'Needs a look: only registered in Entra, grace period, inactive, medium risk, ending soon'],
   ['bad', 'Red', 'A problem: not compliant, high risk, ended, failed'],
   ['off', 'Grey ring', 'Not there or off: not joined, not managed, not onboarded, in stock, a source turned off'],
   ['gone', 'Grey', 'Done: retired']];
-export const coloursTable = () => `<table class="grid mini colours" style="min-width:0"><tbody>${COLOURS.map(([c, l, t]) => `<tr><td><span class="dot ${c}"></span> <b>${l}</b></td><td>${t}</td></tr>`).join('')}</tbody></table>
+const coloursTable = () => `<table class="grid mini colours" style="min-width:0"><tbody>${COLOURS.map(([c, l, t]) => `<tr><td><span class="dot ${c}"></span> <b>${l}</b></td><td>${t}</td></tr>`).join('')}</tbody></table>
   <p class="note">Blue marks links, the selection and actions, never a state.</p>`;
 export function coloursModal(){
   modal(`<div class="mh">What the colours mean</div><div class="mb">${coloursTable()}</div>
     <div class="mf"><button id="clClose" class="primary">Done</button></div>`, 'sm');
   $('#clClose').onclick = closeModal;
 }
-export function shortcutsModal(){
+function shortcutsModal(){
   modal(`<div class="mh">Keyboard shortcuts</div><div class="mb"><table class="grid mini" style="min-width:0"><tbody>
     ${SHORTCUTS.map(([k, t]) => `<tr><td class="mono"><b>${k}</b></td><td>${t}</td></tr>`).join('')}</tbody></table>
     <div class="hdr" style="margin-top:14px">Colours</div>${coloursTable()}</div>
@@ -549,167 +155,3 @@ document.addEventListener('keydown', e => {
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
   if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }
 });
-
-/* The version comes from the server. It is shown in the footer and in Settings → About. */
-export async function loadVersion(){
-  if (!APP_VERSION){
-    try { const r = await fetch('api/health', {credentials: 'same-origin'}); if (r.ok) setAppVersion((await r.json()).version || ''); } catch { /* no version is shown when it cannot be read */ }
-  }
-  const foot = $('#verFoot'); if (foot) foot.textContent = 'NOBS Inventory ' + APP_VERSION;
-  return APP_VERSION;
-}
-export async function boot(){
-  loadVersion();
-  let info = null;
-  try { const r = await fetch('api/me', {credentials: 'same-origin'}); if (r.ok) info = await r.json(); } catch { info = null; }
-  if (!info){ showUnreachable(); return; }
-  SERVER.on = true; SERVER.ldap = info.ldap; SERVER.lansweeper = info.lansweeper; SYNC.lansweeper = !!(info.lansweeper || info.lansweeperFeed); SERVER.graph = !!info.graph; SYNC.graph = SERVER.graph; SERVER.sso = !!info.sso;
-  /* Back from Microsoft: what went wrong, if anything, said on the sign-in; the address is cleaned. */
-  const ssoErr = new URLSearchParams(location.search).get('sso');
-  if (ssoErr) history.replaceState(null, '', location.pathname + location.hash);
-  if (!info.user){ clearInventory(); render(); loginModal(ssoErr ? (Object.hasOwn(SSO_ERRORS, ssoErr) ? SSO_ERRORS[ssoErr] : SSO_ERRORS.failed) : ''); return; }
-  await loadFromServer(info.user);
-}
-/* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
-export function showUnreachable(){
-  document.body.classList.add('signed-out');
-  modal(`<div class="mh">NOBS Inventory</div><div class="mb"><p class="note" style="color:var(--danger)">The inventory server cannot be reached. Check that it is running, then try again.</p></div>
-    <div class="mf"><button id="unTry" class="primary">Try again</button></div>`, 'sm free locked');
-  $('#unTry').onclick = () => location.reload();
-}
-/* Before sign-in the page holds no inventory. */
-export function clearInventory(){
-  objs.length = 0; REVIEW.length = 0; rels.length = 0; LOCS.length = 0; VLANS.length = 0; DOMAINS.length = 0; setUsers([]);
-  for (const k of Object.keys(FIELD_LAYOUT)) delete FIELD_LAYOUT[k];
-  for (const k of Object.keys(TYPE_FIELDS)) delete TYPE_FIELDS[k];
-  Object.keys(HISTORY).forEach(k => delete HISTORY[k]);
-  st.open = []; st.tab = 'cards';
-}
-export async function loadFromServer(user){
-  if (!(await reloadFromServer())) return;
-  document.body.classList.remove('signed-out');
-  st.meId = user.id;
-  /* Someone who sees only their own devices starts on them. */
-  if (ownOnly() && st.tab === 'cards') st.tab = 'mine';
-  if (!SERVER.watching){ SERVER.watching = true; setInterval(pollForChanges, 15000); window.addEventListener('focus', checkForChanges); startLive(); }
-  render();
-  restoreOffline();
-  openLinked();
-}
-/* An address with ?o=INV-0001 (the link in a reported problem's e-mail): that device opens. */
-function openLinked(){
-  const code = linkedCode(location.search); if (!code) return;
-  history.replaceState(history.state, '', location.pathname + location.hash);
-  const o = objs.find(x => x.code === code) || objs.find(x => String(x.id) === code);
-  if (o) openObjs([o.id]); else toast(`${code} is not in the inventory.`);
-}/* What the sign-in says when Microsoft's sign-in did not let someone in (the reason itself is in the log). */
-const SSO_ERRORS = {
-  unknown: 'Your Microsoft account is not a user of the inventory. An admin can add you, or sync the people from AD or Entra.',
-  norole: 'Your account has no access to the inventory yet. An admin can give you the viewer role in Settings → Users.',
-  denied: 'The sign-in with Microsoft was cancelled or refused.',
-  off: 'Sign-in with Microsoft is turned off.',
-  failed: 'The sign-in with Microsoft did not work. Try again; if it keeps failing, an admin finds the reason in the log.',
-};
-/* Sign in with a login and password, or with Microsoft when that is turned on. The server checks the account, or the
-   directory when LDAP is set up. */
-export function loginModal(err = '', login = ''){
-  document.body.classList.add('signed-out');
-  modal(`<div class="mh">Sign in</div>
-    <div class="mb"><div class="brandmark" style="margin:2px 0 16px"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div><form id="loginForm" class="form" style="padding:0">
-      <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
-      <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
-    </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p>
-    ${SERVER.sso ? `<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>` : ''}</div>
-    <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
-  /* Microsoft's sign-in leaves the page: changes not saved yet would be lost. Said first; a second click goes anyway. */
-  const ms = document.querySelector('.lg-ms');
-  if (ms) ms.addEventListener('click', e => {
-    const p = SERVER.base ? pendingChanges() : { puts: [], dels: [] }, n = p.puts.length + p.dels.length;
-    if (!n || ms.dataset.warned) return;
-    e.preventDefault(); ms.dataset.warned = '1';
-    $('#lgErr').textContent = `${n} change${n === 1 ? ' is' : 's are'} not saved yet and would be lost. Sign in with your password to keep ${n === 1 ? 'it' : 'them'}, or click Sign in with Microsoft again to go on.`;
-  });
-  const go = async () => {
-    const login = $('#lgUser').value;
-    const r = await fetch('api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
-      body: JSON.stringify({login, password: $('#lgPw').value})});
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok){ loginModal(j.error || 'Sign in failed.', login); return; }
-    closeModal();
-    /* Signed in again after the sign-in ended: what was not saved is sent now (the load saves it first). Someone else
-       signing in on this page does not send the previous person's changes under their name. */
-    if (SERVER.base && String(j.user.id) !== String(st.meId)) SERVER.base = null;
-    await loadFromServer(j.user);
-  };
-  $('#lgOk').onclick = go;
-  $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });
-  (login ? $('#lgPw') : $('#lgUser')).focus();
-}
-/* The browsers this account is signed in on. A session ends on its own after two hours without use. */
-export const browserName = ua => {
-  const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
-  return os ? b + ' on ' + os : b;
-};
-export async function loadMySessions(){
-  const box = $('#acSessions'); if (!box) return;
-  const r = await fetch('api/me/sessions', {credentials: 'same-origin'});
-  if (!r.ok){ box.innerHTML = '<p class="note">The sessions could not be loaded.</p>'; return; }
-  const list = (await r.json()).sessions;
-  const others = list.filter(x => !x.current).length;
-  box.innerHTML = list.length ? `<div class="sess-list">${list.map(x => `<div class="sess">
-      <div class="sess-main"><div class="sess-name">${esc(browserName(x.agent))}${x.current ? '<span class="sess-here">This browser</span>' : ''}</div><div class="sess-when">Last used ${esc(pushDate(x.last))}</div></div>
-      ${x.current ? '' : `<button data-endsess="${esc(x.id)}" aria-label="End this session">End</button>`}</div>`).join('')}</div>
-    <div class="sess-foot"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>` : '<p class="note">No browsers are signed in.</p>';
-  box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
-  if ($('#acEndOthers')) $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
-}
-/* Your own account: name and department, and the password. Directory users keep their name, department and password in
-   the directory, so for them it only shows them (and the signed-in browsers). */
-export function accountModal(){
-  const u = me(), ldap = u.source === 'ldap';
-  const parts = (u.name || '').split(' ');
-  modal(`<div class="mh">Your account</div>
-    <div class="mb"><div class="form" style="padding:0">
-      <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '—')}${ldap ? ' · directory' : ''}</div>
-      <label for="acFirst">First name</label><input id="acFirst" value="${esc(u.first ?? parts[0] ?? '')}" ${ldap ? 'disabled' : ''}>
-      <label for="acLast">Last name</label><input id="acLast" value="${esc(u.last ?? parts.slice(1).join(' '))}" ${ldap ? 'disabled' : ''}>
-      <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}" ${ldap ? 'disabled' : ''}>
-    </div>
-    ${ldap ? '<p class="note">Your name, department and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
-    <div class="form" style="padding:0">
-      <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
-      <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">
-      <label for="acNew2">Repeat</label><input id="acNew2" type="password" autocomplete="new-password">
-    </div>`}
-    <div class="hdr" style="margin:14px -14px 8px">Signed-in browsers</div>
-    <div id="acSessions"><p class="note">Loading…</p></div>
-    <p class="note" id="acErr"></p></div>
-    <div class="mf"><button id="acClose">Close</button><button id="acPw" ${ldap ? 'hidden' : ''}>Change password</button><button id="acSave" class="primary" ${ldap ? 'hidden' : ''}>Save</button></div>`, 'sm');
-  loadMySessions();
-  const fail = msg => { $('#acErr').textContent = msg; };
-  $('#acClose').onclick = closeModal;
-  $('#acSave').onclick = async () => {
-    if (ldap){ closeModal(); return; }
-    const first = $('#acFirst').value.trim(), last = $('#acLast').value.trim();
-    if (!first && !last) return fail('Give a first or last name.');
-    const r = await fetch('api/me', {method: 'PUT', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({first, last, dept: $('#acDept').value.trim()})});
-    if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The details could not be saved.');
-    closeModal(); await reloadFromServer(); toast('Saved');
-  };
-  $('#acPw').onclick = async () => {
-    const cur = $('#acCur').value, pw = $('#acNew').value;
-    if (!cur) return fail('Type your current password.');
-    if (pw.length < PW_MIN) return fail(`The new password needs at least ${PW_MIN} characters.`);
-    if (pw !== $('#acNew2').value) return fail('The two new passwords are not the same.');
-    const r = await fetch('api/me/password', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({current: cur, password: pw})});
-    if (!r.ok) return fail((await r.json().catch(() => ({}))).error || 'The password was not changed.');
-    closeModal(); toast('Password changed. Other browsers are signed out.');
-  };
-  $('#acFirst').focus();
-}
-export async function signOut(){
-  dropOffline();
-  await fetch('api/logout', {method: 'POST', credentials: 'same-origin'});
-  location.reload();
-}

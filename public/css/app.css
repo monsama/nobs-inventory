@@ -334,6 +334,10 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .svrow .item{flex:1;min-width:0}
 .svrow .icon{width:24px;height:24px;flex:none;opacity:0}
 .svrow:hover .icon,.svrow:focus-within .icon{opacity:1}
+.svrow .sv-mail-i{width:13px;height:13px;flex:none;color:var(--muted)}
+.sv-mail{margin:12px 0 0;padding:8px 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m)}
+.sv-mail legend{padding:0 4px;font-weight:600}
+.sv-mail textarea{width:100%;resize:vertical}
 @media (hover:none){.svrow .icon{opacity:1}}
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -806,7 +810,7 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .card .nmrow{display:flex;align-items:center;min-width:0}
 .card .mk-hand{position:absolute;top:9px;right:10px;margin:0}
 .card .mk-hand svg{width:15px;height:15px}
-.card:has(.mk-hand) .ch{padding-right:22px}
+.card:has(.mk-hand) .ch{padding-right:34px}
 .card .nmrow .mk{flex:none}
 .port.grp{box-shadow:inset 0 -4px 0 var(--g)}
 .port.grp.lag{border-style:dashed}
@@ -1111,6 +1115,23 @@ table.grid a.rowopen:hover{text-decoration:underline}
    the coffee link open from More, so the page keeps its height for the inventory. */
 #barMoreBtn{display:none}
 #barMore{display:contents}
+/* The bell: a count in red (a problem among them) or amber; its list says what and leads there. */
+#bellBtn{position:relative}
+.bell-n{position:absolute;top:-4px;right:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;font-size:11px;font-weight:700;line-height:17px;text-align:center;color:#fff;background:var(--warnbtn);box-shadow:0 0 0 2px var(--panel)}
+.bell-n.bad{background:var(--danger-bg)}
+.bell-pop{width:min(380px,calc(100vw - 16px));padding:0;gap:0}
+.bell-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd)}
+.bell-list{display:flex;flex-direction:column;padding:4px}
+.bell-item{display:flex;align-items:flex-start;gap:2px;border-radius:var(--r-m);border-left:3px solid transparent}
+.bell-item.bad{border-left-color:var(--danger)} .bell-item.warn{border-left-color:var(--warn)}
+.bell-item:hover{background:var(--hover)}
+.bell-go{flex:1;min-width:0;display:flex;align-items:flex-start;gap:8px;height:auto;padding:6px 8px;border:0;background:transparent;color:var(--fg);text-align:left;font-weight:400}
+.bell-go .dot{margin-top:5px}
+.bell-t{display:flex;flex-direction:column;min-width:0}
+.bell-t small{color:var(--muted);overflow-wrap:anywhere}
+.bell-x{flex:none;margin:4px;border-color:transparent;background:transparent;color:var(--muted);font-size:16px}
+.bell-none{margin:0;padding:12px}
+.bell-foot{padding:6px 12px;border-top:1px solid var(--bd)}
 @media (max-width:760px){
  #bar{flex-wrap:nowrap;position:relative;anchor-name:--bar}
  #bar>.grow{display:none}
@@ -1125,6 +1146,11 @@ table.grid a.rowopen:hover{text-decoration:underline}
  #barMore #coffeeBtn{display:inline-flex}
  #barMore #themeBtn::after{content:"Light / dark";margin-left:8px}
  #barMore #coffeeBtn::after{content:"Buy me a coffee";margin-left:8px}
+ #barMore #bellBtn::after{content:"Notifications";margin-left:8px;order:1}
+ #barMore #bellBtn .bell-n{position:static;order:2;margin-left:auto;box-shadow:none}
+ #barMoreBtn{position:relative}
+ #barMoreBtn.has-n::after{content:"";position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 2px var(--panel)}
+ #barMoreBtn.has-n.bad::after{background:var(--danger)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
@@ -1421,7 +1447,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .card.picked{outline:2px solid var(--accent);outline-offset:-1px}
 .card.picked .cardtick{background:var(--accent);border-color:var(--accent)}
 .card.picked .cardtick::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.card .ch{padding-right:22px}
+.card .ch{padding-right:34px}
 .pick-n{white-space:nowrap}
 
 /* Directory segments that cannot be known (Graph not set up) keep a visible outline, also on a picked card in light mode. */
@@ -1444,6 +1470,7 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .src-st-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.src-st-act .note{min-width:0;overflow-wrap:anywhere}
 .src-switch{font-weight:600}
 .src-offnote{padding:4px 2px 12px}
+.src-offtext{margin:0;font-size:12.5px}
 .src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
 .ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
@@ -1861,3 +1888,11 @@ details.how[open]>summary{margin-bottom:4px}
 .ov-qbar.ok>span{background:var(--okdot)}.ov-qbar.warn>span{background:var(--warn)}.ov-qbar.bad>span{background:var(--danger)}
 .colhelp{min-height:0;height:auto;padding:0 3px;margin-left:2px;font-size:12px;font-weight:600}
 table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table.colours td:first-child{white-space:nowrap}
+/* Edit fields… of many devices: a row per field (field, set or clear, value, only where empty), then the preview. */
+.be-row{display:grid;grid-template-columns:minmax(120px,170px) 96px minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.be-row .be-v{min-width:0}.be-row .be-v .combo,.be-row .be-v .datefield,.be-row .be-v input,.be-row .be-v textarea{width:100%}
+.be-row .be-v .fieldnote{margin:4px 0 0}.be-row .be-v.be-off{visibility:hidden;height:0;overflow:hidden}.be-row .be-x{justify-self:end}
+.mb.be>#beAdd{align-self:flex-start;width:auto}
+.be-prev{margin-top:12px;border-top:1px solid var(--bd2);padding-top:8px}.be-prev .hdr{font-weight:600;margin-bottom:6px}
+.be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
+@media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}

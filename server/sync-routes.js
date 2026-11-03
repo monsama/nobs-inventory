@@ -117,6 +117,8 @@ export function registerSyncRoutes(app, ctx) {
 
   app.post('/api/ldap/sync', requireUser, requireAdmin, async (req, res, next) => {
     try {
+      /* Switched off in Settings: not run, and not recorded as a run. Sign-in with AD accounts is not affected. */
+      if (loadState(db).useAd === false) throw new HttpError(403, 'The Active Directory sync is turned off in Settings → Active Directory. Sign-in with AD accounts is not affected.');
       const lc = cfgLdap();
       /* Recorded as a failed run too, so the Sync button says why the directory was not read. */
       const counts = await runRecorded(db, 'ldap', async () => {

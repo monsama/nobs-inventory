@@ -1,8 +1,9 @@
 /* To review: the devices a sync found (Lansweeper, AD, Entra or Intune) that wait for someone to say whether they belong
    in the inventory. Cards and Table show them (st.scope, 01-core.js); Accept makes one an ordinary device, Ignore keeps it
    out of every sync from then on, so it does not come back. Ignored devices can be brought back from their own list. */
-import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, esc, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
+import { byId, PERSONAL, REVIEW, REVIEW_SRC, dayText, hist, now, objs, rels, st, toastUndo, twinOf } from './01-core.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
+import { html } from './html.js';
 import { unplace } from './03-object-modals.js';
 import { isAdmin, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
@@ -128,8 +129,8 @@ export function reviewDo(kind, list, { asked = false } = {}){
      first, with Merge as the other way. */
   const known = kind === 'accept' && !asked ? list.filter(o => mergeTarget(o)) : [];
   if (known.length){
-    const names = known.slice(0, 5).map(o => `<b>${esc(o.name)}</b> → ${esc(mergeTarget(o).name)}`).join('<br>') + (known.length > 5 ? `<br>and ${known.length - 5} more` : '');
-    confirmModal('Already in the inventory?', `${known.length === 1 ? 'This record looks like' : `${known.length} of these look like`} a device the inventory has:<br>${names}<br>Accepting adds ${known.length === 1 ? 'it' : 'them'} as ${known.length === 1 ? 'a second device' : 'second devices'}. Merge folds ${known.length === 1 ? 'it' : 'them'} into that device instead.`,
+    const names = html`${known.slice(0, 5).map((o, i) => html`${i ? html`<br>` : ''}<b>${o.name}</b> → ${mergeTarget(o).name}`)}${known.length > 5 ? html`<br>and ${known.length - 5} more` : ''}`;
+    confirmModal('Already in the inventory?', html`${known.length === 1 ? 'This record looks like' : `${known.length} of these look like`} a device the inventory has:<br>${names}<br>Accepting adds ${known.length === 1 ? 'it' : 'them'} as ${known.length === 1 ? 'a second device' : 'second devices'}. Merge folds ${known.length === 1 ? 'it' : 'them'} into that device instead.`,
       'Accept anyway', () => reviewDo(kind, list, { asked: true }));
     const ok = document.getElementById('cfOk');
     if (ok){ const mg = document.createElement('button'); mg.id = 'cfMerge'; mg.className = 'primary'; mg.textContent = 'Merge'; ok.before(mg);
@@ -235,15 +236,15 @@ export function resolveModal(list){
   const dns = list.every(x => twinOf(x) && lc(x.name) !== lc(dupOf(x).name));
   const rows = [['Name', x => x.name], ['Serial number', x => x.serial], ['Model', x => x.model], ['IP address', x => x.ip], ['MAC address', x => x.mac], ['User', x => x.user],
     ['Operating system', x => x.os], ['Seen by', seenBy], ['Where', x => x.review ? (x.review.ignored ? 'Ignored' : 'Waiting in To review') : x.status === 'retired' ? 'Retired' : 'Inventory']];
-  const table = one ? `<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
+  const table = one ? html`<table class="dup-cmp"><thead><tr><th></th><th>This record</th><th>Most likely the device</th></tr></thead><tbody>${rows.map(([l, f]) => {
     const a = String(f(o) || ''), b = String(f(t) || '');
-    return `<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? ' class="dup-diff"' : ''}><th>${l}</th><td>${esc(a) || '—'}</td><td>${esc(b) || '—'}</td></tr>`;
-  }).join('')}</tbody></table>`
-    : `<ul class="dup-list">${list.slice(0, 12).map(x => `<li><b>${esc(x.name)}</b> → ${esc(dupOf(x).name)}</li>`).join('')}${list.length > 12 ? `<li>and ${list.length - 12} more</li>` : ''}</ul>`;
+    return html`<tr${l !== 'Where' && l !== 'Seen by' && a && b && a.toLowerCase() !== b.toLowerCase() ? html` class="dup-diff"` : ''}><th>${l}</th><td>${a || '—'}</td><td>${b || '—'}</td></tr>`;
+  })}</tbody></table>`
+    : html`<ul class="dup-list">${list.slice(0, 12).map(x => html`<li><b>${x.name}</b> → ${dupOf(x).name}</li>`)}${list.length > 12 ? html`<li>and ${list.length - 12} more</li>` : ''}</ul>`;
   const def = dns ? 'dock' : 'same';
-  modal(`<div class="mh">${one ? `Resolve ${esc(o.name)}` : `Resolve ${list.length} duplicates`}</div><div class="mb">
-    <p class="note">${one ? `Most likely a second record of <b>${esc(t.name)}</b>. What is it?` : 'Each is most likely a second record of the device after the arrow. What are they?'}</p>${table}
-    <div class="dup-ways" role="radiogroup" aria-label="What it is">${RESOLVE.map(([k, l, d]) => `<label class="dup-way"><input type="radio" name="dupWay" value="${k}" ${k === def ? 'checked' : ''}><span><b>${l}</b><span class="muted">${d}</span></span></label>`).join('')}</div></div>
+  modal(html`<div class="mh">${one ? `Resolve ${o.name}` : `Resolve ${list.length} duplicates`}</div><div class="mb">
+    <p class="note">${one ? html`Most likely a second record of <b>${t.name}</b>. What is it?` : 'Each is most likely a second record of the device after the arrow. What are they?'}</p>${table}
+    <div class="dup-ways" role="radiogroup" aria-label="What it is">${RESOLVE.map(([k, l, d]) => html`<label class="dup-way"><input type="radio" name="dupWay" value="${k}" ${k === def ? 'checked' : ''}><span><b>${l}</b><span class="muted">${d}</span></span></label>`)}</div></div>
     <div class="mf"><button id="dupCancel">Cancel</button><button id="dupOk" class="primary">Resolve</button></div>`);
   document.getElementById('dupCancel').onclick = closeModal;
   /* The button says what the choice does. */
@@ -257,9 +258,9 @@ export function resolveModal(list){
 export function reviewBanner(o){
   if (!o || !o.review) return '';
   const edit = isAdmin(), src = REVIEW_SRC[o.review.src] || o.review.src;
-  return o.review.ignored
-    ? `<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? `Merged into <b>${esc(byIdOf(o.review.merged).name)}</b> and` : `Ignored: found by ${esc(src)},`} kept out of the inventory and every sync.</span>${edit ? `<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : '<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>'}` : ''}</div>`
-    : `<div class="rv-banner"><span>Waiting in To review: found by ${esc(src)}, not in any list, count or cost yet.</span>${edit ? `<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? `<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${esc(mergeTarget(o).name)} (${esc(mergeTarget(o).code)})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`;
+  return String(o.review.ignored
+    ? html`<div class="rv-banner off"><span>${o.review.merged && byIdOf(o.review.merged) ? html`Merged into <b>${byIdOf(o.review.merged).name}</b> and` : `Ignored: found by ${src},`} kept out of the inventory and every sync.</span>${edit ? html`<button type="button" data-rvpage="restore" title="Take it off the ignored list: it waits in To review again${o.review.merged ? ', and leaves the device it was merged into' : ''}">${o.review.merged ? '↩ Unmerge' : '↩ Unignore'}</button>${o.review.merged ? '' : html`<button type="button" class="rv-yes" data-rvpage="accept" title="Unignore and take it into the inventory">✓ Accept</button>`}` : ''}</div>`
+    : html`<div class="rv-banner"><span>Waiting in To review: found by ${src}, not in any list, count or cost yet.</span>${edit ? html`<button type="button" class="rv-no" data-rvpage="ignore">✕ Ignore</button>${mergeTarget(o) ? html`<button type="button" data-rvpage="merge" title="Fold it into the device the inventory has; it is kept as ignored">Merge into ${mergeTarget(o).name} (${mergeTarget(o).code})</button>` : ''}<button type="button" class="rv-yes" data-rvpage="accept">✓ Accept</button>` : ''}</div>`);
 }
 export function bindReviewBanner(o){
   document.querySelectorAll('[data-rvpage]').forEach(b => b.onclick = () => {
@@ -288,8 +289,8 @@ function openNext(id){
    them straight in (a device not seen for long still waits). */
 export function intakeRowHtml(src){
   const v = (st.intake || {})[src] === 'direct' ? 'direct' : 'review';
-  return `<div class="lpanel-add intake-row"><label for="intake_${src}">New devices from ${esc(REVIEW_SRC[src])}</label><select id="intake_${src}" data-intake="${src}" ${isAdmin() ? '' : 'disabled'}>
-    <option value="review" ${v === 'review' ? 'selected' : ''}>Wait in To review</option><option value="direct" ${v === 'direct' ? 'selected' : ''}>Go straight into the inventory</option></select></div>`;
+  return String(html`<div class="lpanel-add intake-row"><label for="intake_${src}">New devices from ${REVIEW_SRC[src]}</label><select id="intake_${src}" data-intake="${src}" ${isAdmin() ? '' : 'disabled'}>
+    <option value="review" ${v === 'review' ? 'selected' : ''}>Wait in To review</option><option value="direct" ${v === 'direct' ? 'selected' : ''}>Go straight into the inventory</option></select></div>`);
 }
 export function bindIntakeRows(root){
   root.querySelectorAll('[data-intake]').forEach(sel => sel.onchange = () => {

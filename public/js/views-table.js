@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, esc, filtered, leftFilters, portLabel, rels, st, syncChip, tcol } from './01-core.js';
+import { menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, portLabel, rels, st, syncChip, tcol } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -15,42 +15,43 @@ import { alsoIn, SHOW_FIRST } from './views-cards.js';
 import { exportCsv, importCsvModal } from './views-csv.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
+import { html, rawHtml } from './html.js';
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
 export const TABLE_COLS = [
-  {k:'code', w:100, label:'Code', cell: o => `<td class="code">${esc(o.code)}</td>`},
+  {k:'code', w:100, label:'Code', cell: o => String(html`<td class="code">${o.code}</td>`)},
   /* The name opens the device, from the keyboard too (Tab to it, Enter): one stop per row, not the whole row as well. */
-  {k:'name', w:220, label:'Name', fixed: true, cell: o => `<td class="n"><a class="link rowopen" data-open="${esc(o.id)}"><b>${esc(o.name)}</b></a>${markHtml(o)}</td>`},
-  {k:'type', w:160, label:'Type', cell: o => `<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${esc(TYPES[o.type].label)}</span></td>`},
-  {k:'model', w:210, label:'Model', cell: o => `<td>${esc(o.model)}</td>`},
-  {k:'ip', w:130, label:'IP', cell: o => `<td class="n">${esc(o.ip || '')}</td>`},
-  {k:'mac', w:150, label:'MAC', cell: o => `<td class="n">${esc(o.mac || '')}</td>`},
-  {k:'serial', w:160, label:'Serial', cell: o => `<td class="n">${esc(o.serial)}</td>`},
-  {k:'loc', w:190, label:'Location', cell: o => `<td>${esc(o.loc)}</td>`},
-  {k:'rack', w:130, label:'Rack', cell: o => `<td class="n">${esc(o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : '')}</td>`},
-  {k:'user', w:160, label:'User', cell: o => `<td>${esc(o.user || '')}</td>`},
-  {k:'warranty', w:130, label:'Warranty ends', cell: o => `<td>${o.warranty ? `<span class="wty ${warrantyState(o)}">${esc(dayText(o.warranty))}</span>` : ''}</td>`},
+  {k:'name', w:220, label:'Name', fixed: true, cell: o => String(html`<td class="n"><a class="link rowopen" data-open="${o.id}"><b>${o.name}</b></a>${rawHtml(markHtml(o))}</td>`)},
+  {k:'type', w:160, label:'Type', cell: o => String(html`<td><span class="tdot"><span class="tsw" style="background:${tcol(o.type)}"></span>${TYPES[o.type].label}</span></td>`)},
+  {k:'model', w:210, label:'Model', cell: o => String(html`<td>${o.model}</td>`)},
+  {k:'ip', w:130, label:'IP', cell: o => String(html`<td class="n">${o.ip || ''}</td>`)},
+  {k:'mac', w:150, label:'MAC', cell: o => String(html`<td class="n">${o.mac || ''}</td>`)},
+  {k:'serial', w:160, label:'Serial', cell: o => String(html`<td class="n">${o.serial}</td>`)},
+  {k:'loc', w:190, label:'Location', cell: o => String(html`<td>${o.loc}</td>`)},
+  {k:'rack', w:130, label:'Rack', cell: o => String(html`<td class="n">${o.rack && o.u != null && rackOf(o.rack) ? rackOf(o.rack).name + ' · U' + o.u : ''}</td>`)},
+  {k:'user', w:160, label:'User', cell: o => String(html`<td>${o.user || ''}</td>`)},
+  {k:'warranty', w:130, label:'Warranty ends', cell: o => String(html`<td>${o.warranty ? html`<span class="wty ${warrantyState(o)}">${dayText(o.warranty)}</span>` : ''}</td>`)},
   /* Replacement planning: when it was bought, the year it is due (and why), and what replacing it costs. */
-  {k:'purchased', w:130, label:'Purchased', cell: o => `<td>${o.purchased ? esc(dayText(o.purchased)) : ''}</td>`},
-  {k:'due', w:200, label:'Due for replacement', cell: o => { const d = dueOf(o, st.lifecycle); return `<td>${d ? `${d.year} <span class="muted">· ${d.from === 'purchase' ? 'by purchase' : 'warranty ends'}</span>` : ''}</td>`; }},
-  {k:'replPrice', w:150, label:'Replacement price', cell: o => { const p = lifeOf(st.lifecycle, o.type).price; return `<td class="n">${p ? money(p) : ''}</td>`; }},
+  {k:'purchased', w:130, label:'Purchased', cell: o => String(html`<td>${o.purchased ? dayText(o.purchased) : ''}</td>`)},
+  {k:'due', w:200, label:'Due for replacement', cell: o => { const d = dueOf(o, st.lifecycle); return String(html`<td>${d ? html`${d.year} <span class="muted">· ${d.from === 'purchase' ? 'by purchase' : 'warranty ends'}</span>` : ''}</td>`); }},
+  {k:'replPrice', w:150, label:'Replacement price', cell: o => { const p = lifeOf(st.lifecycle, o.type).price; return String(html`<td class="n">${p ? rawHtml(money(p)) : ''}</td>`); }},
   /* The maintenance due next: its date first, so the column sorts by it. */
-  {k:'maint', w:240, label:'Next maintenance', cell: o => { const m = nextTask(o); return `<td>${m ? `${esc(dayText(m.due))} <span class="muted">· ${esc(m.what)}</span>` : ''}</td>`; }},
-  {k:'secureBoot', w:120, label:'Secure Boot', cell: o => `<td>${o.graph && !o.graph.gone && o.graph.secureBoot ? (o.graph.secureBoot === 'on' ? 'On' : '<span class="wty soon">Off</span>') : ''}</td>`},
-  {k:'price', w:110, label:'Price', cell: o => `<td class="n">${typeof o.price === 'number' ? money(o.price) : ''}</td>`},
-  {k:'supplier', w:160, label:'Supplier', cell: o => `<td>${esc(o.supplier || '')}</td>`},
-  {k:'invoice', w:130, label:'Invoice', cell: o => `<td class="n">${esc(o.invoice || '')}</td>`},
-  {k:'purpose', w:180, label:'Description', cell: o => `<td>${esc(o.purpose || '')}</td>`},
+  {k:'maint', w:240, label:'Next maintenance', cell: o => { const m = nextTask(o); return String(html`<td>${m ? html`${dayText(m.due)} <span class="muted">· ${m.what}</span>` : ''}</td>`); }},
+  {k:'secureBoot', w:120, label:'Secure Boot', cell: o => String(html`<td>${o.graph && !o.graph.gone && o.graph.secureBoot ? (o.graph.secureBoot === 'on' ? 'On' : html`<span class="wty soon">Off</span>`) : ''}</td>`)},
+  {k:'price', w:110, label:'Price', cell: o => String(html`<td class="n">${typeof o.price === 'number' ? rawHtml(money(o.price)) : ''}</td>`)},
+  {k:'supplier', w:160, label:'Supplier', cell: o => String(html`<td>${o.supplier || ''}</td>`)},
+  {k:'invoice', w:130, label:'Invoice', cell: o => String(html`<td class="n">${o.invoice || ''}</td>`)},
+  {k:'purpose', w:180, label:'Description', cell: o => String(html`<td>${o.purpose || ''}</td>`)},
   {k:'conn', w:190, label:'Connected to', cell: (o, idx) => { const up = (idx ? idx.get(o.id) || [] : rels).find(r => r.from === o.id && ['connected','uplink'].includes(r.kind)); const t = up && byId(up.to);
-    return `<td class="n">${t ? esc(t.name) + (up.port != null ? ' · ' + esc(portLabel(t, up.port)) : '') : ''}</td>`; }},
-  {k:'urls', w:200, label:'Links', cell: o => `<td>${(o.urls || []).map(l => `<a class="lnk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${esc(l.label || linkKind(l.url))}</a>`).join(' · ')}</td>`},
-  {k:'resp', w:200, label:'Responsible', cell: o => `<td>${esc(respText(o))}</td>`},
-  {k:'status', w:110, label:'Status', cell: o => `<td>${STATUS[o.status].label}</td>`},
+    return String(html`<td class="n">${t ? html`${t.name}${up.port != null ? html` · ${portLabel(t, up.port)}` : ''}` : ''}</td>`); }},
+  {k:'urls', w:200, label:'Links', cell: o => String(html`<td>${(o.urls || []).map((l, i) => html`${i ? ' · ' : ''}<a class="lnk" href="${linkHref(l.url)}" target="_blank" rel="noopener noreferrer" title="${l.url}">${l.label || linkKind(l.url)}</a>`)}</td>`)},
+  {k:'resp', w:200, label:'Responsible', cell: o => String(html`<td>${respText(o)}</td>`)},
+  {k:'status', w:110, label:'Status', cell: o => String(html`<td>${STATUS[o.status].label}</td>`)},
   /* The date first, so the column sorts by it. */
-  {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return `<td>${s ? `<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${esc(s.at)} by ${esc(s.src)}">${esc(dayText(s.day))}</span> <span class="muted">· ${esc(s.src)}</span>` : ''}</td>`; }},
-  {k:'ls', w:240, label:'Lansweeper', cell: o => `<td>${scanOld(o) ? scanChip(o) : syncChip(o) || '—'}</td>`},
+  {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
+  {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '—')}</td>`)},
   /* In To review only, and last, so the other columns keep their places: which sync found it, and which others know it. */
-  {k:'found', w:220, label:'Found by', cell: o => `<td>${o.review ? esc([REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ')) : ''}</td>`}
+  {k:'found', w:220, label:'Found by', cell: o => String(html`<td>${o.review ? [REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ') : ''}</td>`)}
 ];
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
@@ -84,17 +85,17 @@ let colPickOpen = false;
 const presetOn = (shown, hidden) => tableCols().filter(c => !c.fixed).every(c => shown.includes(c.k) !== hidden.includes(c.k));
 export function columnsMenu(){
   const hidden = hiddenCols();
-  return menuHtml('Columns', `
-    <div class="colpresets" role="group" aria-label="Column sets">${Object.entries(COL_PRESETS).map(([k, [l, shown]]) => `<button type="button" data-colpreset="${k}" class="${presetOn(shown, hidden) ? 'on' : ''}" aria-pressed="${presetOn(shown, hidden)}">${l}</button>`).join('')}</div>
-    <details class="colpick" id="colPick" ${colPickOpen ? 'open' : ''}><summary>Choose columns…</summary><div class="colpick-list">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`, { id: 'colMenu', boxCls: 'colmenu' });
+  return menuHtml('Columns', html`
+    <div class="colpresets" role="group" aria-label="Column sets">${Object.entries(COL_PRESETS).map(([k, [l, shown]]) => html`<button type="button" data-colpreset="${k}" class="${presetOn(shown, hidden) ? 'on' : ''}" aria-pressed="${String(presetOn(shown, hidden))}">${l}</button>`)}</div>
+    <details class="colpick" id="colPick" ${colPickOpen ? 'open' : ''}><summary>Choose columns…</summary><div class="colpick-list">${tableCols().map(c => html`<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`)}</div></details>`, { id: 'colMenu', boxCls: 'colmenu' });
 }
 
 /* A field's cell says where its value came from in its hover text (the device page shows it as a mark). */
 const SOURCE_COLS = new Set([...Object.keys(FIELD_LABEL), 'serial']);
-const withSource = (o, c, html) => {
-  if (!SOURCE_COLS.has(c.k) || /^<td[^>]*title=/.test(html)) return html;
+const withSource = (o, c, cell) => {
+  if (!SOURCE_COLS.has(c.k) || /^<td[^>]*title=/.test(cell)) return cell;
   const t = sourceText(o, c.k);
-  return t ? html.replace(/^<td/, `<td title="${esc(t)}"`) : html;
+  return t ? cell.replace(/^<td/, () => String(html`<td title="${t}"`)) : cell;
 };
 /* Listed by a data-quality check, the Table helps fix it: the column the check is about comes next to Name (shown even
    when hidden), and a bar offers to select them all for the bulk action that fixes it. [column, bulk control, what to do] */
@@ -119,8 +120,8 @@ export function renderTable(){
   const colOpen = !!$('#colMenu .menubox:popover-open');
   st.bulk = pickedInPool();
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
-    ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? '<button id="csvImp">Import CSV…</button>' : ''}${saveViewBtn()}${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${tableBulkBar(list, n)}`;
+  $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
+    ${rawHtml(columnsMenu())}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -183,11 +184,11 @@ export function renderTable(){
   $('#tblCount').textContent = `${list.length} ${list.length === 1 ? 'row' : 'rows'}`;
   const cut = !st.tableAll && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
-  $('#view').innerHTML = `<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
+  $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    ${shown.map(c => `<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? ' data-pin="1"' : ''}>${c.label}</th>`).join('')}</tr></thead><tbody>
-    ${rowsOf.map(o => `<tr data-open="${esc(o.id)}"><td><input type="checkbox" data-sel="${esc(o.id)}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${esc(o.name)}" style="height:auto"></td>${shown.map(c => withSource(o, c, c.cell(o, idx))).join('')}</tr>`).join('')}
-    </tbody></table>${list.length ? '' : hiddenHits()}${cut ? `<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
+    ${shown.map(c => html`<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? html` data-pin="1"` : ''}>${c.label}</th>`)}</tr></thead><tbody>
+    ${rowsOf.map(o => html`<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${o.name}" style="height:auto"></td>${shown.map(c => rawHtml(withSource(o, c, c.cell(o, idx))))}</tr>`)}
+    </tbody></table>${list.length ? '' : rawHtml(hiddenHits())}${cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };
   bindHiddenHits();
   const selBox = el => el.addEventListener('click', e => e.stopPropagation());

@@ -7,6 +7,7 @@ import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { isPlaceholderSerial } from './serials.js';
+import { html, rawHtml } from './html.js';
 
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Description'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
@@ -29,9 +30,9 @@ export const NO_USER_TYPES = ['rack', 'patch'];
 export const canAddPorts = type => !NO_NET_TYPES.includes(type) && !(FIELDS[type] || []).some(f => f[0] === 'ports');
 /* Accessories of a PC (headset, dock, keyboard…): each has a name, a kind and an optional serial number. */
 export function accessoriesHtml(o){
-  const list = (o.accessories || []).map((a, i) => `<div class="entry"><div class="entry-head"><b>${esc(a.name)}</b>${a.kind ? ` <span class="chip">${esc(a.kind)}</span>` : ''}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}${a.mac ? ` <span class="mono muted" title="MAC address">${esc(a.mac)}</span>` : ''}${a.seenAs ? ` <span class="muted" title="Lansweeper sees it as this record">as ${esc(a.seenAs)}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${esc(a.name)}" title="Remove">×</button></div></div>`).join('');
-  return `<div class="entries-box">${list || '<p class="note">No attachments yet.</p>'}
-    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`;
+  const list = (o.accessories || []).map((a, i) => html`<div class="entry"><div class="entry-head"><b>${a.name}</b>${a.kind ? html` <span class="chip">${a.kind}</span>` : ''}${a.serial ? html` <span class="mono muted">${a.serial}</span>` : ''}${a.mac ? html` <span class="mono muted" title="MAC address">${a.mac}</span>` : ''}${a.seenAs ? html` <span class="muted" title="Lansweeper sees it as this record">as ${a.seenAs}</span>` : ''}<button class="icon ghost" data-delacc="${i}" aria-label="Remove ${a.name}" title="Remove">×</button></div></div>`);
+  return String(html`<div class="entries-box">${list.length ? list : html`<p class="note">No attachments yet.</p>`}
+    <div class="addrel entry-add"><input id="accName" maxlength="120" placeholder="Name, e.g. Headset" aria-label="Name of the attachment"><input id="accKind" maxlength="60" placeholder="Kind, e.g. Dock" aria-label="Kind of the attachment"><input id="accSerial" maxlength="60" class="mono" placeholder="Serial (optional)" aria-label="Serial number of the attachment"><button id="accAdd">Add</button></div></div>`);
 }
 /* Notes: one text box per device, saved when it is left. */
 export function notesHtml(o, edit){
@@ -200,7 +201,8 @@ function comboOpen(c, all){
   const items = (SELF_FILTERED.includes(name) ? raw : raw.filter(m => !q || m.v.toLowerCase().includes(q))).slice(0, 100);
   if (!items.length){ comboClose(c); return; }
   /* An entry with off is a remark (no subnet, nothing free), shown but not picked. */
-  list.innerHTML = items.map((m, i) => `<li role="option" id="${list.id}_${i}" ${m.off ? 'class="off" aria-disabled="true"' : `data-v="${esc(m.v)}"`} aria-selected="${!m.off && m.v === input.value ? 'true' : 'false'}">${m.html || esc(m.label)}</li>`).join('');
+  /* m.html: markup made by the list's source (an address with its remark), else the label as text. */
+  list.innerHTML = html`${items.map((m, i) => html`<li role="option" id="${list.id}_${i}" ${m.off ? html`class="off" aria-disabled="true"` : html`data-v="${m.v}"`} aria-selected="${!m.off && m.v === input.value ? 'true' : 'false'}">${m.html ? rawHtml(m.html) : m.label}</li>`)}`;
   list.hidden = false; input.setAttribute('aria-expanded', 'true');
   /* Near the bottom of a dialog or the window the list opens upwards, so it is not cut off by the edge. */
   const box = input.closest('.mb, .view') || document.documentElement, r = input.getBoundingClientRect(), b = box.getBoundingClientRect();
@@ -243,7 +245,7 @@ export function comboNote(input){
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
   const near = closeModel(v, names);
   note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
-  note.innerHTML = near ? `Did you mean ${esc(near)}? <button type="button" class="link combo-use" data-v="${esc(near)}">Use it</button>` : 'New model – added to the list when saved.';
+  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model – added to the list when saved.';
   show(true);
 }
 document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });
@@ -331,23 +333,23 @@ export function mergedHtml(o){
   const list = REVIEW.filter(x => x.review && x.review.merged === o.id);
   if (!list.length) return '';
   const lcName = v => String(v || '').toLowerCase();
-  return `<label>Merged records</label><ul class="nics merged" aria-label="Records merged into this device">${list.map(x => {
+  return String(html`<label>Merged records</label><ul class="nics merged" aria-label="Records merged into this device">${list.map(x => {
     const acc = (o.accessories || []).find(a => lcName(a.seenAs) === lcName(x.name));
-    return `<li>
-    <span class="nic-name">${esc(x.name)}${acc ? ` <span class="chip" title="Kept as this attachment">${esc(acc.name)}</span>` : ''}</span>
-    <span class="nic-addr mono">${esc(x.ip || '')}</span>
-    <span class="nic-meta muted">${[x.mac ? `<span class="mono">${esc(x.mac)}</span>` : '', `merged ${esc(dateText(x.review.ignored) || x.review.ignored || '')}`].filter(Boolean).join(' · ')}</span>
-    <span class="nic-acts"><button type="button" class="mini" data-open="${esc(x.id)}" aria-label="Open ${esc(x.name)}">Open</button>${isAdmin() ? `<button type="button" class="mini" data-unmerge="${esc(x.id)}" aria-label="Unmerge ${esc(x.name)}" title="Take it out of this device again: it waits in To review">Unmerge</button>` : ''}</span></li>`;
-  }).join('')}</ul>`;
+    return html`<li>
+    <span class="nic-name">${x.name}${acc ? html` <span class="chip" title="Kept as this attachment">${acc.name}</span>` : ''}</span>
+    <span class="nic-addr mono">${x.ip || ''}</span>
+    <span class="nic-meta muted">${x.mac ? html`<span class="mono">${x.mac}</span> · ` : ''}merged ${dateText(x.review.ignored) || x.review.ignored || ''}</span>
+    <span class="nic-acts"><button type="button" class="mini" data-open="${x.id}" aria-label="Open ${x.name}">Open</button>${isAdmin() ? html`<button type="button" class="mini" data-unmerge="${x.id}" aria-label="Unmerge ${x.name}" title="Take it out of this device again: it waits in To review">Unmerge</button>` : ''}</span></li>`;
+  })}</ul>`);
 }
 /* The device's other network adapters from Lansweeper (Wi-Fi next to the cable, a second network), under the MAC address. */
 export function nicsHtml(o){
   const list = Array.isArray(o.nics) ? o.nics : [];
   if (!list.length) return '';
-  return `<label>Other adapters</label><ul class="nics" aria-label="Other network adapters">${list.map(n => `<li>
-    <span class="nic-name">${esc(n.name || 'Network adapter')}</span>
-    <span class="nic-addr mono">${esc(n.ip)}${n.mask ? '<span class="muted"> / ' + esc(n.mask) + '</span>' : ''}</span>
-    <span class="nic-meta muted">${[n.mac ? `<span class="mono">${esc(n.mac)}</span>` : '', n.dhcp === 'dhcp' ? 'DHCP' : n.dhcp === 'static' ? 'Static' : '', n.gateway ? 'gateway ' + esc(n.gateway) : ''].filter(Boolean).join(' · ')}</span></li>`).join('')}</ul>`;
+  return String(html`<label>Other adapters</label><ul class="nics" aria-label="Other network adapters">${list.map(n => html`<li>
+    <span class="nic-name">${n.name || 'Network adapter'}</span>
+    <span class="nic-addr mono">${n.ip}${n.mask ? html`<span class="muted"> / ${n.mask}</span>` : ''}</span>
+    <span class="nic-meta muted">${[n.mac ? html`<span class="mono">${n.mac}</span>` : '', n.dhcp === 'dhcp' ? 'DHCP' : n.dhcp === 'static' ? 'Static' : '', n.gateway ? 'gateway ' + n.gateway : ''].filter(Boolean).map((p, i) => html`${i ? ' · ' : ''}${p}`)}</span></li>`)}</ul>`);
 }
 /* Disks as Lansweeper sends them ("C: 117/237 GB; D: 812/931 GB", free/size) as one bar per drive: how full it is, and
    the space left. Returns '' when the text is not in that form. */

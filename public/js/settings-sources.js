@@ -1,7 +1,7 @@
 /* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
    from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
    use) and from the current settings, so it changes with them and is never out of date. */
-import { $, DEFAULT_POLICY, SYNC, esc, objs, st, toastUndo } from './01-core.js';
+import { $, DEFAULT_POLICY, SYNC, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
 import { queueServerSave, render } from './07-render.js';
@@ -10,6 +10,7 @@ import { resetFilters } from './02-views.js';
 import { bindPolicy, policyGrid } from './03-object-modals.js';
 import { SOURCE_TAB, sourceOn, sourceState } from './settings-status.js';
 import { intuneCoverageHtml } from './settings-graph.js';
+import { html, rawHtml } from './html.js';
 
 const SHORT = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'AD' };
 /* Quick setups for every field at once: [name, what it does]. */
@@ -86,11 +87,11 @@ function confirmChange(title, next, keys, apply){
   if (!list.length) { apply(); return; }
   const many = keys.length > 1, shown = list.slice(0, 200);
   const devices = new Set(list.map(x => x.o.id)).size;
-  modal(`<div class="mh">${esc(title)}</div>
+  modal(html`<div class="mh">${title}</div>
     <div class="mb"><p class="note">${devices} ${devices === 1 ? 'device gets' : 'devices get'} ${list.length === devices ? 'another value' : `${list.length} other values`} with this, at the next sync of each source. Values set or picked by hand on a device stay as they are.</p>
-      <div class="ds-prev"><table class="grid mini"><thead><tr><th>Device</th>${many ? '<th>Field</th>' : ''}<th>Now</th><th>Then</th><th>From</th></tr></thead><tbody>
-      ${shown.map(x => `<tr><td><b>${esc(x.o.name)}</b> <span class="code">${esc(x.o.code || '')}</span></td>${many ? `<td>${esc(SYNC_FIELD_LABEL[x.k])}</td>` : ''}<td class="muted">${esc(x.from ?? '') || '—'}</td><td><b>${esc(x.to ?? '')}</b></td><td>${esc(SHORT[x.src] || '')}</td></tr>`).join('')}
-      </tbody></table></div>${list.length > shown.length ? `<p class="note">And ${list.length - shown.length} more.</p>` : ''}</div>
+      <div class="ds-prev"><table class="grid mini"><thead><tr><th>Device</th>${many ? html`<th>Field</th>` : ''}<th>Now</th><th>Then</th><th>From</th></tr></thead><tbody>
+      ${shown.map(x => html`<tr><td><b>${x.o.name}</b> <span class="code">${x.o.code || ''}</span></td>${many ? html`<td>${SYNC_FIELD_LABEL[x.k]}</td>` : ''}<td class="muted">${String(x.from ?? '') || '—'}</td><td><b>${x.to ?? ''}</b></td><td>${SHORT[x.src] || ''}</td></tr>`)}
+      </tbody></table></div>${list.length > shown.length ? html`<p class="note">And ${list.length - shown.length} more.</p>` : ''}</div>
     <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="primary">Apply</button></div>`, 'wide');
   $('#dpCancel').onclick = () => closeModal();
   $('#dpOk').onclick = () => { closeModal(); apply(); };
@@ -128,23 +129,23 @@ function matrixHtml(on, only = null){
   const chain = k => {
     const order = fieldOrder(st, k), used = order.filter(x => !globalOff(x));
     const off = order.filter(globalOff), shown = SOURCES_OF(k).filter(x => !order.includes(x));
-    const chip = (x, n) => `<span class="ds-src${on[x] ? '' : ' ds-dim'}" title="${esc(SOURCE_LABEL[x] + (on[x] ? '' : ' (not set up)') + ': ' + MODES[fieldMode(st, k, x)])}">${n ? `<b>${n}</b>` : ''}${esc(SHORT[x])}${n && fieldMode(st, k, x) === 'fill' ? ' <small class="ds-mode">only if empty</small>' : ''}</span>`;
-    return `${used.length ? used.map((x, i) => chip(x, i + 1)).join('<span class="ds-arrow" aria-hidden="true">›</span>') : '<span class="muted">Kept as typed</span>'}
-      ${[...shown, ...off].length ? `<span class="ds-also">shown only: ${esc(list([...shown, ...off].map(x => SHORT[x] + (off.includes(x) ? ' (off)' : ''))))}</span>` : ''}`;
+    const chip = (x, n) => html`<span class="ds-src${on[x] ? '' : ' ds-dim'}" title="${SOURCE_LABEL[x] + (on[x] ? '' : ' (not set up)') + ': ' + MODES[fieldMode(st, k, x)]}">${n ? html`<b>${n}</b>` : ''}${SHORT[x]}${n && fieldMode(st, k, x) === 'fill' ? html` <small class="ds-mode">only if empty</small>` : ''}</span>`;
+    return html`${used.length ? used.map((x, i) => html`${i ? html`<span class="ds-arrow" aria-hidden="true">›</span>` : ''}${chip(x, i + 1)}`) : html`<span class="muted">Kept as typed</span>`}
+      ${[...shown, ...off].length ? html`<span class="ds-also">shown only: ${list([...shown, ...off].map(x => SHORT[x] + (off.includes(x) ? ' (off)' : '')))}</span>` : ''}`;
   };
   /* Values set by hand per field: they stay, whatever the sources say; the count opens them, to give them back. */
   const hand = {};
   for (const o of objs) if (o.status !== 'retired') for (const k of ORDER_FIELDS) if ((o.pick && o.pick[k] === 'hand') || (o.src && o.src[k] === 'hand')) hand[k] = (hand[k] || 0) + 1;
   const isSet = k => !!((st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]));
-  const row = k => `<tr${isSet(k) ? ' class="ds-set"' : ''}><th scope="row">${esc(SYNC_FIELD_LABEL[k])}${isSet(k) ? ' <span class="chip ds-custom" title="Set here, not the default">Custom</span>' : ''}${hand[k] ? `<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
-    <td class="ds-chain">${chain(k)}</td><td class="ds-how">${esc(orderSentence(k, fieldOrder(st, k)))}</td>${edit ? `<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${esc(SYNC_FIELD_LABEL[k])}">Change…</button></td>` : ''}</tr>`;
+  const row = k => html`<tr${isSet(k) ? html` class="ds-set"` : ''}><th scope="row">${SYNC_FIELD_LABEL[k]}${isSet(k) ? html` <span class="chip ds-custom" title="Set here, not the default">Custom</span>` : ''}${hand[k] ? html`<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
+    <td class="ds-chain">${chain(k)}</td><td class="ds-how">${orderSentence(k, fieldOrder(st, k))}</td>${edit ? html`<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${SYNC_FIELD_LABEL[k]}">Change…</button></td>` : ''}</tr>`;
   const groups = groupsOf().map(([n, ks]) => [n, ks.filter(k => !only || SOURCES_OF(k).includes(only))]).filter(g => g[1].length);
-  return `<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? '<th><span class="sr-only">Change</span></th>' : ''}</tr></thead>
-    ${groups.map(([name, keys]) => `<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${esc(name)}</th></tr>${keys.map(row).join('')}</tbody>`).join('')}</table>`;
+  return html`<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? html`<th><span class="sr-only">Change</span></th>` : ''}</tr></thead>
+    ${groups.map(([name, keys]) => html`<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${name}</th></tr>${keys.map(row)}</tbody>`)}</table>`;
 }
 /* One explanation, used everywhere the field rules are. */
-const fieldNote = edit => `<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
-    <p><b>Updates</b>: the source keeps the field in step with what it reports. <b>Only if empty</b>: it writes the field only while it is empty and never replaces a value. A source that is <b>shown only</b> writes nothing; its value is beside the field on the device page, to pick there.${edit ? ' Changes apply at each source\'s next sync, after a preview of what they change.' : ''}</p></div></details>`;
+const fieldNote = edit => html`<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
+    <p><b>Updates</b>: the source keeps the field in step with what it reports. <b>Only if empty</b>: it writes the field only while it is empty and never replaces a value. A source that is <b>shown only</b> writes nothing; its value is beside the field on the device page, to pick there.${edit ? " Changes apply at each source's next sync, after a preview of what they change." : ''}</p></div></details>`;
 /* The rows' buttons: the devices a field was set by hand on (listed in the Table), and Change… for an admin. */
 function bindMatrix(root, on){
   root.querySelectorAll('[data-dshand]').forEach(b => b.onclick = () => { resetFilters(); st.handField = b.dataset.dshand; st.scope = null; st.tab = 'table'; closeModal(); render(); });
@@ -160,19 +161,19 @@ export function renderSetSources(){
   const on = sourcesOn(), edit = isAdmin();
   const custom = !!((st.fieldOrder && Object.keys(st.fieldOrder).length) || (st.fieldMode && Object.keys(st.fieldMode).length));
   /* The sources, each opening its own tab: the same dot as its page's header. */
-  const srcs = ['ls', 'ad', 'graph'].map(src => { const s = sourceState(src); return `<button type="button" class="ds-srcbtn" data-dstab="${SOURCE_TAB[src]}"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${esc(SOURCE_LABEL[src])}</b><span class="muted">${esc(s.text)}</span></button>`; }).join('');
+  const srcs = ['ls', 'ad', 'graph'].map(src => { const s = sourceState(src); return html`<button type="button" class="ds-srcbtn" data-dstab="${SOURCE_TAB[src]}"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${SOURCE_LABEL[src]}</b><span class="muted">${s.text}</span></button>`; });
   /* Three common setups, each one click (with the preview and Undo). */
-  const presets = edit ? `<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => `<button type="button" data-dspreset="${k}" title="${esc(tip)}">${esc(l)}</button>`).join('')}</div>` : '';
+  const presets = edit ? html`<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => html`<button type="button" data-dspreset="${k}" title="${tip}">${l}</button>`)}</div>` : '';
   const nSet = Object.keys(st.fieldOrder || {}).length;
-  const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${nSet} field${nSet === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
-  const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => `<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${esc(SOURCE_LABEL[src])}</b></div>
-    <dl class="ds-dl">${list.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>`).join('');
+  const reset = edit && custom ? html`<div class="ds-foot"><span class="muted">${nSet} field${nSet === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
+  const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => html`<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${SOURCE_LABEL[src]}</b></div>
+    <dl class="ds-dl">${list.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>`);
 
-  root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Each source has a tab of its own: how it is doing, its connection and its fields. This page shows the fields of all of them together, drawn from the same lists the syncs use.</p><div class="ds-srcs">${srcs}</div></div>
+  root.innerHTML = html`<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Each source has a tab of its own: how it is doing, its connection and its fields. This page shows the fields of all of them together, drawn from the same lists the syncs use.</p><div class="ds-srcs">${srcs}</div></div>
     <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote(edit)}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrixHtml(on)}</div>${reset}</details></div>
     <details class="panelbox fold ds-beyond"><summary class="hdr">Beyond the fields <span class="cnt">what else each source brings</span></summary><div class="ds-cards ds-wide">${extras}</div></details>
-    <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>
-    <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
+    <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></div>
+    <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => html`<li>${n}</li>`)}</ul></div>`;
 
   root.querySelectorAll('[data-dstab]').forEach(b => b.onclick = () => { st.setTab = b.dataset.dstab; renderSetPane(); $('#setPane').scrollTop = 0; });
   bindMatrix(root, on);
@@ -199,16 +200,16 @@ export function renderSetSources(){
 export function renderSourceFields(){
   const root = $('#srcFields'); if (!root) return;
   const src = root.dataset.src, on = sourcesOn(), edit = isAdmin(), ro = edit ? '' : 'disabled';
-  const fill = src === 'ad' ? `<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
+  const fill = src === 'ad' ? html`<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
       <p class="note ds-intro">Only in the order below: a value set by hand, from Lansweeper or from Intune goes first. The device shows where a value came from.</p>`
-    : src === 'graph' ? `<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${ro}> Fill in empty fields from Intune</label></div>
+    : src === 'graph' ? html`<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${ro}> Fill in empty fields from Intune</label></div>
       <p class="note ds-intro">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>` : '';
   /* Lansweeper also writes fields that have no order (its user, software, links…): ticked per field. */
-  const lsWrites = src === 'ls' ? `<div class="ds-subhdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set above and in All fields. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>` : '';
+  const lsWrites = src === 'ls' ? html`<div class="ds-subhdr">What Lansweeper writes</div>${rawHtml(policyGrid())}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set above and in All fields. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>` : '';
   const extras = [src, ...(src === 'graph' ? ['autopilot'] : [])].flatMap(x => SOURCE_EXTRAS[x] || []);
-  root.innerHTML = `<div class="panelbox"><div class="hdr">Fields from this source</div>${fill}${fieldNote(edit)}<div class="ds-scroll">${matrixHtml(on, src)}</div>${lsWrites}
-    ${extras.length ? `<details class="how ds-beyond-src"><summary>What else it brings</summary><dl class="ds-dl ds-pad">${extras.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></details>` : ''}</div>
-    ${src === 'graph' ? intuneCoverageHtml() : ''}`;
+  root.innerHTML = html`<div class="panelbox"><div class="hdr">Fields from this source</div>${fill}${fieldNote(edit)}<div class="ds-scroll">${matrixHtml(on, src)}</div>${lsWrites}
+    ${extras.length ? html`<details class="how ds-beyond-src"><summary>What else it brings</summary><dl class="ds-dl ds-pad">${extras.map(([what, how]) => html`<dt>${what}</dt><dd>${how}</dd>`)}</dl></details>` : ''}</div>
+    ${src === 'graph' ? rawHtml(intuneCoverageHtml()) : ''}`;
   bindMatrix(root, on);
   if (!edit) return;
   /* Filling turned off makes the source "off" in its rules: they are drawn again. */
@@ -226,11 +227,11 @@ function editOrder(k, on){
   const rows = () => [...order, ...known.filter(x => !order.includes(x))];
   const draw = () => {
     const all = rows();
-    $('#dsList').innerHTML = all.map((x, i) => `<li class="ds-li${use.has(x) ? '' : ' off'}"><span class="ds-pos">${use.has(x) ? order.indexOf(x) + 1 : ''}</span>
-      <label class="ds-use"><input type="checkbox" data-dsuse="${x}" ${use.has(x) ? 'checked' : ''}> <b>${esc(SOURCE_LABEL[x])}</b></label>
-      ${use.has(x) ? `<select data-dsmode="${x}" aria-label="How ${esc(SOURCE_LABEL[x])} writes it"><option value="update" ${modes[x] === 'update' ? 'selected' : ''}>Updates</option><option value="fill" ${modes[x] === 'fill' ? 'selected' : ''}>Only if empty</option></select>` : ''}
+    $('#dsList').innerHTML = html`${all.map(x => html`<li class="ds-li${use.has(x) ? '' : ' off'}"><span class="ds-pos">${use.has(x) ? order.indexOf(x) + 1 : ''}</span>
+      <label class="ds-use"><input type="checkbox" data-dsuse="${x}" ${use.has(x) ? 'checked' : ''}> <b>${SOURCE_LABEL[x]}</b></label>
+      ${use.has(x) ? html`<select data-dsmode="${x}" aria-label="How ${SOURCE_LABEL[x]} writes it"><option value="update" ${modes[x] === 'update' ? 'selected' : ''}>Updates</option><option value="fill" ${modes[x] === 'fill' ? 'selected' : ''}>Only if empty</option></select>` : ''}
       <span class="muted ds-li-note">${!on[x] ? 'not set up' : globalOff(x) ? 'filling is off in its tab' : use.has(x) ? '' : 'shown only'}</span>
-      <span class="ds-move"><button type="button" class="icon ghost" data-dsup="${x}" aria-label="Move ${esc(SOURCE_LABEL[x])} up" ${!use.has(x) || order.indexOf(x) === 0 ? 'disabled' : ''}>▲</button><button type="button" class="icon ghost" data-dsdown="${x}" aria-label="Move ${esc(SOURCE_LABEL[x])} down" ${!use.has(x) || order.indexOf(x) === order.length - 1 ? 'disabled' : ''}>▼</button></span></li>`).join('');
+      <span class="ds-move"><button type="button" class="icon ghost" data-dsup="${x}" aria-label="Move ${SOURCE_LABEL[x]} up" ${!use.has(x) || order.indexOf(x) === 0 ? 'disabled' : ''}>▲</button><button type="button" class="icon ghost" data-dsdown="${x}" aria-label="Move ${SOURCE_LABEL[x]} down" ${!use.has(x) || order.indexOf(x) === order.length - 1 ? 'disabled' : ''}>▼</button></span></li>`)}`;
     $('#dsSays').textContent = orderSentence(k, order, { ...(st.fieldMode || {}), [k]: modes });
     document.querySelectorAll('[data-dsmode]').forEach(sel => sel.onchange = () => { modes[sel.dataset.dsmode] = sel.value; draw(); });
 
@@ -240,10 +241,10 @@ function editOrder(k, on){
     document.querySelectorAll('[data-dsdown]').forEach(b => b.onclick = () => move(b.dataset.dsdown, 1));
   };
   const set = (st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]);
-  modal(`<div class="mh">${esc(SYNC_FIELD_LABEL[k])}: where it comes from</div>
+  modal(html`<div class="mh">${SYNC_FIELD_LABEL[k]}: where it comes from</div>
     <div class="mb"><p class="note">Tick the sources that write this field and put them in order: one higher up replaces what one below it wrote. For each, Updates keeps the field in step; Only if empty never replaces a value. A source not ticked is only shown beside the field.</p>
       <ol class="ds-list" id="dsList"></ol><p class="ds-says" id="dsSays" aria-live="polite"></p></div>
-    <div class="mf">${set ? '<button id="dsDefault">Back to the default</button>' : ''}<span class="grow"></span><button id="dsCancel">Cancel</button><button id="dsSave" class="primary">Save</button></div>`, 'sm');
+    <div class="mf">${set ? html`<button id="dsDefault">Back to the default</button>` : ''}<span class="grow"></span><button id="dsCancel">Cancel</button><button id="dsSave" class="primary">Save</button></div>`, 'sm');
   draw();
   $('#dsCancel').onclick = () => closeModal();
   $('#dsSave').onclick = () => {
