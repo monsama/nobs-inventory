@@ -72,8 +72,6 @@ export const planPosOf = (plan, o) => {
   /* A retired device is kept for the record, not shown on a plan. */
   if (o.status === 'retired') return null;
   if (o.planPos) return o.planPos.plan === plan.id ? o.planPos : null;
-  /* A device taken off this plan stays off until it is placed again. */
-  if (o.planOff === plan.id || (plan.off || []).includes(o.id)) return null;
   const a = plan.site ? (plan.areas || []).find(a => areaLocName(plan, a) === o.loc) : null;
   return a ? {plan: plan.id, x: round1(a.x + a.w / 2), y: round1(a.y + a.h / 2), auto: true} : null;
 };
@@ -120,6 +118,38 @@ const shiftRects = (rects, dx, dy) => {
   const k = Math.max(-b.x, Math.min(100 - b.x - b.w, dx)), j = Math.max(-b.y, Math.min(100 - b.y - b.h, dy));
   return {dx: k, dy: j, rects: rects.map(r => ({...r, x: r.x + k, y: r.y + j}))};
 };
+/* Snapping: an edge drawn or dragged near the edge of another area (or of the plan) lands on it, so rooms sit flush
+   and one can be drawn round the corner of another. SNAP_PX is how near, in screen pixels; Alt held turns it off. */
+const SNAP_PX = 8;
+/* The edges to snap to: every area but the one moved, the parts of the area being drawn, and the plan's own edges. */
+const snapLines = (plan, skipId) => {
+  const rects = [...(plan.areas || []).filter(a => a.id !== skipId).flatMap(areaRects), ...planParts];
+  return { xs: [0, 100, ...rects.flatMap(r => [r.x, r.x + r.w])], ys: [0, 100, ...rects.flatMap(r => [r.y, r.y + r.h])] };
+};
+/* The nearest line to v within tol, or null. */
+const nearest = (v, lines, tol) => { let best = null; for (const l of lines) if (Math.abs(l - v) <= tol && (best === null || Math.abs(l - v) < Math.abs(best - v))) best = l; return best; };
+/* A point snapped on each axis on its own; also says which lines it took, to show them. */
+const snapPoint = (plan, x, y, box, off) => {
+  if (off) return { x, y, gx: null, gy: null };
+  const L = snapLines(plan, null), tx = SNAP_PX / box.width * 100, ty = SNAP_PX / box.height * 100;
+  const gx = nearest(x, L.xs, tx), gy = nearest(y, L.ys, ty);
+  return { x: gx ?? x, y: gy ?? y, gx, gy };
+};
+/* How far to nudge rectangles moved by dx, dy so one of their edges lands on a line: the smallest nudge per axis. */
+const snapShift = (plan, skipId, rects, dx, dy, box, off) => {
+  if (off) return { dx, dy, gx: null, gy: null };
+  const L = snapLines(plan, skipId), tx = SNAP_PX / box.width * 100, ty = SNAP_PX / box.height * 100;
+  const best = (edges, lines, tol) => { let n = null, g = null; for (const e of edges) { const l = nearest(e, lines, tol); if (l !== null && (n === null || Math.abs(l - e) < Math.abs(n))) { n = l - e; g = l; } } return [n, g]; };
+  const [nx, gx] = best(rects.flatMap(r => [r.x + dx, r.x + r.w + dx]), L.xs, tx);
+  const [ny, gy] = best(rects.flatMap(r => [r.y + dy, r.y + r.h + dy]), L.ys, ty);
+  return { dx: dx + (nx ?? 0), dy: dy + (ny ?? 0), gx, gy };
+};
+/* The guide lines of a snap, drawn over the plan while the pointer is down; gone with null. */
+const showGuides = (c, gx, gy) => {
+  c.querySelectorAll('.pl-guide').forEach(el => el.remove());
+  if (gx !== null && gx !== undefined) { const el = document.createElement('div'); el.className = 'pl-guide v'; el.style.left = gx + '%'; c.appendChild(el); }
+  if (gy !== null && gy !== undefined) { const el = document.createElement('div'); el.className = 'pl-guide h'; el.style.top = gy + '%'; c.appendChild(el); }
+};
 /* An area is a location: "Site / Area". An area that was given an existing room keeps that room; otherwise the room is
    named after the area. Reading the name changes nothing, so drawing a plan never brings back a deleted room. */
 export const areaLocName = (plan, area) => area.room && LOCS.includes(area.room) ? area.room : `${plan.site} / ${area.name}`;
@@ -159,7 +189,6 @@ export function renderPlans(){
         ${editArea && planMode === 'view' ? html`<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${editArea.name}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${editArea.name}</button>` : ''}
         ${planMode === 'area' && planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
         ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
-        ${isAdmin() && planDevices(plan).length ? html`<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>` : ''}
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
         <button type="button" id="plSideBtn" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">${sideOpen() ? 'Hide device list' : 'Device list'}</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
@@ -183,7 +212,6 @@ export function renderPlans(){
   const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planParts = []; planZoom = 1; renderPlans(); };
   on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; planParts = []; planEditArea = null; renderPlans(); });
   on('#plAreaAdd', () => { planMode = 'area'; planPlace = null; planParts = []; renderPlans(); });
-  on('#plClear', () => clearPlanModal(plan));
   on('#plAreaDone', () => planEditArea ? addPartsToArea(plan) : areaModal(plan, planParts));
   on('#plAreaDiscard', () => { planParts = []; renderPlans(); });
   on('#plReplace', () => planModal(plan));
@@ -236,7 +264,7 @@ export function renderPlans(){
     if (closeGroup()) return;
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
-    if (planMode === 'area'){ planDraw = {x0: x, y0: y, x1: x, y1: y}; return; }
+    if (planMode === 'area'){ const s = snapPoint(plan, x, y, r, e.altKey); planDraw = {x0: s.x, y0: s.y, x1: s.x, y1: s.y}; showGuides(c, s.gx, s.gy); return; }
     if (planPlace && isAdmin()){
       if (!areaAt(plan, x, y)){ toast('A device goes inside an area. Draw the area first.'); return; }
       placeDevice(plan, planPlace, round1(x), round1(y));
@@ -253,10 +281,12 @@ export function renderPlans(){
       e.stopPropagation();
       if (!isAdmin()) return;
       const o = byId(x.dataset.unpin); if (!o) return;
-      /* A device shown because it is in this area's location leaves that location. Any other device is taken off the plan. */
-      const pos = planPosOf(plan, o);
-      if (pos && pos.auto){ const was = o.loc; o.loc = ''; hist(o, now(), `Removed from ${was} by ${who()}`); queueServerSave(); toast(o.name + ' is out of the location'); }
-      else { delete o.planPos; o.planOff = plan.id; hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave(); toast(o.name + ' is off the plan'); }
+      /* The plan shows where devices are: a device in the room of one of its areas leaves that room (and its place on
+         the plan). One placed by hand outside every area's room only loses its place. */
+      const inRoom = (plan.areas || []).some(a => areaLocName(plan, a) === o.loc);
+      delete o.planPos; delete o.planOff;
+      if (inRoom){ const was = o.loc; o.loc = ''; hist(o, now(), `Removed from ${was} by ${who()}`); queueServerSave(); toast(o.name + ' is out of the location'); }
+      else { hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave(); toast(o.name + ' is off the plan'); }
       renderPlans();
     };
   });
@@ -329,7 +359,7 @@ export function planCanvas(plan){
     ${src ? html`<img src="${src}" alt="Floor plan ${plan.name}" draggable="false">` : (plan.areas || []).length ? '' : html`<div class="pl-noimg">No picture yet. Use Plan… → Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => rawHtml(areaShape(areaRects(a), ` ac-${areaColor(a)}${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, String(html`data-area-drag="${a.id}"`)) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)))}
     ${planParts.length ? rawHtml(areaShape(planParts, ' pending')) : ''}
-    ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${pos.auto ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`)}
+    ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${(plan.areas || []).some(a => areaLocName(plan, a) === o.loc) ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`)}
   </div>`);
 }
 export function renderPlanList(plan){
@@ -355,14 +385,14 @@ export function placeDevice(plan, o, x, y, sure = false){
     $('#pmOk').onclick = () => { closeModal(); placeDevice(plan, o, x, y, true); };
     return;
   }
-  const was = snapshot([o]), wasLoc = o.loc, offWas = plan.off ? [...plan.off] : null;
-  o.planPos = {plan: plan.id, x, y}; delete o.planOff; plan.off = (plan.off || []).filter(id => id !== o.id);
+  const was = snapshot([o]), wasLoc = o.loc;
+  o.planPos = {plan: plan.id, x, y}; delete o.planOff;
   const area = locateOnPlan(plan, o, x, y);
   hist(o, now(), `Placed on ${plan.name}${area ? ' in ' + area : ''} by ${who()}`);
   /* The pin just placed is marked for a moment and kept out of a group, so it can be seen where it went. */
   st.planFlash = o.id;
   planPlace = null; queueServerSave(); renderPlans();
-  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); if (offWas) plan.off = offWas; else delete plan.off; queueServerSave(); renderPlans(); });
+  toastUndo(`${o.name} placed${area ? ' in ' + area : ''}${o.loc !== wasLoc ? ` · location now ${o.loc}` : ''}`, () => { restoreSnapshot(was, 'Placing undone by ' + who()); queueServerSave(); renderPlans(); });
 }
 /* From a device's page: its floor plan, with the device marked and in view. */
 export function showOnPlan(o){
@@ -393,10 +423,17 @@ document.addEventListener('pointermove', e => {
       c.querySelectorAll('[data-area-drag]').forEach(el => el.classList.toggle('droptarget', !rack && !!(spot && spot.area && spot.area.id === el.dataset.areaDrag)));
     }
   }
-  if (planDraw){ const r = c.getBoundingClientRect(); planDraw.x1 = pctOf(e.clientX, r.left, r.width); planDraw.y1 = pctOf(e.clientY, r.top, r.height); drawPreview(); }
+  if (planDraw){
+    const r = c.getBoundingClientRect(), pl = planById(planSel);
+    const s = pl ? snapPoint(pl, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey) : { x: pctOf(e.clientX, r.left, r.width), y: pctOf(e.clientY, r.top, r.height), gx: null, gy: null };
+    planDraw.x1 = s.x; planDraw.y1 = s.y; showGuides(c, s.gx, s.gy); drawPreview();
+  }
   if (planAreaDrag){
     const r = c.getBoundingClientRect(), d = planAreaDrag;
-    const sh = shiftRects(d.rects, pctOf(e.clientX, r.left, r.width) - d.x0, pctOf(e.clientY, r.top, r.height) - d.y0);
+    const pl = planById(d.planId), raw = { dx: pctOf(e.clientX, r.left, r.width) - d.x0, dy: pctOf(e.clientY, r.top, r.height) - d.y0 };
+    const sn = pl ? snapShift(pl, d.area.id, d.rects, raw.dx, raw.dy, r, e.altKey) : { ...raw, gx: null, gy: null };
+    const sh = shiftRects(d.rects, sn.dx, sn.dy);
+    showGuides(c, sn.gx, sn.gy);
     d.dx = sh.dx; d.dy = sh.dy; d.moved = d.moved || Math.abs(sh.dx) + Math.abs(sh.dy) > 0.2;
     /* The shape and its name tag follow the pointer by the drag's offset; the drop writes the new place. */
     const tx = d.dx * r.width / 100, ty = d.dy * r.height / 100;
@@ -412,6 +449,7 @@ document.addEventListener('pointermove', e => {
   }
 });
 document.addEventListener('pointerup', e => {
+  { const c = $('#plCanvas'); if (c) showGuides(c, null, null); }
   if (planListDrag){
     const d = planListDrag; planListDrag = null;
     if (d.moved){
@@ -471,20 +509,6 @@ export function addPartsToArea(plan){
   const box = boxOf(rects);
   Object.assign(area, {rects, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
   queueServerSave(); toast('Area changed'); renderPlans();
-}
-/* Takes every device off this plan. Only the plan changes: the devices keep their locations and history in the inventory. */
-export function clearPlanModal(plan){
-  const n = planDevices(plan).length;
-  modal(html`<div class="mh">Clear ${n} ${n === 1 ? 'device' : 'devices'} from ${plan.name}?</div>
-    <div class="mb"><p class="note">The devices leave this plan. The inventory does not change: locations and history stay as they are. The plan and its areas stay.</p></div>
-    <div class="mf"><button id="clrCancel">Cancel</button><button id="clrOk" class="danger-text">Clear devices</button></div>`, 'sm');
-  $('#clrCancel').onclick = closeModal;
-  $('#clrOk').onclick = () => {
-    const ids = planDevices(plan).map(o => o.id);
-    for (const o of objs) if (o.planPos && o.planPos.plan === plan.id) delete o.planPos;
-    plan.off = [...new Set([...(plan.off || []), ...ids])];
-    queueServerSave(); closeModal(); toast('Devices cleared from the plan'); renderPlans();
-  };
 }
 /* Asks before removing an area from the plan. Devices placed inside it lose their place on the plan; their locations
    and history stay. */

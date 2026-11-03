@@ -1312,6 +1312,9 @@ button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--dange
 .pl-unpin{display:inline-flex;align-items:center;justify-content:center;height:16px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;width:0;margin-left:-6px;overflow:hidden;background:transparent;color:var(--muted);transition:width .1s}
 .pl-pin:hover .pl-unpin,.pl-pin:focus-visible .pl-unpin,.pl-pin:focus-within .pl-unpin{width:16px;margin-left:0}
 .pl-unpin:hover{background:color-mix(in srgb,var(--danger) 15%,transparent);color:var(--badtext)}
+/* Snap guide: where an edge being drawn or dragged lands on another area's edge. */
+.pl-guide{position:absolute;pointer-events:none;z-index:9;background:var(--accent);opacity:.8}
+.pl-guide.v{top:0;bottom:0;width:1px;margin-left:-.5px} .pl-guide.h{left:0;right:0;height:1px;margin-top:-.5px}
 .pl-area-fill{fill:color-mix(in srgb,var(--ac,var(--accent)) 10%,transparent)}
 .pl-area-edge{fill:none;stroke:var(--ac,var(--accent));vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-width:1.5px}
 .pl-area-tag{position:absolute;display:flex;align-items:center;gap:6px;margin:4px 0 0 4px;border-radius:4px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:7;background:var(--bg);color:var(--fg);border:1px solid color-mix(in srgb,var(--ac,var(--accent)) 45%,var(--bd));border-left:4px solid var(--ac,var(--accent));box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600;padding:1px 3px 1px 7px}

@@ -60,6 +60,21 @@ try {
   await p.click('#arOk');
   await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas.some(a => a.room === 'Zürich HQ / Büro 2.OG' && a.color === 'green'));
   assert.equal(await p.locator('svg.pl-area.ac-green').count(), 1, 'the area is not drawn in its colour');
+
+  // a second area drawn a few pixels off the first one's corner snaps onto its edges: the rooms sit flush
+  await p.click('#plArea');
+  const b2 = await p.locator('#plCanvas').boundingBox();
+  await p.mouse.move(b2.x + b2.width * 0.5 + 4, b2.y + b2.height * 0.2 - 3);
+  await p.mouse.down();
+  await p.mouse.move(b2.x + b2.width * 0.8, b2.y + b2.height * 0.5 + 5, { steps: 6 });
+  assert.ok(await p.locator('.pl-guide').count() >= 1, 'no guide line shows where it snaps');
+  await p.mouse.up();
+  assert.equal(await p.locator('.pl-guide').count(), 0, 'the guide lines stay after the pointer is up');
+  const [first, drawn] = await p.evaluate(async () => { const m = await import('/js/20-plans.js'); return [m.planById('pl1').areas[0].rects?.[0] || m.planById('pl1').areas[0], m.planParts[0]]; });
+  assert.ok(Math.abs(drawn.x - (first.x + first.w)) < 0.01, `the left edge did not snap to the first area's right edge: ${drawn.x} vs ${first.x + first.w}`);
+  assert.ok(Math.abs(drawn.y - first.y) < 0.01, `the top edge did not snap to the first area's top: ${drawn.y} vs ${first.y}`);
+  assert.ok(Math.abs(drawn.y + drawn.h - (first.y + first.h)) < 0.01, 'the bottom edge did not snap to the first area\'s bottom');
+  await p.keyboard.press('Escape');
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }
