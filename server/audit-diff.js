@@ -1,6 +1,9 @@
 /* What a settings change changed, for the log: each changed value by its path, before and after, or the items added to
    and removed from a list (by their names). Passwords, tokens and keys are never written, only that they changed;
-   pictures are named, not stored. At most 40 lines per setting, each value cut to 160 characters. */
+   pictures are named, not stored. At most 40 lines per setting, each value cut to 160 characters. A plain value
+   (text, number, yes/no) also keeps its whole old and new value with the path as keys (raw), so the log can set it back
+   (public/js/restore.js); lists, objects, pictures, long texts and secrets never do. */
+import { rawOf } from '../public/js/restore.js';
 const SECRET = /pass(word)?|secret|token|private|apikey|credential/i;
 const MAX = 40;
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -13,12 +16,12 @@ const short = v => {
 /* An item of a list by what names it: a contact, location, subnet, rule… */
 const label = x => isObj(x) ? String(x.name || x.title || x.label || x.cidr || x.login || x.id || short(x)) : short(x);
 
-export function settingDiff(before, after, path = '', out = []) {
+export function settingDiff(before, after, path = '', out = [], keys = []) {
   if (out.length >= MAX || JSON.stringify(before) === JSON.stringify(after)) return out;
   const last = path.split('.').pop();
   if (SECRET.test(last)) { out.push({ path, before: '(hidden)', after: '(hidden)' }); return out; }
   if ((isObj(before) || before == null) && (isObj(after) || after == null) && (isObj(before) || isObj(after))) {
-    for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) settingDiff((before || {})[k], (after || {})[k], path ? `${path}.${k}` : k, out);
+    for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) settingDiff((before || {})[k], (after || {})[k], path ? `${path}.${k}` : k, out, [...keys, k]);
     return out;
   }
   if (Array.isArray(before) && Array.isArray(after)) {
@@ -36,6 +39,7 @@ export function settingDiff(before, after, path = '', out = []) {
     out.push(entry);
     return out;
   }
-  out.push({ path, before: short(before), after: short(after) });
+  const raw = rawOf(keys, before, after);
+  out.push({ path, before: short(before), after: short(after), ...(raw ? { raw } : {}) });
   return out;
 }

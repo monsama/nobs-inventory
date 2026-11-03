@@ -13,13 +13,16 @@ import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
 import { sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, keepByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast, used } from './01-core.js';
+import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, esc, hist, now, objs, pad2, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast, used } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
+import { editText, fieldNote } from './restore.js';
+import { bindHistory, historyPanel, refreshHistory } from './28-restore.js';
+import { timelinePanel, bindTimeline } from './29-timeline.js';
 /* ---------- object page ---------- */
 export function patchPanel(o){
   const ports = [];
@@ -271,7 +274,8 @@ export function renderObj(o){
       <details class="panelbox fold" ${chain.length > 1 ? 'open' : ''}><summary class="hdr">Path to the network${chain.length > 1 ? ` <span class="cnt">${chain.length - 1} ${chain.length === 2 ? 'hop' : 'hops'}</span>` : ' <span class="cnt">none</span>'}</summary>
         ${chain.length > 1 ? netPath : '<div class="chain"><span class="muted">This device does not hang off anything.</span></div>'}
       </details>
-      <details class="panelbox fold" ${(HISTORY[o.id]||[]).length ? 'open' : ''}><summary class="hdr">History${(HISTORY[o.id]||[]).length ? '' : ' <span class="cnt">none</span>'}</summary>${(HISTORY[o.id]||[]).length ? `<ul class="hist">${(HISTORY[o.id]||[]).map(h => `<li><time>${esc(h.t)}</time><span>${esc(h.msg)}</span></li>`).join('')}</ul>` : '<div class="chain"><span class="muted">No changes recorded yet.</span></div>'}</details>
+      ${timelinePanel(o)}
+      ${historyPanel(o)}
     </div></div>`;
 
   /* Add: shows the panel (kept open while this device is open) and moves the focus into it. */
@@ -288,6 +292,8 @@ export function renderObj(o){
   bindDeviceLinks(o);
   if (!o.review) bindMaint(o);
   bindPhotos(o);
+  bindTimeline(o);
+  bindHistory(o);
   const objView = $('#view').querySelector('.obj');
   /* A field saves when it is left; while one is being typed in, Save shows (Enter or leaving the field do the same). */
   /* The notes box saves itself when it is left (below), so it does not show Save. */
@@ -473,11 +479,15 @@ export function renderObj(o){
         place = {rack: rackId, u, h};
       } else place = {};
     }
-    const kept = [];
+    const kept = [], edits = [];
     const statusWas = o.status, uidWas = o.uid || null, hotWas = !!o.hotdesk, userWas = o.user;
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = dateValue(el);
-      if (k.startsWith('custom.')){ o.custom = {...(o.custom || {}), [k.slice(7)]: v === '' ? null : (el.type === 'number' ? +v : v)}; return; }
+      if (k.startsWith('custom.')){
+        const was = (o.custom || {})[k.slice(7)], nv = v === '' ? null : (el.type === 'number' ? +v : v);
+        if (String(was ?? '') !== String(nv ?? '')) edits.push([k, was, nv]);
+        o.custom = {...(o.custom || {}), [k.slice(7)]: nv}; return;
+      }
       if (k === 'user'){
         const was = o.hotdesk ? '__hotdesk' : (o.uid || '');
         if (v === '__hotdesk'){ o.hotdesk = true; o.uid = null; } else { delete o.hotdesk; o.uid = v || null; }
@@ -488,7 +498,7 @@ export function renderObj(o){
       if (['ports','sfp'].includes(k)) v = +v || 0;
       /* A price: a number of 0 or more, written with a point or a comma; empty takes it away. */
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
-      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); delete o.price; return; } v = t; }
+      if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); else if (o.price !== undefined) edits.push([k, o.price, undefined]); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
       if (k === 'units') v = +v || 42;
       if (k === 'type' && o.type !== v && TYPES[v]){
@@ -498,16 +508,11 @@ export function renderObj(o){
         if (v === 'switch'){ o.ports ??= 24; o.sfp ??= 4; }
       }
       if (k === 'ports' && hasPorts(o) && v < (o.ports || 0) && rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > v)){ toast(`Ports in use above ${v} block this change. Move or remove those connections first.`); v = o.ports; }
-      /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added from Graph. */
-      if ((feedLinked(o) || (o.graph && o.graph.added)) && FIELD_LABEL[k] && String(o[k] ?? '') !== String(v ?? '')){ pickHand(o, k); kept.push(FIELD_LABEL[k]); }
-      /* A value changed here is noted as set by hand, over any sync's (and kept from them); cleared, it stays empty: no
-         sync fills it again. */
-      if (String(o[k] ?? '') !== String(v ?? '') && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
-        if (String(v ?? '') === ''){
-          if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; pickHand(o, k); }
-        } else o.src = {...(o.src || {}), [k]: 'hand'};
-        keepByHand(o, k);
-      }
+      /* A value changed by hand on a device a sync fills in is kept from then on: Lansweeper's, or Graph's for one added
+         from Graph; it is noted as set by hand, and cleared, it stays empty: no sync fills it again. */
+      if (setByHand(o, k, v)) kept.push(FIELD_LABEL[k]);
+      /* Each changed field gets its own line in the history, with both values, so it can be set back from there. */
+      if (k !== 'type' && String(o[k] ?? '') !== String(v ?? '')) edits.push([k, o[k], v]);
       o[k] = v;
       /* The mark beside the field follows at once: the page is not drawn again for one field. */
       const fld = document.getElementById(`f_${o.id}_${k}`), mk = fld && fld.closest('.ctlrow') && fld.closest('.ctlrow').querySelector(':scope > .fsrc, :scope > .fsrc-slot');
@@ -522,6 +527,7 @@ export function renderObj(o){
     }
     /* Status and user go together: a device taken into stock has nobody (the person goes, with Undo); one given to
        somebody while in stock is in use from now on. */
+    if ((o.uid || null) !== uidWas || !!o.hotdesk !== hotWas) edits.push(['user', hotWas ? 'Hot desk' : userWas, o.hotdesk ? 'Hot desk' : o.user]);
     let followUp = null;
     if (o.status === 'stock' && statusWas !== 'stock' && (uidWas || hotWas) && (o.uid || null) === uidWas && !!o.hotdesk === hotWas){
       o.uid = null; delete o.hotdesk;
@@ -538,7 +544,10 @@ export function renderObj(o){
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '—' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
-    hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
+    const shownValue = (k, v) => k === 'status' && STATUS[v] ? STATUS[v].label : v;
+    const labelOf = k => (fields.find(f => f[0] === k) || [])[1] || FIELD_LABEL[k] || k;
+    for (const [k, a, b] of edits) hist(o, now(), editText(labelOf(k), shownValue(k, a), shownValue(k, b)) + ' by ' + who() + (kept.includes(FIELD_LABEL[k]) ? ' · kept from the syncs' : ''), fieldNote(k, a, b));
+    if (!edits.length) hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
     /* An address used by another device, or outside the subnet the device is on, is flagged; the object is still saved. */
     const warns = [];
     /* Another device's other adapters count too: a notebook's Wi-Fi address is in use as much as its cable one. */
@@ -555,6 +564,7 @@ export function renderObj(o){
     if ((o.uid || null) !== uidWas) rerender = true;
     if (followUp) setTimeout(followUp, 0);
     if (rerender) render(); else {
+      refreshHistory(o);
       $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();
       /* A new model is in the list now: its "added when saved" note goes. */
       document.querySelectorAll('#view input[data-combo]:not([data-combo=ip])').forEach(comboNote);

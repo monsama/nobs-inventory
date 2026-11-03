@@ -12,6 +12,7 @@ import { buildDigest, digestSettings, lastDigest, saveDigestSettings, sendDigest
 
 import { registerApiRoutes } from './api-routes.js';
 import { registerPeopleRoutes } from './people-routes.js';
+import { registerLogRoutes } from './log-routes.js';
 import { PASSWORD_MIN, decryptBackup, exportSet, exportWhere, exportSettings, isEncryptedBackup, lastExport, runExport, saveExportSettings } from './backup-export.js';
 import { lastRestoreTest, runRestoreTest } from './restore-test.js';
 import { finishSso, startSso, userForClaims } from './sso.js';
@@ -1050,6 +1051,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
   });
   registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailTransport, smtpNow });
   registerApiRoutes(app, { db, requireUser, requireAdmin, throttle });
+  registerLogRoutes(app, { db, requireUser, requireAdmin });
   /* The copy outside the server (server/backup-export.js): only when the server names a folder. */
   const exportInfo = () => ({ dir: exportSet(), where: exportWhere(), ...exportSettings(db), passwordSet: appSecretSetAt(db, 'backupExportPassword') || '', last: lastExport(db), passwordMin: PASSWORD_MIN, restoreTest: lastRestoreTest(db) });
   /* The restore test (server/restore-test.js): weekly from the scheduler, and on request here. */
