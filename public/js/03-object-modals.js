@@ -7,7 +7,7 @@ import { reviewBanner, bindReviewBanner, mergeTarget, resolveModal, reviewDo } f
 import { bindDeviceResp, deviceRespPanel } from './11-contacts.js';
 import { bindDeviceLinks, deviceLinksPanel } from './12-links.js';
 import { bindMaint, maintPanel } from './26-maintenance.js';
-import { handOutModal, takeBack } from './27-handout.js';
+import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, bindLicences, contractsOf, deviceContractsPanel, licenceMark, licencesFor, licencesPanel } from './09-costs.js';
 import { LOCS, sourceMark, O, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
@@ -802,7 +802,7 @@ export function renderObj(o){
   const dup = $('#dupBtn'); if (dup) dup.onclick = () => newObjModal({copy: o});
   $('#relMapBtn').onclick = () => { st.mapFocus = o.id; st.tab = 'map'; render(); };
   const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);
-  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBack([o]);
+  const tb = $('#takeBackBtn'); if (tb) tb.onclick = () => takeBackModal([o]);
   /* Handing a device over: the entry sheet of the person who has it (their devices and a first password), from here. */
   const opb = $('#onPlanBtn'); if (opb) opb.onclick = () => showOnPlan(o);
   const sb = $('#sheetBtn'); if (sb) sb.onclick = () => { const u = personById(o.uid); if (u) sheetModal(u, null, { only: o.id }); };

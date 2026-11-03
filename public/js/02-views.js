@@ -17,7 +17,7 @@ import { SYNC_FIELD_LABEL } from './sync-map.js';
 import { USERS, bindUser, isAdmin, ownOnly, seenSites, checkAddress, rackOf, showDevicesOf } from './04-settings.js';
 import { closeModal, confirmModal, modal } from './19-modal.js';
 import { sheetModal } from './08-sheets.js';
-import { handOutToModal, takeBack } from './27-handout.js';
+import { handOutToModal, takeBackModal } from './27-handout.js';
 import { dupOf, mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js';
 /* ---------- sidebar ---------- */
 /* What the problem filters mean, on hover. */
@@ -161,7 +161,10 @@ export function renderFilterBar(){
   const rc = contactOf(st.resp), person = st.person ? USERS.find(u => u.id === st.person) : null;
   /* A person removed meanwhile: the filter goes with them, so it never hides everything unseen. */
   if (st.person && !person) st.person = null;
-  const chips = !list ? [] : [
+  /* The other lists the search filters (Floor plans, Software, Contracts, Contacts) show its chip too, so a list
+     narrowed by text typed on another one is not read as everything. */
+  const qOnly = !list && ['plans', 'sw', 'contracts', 'contacts'].includes(st.tab) && st.q.trim();
+  const chips = qOnly ? [['q', 'Filter', '“' + st.q.trim() + '”']] : !list ? [] : [
     st.type && TYPES[st.type] && ['type', 'Type', TYPES[st.type].label],
     st.loc && ['loc', 'Location', st.loc],
     st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
@@ -210,7 +213,7 @@ $('#fbar').addEventListener('click', e => {
     if (pa.dataset.pact === 'sheet'){ sheetModal(person); return; }
     if (pa.dataset.pact === 'give'){ handOutToModal(person); return; }
     /* Everything the person has goes back into stock, with nobody assigned: one Undo takes it all back. */
-    takeBack(objs.filter(o => o.uid === person.id && o.status !== 'retired')); return;
+    takeBackModal(objs.filter(o => o.uid === person.id && o.status !== 'retired')); return;
   }
   const b = e.target.closest('[data-fx]'); if (!b) return;
   const k = b.dataset.fx;

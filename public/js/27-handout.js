@@ -1,7 +1,7 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { $, LOCS, esc, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, toastUndo } from './01-core.js';
+import { $, LOCS, esc, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, st, toastUndo } from './01-core.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
@@ -11,26 +11,68 @@ const low = v => String(v || '').trim().toLowerCase();
 /* A synced device keeps the person given here: the next sync does not put its own user back. */
 const keepUser = o => { if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'user'); };
 
+/* A device moved to a room here: a synced one keeps this room too, as one moved by hand. true when it moved. */
+function moveTo(o, loc){
+  if (!loc || o.loc === loc) return false;
+  if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc');
+  o.loc = loc; markHand(o, 'loc');
+  return true;
+}
 function give(list, u, loc = ''){
   for (const o of list){
-    const was = o.user, moved = loc && o.loc !== loc;
+    const was = o.user;
     delete o.hotdesk; o.uid = u.id; o.status = 'active'; keepUser(o);
-    /* Where it goes with the person: a synced device keeps this room too, as one moved by hand. */
-    if (moved){ if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc'); o.loc = loc; markHand(o, 'loc'); }
+    const moved = moveTo(o, loc);
     hist(o, now(), `Handed out to ${u.name}${was && was !== u.name ? ` (was ${was})` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
   }
 }
-/* Where the devices go: where they are (the default), or a room. */
-const locField = () => `<label for="hoLoc" class="ho-l">Where</label><select id="hoLoc"><option value="">Where it is now</option>${LOCS.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>`;
-const locPicked = () => ($('#hoLoc') && $('#hoLoc').value) || '';
-export function takeBack(list){
+/* The room a person's office (from AD or Entra) names, or is mapped to under Settings → Locations; '' when none. */
+const lowText = v => String(v || '').trim().toLowerCase();
+export function officeRoom(u){
+  const office = lowText(u && u.profile && u.profile.office); if (!office) return '';
+  const map = { ...(st.adLocMap || {}), ...(st.locMap || {}) };
+  const mapped = Object.entries(map).find(([k]) => lowText(k) === office);
+  return LOCS.find(l => lowText(l) === office) || (mapped && LOCS.includes(mapped[1]) ? mapped[1] : '');
+}
+/* Where the devices go: where they are (the default), or a room; the one marked "office" is the person's. */
+const locField = (id = 'hoLoc', office = '') => `<label for="${id}" class="ho-l">Where</label><select id="${id}"><option value="">Where it is now</option>${LOCS.map(l => `<option value="${esc(l)}">${esc(l)}${l === office ? ' (their office)' : ''}</option>`).join('')}</select>`;
+const locPicked = (id = 'hoLoc') => ($('#' + id) && $('#' + id).value) || '';
+/* A person picked: their office room is proposed, unless a room was chosen already. */
+const proposeOffice = u => {
+  const sel = $('#hoLoc'), room = officeRoom(u); if (!sel) return;
+  for (const o of sel.options) o.textContent = o.value + (o.value && o.value === room ? ' (their office)' : '') || 'Where it is now';
+  if (room && (!sel.value || sel.dataset.auto)){ sel.value = room; sel.dataset.auto = '1'; }
+  else if (!room && sel.dataset.auto){ sel.value = ''; delete sel.dataset.auto; }
+};
+/* Take back into stock: asked where they go (where they are, or a room; the room last used for this is proposed,
+   kept in this browser), then done with Undo. */
+const STOCK_ROOM = 'ni-stock-room';
+export function takeBackModal(list){
+  const live = list.filter(o => o.status !== 'retired');
+  if (!live.length) return;
+  let last = ''; try { last = localStorage.getItem(STOCK_ROOM) || ''; } catch { /* no storage: nothing proposed */ }
+  modal(`<div class="mh">Take back ${live.length === 1 ? esc(live[0].name) : `${live.length} devices`}</div><div class="mb">
+    ${locField('tbLoc')}
+    <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
+    <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
+  if (last && LOCS.includes(last)) $('#tbLoc').value = last;
+  $('#tbNo').onclick = closeModal;
+  $('#tbOk').onclick = () => {
+    const loc = locPicked('tbLoc');
+    try { if (loc) localStorage.setItem(STOCK_ROOM, loc); } catch { /* not kept: proposed again next time */ }
+    closeModal(); takeBack(live, loc);
+  };
+  $('#tbOk').focus();
+}
+export function takeBack(list, loc = ''){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
   const snap = snapshot(live), names = new Set(live.map(o => o.user).filter(Boolean));
   for (const o of live){
     const had = o.user;
     o.uid = null; delete o.hotdesk; o.status = 'stock'; keepUser(o);
-    hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''} by ${who()}`);
+    const moved = moveTo(o, loc);
+    hist(o, now(), `Taken back into stock${had ? ` from ${had}` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
   }
   queueServerSave(); render();
   toastUndo(`${live.length === 1 ? live[0].name : `${live.length} devices`} back in stock${names.size === 1 ? ` from ${[...names][0]}` : ''}`, () => { restoreSnapshot(snap, 'Taking back undone'); queueServerSave(); render(); });
@@ -60,7 +102,7 @@ export function handOutModal(ids){
       + (q && !exact ? `<button type="button" class="ho-p ho-new${picked && picked.isNew ? ' sel' : ''}" data-honew="1" role="option"><b>New person: ${esc($('#hoQ').value.trim())}</b><span class="muted">added to Settings → Users, without a sign-in</span></button>` : '')
       + (all.length > SHOWN ? `<p class="note">${SHOWN} of ${all.length} shown: type to narrow.</p>` : '')
       + (!found.length && !q ? '<p class="note">Type a name.</p>' : '');
-    $('#hoList').querySelectorAll('[data-hop]').forEach(b => b.onclick = () => { picked = USERS.find(u => u.id === b.dataset.hop); $('#hoQ').value = picked.name; draw(); });
+    $('#hoList').querySelectorAll('[data-hop]').forEach(b => b.onclick = () => { picked = USERS.find(u => u.id === b.dataset.hop); $('#hoQ').value = picked.name; proposeOffice(picked); draw(); });
     const nb = $('#hoList').querySelector('[data-honew]'); if (nb) nb.onclick = () => { picked = { isNew: true, name: $('#hoQ').value.trim() }; draw(); };
     $('#hoOk').disabled = !picked;
     $('#hoOk').textContent = picked ? `Hand out to ${picked.name}` : 'Hand out';
@@ -91,9 +133,10 @@ export function handOutToModal(u){
   modal(`<div class="mh">Hand out to ${esc(u.name)}</div><div class="mb">
     <label for="hsQ" class="ho-l">Devices in stock</label><input id="hsQ" autocomplete="off" placeholder="Name, code, model or serial number">
     <div id="hsList" class="ho-list ho-devs"></div>
-    ${locField()}
+    ${locField('hoLoc', officeRoom(u))}
     ${SERVER.on && isAdmin() ? '<label class="pchk ho-sheet"><input type="checkbox" id="hoSheet"> Then make the entry sheet</label>' : ''}</div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
+  if (officeRoom(u)) $('#hoLoc').value = officeRoom(u);
   const chosen = new Set();
   const draw = () => {
     const q = low($('#hsQ').value), all = stock(), list = all.filter(o => !q || [o.name, o.code, o.model, o.serial].some(x => low(x).includes(q))).slice(0, 50);
