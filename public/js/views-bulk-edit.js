@@ -24,6 +24,8 @@ const ownerOf = (o, k) => {
   return fixed && fixed !== 'hand' ? fixed : feedOwns(o, k) ? 'ls' : 'graph';
 };
 
+/* The Edit fields dialog for the devices with these ids: rows of a field to set or clear, a preview that follows each
+   change, and Apply with one Undo. */
 export function bulkEditModal(ids){
   /* Devices of the inventory only: a record waiting in To review is accepted first. */
   const list = ids.map(byId).filter(o => o && !o.review);

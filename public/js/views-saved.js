@@ -74,6 +74,8 @@ const lastSend = (v, m) => {
     next ? `Next: ${stamp(next)}.` : ''].filter(Boolean).join(' ');
 };
 const DAYS_SHOWN = [1, 2, 3, 4, 5, 6, 0];
+/* The Edit view dialog described above, for the saved view v. Save renames it and keeps its mail schedule; Send now
+   saves first, then has the server send it. */
 function editViewModal(v){
   const m0 = v.mail || { every: 'none', hour: 7, to: [] };
   modal(String(html`<div class="mh">Edit view</div><div class="mb"><div class="form"><label for="svName">Name</label><input id="svName" maxlength="80" value="${v.name}" autocomplete="off"></div>

@@ -74,6 +74,8 @@ function retireTies(o){
     resp.length && ['resp', html`Remove ${resp.map(c => c.name).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
   ].filter(Boolean).map(t => /** @type {[string, import('./html.js').Html, () => void]} */ (t));
 }
+/* The Retire dialog: what the device still holds (retireTies) to clear, ticked, and an optional reason. Retiring takes it
+   out of its rack, sets it retired and notes it in the history, with one Undo for all of it. */
 export function retireModal(o){
   const ties = retireTies(o);
   modal(html`<div class="mh">Retire ${o.name}?</div>
@@ -118,6 +120,8 @@ function twinBanner(o){
   const can = isAdmin() && !o.review && mergeTarget(o) === tw;
   return html`<div class="rv-banner warn"><span>Probably a second record of <b>${tw.name}</b>${tw.review ? ' (waiting in To review)' : ''}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.</span><button type="button" id="twOpen">Open ${tw.name}</button>${isAdmin() ? html`<button type="button" id="twResolve">Resolve…</button>` : ''}${can ? html`<button type="button" id="twMerge" class="primary" title="Adds it to the attachments of ${tw.name} as its docking station (by its MAC address); this record is kept as ignored, so no sync brings it back">Merge into ${tw.name}</button>` : ''}</div>`;
 }
+/* The Delete dialog. A device the feed still sends is offered Retire and exclude as well, since deleting it only brings
+   it back as a new device with the next push. */
 export function purgeModal(o){
   /* A device Lansweeper sends comes back with its next push, as a new device: to keep it out, it is excluded instead. */
   const fromLs = !!o.feed && !o.excluded && o.feed.sys === 'Lansweeper';
@@ -135,6 +139,8 @@ export function purgeModal(o){
   };
   $('#pgOk').onclick = () => { deleteObject(o.id); closeModal(); toast(`${o.name} deleted`); };
 }
+/* Removes a device (or a record in To review) for good: its relations, its history, rack and on-top links to it, and its
+   tab. Records merged into it stay ignored. No Undo. */
 export function deleteObject(id){
   /* A record waiting in To review (or ignored there) is deleted from that list. */
   const list = objs.some(x => x.id === id) ? objs : REVIEW;
@@ -203,12 +209,15 @@ function extras(o){
   /* The panels are markup from their modules (strings), folded by a string edit. */
   return html`${none}${edit && folded.length ? html`<div class="xadd" id="xAdd"><span class="muted">Add</span>${folded.map(([k, l]) => html`<button type="button" data-xadd="${k}">+ ${l}</button>`)}</div>` : ''}${parts.map(([k, , panel, empty]) => rawHtml(folded.some(f => f[0] === k) ? hide(k, String(panel)) : edit && empty ? closable(k, String(panel)) : String(panel)))}`;
 }
+/* Draws a device's page into the toolbar and the view: the Properties form (read only for someone who is not an admin),
+   the panels beside it, the relations, the path to the network, timeline and history. Then wires every control on it. */
 export function renderObj(o){
   /* A panel's patch cords are in its Ports table, not listed again here. */
   const rs = relsOf(o).filter(x => !(o.type === 'patch' && x.r.kind === 'patched'));
   /* Network links first, then the attached devices, each under its own heading when both are there. */
   const net = rs.filter(x => !isAttached(x.r.kind)), att = rs.filter(x => isAttached(x.r.kind)), byGroup = [...net, ...att];
   const groupHead = i => html`${net.length && att.length && i === 0 ? html`<div class="relgroup">Network</div>` : ''}${net.length && att.length && i === net.length ? html`<div class="relgroup">Attached</div>` : ''}`;
+  /* Which fields show, and in what order. */
   let fields = typeFieldsOf(o.type);
   /* A type that usually has no ports (a PC, a printer) shows the port fields only for a device that has ports, or after
      More -> Add network ports. Setting the ports back to 0 hides them again. */
@@ -253,6 +262,7 @@ export function renderObj(o){
       ${i ? html`<div class="ps-hop">${n.outlet ? 'on' : KINDS[n.via.kind].fwd}${n.via.kind === 'patched' ? html` <b>${n.via.fromPort}</b> →` : ''}${n.via.port != null ? html` <b>${portLabel(n.o, n.via.port)}</b>` : ''}</div>` : ''}
       <div class="ps-row"><span class="ps-dot" aria-hidden="true"></span><button class="ps-name" data-open="${n.o.id}">${rawHtml(tico(n.o.type, 'tico sm'))}<span>${n.o.name}</span></button><span class="ps-type">${TYPES[n.o.type].short}</span>${i === 0 ? html`<span class="ps-me">this device</span>` : ''}</div></li>`)}</ol>`;
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
+  /* The toolbar (name, status, the More menu) and the page itself. */
   const more = html`<button id="relMapBtn">Relations map</button>${edit ? html`<button id="dupBtn">Duplicate</button>` : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? html`<button id="addPortsBtn">Add network ports…</button>` : ''}${o.uid && SERVER.on && isAdmin() ? html`<button id="sheetBtn">Entry sheet for ${o.user}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? html`<hr class="msep">${o.excluded ? html`<button id="exclBtn">Include in sync</button>` : html`<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>`}` : ''}${edit ? html`<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>` : ''}`;
   $('#toolbar').innerHTML = html`${rawHtml(tico(o.type))}<b class="mono" id="objTitle" tabindex="-1">${o.name}</b><span class="code">${o.code}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>${handBtn(o)}
@@ -284,6 +294,7 @@ export function renderObj(o){
       ${rawHtml(historyPanel(o))}
     </div></div>`;
 
+  /* From here on: the controls of the page are wired. */
   /* Hide: an empty panel goes back to the Add line. */
   $('#view').querySelectorAll('[data-xhide]').forEach(b => b.onclick = e => {
     e.preventDefault(); e.stopPropagation();
@@ -339,6 +350,7 @@ export function renderObj(o){
     h.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h){ e.preventDefault(); toggle(); } });
   });
   /* A device with ports but no port count yet cannot have its port checked: say so, but let the connection be made. */
+  /* The Add relation row: kind, target, port or LAG, VLAN. */
   const portHint = () => {
     const to = $('#arTo').value ? byId($('#arTo').value) : null;
     $('#arHint').textContent = to && hasPorts(to) && !(to.ports > 0) ? `${to.name} has no port count yet. Set its ports in its details, so the port can be checked.` : '';
@@ -608,6 +620,7 @@ export function renderObj(o){
   const fmReveal = $('#fmReveal');
   if (fmReveal) fmReveal.onclick = () => { st.showHidden = st.showHidden === o.id ? null : o.id; render(); };
   const fmAll = $('#fmAll'); if (fmAll) fmAll.onclick = () => { setAllFields(!allFields()); render(); const b = $('#fmAll'); if (b) b.focus(); };
+  /* The ⋯ menu of a field: hide or show it here or on the type, clear it, or delete a field of the type. */
   objView.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => {
     const k = b.dataset.fk, act = b.dataset.fm, t = TYPES[o.type].label;
     const f = fields.find(x => x[0] === k), name = f ? f[1] : k;
@@ -670,6 +683,7 @@ export function renderObj(o){
     $('#view').querySelectorAll('[data-avx]').forEach(b => b.onclick = () => set(cur().filter((_, i) => i !== +b.dataset.avx)));
   }
   const ch = $('#view').querySelector('[data-colhelp]'); if (ch) ch.onclick = coloursModal;
+  /* The More menu's actions and the banners' buttons. */
   const dup = $('#dupBtn'); if (dup) dup.onclick = () => newObjModal({copy: o});
   $('#relMapBtn').onclick = () => { st.mapFocus = o.id; st.tab = 'map'; render(); };
   const ho = $('#handOutBtn'); if (ho) ho.onclick = () => handOutModal([o.id]);

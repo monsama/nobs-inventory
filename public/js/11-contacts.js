@@ -44,6 +44,8 @@ function deleteContact(c){
     });
   });
 }
+/* One contact's card as HTML: name and role, what to ask them about, how to reach them, the note, and their devices.
+   Delete only for admins. */
 function contactCard(c){
   const n = devicesOf(c).length, k = (COSTS.contracts || []).filter(x => (x.contacts || []).includes(c.id)).length;
   const ways = reach(c);
@@ -58,6 +60,8 @@ function contactCard(c){
   </div>`;
 }
 
+/* The Contacts tab: a toolbar (internal or external, Export CSV, and for admins From directory, Import and New), then the
+   cards the search leaves, own people first, then each partner company. */
 export function renderContacts(){
   const q = (st.q || '').trim().toLowerCase(), kind = st.cnKind || '';
   const all = CONTACTS.list;
@@ -108,6 +112,8 @@ export function contactFromUser(u, id){
   for (const k of ['email', 'phone', 'mobile']) if (c[k] && contactProblem(c)) delete c[k];
   return contactProblem(c) ? null : c;
 }
+/* The From directory dialog: pick AD or Entra people, by search or department, to add as linked internal contacts.
+   People already linked are listed but cannot be picked. Saved at once, with Undo. */
 function directoryModal(){
   const people = dirPeople().sort((a, b) => a.name.localeCompare(b.name));
   const linked = new Set(CONTACTS.list.map(c => c.userId).filter(Boolean));
@@ -232,6 +238,7 @@ export const respText = o => [contactOf(o.respIn), contactOf(o.respEx)].filter(B
    changes nothing, repeats an earlier row or cannot be read, and why. Rows can be left out. A backup is taken first. */
 const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 const ACTION = { new: ['ok', 'New'], update: ['info', 'Update'], same: ['kept', 'Unchanged'], duplicate: ['warn', 'Twice in file'], error: ['bad', 'Not imported'] };
+/* The Import contacts dialog described above. Import takes a backup on the server first, then saves the rows picked. */
 export function importModal(){
   let file = null, kind = 'external', plan = [], skip = new Set();
   modal(html`<div class="mh">Import contacts</div>

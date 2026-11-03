@@ -32,6 +32,7 @@ const bars = (rows, attr) => {
 /* Getting started, for an admin of a new inventory: the few things to set up first, each ticked when it is done and
    with the button that does it. Gone when the first four are done, or when hidden (kept in this browser). */
 const GS_HIDE = 'ni-start-hidden';
+/* The Getting started box as HTML, or '' when it is not wanted (see above). */
 function startHtml(){
   /* Only for a new inventory: one in use for a while (many devices) does not need it. */
   if (!isAdmin() || objs.length >= 50) return '';
@@ -51,6 +52,8 @@ function startHtml(){
 /* The counts by type, site, status and so on are folded under Statistics: what needs doing comes first. Kept open once opened. */
 const STATS_KEY = 'ni-ov-stats';
 const statsOpen = () => { try { return localStorage.getItem(STATS_KEY) === '1'; } catch { return false; } };
+/* Draws the Overview: the figures, Needs attention, hand-backs, reported problems, maintenance, replacement plan and data
+   quality, then Statistics. Each line opens the list behind it, with the filters reset. */
 export function renderOverview(){
   const live = objs.filter(o => o.status !== 'retired');
   const inUse = objs.filter(o => o.status === 'active');

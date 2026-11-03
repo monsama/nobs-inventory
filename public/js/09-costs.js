@@ -68,6 +68,8 @@ function costSummary(all){
   </div>
   <details class="how ct-sum-note"><summary>How the years are counted</summary><p class="note">Each year counts the months a contract runs in it. Contracts that renew by themselves are counted as running on; one-off costs count in the year they start.</p></details>`;
 }
+/* The Contracts tab: the costs per year, then the contracts the search and Only due leave, with the yearly total of the
+   running ones. New and Delete are for admins. */
 export function renderContracts(){
   const q = (st.q || '').trim().toLowerCase();
   const all = COSTS.contracts;
@@ -197,6 +199,8 @@ export function deviceContractsPanel(o){
       : html`<div class="chain"><span class="muted">No contract covers this device.</span></div>`}</div>
     ${isAdmin() ? html`<div class="addrel"><select id="ctPick" aria-label="Contract" style="flex:1"><option value="">New contract…</option>${COSTS.contracts.filter(c => !list.includes(c)).map(c => html`<option value="${c.id}">${c.name}</option>`)}</select><button id="ctAddDev">Add</button></div>` : ''}</div>`);
 }
+/* Wires the Contracts panel of a device page: a contract opens its dialog, and Add puts the device on the contract picked
+   (saved at once) or opens a new contract for it. */
 export function bindDeviceContracts(o){
   $('#view').querySelectorAll('[data-contract]').forEach(b => b.onclick = () => contractModal(COSTS.contracts.find(c => c.id === b.dataset.contract)));
   $('#view').querySelectorAll('[data-ctdel]').forEach(b => b.onclick = () => { const c = COSTS.contracts.find(x => x.id === b.dataset.ctdel); if (c) deleteContract(c); });
@@ -241,6 +245,8 @@ function deleteLicence(l){
     toastUndo(`Licence ${l.name} deleted`, () => { COSTS.licences.splice(Math.min(i, COSTS.licences.length), 0, l); queueServerSave(); render(); });
   });
 }
+/* The Licences box over the Software tab, as HTML: each licence with its seats used, a bar, its cost and end. New
+   licence is for admins. */
 export function licencesPanel(){
   const rows = COSTS.licences.map(l => {
     const u = licenceUse(l, objs), pct = l.seats ? Math.min(100, Math.round(u.used / l.seats * 100)) : 100;
@@ -260,6 +266,8 @@ export function bindLicences(){
   $('#view').querySelectorAll('[data-licdel]').forEach(b => b.onclick = () => { const l = COSTS.licences.find(x => x.id === b.dataset.licdel); if (l) deleteLicence(l); });
   $('#view').querySelectorAll('[data-licnew]').forEach(b => b.onclick = e => { e.stopPropagation(); licenceModal(null, b.dataset.licnew); });
 }
+/* The New licence or edit licence dialog. name fills in a new licence's software. Save checks the name, cost and end
+   date, then saves. */
 export function licenceModal(l, name = ''){
   const isNew = !l;
   const cur = l || { id: newId('l'), name, seats: 0, per: 'year' };

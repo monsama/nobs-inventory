@@ -25,6 +25,7 @@ export * from './signin.js';
    through every record. */
 const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
 let lastSbw = -1;
+/* save: false only redraws, without looking for unsaved changes. The tab picks the view; any other tab is a device. */
 export function render({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */

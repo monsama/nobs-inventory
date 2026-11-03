@@ -116,6 +116,8 @@ export const QUALITY_FIX = {
 /* The bar of a data-quality check over the Table (drawn with the filters, like a person's bar): set by renderTable. */
 let QFIX = null;
 export const qfix = () => QFIX;
+/* Draws the Table tab: the toolbar (columns, Export CSV, and for admins the imports), then the filtered rows with the
+   column filters and sort applied to the data first. The first SHOW_FIRST rows are drawn, the rest after Show all. */
 export function renderTable(){
   let list = filtered();
   const colOpen = !!$('#colMenu .menubox:popover-open');

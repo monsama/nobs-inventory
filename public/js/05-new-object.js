@@ -50,6 +50,8 @@ const bindOutlet = (id, upId, portId) => {
   };
   el.addEventListener('combopick', pick); el.addEventListener('change', pick);
 };
+/* The New device dialog, also Duplicate (pre.copy: the next name, its details, links and a free rack place). pre can
+   set the name, type and place, or the switch and port (pre.sw, pre.port). Create saves the device and opens it. */
 export function newObjModal(pre={}){
   const c = pre.copy;
   /* Opened on a device's page: that device's place, and it is offered to plug into when it can take the new one. */

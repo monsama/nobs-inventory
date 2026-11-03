@@ -36,6 +36,8 @@ export function mergeBtn(){
   const m = mergeable().length;
   return m ? `<button id="rvResolve" title="Say what ${m === 1 ? 'it is' : 'they are'}: a dock's record, the same device, obsolete or no duplicate">Resolve ${m}…</button>` : '';
 }
+/* Wires the To review buttons that scopeActs and mergeBtn draw. list: the devices shown, for the All buttons, which ask
+   first. */
 export function bindScopeActs(list){
   const on = (id, f) => { const b = $('#' + id); if (b) b.onclick = f; };
   on('rvResolve', () => resolveModal(mergeable()));
@@ -123,6 +125,8 @@ ${n && !st.scope ? html`<div class="pickrow"><b class="pick-n">${n} selected</b>
 ${isAdmin() ? html`<optgroup label="Move to location">${LOCS.map(l => html`<option value="loc:${l}">${l}</option>`)}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => html`<option value="status:${k}">${v.label}</option>`)}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => html`<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => html`<option value="resp:${k}:${c.id}">${contactLabel(c)}</option>`)}<option value="resp:${k}:">- no ${l.toLowerCase()} responsible</option></optgroup>`) : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`);
+/* Wires the Table's bar for the n selected rows: Clear, Open in tabs, and the Actions menu (open, hand out, edit, move,
+   set the status or the responsible). Each change has one Undo. */
 export function bindTableBulk(n){
   /* A move by hand, as on the device's page: the location is kept from then on, so the next sync does not move it back. */
   const bulkLoc = to => {

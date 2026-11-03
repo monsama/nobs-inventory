@@ -45,6 +45,8 @@ const SHEET_CSS = `.sheet{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Robot
 let logo = '';
 const loadLogo = async () => { if (!logo) logo = await fetch('logo.svg').then(r => r.ok ? r.text() : '').catch(() => ''); return logo; };
 
+/* A person's entry sheet as HTML, for the dialog and for printing: their details, the first password (or why it is
+   gone), the devices handed out and the lines to sign. logoSvg is used when the company has set no logo. */
 export function sheetHtml(sh, logoSvg = ''){
   const devices = sh.devices.length ? html`<table><thead><tr><th>Inventory no.</th><th>Type</th><th>Name</th><th>Model</th><th>Serial number</th></tr></thead><tbody>${
     sh.devices.map(d => html`<tr><td>${d.code}</td><td>${d.type}</td><td>${d.name}</td><td>${d.model}</td><td>${d.serial}</td></tr>`)}</tbody></table>`

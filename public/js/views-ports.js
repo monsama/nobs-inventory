@@ -20,6 +20,8 @@ export function portSetupError(sw, ports, sfp){
   if (g) return `The port group ${g.name} reaches port ${g.to}. Change or remove it first.`;
   return null;
 }
+/* Draws the Ports tab for one device with ports (picked, or the one used last in this browser): port setup, the front
+   panel, the picked port, port groups and LAGs, and the port map. Changes are saved at once. */
 export function renderPorts(){
   const devs = objs.filter(o => hasPorts(o));
   if (!devs.length){

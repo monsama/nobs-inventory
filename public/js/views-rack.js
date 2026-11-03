@@ -35,6 +35,8 @@ export function rackNewModal(){
   };
   $('#rnName').focus();
 }
+/* Draws the Racks tab for the rack picked (or the first): a drawing of its units with the devices mounted (a click opens
+   one) and a box that lists them. New rack and Mount device are for admins. */
 export function renderRack(){
   const racks = racksList();
   const R_ = racks.find(r => r.id === st.rackId) || racks[0];

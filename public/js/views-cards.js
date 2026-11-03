@@ -82,6 +82,8 @@ const cardSeen = o => {
   if (o.review || o.feed || o.inAd || o.graph) return `<span class="chip warn lsst seen" title="${scanOld(o) ? 'Lansweeper has tried to scan it but never has. Check by hand that it is there.' : 'No source has a date it was last seen.'}">Never seen</span>`;
   return (syncOf(o) || {}).k === 'manual' ? '' : syncChip(o);
 };
+/* One device's card as HTML text: name, model, status, its type's lines, the join marks when join is on, the To review
+   actions and chips, and a footer with code, last seen and relations. idx: the relation index (relIndex). */
 export function cardHtml(o, idx, join = showJoin()){
   const rs = relsOf(o, idx);
   const lines = cardLines(o.type).map(k => cardLine(o, k, idx));
@@ -107,6 +109,8 @@ const twinsChip = o => { const l = twinsOf(o); return html`<span class="chip war
 const twinChip = o => html`<span class="chip warn rv-twin"${isAdmin() ? html` data-resolve="${o.id}" role="button"` : ''} title="Probably a second record of ${twinOf(o).name}: it has a DNS name and no serial number, as a docking station or USB network adapter leaves in Lansweeper.${isAdmin() ? ' Click to resolve it.' : ''}">Probably ${twinOf(o).name}</span>`;
 /* How many cards or table rows are drawn before "Show all". */
 export const SHOW_FIRST = 500;
+/* Draws the Cards toolbar (count, Group by, the join marks, Save view, the pick bar) and the cards, in one list or in
+   groups that fold. The first SHOW_FIRST are drawn, the rest after Show all. An empty list says why. */
 export function renderCardsBody(){
   let list = filtered();
   const pool = scopePool();

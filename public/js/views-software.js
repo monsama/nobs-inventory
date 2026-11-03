@@ -18,6 +18,8 @@ export function softwarePanel(o){
     </tbody></table></div>` : html`<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>`}
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`);
 }
+/* Wires the Software panel of a device page: × removes a package, Add adds one by name and version. Each gets a
+   history line. */
 export function bindSoftware(o){
   $('#view').querySelectorAll('[data-swdel]').forEach(b => b.onclick = () => {
     const p = o.software.splice(+b.dataset.swdel, 1)[0]; hist(o, now(), 'Software removed: ' + p.name); render();
@@ -55,6 +57,8 @@ function swDetailHtml(r){
       <td><span class="vchip${odd ? ' odd' : ''}" ${odd ? html`title="Most devices have ${common}"` : ''}>${v}</span></td></tr>`; })}
     </tbody></table></div></td></tr>`;
 }
+/* The Software tab: the Licences box, then every package with its versions and how many devices have it, sorted by
+   name or count and filtered by the search. A row opens in place to list its devices. */
 export function renderSoftware(){
   const all = swPackages();
   st.swOpen = (st.swOpen || []).filter(n => all.some(r => r.name === n));

@@ -27,6 +27,8 @@ const GRAPH_TIPS = {
 const LIST_TABS = ['cards', 'table', 'map'];
 const MORE_KEY = 'ni-more-filters';
 const moreOpen = () => { try { return localStorage.getItem(MORE_KEY) === '1'; } catch { return false; } };
+/* Draws the sidebar: To review, types, sites and rooms, More filters, the active one-off filters, status and the saved
+   views, each with how many of the listed devices it holds. A click on an item is handled below. */
 export function renderSide(){
   /* To review on top: the devices the syncs found, shown in Cards and Table like the inventory (st.scope), each source
      on its own, and the ignored ones. The group is there while any wait or are ignored, or while it is picked. */
@@ -271,6 +273,8 @@ export function viewSwitch(){
 /* A view that draws its toolbar again on its own (ticking rows, typing in its search) would drop the switch: it is put
    back whenever the toolbar changes. */
 { const tb = document.getElementById('toolbar'); if (tb) new MutationObserver(() => { if (!tb.querySelector('.vswitch')) viewSwitch(); }).observe(tb, { childList: true }); }
+/* Draws the tab bar (the views, Devices and Contracts as one tab each, Reload or Sync and To review at the right) and the
+   row of open devices under it. Wires drag to reorder, Enter, middle-click to close and the right-click menu. */
 export function renderTabs(){
   /* To review shows while devices wait in it, with how many; once it is empty it goes, unless it is the tab open. */
   const waiting = REVIEW.filter(o => !o.review.ignored).length;
@@ -352,6 +356,7 @@ function placeMenu(el, x, y){
   el.style.left = Math.max(m, Math.min(x, window.innerWidth - w - m)) + 'px';
   el.style.top = Math.max(m, Math.min(y, window.innerHeight - h - m)) + 'px';
 }
+/* The right-click menu of an open device's tab, at the pointer: close this tab, the others or all of them. */
 export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
@@ -369,6 +374,7 @@ export function showTabMenu(e, id){
     if (a === 'all') closeObjTabs(null);
   });
 }
+/* A click in either tab bar: close one or all device tabs, or go to the tab clicked. */
 const onTabClick = e => {
   flushSearch();
   if (e.target.closest('#closeAllTabs')){ closeObjTabs(null); return; }

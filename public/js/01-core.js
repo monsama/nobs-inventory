@@ -385,6 +385,8 @@ export const graphChip = o => {
    Intune: managed, coloured by compliance. */
 export const JOIN_STATE = { 'Entra joined': ['en', 'joined'], 'Hybrid joined': ['hy', 'hybrid'], 'Entra registered': ['reg', 'registered'] };
 export const COMPLIANCE_SHORT = { compliant: 'compliant', noncompliant: 'not compliant', inGracePeriod: 'grace', conflict: 'conflict', error: 'error' };
+/* The AD, Entra and Intune marks of a device (and Defender, once read) as HTML, as described above. '' for a type
+   Graph does not cover. */
 export const joinBadges = o => {
   if (!GRAPH_TYPES.includes(o.type)) return '';
   /* What Graph said counts only while Graph is set up, as for the Graph chip: an old record is not shown as current. */
@@ -425,6 +427,7 @@ export function defenderState(o){
 /* A device waiting in To review that no source has seen for REVIEW_STALE_DAYS (or never) is likely gone: grey, Old,
    and left out of Accept all unless asked. */
 export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
+/* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
 export function lastSeenOf(o){
   const g = o.graph && !o.graph.gone ? o.graph : null;
   const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && (g.lastCheckIn || g.lastSync)],
@@ -761,6 +764,8 @@ function closeSrcPop(refocus = false){
     if (m) m.focus();
   }
 }
+/* Opens the popover of a source mark: the value picker when srcPicker offers one, else the mark's tooltip text. A click
+   on the mark whose popover is open only closes it. */
 function openSrcPop(mark){
   const was = document.getElementById('fsrcPop');
   closeSrcPop();

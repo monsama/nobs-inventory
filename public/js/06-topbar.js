@@ -29,6 +29,8 @@ let hiddenN = {};
 try { hiddenN = JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') || {}; } catch { hiddenN = {}; }
 const keepHidden = () => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hiddenN)); } catch { /* Browser storage can be blocked: then it shows again next time. */ } };
 let NOTICES = [], bellKey = '';
+/* Updates the bell: the notices are worked out again only when the data, the viewer or the hour changed, or when
+   changed is true; then drawn. Hidden for someone not signed in. */
 export function renderBell(changed = false){
   const btn = $('#bellBtn'); if (!btn) return;
   const u = me(), admin = isAdmin();
@@ -43,6 +45,7 @@ export function renderBell(changed = false){
   }
   drawBell();
 }
+/* Draws the bell's count, colour and label, the dot on More, and the list of the notices not hidden in its popover. */
 function drawBell(){
   const btn = $('#bellBtn'), pop = $('#bellPop'), badge = $('#bellN');
   const shown = shownNotices(NOTICES, hiddenN), n = shown.length, worst = shown.some(x => x.sev === 'bad') ? 'bad' : n ? 'warn' : '';
@@ -110,6 +113,8 @@ export function tableKey(t){
   const scope = t.closest('#mdl') || $('#view');
   return (t.closest('#mdl') ? 'modal' : 'view') + ':' + st.tab + ':' + [...scope.querySelectorAll('table.grid')].indexOf(t);
 }
+/* Puts a table's kept layout on it: the column order, widths, the pinned columns on the left and their scroll shade,
+   then the sort and the filters (applyView). A table with nothing kept is left as drawn. */
 export function applyTable(t){
   const s = TBL[tableKey(t)]; const head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
@@ -146,6 +151,8 @@ export function cmpCells(x, y){
   const nx = numKey(x), ny = numKey(y); if (nx !== null && ny !== null) return nx - ny;
   return x.localeCompare(y, 'de', {numeric: true});
 }
+/* Marks the sorted column. For a table not drawn from its data (no data-data) it also hides the rows the column filters
+   leave out and sorts the others in place. */
 export function applyView(t){
   const s = TBL[tableKey(t)], head = t.tHead && t.tHead.rows[0];
   if (!s || !head) return;
@@ -175,6 +182,8 @@ export function resizeStart(e, t, th){
   };
   document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
 }
+/* Gives a table.grid, once, its column tools: a filter row (not on a .mini table), resize handles, sorting by click or
+   Enter, and moving columns by drag and drop. Every such table gets it as it appears (see below). */
 export function setupTable(t){
   const head = t.tHead && t.tHead.rows[0];
   if (!head || t.dataset.tb) return;

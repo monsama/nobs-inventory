@@ -31,6 +31,7 @@ export const SET_TABS = [['locations','Locations'],['users','People'],['access',
 const SET_GROUPS = { users: [['users', 'People'], ['access', 'Access'], ['company', 'Company']], vlans: [['vlans', 'VLANs'], ['subnets', 'Subnets'], ['domains', 'Domains']], sources: [['sources', 'All fields'], ['feed', 'Lansweeper'], ['directory', 'Active Directory'], ['entra', 'Entra & Intune']], maintenance: [['maintenance', 'Health'], ['backups', 'Backups'], ['mail', 'E-mail'], ['log', 'Log']] };
 const TOP_TABS = [['locations','Locations'],['users','Users'],['types','Device types'],['vlans','Network'],['sources','Data sources'],['maintenance','System']];
 export const setGroupOf = k => Object.keys(SET_GROUPS).find(g => SET_GROUPS[g].some(([x]) => x === k)) || null;
+/* Opens the Settings dialog: the top row of tabs, a second row for a group's tabs, and the pane of st.setTab. */
 export function openSettings(){
   /* A dialog opened from here brings Settings back when it closes. */
   setSettingsOpener(openSettings);
@@ -68,6 +69,8 @@ export function collapsibleSections(root, prefix){
 }
 /* The Lansweeper type names and type rules: under Advanced, kept open while Settings is, once opened. */
 let typeAdvOpen = false;
+/* Draws the Settings tab in st.setTab: its empty boxes, then each filled by its settings-*.js module. Someone who is not
+   an admin gets a Read only note on top. */
 export function renderSetPane(){
   const grp = setGroupOf(st.setTab);
   $$('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));
