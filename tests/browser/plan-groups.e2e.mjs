@@ -99,7 +99,7 @@ try {
   await store.click(); await p.waitForSelector('.pl-glist');
   const row = await p.locator('.pl-glist [data-gopen=s5]').boundingBox(), cv2 = await p.locator('#plCanvas').boundingBox();
   await p.mouse.move(row.x + 30, row.y + row.height / 2); await p.mouse.down();
-  await p.mouse.move(cv2.x + cv2.width * 0.33, cv2.y + cv2.height * 0.52, { steps: 12 }); await p.mouse.up();   // inside the hall (3–63 %, 5–60 %)
+  await p.mouse.move(cv2.x + cv2.width * 0.33, cv2.y + cv2.height * 0.52, { steps: 12 }); await p.mouse.up();   // inside the hall (3-63 %, 5-60 %)
   await until(p, async () => { const o = (await import('/js/01-core.js')).byId('s5'); return !!(o.planPos && o.loc === 'HQ / Hall'); });
   await p.waitForSelector('[data-pin=s5]', { state: 'attached' });
 

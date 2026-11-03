@@ -25,11 +25,12 @@ export function migrateState(s) {
     changed = true;
   }
   if (Array.isArray(s.racks) && s.racks.length) { s.racks = []; changed = true; }
-  /* Relation kinds: patched is a connection to a patch panel, docked is attached, and a downlink is the uplink seen from its
-     other end, so it is stored as that uplink. A downlink whose uplink is already there is dropped. Its port is not kept. */
+  /* Relation kinds: an old patched (a connection to a patch panel, with no panel port of its own) is connected, docked is
+     attached, and a downlink is the uplink seen from its other end, so it is stored as that uplink. A downlink whose
+     uplink is already there is dropped. Its port is not kept. A patch cord of today (patched, with fromPort) stays. */
   if (Array.isArray(s.rels)) {
     const kinds = { patched: 'connected', docked: 'attached' };
-    for (const r of s.rels) if (kinds[r.kind]) { r.kind = kinds[r.kind]; changed = true; }
+    for (const r of s.rels) if (kinds[r.kind] && !(r.kind === 'patched' && r.fromPort != null)) { r.kind = kinds[r.kind]; changed = true; }
     const uplinks = new Set(s.rels.filter(r => r.kind === 'uplink').map(r => r.from + '|' + r.to));
     s.rels = s.rels.flatMap(r => {
       if (r.kind !== 'downlink') return [r];
@@ -41,7 +42,7 @@ export function migrateState(s) {
   }
   /* Notes are one text box again (0.9.72): the entries of before (a title, a text and a link each) become its lines. */
   for (const o of s.objs) if (o.entries !== undefined) {
-    const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' — ')).filter(Boolean);
+    const lines = (Array.isArray(o.entries) ? o.entries : []).map(e => [e && e.title, e && e.text, e && e.link].map(v => String(v || '').trim()).filter(Boolean).join(' - ')).filter(Boolean);
     const all = [typeof o.notes === 'string' ? o.notes.trim() : '', ...lines].filter(Boolean).join('\n');
     /* The box takes 20000 characters; more than that (old entries could hold far more) is said in the server's log, and
        the start takes a backup before saving a migration (server/index.js), where the whole text stays. */
@@ -92,9 +93,9 @@ export function migrateState(s) {
     if (t.svgView !== undefined && (typeof t.svgView !== 'string' || !/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(t.svgView))) { t.svgView = '0 0 24 24'; changed = true; }
     if (t.color !== undefined && (typeof t.color !== 'string' || !/^#[0-9a-f]{3,8}$/i.test(t.color))) { t.color = '#5a6b7d'; changed = true; }
   }
-  /* Before 0.9.28 a new object without a model was saved with '—' as its model, which then showed up in the model list. */
-  for (const o of s.objs || []) if (o && o.model === '—') { o.model = ''; changed = true; }
-  if (Array.isArray(s.models) && s.models.includes('—')) { s.models = s.models.filter(m => m !== '—'); changed = true; }
+  /* Before 0.9.28 a new object without a model was saved with a long dash (U+2014) as its model, which then showed up in the model list. */
+  for (const o of s.objs || []) if (o && o.model === '\u2014') { o.model = ''; changed = true; }
+  if (Array.isArray(s.models) && s.models.includes('\u2014')) { s.models = s.models.filter(m => m !== '\u2014'); changed = true; }
   /* Before 0.9.28 a person from Lansweeper had its login (Lansweeper's Username) as the name and no login. The login
      goes where it belongs; the name stays until Lansweeper or the directory gives the full one. */
   const logins = new Set((s.users || []).map(u => String(u.login || '').toLowerCase()).filter(Boolean));

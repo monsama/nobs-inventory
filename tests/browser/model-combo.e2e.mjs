@@ -48,7 +48,7 @@ try {
   assert.equal(await page.getAttribute(field, 'placeholder'), 'Type or pick a model');
   const note = '#f_o1_model_note';
   await page.fill(field, 'Fujitsu Esprimo P758');
-  assert.match(await page.textContent(note), /New model – added to the list when saved/);
+  assert.match(await page.textContent(note), /New model - added to the list when saved/);
   await page.fill(field, 'Dell Latitde 5440');
   assert.match(await page.textContent(note), /Did you mean Dell Latitude 5440\?/);
   await page.click(note + ' .combo-use');

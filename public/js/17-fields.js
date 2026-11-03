@@ -8,6 +8,7 @@ import { dateText } from './dates.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
 import { isPlaceholderSerial } from './serials.js';
 import { html, rawHtml } from './html.js';
+import { outletChoices } from './24-patch.js';
 
 export const FIELDS = {
   base:[['name','Name','mono'],['purpose','Description'],['type','Type','type'],['model','Model'],['serial','Serial number','mono'],['loc','Location','loc'],['status','Status','status'],['user','User / owner','user'],['purchased','Purchased','date'],['warranty','Warranty ends','date'],['price','Price','money'],['supplier','Supplier'],['invoice','Invoice no.','mono']],
@@ -54,7 +55,7 @@ export function fieldCtl(o, [k, label, kind], idp = 'f_'){
     const auto = cur ? null : subnetFor(o);
     const sn = SUBNETS.find(n => n.cidr === cur) || auto;
     /* The VLAN of the subnet is shown beside it, with its gateway and DNS servers as a tooltip. */
-    const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '—')} · DNS ${esc((sn.dns || []).join(', ') || '—')}">VLAN ${sn.vid}</span>` : '';
+    const vlanChip = sn && sn.vid != null ? `<span class="chip" title="Gateway ${esc(sn.gateway || '-')} · DNS ${esc((sn.dns || []).join(', ') || '-')}">VLAN ${sn.vid}</span>` : '';
     ctl = `<select id="${id}" data-k="${k}"><option value="">${auto ? `Auto: ${esc(subnetLabel(auto))} (from the address)` : 'None'}</option>${opts.map(n => `<option value="${esc(n.cidr)}" ${n.cidr === cur ? 'selected' : ''}>${esc(subnetLabel(n))}</option>`).join('')}</select>${vlanChip}`;
   }
   else if (kind === 'domain'){
@@ -109,7 +110,9 @@ export const comboHtml = (input, id) => `<div class="combo">${input.replace('<in
 /* One set of handlers for every combo on the page. Typing filters the list; arrows move, Enter picks, Escape closes.
    Picking fills the field; it is saved like a typed value, when the field is left. */
 export const COMBO_SOURCES = { model: () => modelNames(), av: () => avNames(), ip: (input, all) => ipChoices(input, all),
-  port: input => { const t = byId(($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; } };
+  port: input => { const t = byId(($('#' + input.dataset.portOf) || {}).value); return t ? freePorts(t) : []; },
+  /* A wall outlet to plug a device into, by its name, room or panel (24-patch.js). */
+  outlet: (input, all) => outletChoices(input, all) };
 /* The ports of a switch (1/1, 1/2 …) or patch panel (P01 …) that nothing is plugged into and that are not part of a LAG,
    to pick from when something is plugged in. Empty for a device whose ports are not numbered. */
 export function freePorts(t){
@@ -120,7 +123,7 @@ export function freePorts(t){
     .map(n => ({v: String(n), label: portLabel(t, n) + (n > (t.ports || 0) ? ' (SFP)' : '')}));
 }
 /* Sources that read what was typed themselves; the others are filtered by it here. */
-const SELF_FILTERED = ['ip'];
+const SELF_FILTERED = ['ip', 'outlet'];
 const comboOf = el => el && el.closest && el.closest('.combo');
 /* The device an address field belongs to, and the subnet its addresses come from: the one picked, or the one the address
    is in. */
@@ -245,7 +248,7 @@ export function comboNote(input){
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
   const near = closeModel(v, names);
   note.className = 'fieldnote ' + (near ? 'warn' : 'muted');
-  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model – added to the list when saved.';
+  note.innerHTML = near ? html`Did you mean ${near}? <button type="button" class="link combo-use" data-v="${near}">Use it</button>` : 'New model - added to the list when saved.';
   show(true);
 }
 document.addEventListener('input', e => { const c = comboOf(e.target); if (c && e.target.matches('input')){ comboOpen(c, false); comboNote(e.target); } });

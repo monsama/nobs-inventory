@@ -133,7 +133,7 @@ export function accountModal(){
   const parts = (u.name || '').split(' ');
   modal(`<div class="mh">Your account</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '—')}${ldap ? ' · directory' : ''}</div>
+      <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '-')}${ldap ? ' · directory' : ''}</div>
       <label for="acFirst">First name</label><input id="acFirst" value="${esc(u.first ?? parts[0] ?? '')}" ${ldap ? 'disabled' : ''}>
       <label for="acLast">Last name</label><input id="acLast" value="${esc(u.last ?? parts.slice(1).join(' '))}" ${ldap ? 'disabled' : ''}>
       <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}" ${ldap ? 'disabled' : ''}>

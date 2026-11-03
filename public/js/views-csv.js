@@ -87,7 +87,7 @@ export function importCsvModal(){
     const has = f => w.mapping.includes(f);
     $('#csvBody').innerHTML = html`<div class="imp-h">Columns <span class="muted">${w.fileName ? w.fileName + ' · ' : ''}${w.rows.length} ${w.rows.length === 1 ? 'row' : 'rows'}</span></div>
       <div class="imp-map">${w.headers.map((h, i) => html`<label class="imp-col"><span class="imp-head" title="${h}">${h || `Column ${i + 1}`}</span>
-        <select data-csvcol="${i}" aria-label="Field for the column ${h || `Column ${i + 1}`}">${opts(w.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '—'}</span></label>`)}</div>
+        <select data-csvcol="${i}" aria-label="Field for the column ${h || `Column ${i + 1}`}">${opts(w.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '-'}</span></label>`)}</div>
       <p class="note" id="csvMapNote">${!has('name') ? html`<b>Pick the column with the name</b> to go on.` : !has('type') ? 'No column is the type: only rows that are devices here already can be imported.' : 'Each field comes from one column. The mapping is kept in this browser for the next file.'}</p>`;
     document.querySelectorAll('[data-csvcol]').forEach(s => s.onchange = () => {
       const i = +s.dataset.csvcol, f = s.value;
@@ -110,9 +110,9 @@ export function importCsvModal(){
       : p.action === 'new' ? html`<span class="muted">${TYPES[p.v.type].label}${p.v.loc ? ' · ' + p.v.loc : ''}</span>`
       : html`Same ${BY_LABEL[p.by]} as <b>${p.match.name}</b>. <select data-csvdup="${p.line}" aria-label="Line ${p.line}: what to do"><option value="skip">Skip</option><option value="update" ${w.dup[p.line] === 'update' ? 'selected' : ''} ${p.fill.length ? '' : 'disabled'}>Update empty fields only</option></select> <span class="muted">${p.fill.length ? 'empty there: ' + p.fill.map(label).join(', ') : 'nothing empty there to fill'}</span>`;
     $('#csvBody').innerHTML = html`<div class="csvprev-top"><div class="chip-row imp-counts" id="csvCounts"><span class="chip ok">${n('new')} new</span><span class="chip info">${dups.length} ${dups.length === 1 ? 'duplicate' : 'duplicates'}</span><span class="chip warn">${n('error')} with problems</span></div>
-      ${dups.length > 1 ? html`<label class="muted">All duplicates <select id="csvDupAll"><option value="">—</option><option value="skip">Skip</option><option value="update">Update empty fields only</option></select></label>` : ''}</div>
+      ${dups.length > 1 ? html`<label class="muted">All duplicates <select id="csvDupAll"><option value="">-</option><option value="skip">Skip</option><option value="update">Update empty fields only</option></select></label>` : ''}</div>
       <div class="imp-table csvprev" id="csvPrev"><table class="grid mini"><thead><tr><th>Line</th><th>Name</th><th>What</th><th>Details</th></tr></thead><tbody>
-      ${w.plan.map(p => html`<tr class="imp-${p.action}" data-csvline="${p.line}"><td class="mono">${p.line}</td><td title="${p.v.name || ''}">${p.v.name || '—'}</td><td>${what(p)}</td><td>${detail(p)}</td></tr>`)}
+      ${w.plan.map(p => html`<tr class="imp-${p.action}" data-csvline="${p.line}"><td class="mono">${p.line}</td><td title="${p.v.name || ''}">${p.v.name || '-'}</td><td>${what(p)}</td><td>${detail(p)}</td></tr>`)}
       </tbody></table></div>`;
     document.querySelectorAll('[data-csvdup]').forEach(s => s.onchange = () => { w.dup[s.dataset.csvdup] = s.value; step3(); });
     const all = $('#csvDupAll'); if (all) all.onchange = () => { if (!all.value) return; for (const p of dups) w.dup[p.line] = all.value === 'update' && p.fill.length ? 'update' : 'skip'; step3(); };

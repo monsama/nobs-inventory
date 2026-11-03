@@ -44,7 +44,7 @@ const subnetEditorHtml = (n, key, hint = '') => `<div class="sn-edit" data-sub="
     <div class="subnet-foot"><span class="snmsg" aria-live="polite"></span><span class="grow"></span><button type="button" data-scancel>Cancel</button><button type="button" class="primary" data-ssave>${key === 'new' ? 'Add subnet' : 'Save'}</button></div></div>`;
 /* A subnet in the list: its name, address and VLAN, with the gateway, ranges and device types underneath. */
 const subnetItemHtml = (n, i, edit) => {
-  const ranges = (n.ranges || []).map(r => `${r.use ? esc(r.use) + ' ' : ''}<span class="mono">${esc(r.from)}${r.to !== r.from ? '–' + esc(r.to.split('.').pop()) : ''}</span>`).join(', ');
+  const ranges = (n.ranges || []).map(r => `${r.use ? esc(r.use) + ' ' : ''}<span class="mono">${esc(r.from)}${r.to !== r.from ? '-' + esc(r.to.split('.').pop()) : ''}</span>`).join(', ');
   const types = (n.types || []).filter(t => TYPES[t]).map(t => TYPES[t].label);
   const meta = [n.gateway ? `Gateway <span class="mono">${esc(n.gateway)}</span>` : '', (n.dns || []).length ? `DNS <span class="mono">${esc(n.dns.join(', '))}</span>` : '',
     ranges ? `Ranges ${ranges}` : 'No ranges', types.length ? `For ${esc(types.slice(0, 4).join(', '))}${types.length > 4 ? ` and ${types.length - 4} more` : ''}` : 'No device types'].filter(Boolean);

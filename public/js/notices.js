@@ -1,5 +1,5 @@
 /* What needs attention now: warranties that end soon or ended on devices in use, maintenance due, contract notices,
-   problems users reported, devices waiting in To review, and for admins a sync that failed or is late and a restore
+   problems users reported, devices waiting in To review, devices on a patch panel port that leads nowhere, and for admins a sync that failed or is late and a restore
    test or backup copy that failed. The bell in the top bar lists them (notices); the weekly e-mail is made from the same
    lists (attention). Each notice has an id and a fingerprint of what it says, so one hidden comes back once it changes.
    No DOM: the server and the tests import it. */
@@ -7,6 +7,7 @@ import { contractStatus } from './costs.js';
 import { dateText } from './dates.js';
 import { MAINT_SOON_DAYS, dueTasks, todayDay } from './maintenance.js';
 import { scheduleOf, syncState } from './schedule.js';
+import { patchGaps } from './cabling.js';
 
 /* Warranty: a date as YYYY-MM-DD. Soon is within 90 days; the sidebar filters on both. */
 export const WARRANTY_SOON_DAYS = 90;
@@ -73,6 +74,10 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
     fp: String(o.reported.at), go: { device: o.id } });
   if (a.review.length) out.push({ id: 'review', sev: 'warn', title: 'Waiting in To review', text: `${plural(a.review.length, 'device', 'devices')} found by a sync: accept or ignore ${a.review.length === 1 ? 'it' : 'them'}`,
     fp: fingerprint(a.review.map(o => o.id)), go: { review: true } });
+  /* Devices on a panel port with no patch cord and no trunk on the panel: the patch list has a gap (s.rels, when given). */
+  const gaps = Array.isArray(s.rels) ? patchGaps(objs.filter(o => !o.review), s.rels) : [];
+  if (gaps.length) out.push({ id: 'patch-gaps', sev: 'warn', title: 'Patch list gaps', text: `${plural(gaps.length, 'device', 'devices')} on a patch panel port without a patch cord or trunk: ${names(gaps)}`,
+    fp: fingerprint(gaps.map(o => o.id)), go: devices(gaps, { ids: { label: 'Patch list gaps', ids: gaps.map(o => o.id) } }) });
   if (admin) {
     const plan = scheduleOf(s), runs = s.syncRuns || {};
     for (const src of sources) {

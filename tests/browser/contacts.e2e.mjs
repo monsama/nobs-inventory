@@ -19,7 +19,7 @@ saveState(db, { ...s0,
   contacts: [
     { id: 'k1', kind: 'internal', name: 'Viktor Hug', role: 'IT lead', email: 'viktor@example.ch', phone: '+41 41 000 00 01' },
     { id: 'k2', kind: 'external', name: 'Sara Netz', company: 'Muster IT AG', role: 'Network', email: 'sara@muster-it.ch', mobile: '+41 79 000 00 02' },
-    { id: 'k3', kind: 'external', name: 'Service desk', company: 'Muster IT AG', phone: '+41 41 000 00 03', note: 'Mo–Fr 7–18' },
+    { id: 'k3', kind: 'external', name: 'Service desk', company: 'Muster IT AG', phone: '+41 41 000 00 03', note: 'Mo-Fr 7-18' },
   ],
   objs: [
     { id: 'o1', code: 'INV-0001', type: 'switch', name: 'SW-CORE', status: 'active', ports: 24, ovr: {}, feed: null, respIn: 'k1', respEx: 'k2' },

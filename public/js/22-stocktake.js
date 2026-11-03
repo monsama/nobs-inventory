@@ -182,7 +182,7 @@ export function renderMine(){
     const t = TYPES[o.type] || { label: o.type };
     return html`<li class="mine-row"><div class="mine-dev">${rawHtml(tico(o.type))}<div><button type="button" class="link mine-name" data-open="${o.id}">${o.name}</button>
         <div class="muted mine-sub">${[t.label, o.model, o.code].filter(Boolean).join(' · ')}</div></div></div>
-      <div class="mine-state">${state}${open ? html`<span class="chip warn">Reported – IT is on it</span>` : ''}</div>
+      <div class="mine-state">${state}${open ? html`<span class="chip warn">Reported - IT is on it</span>` : ''}</div>
       <div class="mine-acts">${d !== 0 ? html`<button type="button" data-mine="${o.id}">I have it</button>` : ''}<button type="button" data-myreport="${o.id}">${open ? 'Report another problem…' : 'Report a problem…'}</button></div>
       ${open ? html`<p class="fieldnote stk-note mine-note">Your report of ${dateText(String(o.reported.at).slice(0, 10))}: ${o.reported.text}</p>` : rawHtml(doneNote(o).replace('class="fieldnote', 'class="mine-note fieldnote'))}</li>`;
   };

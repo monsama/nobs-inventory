@@ -257,7 +257,7 @@ export function importModal(){
     $('#impBody').innerHTML = html`
       <section class="imp-sec"><div class="imp-h">Columns <span class="muted">${file.name} · ${file.rows.length} ${file.rows.length === 1 ? 'row' : 'rows'}</span></div>
         <div class="imp-map">${file.headers.map((h, i) => html`<label class="imp-col"><span class="imp-head" title="${h}">${h || `Column ${i + 1}`}</span>
-          <select data-impcol="${i}" aria-label="Field for the column ${h}">${opts(file.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '—'}</span></label>`)}</div></section>
+          <select data-impcol="${i}" aria-label="Field for the column ${h}">${opts(file.mapping[i])}</select><span class="muted imp-sample" title="${sample(i)}">${sample(i) || '-'}</span></label>`)}</div></section>
       <section class="imp-sec"><div class="imp-h">What happens</div>
         <div class="chip-row imp-counts">${Object.entries(ACTION).map(([a, [cls, label]]) => html`<span class="chip ${cls}">${n(a)} ${label.toLowerCase()}</span>`)}</div>
         <div class="imp-table"><table class="grid mini"><thead><tr><th aria-label="Import"></th><th>Line</th><th>What</th><th>Name</th><th>Company</th><th>Area</th><th>Role</th><th>E-mail</th><th>Phone</th><th>Details</th></tr></thead><tbody>

@@ -109,7 +109,7 @@ try {
   const saved = async () => page.evaluate(async () => (await import('/js/01-core.js')).SUBNETS[0]);
   assert.deepEqual((await saved()).types, ['pc', 'printer'], 'the ticked device types are kept');
   assert.deepEqual((await saved()).ranges, [{ from: '10.10.20.50', to: '10.10.20.99', use: 'DHCP' }]);
-  assert.match(await page.textContent('#setSubnets .sn-item'), /Office.*10\.10\.20\.0\/24.*Gateway 10\.10\.20\.1.*DHCP 10\.10\.20\.50–99.*For PC, Printer/s);
+  assert.match(await page.textContent('#setSubnets .sn-item'), /Office.*10\.10\.20\.0\/24.*Gateway 10\.10\.20\.1.*DHCP 10\.10\.20\.50-99.*For PC, Printer/s);
   // a subnet in the list can be edited: Edit opens it, Save keeps the change, Cancel drops it
   await page.click('[data-sedit="0"]'); await page.waitForSelector('.sn-edit[data-sub="0"]');
   await page.fill('.sn-edit [data-sn]', 'Office Bern'); await page.click('.sn-edit [data-tnone]');

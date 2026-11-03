@@ -90,7 +90,7 @@ function confirmChange(title, next, keys, apply){
   modal(html`<div class="mh">${title}</div>
     <div class="mb"><p class="note">${devices} ${devices === 1 ? 'device gets' : 'devices get'} ${list.length === devices ? 'another value' : `${list.length} other values`} with this, at the next sync of each source. Values set or picked by hand on a device stay as they are.</p>
       <div class="ds-prev"><table class="grid mini"><thead><tr><th>Device</th>${many ? html`<th>Field</th>` : ''}<th>Now</th><th>Then</th><th>From</th></tr></thead><tbody>
-      ${shown.map(x => html`<tr><td><b>${x.o.name}</b> <span class="code">${x.o.code || ''}</span></td>${many ? html`<td>${SYNC_FIELD_LABEL[x.k]}</td>` : ''}<td class="muted">${String(x.from ?? '') || '—'}</td><td><b>${x.to ?? ''}</b></td><td>${SHORT[x.src] || ''}</td></tr>`)}
+      ${shown.map(x => html`<tr><td><b>${x.o.name}</b> <span class="code">${x.o.code || ''}</span></td>${many ? html`<td>${SYNC_FIELD_LABEL[x.k]}</td>` : ''}<td class="muted">${String(x.from ?? '') || '-'}</td><td><b>${x.to ?? ''}</b></td><td>${SHORT[x.src] || ''}</td></tr>`)}
       </tbody></table></div>${list.length > shown.length ? html`<p class="note">And ${list.length - shown.length} more.</p>` : ''}</div>
     <div class="mf"><button id="dpCancel">Cancel</button><button id="dpOk" class="primary">Apply</button></div>`, 'wide');
   $('#dpCancel').onclick = () => closeModal();

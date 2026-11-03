@@ -8,7 +8,7 @@ const SECRET = /pass(word)?|secret|token|private|apikey|credential/i;
 const MAX = 40;
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const short = v => {
-  if (v === undefined || v === null || v === '') return '—';
+  if (v === undefined || v === null || v === '') return '-';
   if (typeof v === 'string' && /^data:image\//.test(v)) return '(picture)';
   const t = typeof v === 'string' ? v : JSON.stringify(v);
   return t.length > 160 ? t.slice(0, 159) + '…' : t;

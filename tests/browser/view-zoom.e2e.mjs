@@ -76,7 +76,7 @@ try {
   await p.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2);
   await p.keyboard.down('Control'); await p.mouse.wheel(0, -100); await p.keyboard.up('Control');
   await until(p, async z => (await import('/js/02-views.js')).MAP.zoom > z, z0);   /* the wheel is handled a moment later */
-  // the – 100% + control shows the zoom, and its buttons zoom too
+  // the - 100% + control shows the zoom, and its buttons zoom too
   assert.equal((await p.textContent('#mapZoomReset')).trim(), Math.round(await mapZoom() * 100) + '%');
   await p.click('#mapZoomReset'); assert.equal(await mapZoom(), 1);
   await p.click('#mapZoomIn'); assert.equal((await p.textContent('#mapZoomReset')).trim(), '125%');

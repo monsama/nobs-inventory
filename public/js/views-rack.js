@@ -78,7 +78,7 @@ export function renderRack(){
     <div class="rackside">
       <div class="panelbox"><div class="hdr">${R_.name}</div>
         <dl class="lsbox"><dt>Location</dt><dd style="font-family:inherit">${R_.loc}</dd><dt>Height</dt><dd>${rackUnits(R_)} U</dd><dt>Devices</dt><dd>${inRack.length}</dd></dl>
-        <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '–' + (o.u+o.h-1) : '')}  ${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet. Use Mount device… above.</span>`}</div>
+        <div class="addrel" style="flex-direction:column;align-items:stretch">${mounted.length ? mounted.map(o => html`<button class="item" data-open="${o.id}" style="height:auto;padding:4px 6px"><span class="sw" style="background:${tcol(o.type)}"></span><span class="lbl mono">${o.ontop ? 'on ' + byId(o.ontop).name : 'U' + o.u + (o.h>1 ? '-' + (o.u+o.h-1) : '')}  ${o.name}</span></button>`) : html`<span class="muted">No devices in this rack yet. Use Mount device… above.</span>`}</div>
       </div>
     </div></div>`;
 }

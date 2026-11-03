@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, portLabel, rels, st, syncChip, tcol } from './01-core.js';
+import { menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -13,6 +13,7 @@ import { hiddenHits, bindHiddenHits, renderFilterBar } from './02-views.js';
 import { bindScopeActs, pickedInPool, scopeActs, tableBulkBar, bindTableBulk } from './views-bulk.js';
 import { alsoIn, SHOW_FIRST } from './views-cards.js';
 import { exportCsv, importCsvModal } from './views-csv.js';
+import { patchImportModal } from './24-patch.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
 import { html, rawHtml } from './html.js';
@@ -49,7 +50,7 @@ export const TABLE_COLS = [
   {k:'status', w:110, label:'Status', cell: o => String(html`<td>${STATUS[o.status].label}</td>`)},
   /* The date first, so the column sorts by it. */
   {k:'seen', w:190, label:'Last seen', cell: o => { const s = lastSeenOf(o); return String(html`<td>${s ? html`<span class="${s.days > GRAPH_STALE_DAYS ? 'wty soon' : ''}" title="Last seen ${s.at} by ${s.src}">${dayText(s.day)}</span> <span class="muted">· ${s.src}</span>` : ''}</td>`); }},
-  {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '—')}</td>`)},
+  {k:'ls', w:240, label:'Lansweeper', cell: o => String(html`<td>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o) || '-')}</td>`)},
   /* In To review only, and last, so the other columns keep their places: which sync found it, and which others know it. */
   {k:'found', w:220, label:'Found by', cell: o => String(html`<td>${o.review ? [REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ') : ''}</td>`)}
 ];
@@ -121,7 +122,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -138,6 +139,7 @@ export function renderTable(){
   });
   $('#csvBtn').onclick = () => exportCsv(list);
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
+  const pimp = $('#patchImp'); if (pimp) pimp.onclick = () => patchImportModal();
   bindSaveView();
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   bindTableBulk(n);

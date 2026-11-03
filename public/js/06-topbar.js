@@ -1,4 +1,4 @@
-import { $, COSTS, REVIEW, UNDO, objs, st } from './01-core.js';
+import { $, COSTS, REVIEW, UNDO, objs, rels, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
 import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
@@ -31,12 +31,12 @@ export function renderBell(changed = false){
   const btn = $('#bellBtn'); if (!btn) return;
   const u = me(), admin = isAdmin();
   btn.hidden = !u;
-  const key = [UNDO.epoch, objs.length, REVIEW.length, st.meId, admin, st.useLansweeper, st.useAd, st.useGraph, Math.floor(Date.now() / 36e5)].join('|');
+  const key = [UNDO.epoch, objs.length, rels.length, REVIEW.length, st.meId, admin, st.useLansweeper, st.useAd, st.useGraph, Math.floor(Date.now() / 36e5)].join('|');
   if (changed || key !== bellKey){
     bellKey = key;
     /* A viewer limited to some sites gets only their devices from the server; the notices keep to them as well. */
     const sites = !admin && u && !u.own && Array.isArray(u.sites) && u.sites.length ? u.sites : null;
-    NOTICES = !u ? [] : notices({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts, syncRuns: st.syncRuns, syncSchedule: st.syncSchedule, restoreTest: st.restoreTest, backupExportRun: st.backupExportRun },
+    NOTICES = !u ? [] : notices({ objs: [...objs, ...REVIEW], rels, contracts: COSTS.contracts, syncRuns: st.syncRuns, syncSchedule: st.syncSchedule, restoreTest: st.restoreTest, backupExportRun: st.backupExportRun },
       { admin, sites, sources: admin ? sources().map(([k]) => k) : [] });
   }
   drawBell();

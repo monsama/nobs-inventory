@@ -5,6 +5,8 @@ import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
 import { html } from './html.js';
+import { anyOutlets } from './24-patch.js';
+import { findOutlet, outletLabel } from './cabling.js';
 /* ---------- new object ---------- */
 /* Objects that can be plugged in: everything except racks and virtual machines. */
 /* A retired device is kept for the record, so it is not offered as something to connect to. */
@@ -32,6 +34,20 @@ export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'A
 const portField = (id, of) => `<label for="${id}">Port</label>${comboHtml(`<input id="${id}" class="mono" data-combo="port" data-port-of="${of}" placeholder="Type or pick a free port" aria-describedby="${id}Note">`, id)}
       <span class="pnote-gap" hidden></span><p class="fieldnote warn" id="${id}Note" role="alert" hidden></p>`;
 const portNote = (id, msg) => { const n = $('#' + id + 'Note'); if (!n) return; n.textContent = msg || ''; n.hidden = !msg; n.previousElementSibling.hidden = !msg; if (msg) $('#' + id).focus(); };
+/* A wall outlet picked by its name, instead of a panel and its port (24-patch.js); only when some panel has outlets. */
+const outletField = id => anyOutlets() ? `<label for="${id}">Outlet</label>${comboHtml(`<input id="${id}" class="mono" data-combo="outlet" placeholder="Or pick a wall outlet by name" aria-describedby="${id}Note">`, id)}
+      <span hidden></span><p class="fieldnote" id="${id}Note" hidden></p>` : '';
+/* The outlet field fills the panel and its port; its note says which. */
+const bindOutlet = (id, upId, portId) => {
+  const el = $('#' + id); if (!el) return;
+  const pick = () => {
+    const x = findOutlet(objs, el.value), note = $('#' + id + 'Note');
+    if (x && [...$('#' + upId).options].some(o => o.value === x.panel.id)){ $('#' + upId).value = x.panel.id; $('#' + portId).value = x.port; }
+    note.textContent = x ? outletLabel(x) + (x.loc ? ' · ' + x.loc : '') : el.value.trim() ? 'No outlet has this name.' : '';
+    note.hidden = note.previousElementSibling.hidden = !note.textContent;
+  };
+  el.addEventListener('combopick', pick); el.addEventListener('change', pick);
+};
 export function newObjModal(pre={}){
   const c = pre.copy;
   /* Opened on a device's page: that device's place, and it is offered to plug into when it can take the new one. */
@@ -50,6 +66,7 @@ export function newObjModal(pre={}){
       <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
+      ${outletField('nOutlet')}
     </div></details><p class="note">The device gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
@@ -65,6 +82,7 @@ export function newObjModal(pre={}){
     $('#nModel').placeholder = ex[1] ? 'e.g. ' + ex[1] : 'Model';
     show('nUnits', type === 'rack');
     show('nUp', !!link); show('nPort', !!(link && link.port));
+    if ($('#nOutlet')) show('nOutlet', !!(link && link.kind === 'connected'));
     if (link){
       document.querySelector('label[for="nUp"]').textContent = link.label;
       $('#nUp').innerHTML = html`<option value="">Nothing yet</option>${objs.filter(o => o.status !== 'retired' && link.ok(o)).map(o => html`<option value="${o.id}">${o.name}${TYPES[o.type] ? ' · ' + TYPES[o.type].short : ''}</option>`)}`;
@@ -72,6 +90,7 @@ export function newObjModal(pre={}){
     } else $('#nUp').value = '';
   };
   fitType();
+  bindOutlet('nOutlet', 'nUp', 'nPort');
   if (pre.sw){ $('#nUp').value = pre.sw; $('#nPort').value = pre.port; }
   /* The open device is offered only when plugging into it is likely: one with ports, a patch panel, or the computer a
      new monitor goes on. A notebook open while a new PC is made is not where that PC is plugged in. */

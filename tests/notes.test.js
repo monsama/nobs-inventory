@@ -10,7 +10,7 @@ test('the note entries of before become lines of the one notes text', () => {
   const s = base({ notes: 'Old text', entries: [{ title: 'Warranty', text: 'until 2027' }, { title: 'Manual', link: 'https://files.example.ch/a.pdf' }] });
   assert.equal(migrateState(s), true);
   assert.equal(s.objs[0].entries, undefined);
-  assert.equal(s.objs[0].notes, 'Old text\nWarranty — until 2027\nManual — https://files.example.ch/a.pdf');
+  assert.equal(s.objs[0].notes, 'Old text\nWarranty - until 2027\nManual - https://files.example.ch/a.pdf');
   assert.equal(migrateState(s), false, 'a second migration changes nothing');
   const t = base({ entries: [] }); migrateState(t);
   assert.equal(t.objs[0].notes, undefined, 'no entries, no notes');
