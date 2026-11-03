@@ -1,4 +1,4 @@
-/* Roles from groups (Settings → Users): a person in a group of the directory (AD, by name or distinguished name) or of
+/* Viewers from groups (Settings → Users): a person in a group of the directory (AD, by name or distinguished name) or of
    Entra (by the group's object ID, in the sign-in token) gets the role and the sites of the first rule that matches,
    at each directory sync and sign-in. Admin is never given this way: that is the directory's admin group. A person a
    rule gave a role loses it (No access) once no rule matches any more; a role given by hand, without a rule, stays.
@@ -41,7 +41,7 @@ export function applyGroupRole(u, rules, groups) {
 }
 /* What is wrong with a list of rules, or ''. */
 export function groupRolesProblem(v) {
-  if (!Array.isArray(v) || v.length > 50) return 'Roles from groups are a list of at most 50 rules.';
+  if (!Array.isArray(v) || v.length > 50) return 'Viewers from groups are a list of at most 50 groups.';
   for (const r of v) {
     if (!r || typeof r !== 'object' || typeof r.group !== 'string' || !r.group.trim() || r.group.length > 300) return 'Each rule names a group.';
     if (r.role === 'editor') r.role = 'viewer';   /* the editor role of older versions is gone */

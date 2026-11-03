@@ -2,6 +2,7 @@ import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { renderSetSources } from './settings-sources.js';
 import { renderSetMaint, renderSetLog } from './settings-maint.js';
 import { renderSetUsers, renderSetCompany } from './settings-users.js';
+import { renderSetApi } from './settings-api.js';
 import { renderSetTypes } from './settings-types.js';
 import { renderSetGraph } from './settings-graph.js';
 import { renderSetLdap } from './settings-ldap.js';
@@ -80,7 +81,7 @@ export function renderSetPane(){
     locations: '<div id="setLocs"></div>',
     vlans: '<div class="panelbox"><div class="hdr">VLANs <span class="cnt" id="vlCnt"></span></div><div id="setVlans"></div></div>', subnets: '<div class="panelbox" id="setSubnets"></div>', domains: '<div class="panelbox" id="setDomains"></div>',
     types: '<div class="panelbox"><div class="hdr">Device types</div><div id="setTypes"></div></div><div id="setTypeFields"></div><div class="panelbox" id="setModels"></div>',
-    users: '<div id="setUsers"></div><div id="setCompany"></div>',
+    users: '<div id="setUsers"></div><div id="setApi"></div><div id="setCompany"></div>',
     maintenance: '<div id="setMaint"></div>', backups: '<div id="setMaint"></div>', mail: '<div id="setMaint"></div>',
     log: '<div id="setLog"></div>',
     about: '<div id="setAbout"></div>'
@@ -93,7 +94,7 @@ export function renderSetPane(){
   const mt = $('#mergeTwins'); if (mt) mt.onchange = () => { st.mergeTwins = mt.checked; queueServerSave(); };
   bindIntakeRows(document);
   fullTextTooltips(pane);
-  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetCompany(); }, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
+  ({feed: () => { renderLsToggle(); renderSetFeed(); renderTypeMap(); renderTypeRules(); }, directory: renderSetLdap, entra: renderSetGraph, sources: renderSetSources, locations: renderSetLocs, vlans: renderSetVlans, subnets: renderSetSubnets, domains: renderSetDomains, types: () => { renderSetTypes(); renderSetModels(); }, users: () => { renderSetUsers(); renderSetApi(); renderSetCompany(); }, maintenance: renderSetMaint, backups: renderSetMaint, mail: renderSetMaint, log: renderSetLog, about: renderSetAbout})[st.setTab]();
   applyRole();
 }
 

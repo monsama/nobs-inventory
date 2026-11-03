@@ -23,7 +23,7 @@ try {
   await p.goto(base + '/'); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].objs.length > 0); });
-  await p.click('#setBtn'); await openSetTab(p, 'maintenance');
+  await p.click('#setBtn'); await openSetTab(p, 'backups');
   await p.click('#frReset'); await p.waitForSelector('#frOk');
   await p.fill('#frWord', 'factory reset'); assert.equal(await p.isDisabled('#frOk'), true, 'a wrong word confirms');
   assert.equal(await p.isChecked('#frBackups'), false, 'backups are kept unless asked');
