@@ -4,6 +4,7 @@ import { isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
+import { netChain } from './cabling.js';
 /* ---------- icons ---------- */
 /* One icon by its name, for the picker in Settings. */
 export const iconSvg = name => `<svg class="i" viewBox="0 0 24 24">${ICON[name] || ICON.other}</svg>`;
@@ -152,13 +153,15 @@ export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
   : `<span class="chip warn lsst" title="Lansweeper last scanned it on ${dayText(o.feed.scanned)}. Check by hand that it is still there and in use.">Check by hand</span>`;
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
-/* Four kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
-   attached (a monitor or accessory on a PC or docking station) and hosted (a virtual machine on its host, shown as "runs on"). */
+/* Five kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
+   attached (a monitor or accessory on a PC or docking station), hosted (a virtual machine on its host, shown as "runs on")
+   and patched (a patch cord from a panel port, fromPort, to a switch port; public/js/cabling.js). */
 export const KINDS = {
   connected:{fwd:'connected to', rev:'connects'},
   uplink:{fwd:'uplink to', rev:'uplink from'},
   attached:{fwd:'attached to', rev:'has attached'},
-  hosted:{fwd:'runs on', rev:'hosts'}
+  hosted:{fwd:'runs on', rev:'hosts'},
+  patched:{fwd:'patched to', rev:'patched from'}
 };
 /* Fields get their placeholder as a tooltip, and a select shows its chosen text, so nothing is unreadable on hover. */
 export function fullTextTooltips(root = document.body){
@@ -183,11 +186,12 @@ export const KIND_HINTS = {
   connected:'A device on a port of a switch, router, firewall or patch panel. Give its port number.',
   uplink:'A switch, router or firewall connected to the upstream device above it. Give the port on that upstream device.',
   attached:'A monitor or accessory attached to a PC, docking station or server.',
-  hosted:'A virtual machine that runs on this physical server.'
+  hosted:'A virtual machine that runs on this physical server.',
+  patched:'A patch cord from a port of this patch panel to a switch port. Set them on the panel\'s Ports table.'
 };
 /* The devices a relation of each kind can go to, in the Relations panel. Keep in step with LINK_OF in 05-new-object.js:
    a phone can be plugged into a PC or notebook (its pass-through port) as well as into a switch. */
-export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx','pc','notebook'], uplink:['switch','firewall','router'], hosted:['server']};
+export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx','pc','notebook'], uplink:['switch','firewall','router'], hosted:['server'], patched:[]};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */
@@ -608,7 +612,7 @@ export function relIndex(){
 export const relsOf = (o, idx) => (idx ? idx.get(o.id) || [] : rels.filter(r => r.from === o.id || r.to === o.id)).map(r => {
   const out = r.from === o.id;
   const other = byId(out ? r.to : r.from);
-  return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : portLabel(byId(r.to), r.port)};
+  return {r, out, other, label: out ? KINDS[r.kind].fwd : KINDS[r.kind].rev, port: r.lag != null ? (out ? 'LAG ' + r.lag : 'LAG ' + r.fromLag) : r.kind === 'patched' ? `${r.fromPort} → ${portLabel(byId(r.to), r.port)}` : portLabel(byId(r.to), r.port)};
 });
 export const now = () => stamp(new Date());
 /* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
@@ -693,7 +697,19 @@ export const isAttached = k => k === 'attached';
 /* The devices the sidebar's filters and the search leave. A Microsoft Graph filter left from before Graph was removed
    passes every device, except the join filters: AD joined only comes from the LDAP sync, so they still apply. */
 /* Whether an object has the search text in one of the fields a search looks at. */
-export const matchesQ = (o, q) => !q || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
+/* Outlet names a search finds: a panel's own, and the one a device is plugged into. Built once per search pass (the
+   index is dropped after the current task), so a list of thousands does not go through the relations for each device. */
+let OUTLET_Q = null;
+const outletWords = o => {
+  if (!OUTLET_Q){
+    OUTLET_Q = new Map();
+    const panels = new Map(objs.filter(x => x.type === 'patch' && x.outlets).map(x => [x.id, x]));
+    if (panels.size) for (const r of rels){ const p = r.kind === 'connected' && panels.get(r.to), x = p && p.outlets[r.port]; if (x) OUTLET_Q.set(r.from, [...(OUTLET_Q.get(r.from) || []), x.name]); }
+    queueMicrotask(() => { OUTLET_Q = null; });
+  }
+  return o.type === 'patch' ? Object.values(o.outlets || {}).map(x => x && x.name) : OUTLET_Q.get(o.id) || [];
+};
+export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
 export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
@@ -710,16 +726,9 @@ export function filtered(){
     && matchesQ(o, q));
 }
 
-/* The way up from a device to the core: follow outgoing relations. */
-export function pathUp(o){
-  const chain = [{o}]; const seen = new Set([o.id]); let cur = o;
-  for (let i = 0; i < 8; i++){
-    const r = rels.find(r => r.from === cur.id && !seen.has(r.to));
-    if (!r) break;
-    const nx = byId(r.to); chain.push({o:nx, via:r}); seen.add(nx.id); cur = nx;
-  }
-  return chain;
-}
+/* The way up from a device to the core: follow outgoing relations; through a patch panel, the cord of the port it came
+   in on, else the panel's trunk (cabling.js). */
+export const pathUp = o => netChain(o, rels, byId);
 
 /* Days since a stamp ("dd.mm.yyyy hh:mm"); 0 when it is not one. */
 export function daysSince(s){ const t = stampTime(s); return t ? (Date.now() - t) / 864e5 : 0; }

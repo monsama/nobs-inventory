@@ -119,7 +119,7 @@ export function mapRoutes(L){
     return {d, A, B, lx, ly, anchor: it.sb === 'L' ? 'end' : 'start'};
   });
 }
-export const MAP_SHORT = {attached:'attached', connected:'connected', uplink:'uplink', hosted:'runs on'};
+export const MAP_SHORT = {attached:'attached', connected:'connected', uplink:'uplink', hosted:'runs on', patched:'patched'};
 
 /* The drawing as SVG markup. The same markup is used on screen and in the export.
    Line labels are hidden until a line is hovered, or until Labels is switched on. */
