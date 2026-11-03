@@ -1864,3 +1864,11 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 /* A view that opens slides up a few pixels (07-render.js), only for those who have not asked for less motion. */
 @media (prefers-reduced-motion:no-preference){#view.tab-in{animation:tabIn .14s ease-out}}
 @keyframes tabIn{from{transform:translateY(4px)}to{transform:none}}
+/* Edit fields… of many devices: a row per field (field, set or clear, value, only where empty), then the preview. */
+.be-row{display:grid;grid-template-columns:minmax(120px,170px) 96px minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.be-row .be-v{min-width:0}.be-row .be-v .combo,.be-row .be-v .datefield,.be-row .be-v input,.be-row .be-v textarea{width:100%}
+.be-row .be-v .fieldnote{margin:4px 0 0}.be-row .be-v.be-off{visibility:hidden;height:0;overflow:hidden}.be-row .be-x{justify-self:end}
+.mb.be>#beAdd{align-self:flex-start;width:auto}
+.be-prev{margin-top:12px;border-top:1px solid var(--bd2);padding-top:8px}.be-prev .hdr{font-weight:600;margin-bottom:6px}
+.be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
+@media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}
