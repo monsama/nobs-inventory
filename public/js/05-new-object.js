@@ -1,10 +1,10 @@
-import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, esc, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { closeModal, modal } from './19-modal.js';
 import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
-import { html } from './html.js';
+import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
 import { findOutlet, outletLabel } from './cabling.js';
 /* ---------- new object ---------- */
@@ -31,12 +31,12 @@ export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'A
   : {kind: 'connected', label: 'Plug into', port: true, ok: o => hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type)};
 /* The port field: typed, or picked from the free ports of the device chosen in the select named by of (see freePorts).
    A problem with the port is said under the field, not in a message elsewhere. */
-const portField = (id, of) => `<label for="${id}">Port</label>${comboHtml(`<input id="${id}" class="mono" data-combo="port" data-port-of="${of}" placeholder="Type or pick a free port" aria-describedby="${id}Note">`, id)}
+const portField = (id, of) => html`<label for="${id}">Port</label>${rawHtml(comboHtml(String(html`<input id="${id}" class="mono" data-combo="port" data-port-of="${of}" placeholder="Type or pick a free port" aria-describedby="${id}Note">`), id))}
       <span class="pnote-gap" hidden></span><p class="fieldnote warn" id="${id}Note" role="alert" hidden></p>`;
 const portNote = (id, msg) => { const n = $('#' + id + 'Note'); if (!n) return; n.textContent = msg || ''; n.hidden = !msg; n.previousElementSibling.hidden = !msg; if (msg) $('#' + id).focus(); };
 /* A wall outlet picked by its name, instead of a panel and its port (24-patch.js); only when some panel has outlets. */
-const outletField = id => anyOutlets() ? `<label for="${id}">Outlet</label>${comboHtml(`<input id="${id}" class="mono" data-combo="outlet" placeholder="Or pick a wall outlet by name" aria-describedby="${id}Note">`, id)}
-      <span hidden></span><p class="fieldnote" id="${id}Note" hidden></p>` : '';
+const outletField = id => anyOutlets() && html`<label for="${id}">Outlet</label>${rawHtml(comboHtml(String(html`<input id="${id}" class="mono" data-combo="outlet" placeholder="Or pick a wall outlet by name" aria-describedby="${id}Note">`), id))}
+      <span hidden></span><p class="fieldnote" id="${id}Note" hidden></p>`;
 /* The outlet field fills the panel and its port; its note says which. */
 const bindOutlet = (id, upId, portId) => {
   const el = $('#' + id); if (!el) return;
@@ -52,18 +52,18 @@ export function newObjModal(pre={}){
   const c = pre.copy;
   /* Opened on a device's page: that device's place, and it is offered to plug into when it can take the new one. */
   const ctx = byId(st.tab);
-  modal(`<div class="mh">${c ? 'Duplicate ' + esc(c.code) : 'New device'}</div>
+  modal(html`<div class="mh">${c ? 'Duplicate ' + c.code : 'New device'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
+      <label for="nType">Type</label><select id="nType">${Object.entries(TYPES).map(([k,v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nName">Name</label><input id="nName" class="mono" placeholder="e.g. ZH-PC-0151">
-      <label for="nLoc">Location</label><select id="nLoc">${'<option value="">No location</option>'}${LOCS.map(l => `<option>${esc(l)}</option>`).join('')}</select>
-      ${LOCS.length ? '' : '<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>'}
-      <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select>
+      <label for="nLoc">Location</label><select id="nLoc"><option value="">No location</option>${LOCS.map(l => html`<option>${l}</option>`)}</select>
+      ${!LOCS.length && html`<span></span><p class="fieldnote">No locations yet: add your sites and rooms under Settings → Locations.</p>`}
+      <label for="nStatus">Status</label><select id="nStatus">${Object.entries(STATUS).filter(([k]) => k !== 'retired').map(([k, v]) => html`<option value="${k}">${v.label}</option>`)}</select>
       <label for="nUnits" hidden>Height (U)</label><input id="nUnits" type="number" min="1" max="60" value="42" hidden>
     </div><details class="nmore" id="nMore" ${c || pre.sw ? 'open' : ''}><summary>More details <span class="muted">model, serial number, user, where it is plugged in</span></summary><div class="form" style="padding:0">
       <label for="nModel">Model</label><input id="nModel" placeholder="e.g. HP EliteDesk 800 G9 Mini">
       <label for="nSerial">Serial number</label><input id="nSerial" class="mono">
-      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
+      <label for="nUser">User</label><select id="nUser"><option value="">Nobody yet</option>${USERS.filter(u => u.active !== false && !(u.source === 'manual' && u.login === 'admin' && u.role === 'admin')).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(u => html`<option value="${u.id}">${u.name}</option>`)}</select>
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
       ${outletField('nOutlet')}
@@ -170,12 +170,12 @@ export function linkObjModal(pre = {}){
   const list = linkCandidates().concat(objs.filter(o => o.status !== 'retired' && o.type === 'server' && o.kind === 'vm')).filter(o => linkOf(o))
     .filter(o => !into || (o.id !== into.id && linkOf(o).port && linkOf(o).ok(into)));
   if (!list.length){ toast(into ? 'No device here can be plugged in yet: use New device… instead.' : 'There is nothing to link yet. Create a device first.'); return; }
-  const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + esc(p.name) : ''; };
+  const where = o => { const p = plugOf(o) || (rels.find(r => r.from === o.id && r.kind === 'hosted') ? byId(rels.find(r => r.from === o.id && r.kind === 'hosted').to) : null); return p ? ' · now on ' + p.name : ''; };
   /* From a free port the dialog says which port, and no device is chosen for the person: they pick it. */
   const atPort = into && pre.port != null;
-  modal(`<div class="mh">${atPort ? `Plug into ${esc(into.name)} · ${esc(pfxOf(into) + pre.port)}` : 'Link device'}</div>
+  modal(html`<div class="mh">${atPort ? `Plug into ${into.name} · ${pfxOf(into) + pre.port}` : 'Link device'}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${atPort ? '<option value="">Choose a device…</option>' : ''}${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type] ? TYPES[o.type].label : o.type)}${where(o)}</option>`).join('')}</select>
+      <label for="lkObj">${atPort ? 'Device' : 'Object'}</label><select id="lkObj">${atPort && html`<option value="">Choose a device…</option>`}${list.sort((a, b) => (into ? (plugOf(a) ? 1 : 0) - (plugOf(b) ? 1 : 0) : 0) || a.name.localeCompare(b.name)).map(o => html`<option value="${o.id}">${o.name} · ${TYPES[o.type] ? TYPES[o.type].label : o.type}${where(o)}</option>`)}</select>
       <label for="lkTo">Plug into</label><select id="lkTo"></select>
       ${portField('lkPort', 'lkTo')}
     </div><p class="note" id="lkNote">Only the link is added; the device's details stay as they are.</p></div>
@@ -187,7 +187,8 @@ export function linkObjModal(pre = {}){
   const fit = () => {
     const o = byId($('#lkObj').value) || list[0], link = linkOf(o), keep = $('#lkTo').value;
     document.querySelector('label[for="lkTo"]').textContent = link.label;
-    $('#lkTo').innerHTML = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => `<option value="${esc(t.id)}">${esc(t.name)}${TYPES[t.type] ? ' · ' + esc(TYPES[t.type].short) : ''}</option>`).join('') || '<option value="">Nothing to link to</option>';
+    const opts = objs.filter(t => t.id !== o.id && t.status !== 'retired' && link.ok(t)).map(t => html`<option value="${t.id}">${t.name}${TYPES[t.type] ? ' · ' + TYPES[t.type].short : ''}</option>`);
+    $('#lkTo').innerHTML = opts.length ? html`${opts}` : '<option value="">Nothing to link to</option>';
     if ([...$('#lkTo').options].some(x => x.value === keep)) $('#lkTo').value = keep;
     $('#lkPort').hidden = $('#lkPort').closest('.combo').hidden = document.querySelector('label[for="lkPort"]').hidden = !link.port;
     portNote('lkPort', '');

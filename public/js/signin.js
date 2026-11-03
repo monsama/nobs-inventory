@@ -2,7 +2,8 @@
 import { pollForChanges, startLive } from './live.js';
 import { REVIEW, setAppVersion, SYNC } from './01-core.js';
 import { setUsers } from './04-settings.js';
-import { DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, APP_VERSION, HISTORY, LOCS, VLANS, PW_MIN, esc, objs, rels, st, toast } from './01-core.js';
+import { DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, APP_VERSION, HISTORY, LOCS, VLANS, PW_MIN, objs, rels, st, toast } from './01-core.js';
+import { html } from './html.js';
 import { me, ownOnly, pushDate } from './04-settings.js';
 import { openObjs } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -34,7 +35,7 @@ export async function boot(){
 /* The page works only with its server. Without one nothing is shown; the dialog offers to try again. */
 function showUnreachable(){
   document.body.classList.add('signed-out');
-  modal(`<div class="mh">NOBS Inventory</div><div class="mb"><p class="note" style="color:var(--danger)">The inventory server cannot be reached. Check that it is running, then try again.</p></div>
+  modal(html`<div class="mh">NOBS Inventory</div><div class="mb"><p class="note" style="color:var(--danger)">The inventory server cannot be reached. Check that it is running, then try again.</p></div>
     <div class="mf"><button id="unTry" class="primary">Try again</button></div>`, 'sm free locked');
   $('#unTry').onclick = () => location.reload();
 }
@@ -76,12 +77,12 @@ const SSO_ERRORS = {
    directory when LDAP is set up. */
 export function loginModal(err = '', login = ''){
   document.body.classList.add('signed-out');
-  modal(`<div class="mh">Sign in</div>
+  modal(html`<div class="mh">Sign in</div>
     <div class="mb"><div class="brandmark" style="margin:2px 0 16px"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div><form id="loginForm" class="form" style="padding:0">
-      <label for="lgUser">Login</label><input id="lgUser" value="${esc(login)}" autocomplete="username" required>
+      <label for="lgUser">Login</label><input id="lgUser" value="${login}" autocomplete="username" required>
       <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
-    </form><p class="note" id="lgErr" style="color:var(--danger)">${esc(err)}</p>
-    ${SERVER.sso ? `<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>` : ''}</div>
+    </form><p class="note" id="lgErr" style="color:var(--danger)">${err}</p>
+    ${SERVER.sso && html`<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>`}</div>
     <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
   /* Microsoft's sign-in leaves the page: changes not saved yet would be lost. Said first; a second click goes anyway. */
   const ms = document.querySelector('.lg-ms');
@@ -119,10 +120,10 @@ async function loadMySessions(){
   if (!r.ok){ box.innerHTML = '<p class="note">The sessions could not be loaded.</p>'; return; }
   const list = (await r.json()).sessions;
   const others = list.filter(x => !x.current).length;
-  box.innerHTML = list.length ? `<div class="sess-list">${list.map(x => `<div class="sess">
-      <div class="sess-main"><div class="sess-name">${esc(browserName(x.agent))}${x.current ? '<span class="sess-here">This browser</span>' : ''}</div><div class="sess-when">Last used ${esc(pushDate(x.last))}</div></div>
-      ${x.current ? '' : `<button data-endsess="${esc(x.id)}" aria-label="End this session">End</button>`}</div>`).join('')}</div>
-    <div class="sess-foot"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>` : '<p class="note">No browsers are signed in.</p>';
+  box.innerHTML = list.length ? html`<div class="sess-list">${list.map(x => html`<div class="sess">
+      <div class="sess-main"><div class="sess-name">${browserName(x.agent)}${x.current && html`<span class="sess-here">This browser</span>`}</div><div class="sess-when">Last used ${pushDate(x.last)}</div></div>
+      ${!x.current && html`<button data-endsess="${x.id}" aria-label="End this session">End</button>`}</div>`)}</div>
+    <div class="sess-foot"><button id="acEndOthers" ${others ? '' : 'disabled'}>End all other sessions</button></div>` : html`<p class="note">No browsers are signed in.</p>`;
   box.querySelectorAll('[data-endsess]').forEach(b => b.onclick = async () => { await fetch('api/me/sessions/' + encodeURIComponent(b.dataset.endsess), {method: 'DELETE', credentials: 'same-origin'}); loadMySessions(); });
   if ($('#acEndOthers')) $('#acEndOthers').onclick = async () => { for (const x of list.filter(y => !y.current)) await fetch('api/me/sessions/' + encodeURIComponent(x.id), {method: 'DELETE', credentials: 'same-origin'}); toast('Other browsers are signed out'); loadMySessions(); };
 }
@@ -131,14 +132,14 @@ async function loadMySessions(){
 export function accountModal(){
   const u = me(), ldap = u.source === 'ldap';
   const parts = (u.name || '').split(' ');
-  modal(`<div class="mh">Your account</div>
+  modal(html`<div class="mh">Your account</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label>Login</label><div class="mono" style="padding:4px 0">${esc(u.login || '-')}${ldap ? ' · directory' : ''}</div>
-      <label for="acFirst">First name</label><input id="acFirst" value="${esc(u.first ?? parts[0] ?? '')}" ${ldap ? 'disabled' : ''}>
-      <label for="acLast">Last name</label><input id="acLast" value="${esc(u.last ?? parts.slice(1).join(' '))}" ${ldap ? 'disabled' : ''}>
-      <label for="acDept">Department</label><input id="acDept" value="${esc(u.dept || '')}" ${ldap ? 'disabled' : ''}>
+      <label>Login</label><div class="mono" style="padding:4px 0">${u.login || '-'}${ldap ? ' · directory' : ''}</div>
+      <label for="acFirst">First name</label><input id="acFirst" value="${u.first ?? parts[0] ?? ''}" ${ldap ? 'disabled' : ''}>
+      <label for="acLast">Last name</label><input id="acLast" value="${u.last ?? parts.slice(1).join(' ')}" ${ldap ? 'disabled' : ''}>
+      <label for="acDept">Department</label><input id="acDept" value="${u.dept || ''}" ${ldap ? 'disabled' : ''}>
     </div>
-    ${ldap ? '<p class="note">Your name, department and password come from the directory.</p>' : `<div class="hdr" style="margin:14px -14px 8px">Password</div>
+    ${ldap ? html`<p class="note">Your name, department and password come from the directory.</p>` : html`<div class="hdr" style="margin:14px -14px 8px">Password</div>
     <div class="form" style="padding:0">
       <label for="acCur">Current</label><input id="acCur" type="password" autocomplete="current-password">
       <label for="acNew">New</label><input id="acNew" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters">

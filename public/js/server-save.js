@@ -1,6 +1,7 @@
 /* Saving to the server: what changed since the last load, sent in batches, conflicts, changes kept offline. */
 import { markHand, REVIEW, CONTACTS } from './01-core.js';
-import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, esc, objs, rels, st, toast } from './01-core.js';
+import { COMPANY, COSTS, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, $, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, SITES, TYPES, byId, objs, rels, st, toast } from './01-core.js';
+import { html } from './html.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { leaveSettings, closeModal, modal } from './19-modal.js';
 import { render, renderStatus } from './07-render.js';
@@ -152,11 +153,11 @@ function changedFields(mine, base){ return Object.keys(mine).filter(k => !NOT_ED
 const shown = v => (v && typeof v === 'object') ? JSON.stringify(v) : String(v ?? '');
 /* Shows what a person changed and the newer version, so a refused edit is not lost. */
 function refusedModal(items){
-  modal(`<div class="mh">Not saved: changed by someone else</div>
+  modal(html`<div class="mh">Not saved: changed by someone else</div>
     <div class="mb"><p class="note">Someone else saved these records first, so your changes were not saved. The inventory shows their version. You can apply your changes again.</p>
-      ${items.map(it => `<div class="panelbox"><div class="hdr">${esc(it.name)}${it.gone ? ' <span class="muted">· deleted by someone else</span>' : ''}</div>
-        ${it.fields.length ? `<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => `<tr><td>${esc(FIELD_LABEL[f.k] || f.k)}</td><td>${esc(shown(f.mine))}</td><td>${esc(shown(f.theirs))}</td></tr>`).join('')}</tbody></table>` : ''}
-      </div>`).join('')}</div>
+      ${items.map(it => html`<div class="panelbox"><div class="hdr">${it.name}${it.gone && html` <span class="muted">· deleted by someone else</span>`}</div>
+        ${it.fields.length > 0 && html`<table class="grid mini" style="min-width:0"><thead><tr><th>Field</th><th>Yours</th><th>Theirs</th></tr></thead><tbody>${it.fields.map(f => html`<tr><td>${FIELD_LABEL[f.k] || f.k}</td><td>${shown(f.mine)}</td><td>${shown(f.theirs)}</td></tr>`)}</tbody></table>`}
+      </div>`)}</div>
     <div class="mf"><button id="rfKeep">Keep theirs</button><button id="rfApply" class="primary">Apply mine again</button></div>`, 'wide');
   $('#rfKeep').onclick = closeModal;
   $('#rfApply').onclick = () => {
@@ -169,7 +170,7 @@ function refusedModal(items){
    racks too unless their box is ticked.
    It deletes every device, so it asks first, and only goes ahead when the word CLEAR is typed. */
 export function clearConfirm(){
-  modal(`<div class="mh">Clear the whole inventory?</div>
+  modal(html`<div class="mh">Clear the whole inventory?</div>
     <div class="mb"><p class="note">This deletes every device on the server, with its relations and history, for everyone, and takes them out of the contracts that list them. Users, locations, sites, floor plans, contracts and settings stay, and so do the racks and the objects excluded from sync unless you tick the boxes below. A backup is taken first and kept until you delete it: restoring it (Settings → System → Backups) brings the devices back.</p>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrAll"> Also delete the objects excluded from sync (protected)</label>
       <label class="pchk" style="display:flex;gap:6px;align-items:center;margin:8px 0"><input type="checkbox" id="clrRacks"> Also delete the racks</label>

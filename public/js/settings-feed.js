@@ -7,7 +7,8 @@ import { modal, closeModal } from './19-modal.js';
 import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
-import { $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
+import { $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, MODELS, toast, daysSince } from './01-core.js';
+import { html, rawHtml } from './html.js';
 import { statusHeaderHtml } from './settings-status.js';
 /* The status header, with the switch that turns Lansweeper on or off for this inventory, and where its data comes from.
    Sync now only for the API: a push comes from the script on the Lansweeper server. */
@@ -18,14 +19,14 @@ export function renderLsToggle(){
   const head = statusHeaderHtml('ls', { on: { id: 'useLs', checked: on, label: on ? 'On' : 'Off' },
     sync: on && api ? { id: 'lsSync', ready: !!SERVER.lansweeper } : null, msg: on && api ? 'lsMsg' : '',
     note: on && !api ? 'Sent by the push script on the Lansweeper server' : '' });
-  host.innerHTML = head + (on ? `<div class="panelbox"><div class="hdr">Connection <span class="cnt">Lansweeper</span></div>
+  host.innerHTML = html`${rawHtml(head)}${on ? html`<div class="panelbox"><div class="hdr">Connection <span class="cnt">Lansweeper</span></div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       <label for="lsSource">Data comes from</label>
       <div><select id="lsSource" ${ro} aria-label="Where the Lansweeper data comes from">
         <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
         <option value="api" ${api ? 'selected' : ''}>Lansweeper API: this server fetches the data</option></select>
         <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
-    </div></div>` : '<p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden. Turn it on above to connect it.</p>');
+    </div></div>` : html`<p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden. Turn it on above to connect it.</p>`}`;
   const c = $('#useLs');
   if (c && isAdmin()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
   const src = $('#lsSource');
@@ -59,12 +60,12 @@ export function renderSetModels(){
   /* The names Lansweeper sends that become each model (kept when a model is renamed), so a rename can be seen and undone. */
   const map = st.modelMap || {}, from = {};
   for (const [lsName, to] of Object.entries(map)) (from[to] ||= []).push(lsName);
-  const fromLine = m => from[m] && from[m].length ? `<div class="mdl-from"><span class="muted">From Lansweeper also as</span>${from[m].sort((a, b) => a.localeCompare(b)).map(n => `<span class="chip kept mdl-map">${esc(n)}${edit ? `<button class="icon ghost" data-mdmap="${esc(n)}" aria-label="Stop turning ${esc(n)} into ${esc(m)}" title="Stop: Lansweeper's name is kept as it is">×</button>` : ''}</span>`).join('')}</div>` : '';
+  const fromLine = m => from[m] && from[m].length ? html`<div class="mdl-from"><span class="muted">From Lansweeper also as</span>${from[m].sort((a, b) => a.localeCompare(b)).map(n => html`<span class="chip kept mdl-map">${n}${edit && html`<button class="icon ghost" data-mdmap="${n}" aria-label="Stop turning ${n} into ${m}" title="Stop: Lansweeper's name is kept as it is">×</button>`}</span>`)}</div>` : '';
   const elsewhere = Object.keys(from).filter(m => !names.includes(m)).sort((a, b) => a.localeCompare(b));
-  root.innerHTML = `<div class="hdr">Models <span class="cnt">${names.length}</span></div>
+  root.innerHTML = html`<div class="hdr">Models <span class="cnt">${names.length}</span></div>
     <p class="note" style="padding:10px 12px 6px">A model typed on a device is kept here, and every device can choose it. Renaming a model renames it on every device that has it. The old name still maps to the new one when Lansweeper sends it: shown under the model, and × stops it.</p>
-    <div class="lrows">${names.length ? names.map((m, i) => `<div class="lrow mdl"><input data-mdn="${i}" value="${esc(m)}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? `<button data-mdx="${i}" class="danger-text">Remove</button>` : '<span></span>'}${fromLine(m)}</div>`).join('') : '<p class="note lempty">No models yet. A model appears here when a device has one.</p>'}
-    ${elsewhere.map(m => `<div class="lrow mdl"><span><b>${esc(m)}</b> <span class="muted">(not in the list)</span></span><span></span><span></span>${fromLine(m)}</div>`).join('')}</div>`;
+    <div class="lrows">${names.length ? names.map((m, i) => html`<div class="lrow mdl"><input data-mdn="${i}" value="${m}" aria-label="Model name" ${ro}><span class="muted">${count[m] ? count[m] + (count[m] === 1 ? ' device' : ' devices') : 'Not used yet'}</span>${!count[m] && edit ? html`<button data-mdx="${i}" class="danger-text">Remove</button>` : html`<span></span>`}${fromLine(m)}</div>`) : html`<p class="note lempty">No models yet. A model appears here when a device has one.</p>`}
+    ${elsewhere.map(m => html`<div class="lrow mdl"><span><b>${m}</b> <span class="muted">(not in the list)</span></span><span></span><span></span>${fromLine(m)}</div>`)}</div>`;
   if (!edit) return;
   root.querySelectorAll('[data-mdn]').forEach(i => i.onchange = () => renameModel(names[+i.dataset.mdn], i.value));
   root.querySelectorAll('[data-mdx]').forEach(b => b.onclick = () => removeModel(names[+b.dataset.mdx]));
@@ -98,13 +99,13 @@ export function renderTypeMap(){
   if (!LS_ON()){ $('#setTypeMap').innerHTML = ''; return; }
   const edit = isAdmin(), ro = edit ? '' : 'disabled';
   const entries = Object.entries(st.typeMap || {});
-  const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(t.label)}</option>`).join('');
-  const rows = entries.map(([name, type], i) => `<div class="lrow tmap"><input data-tmn="${i}" value="${esc(name)}" aria-label="Lansweeper type name" ${ro}>
-    <select data-tmt="${i}" aria-label="Device type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`).join('');
-  $('#setTypeMap').innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
+  const typeOptions = sel => Object.entries(TYPES).map(([k, t]) => html`<option value="${k}" ${k === sel ? 'selected' : ''}>${t.label}</option>`);
+  const rows = entries.map(([name, type], i) => html`<div class="lrow tmap"><input data-tmn="${i}" value="${name}" aria-label="Lansweeper type name" ${ro}>
+    <select data-tmt="${i}" aria-label="Device type" ${ro}>${typeOptions(type)}</select><button data-tmd="${i}" ${ro}>Remove</button></div>`);
+  $('#setTypeMap').innerHTML = html`<div class="panelbox"><div class="hdr">Lansweeper type names <span class="cnt">${entries.length}</span></div>
     <p class="note" style="padding:10px 12px 6px">Sets the device type a Lansweeper type name becomes. It applies when a device syncs, and when a row is saved to devices already synced with that name. Names are matched without case. Names not listed here use the built-in rules.</p>
     <div class="lrows"><div class="lrow tmap head"><span>Lansweeper name</span><span>Device type</span><span></span></div>
-      ${rows || '<p class="note lempty">No names yet.</p>'}</div>
+      ${rows.length ? rows : html`<p class="note lempty">No names yet.</p>`}</div>
     <div class="lpanel-add"><input id="tmName" placeholder="Lansweeper name, e.g. DECT base" aria-label="Lansweeper type name" ${ro}><select id="tmType" aria-label="Device type" ${ro}>${typeOptions('')}</select><button id="tmAdd" class="primary" ${ro}>Add</button></div>
 </div>`;
   const put = (list, name) => {
@@ -132,18 +133,18 @@ export function renderTypeRules(){
   const edit = isAdmin(), ro = edit ? '' : 'disabled';
   const own = Array.isArray(st.typeRules);
   const rules = own ? st.typeRules : DEFAULT_TYPE_RULES;
-  const opt = (map, sel) => Object.entries(map).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(typeof v === 'string' ? v : v.label)}</option>`).join('');
-  el.innerHTML = `<div class="panelbox"><div class="hdr">Type rules <span class="cnt">${own ? 'changed' : 'as shipped'} · ${rules.length}</span></div>
+  const opt = (map, sel) => Object.entries(map).map(([k, v]) => html`<option value="${k}" ${k === sel ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`);
+  el.innerHTML = html`<div class="panelbox"><div class="hdr">Type rules <span class="cnt">${own ? 'changed' : 'as shipped'} · ${rules.length}</span></div>
     <p class="note">The type a device from Lansweeper gets: the first rule that matches decides, top to bottom. The names in the table above come first, and Windows' own word (workstation or server) last. Words are separated by commas; a word of three letters or less matches a whole word only.</p>
     <div style="overflow-x:auto"><table class="grid mini trules" style="min-width:760px;table-layout:fixed"><colgroup><col style="width:44px"><col style="width:200px"><col><col style="width:180px"><col style="width:112px"></colgroup>
       <thead><tr><th>On</th><th>Looks at</th><th>Contains any of</th><th>Type</th><th></th></tr></thead><tbody>
-      ${rules.map((x, i) => `<tr${x.on === false ? ' class="off"' : ''}><td><input type="checkbox" data-tron="${i}" ${x.on !== false ? 'checked' : ''} aria-label="Rule ${i + 1} on" ${ro}></td>
+      ${rules.map((x, i) => html`<tr${x.on === false && html` class="off"`}><td><input type="checkbox" data-tron="${i}" ${x.on !== false ? 'checked' : ''} aria-label="Rule ${i + 1} on" ${ro}></td>
         <td><select data-trf="${i}" aria-label="Rule ${i + 1} looks at" ${ro}>${opt(RULE_FIELDS, x.field)}</select></td>
-        <td><input data-trw="${i}" value="${esc(x.words)}" aria-label="Rule ${i + 1} words" ${ro}></td>
+        <td><input data-trw="${i}" value="${x.words}" aria-label="Rule ${i + 1} words" ${ro}></td>
         <td><select data-trt="${i}" aria-label="Rule ${i + 1} type" ${ro}>${opt(TYPES, x.to)}</select></td>
-        <td class="act"><button class="icon ghost" data-trup="${i}" aria-label="Move rule ${i + 1} up" title="Up" ${ro || (i ? '' : 'disabled')}>↑</button><button class="icon ghost" data-trdn="${i}" aria-label="Move rule ${i + 1} down" title="Down" ${ro || (i < rules.length - 1 ? '' : 'disabled')}>↓</button><button class="icon ghost" data-trdel="${i}" aria-label="Remove rule ${i + 1}" title="Remove" ${ro}>×</button></td></tr>`).join('')}
+        <td class="act"><button class="icon ghost" data-trup="${i}" aria-label="Move rule ${i + 1} up" title="Up" ${ro || (i ? '' : 'disabled')}>↑</button><button class="icon ghost" data-trdn="${i}" aria-label="Move rule ${i + 1} down" title="Down" ${ro || (i < rules.length - 1 ? '' : 'disabled')}>↓</button><button class="icon ghost" data-trdel="${i}" aria-label="Remove rule ${i + 1}" title="Remove" ${ro}>×</button></td></tr>`)}
       </tbody></table></div>
-    <div class="addrel" style="padding:10px 12px"><button id="trAdd" ${ro}>Add a rule</button>${own ? `<button id="trReset" ${ro}>Back to the defaults</button>` : ''}<div class="grow"></div><button id="trApply" class="primary" ${ro}>Apply to existing devices…</button></div></div>`;
+    <div class="addrel" style="padding:10px 12px"><button id="trAdd" ${ro}>Add a rule</button>${own && html`<button id="trReset" ${ro}>Back to the defaults</button>`}<div class="grow"></div><button id="trApply" class="primary" ${ro}>Apply to existing devices…</button></div></div>`;
   if (!edit) return;
   /* Any change keeps a copy of the list: from then on it is this inventory's own. */
   const put = list => { st.typeRules = list; queueServerSave(); renderTypeRules(); };
@@ -168,13 +169,13 @@ async function retypeModal(){
   const j = await r.json().catch(() => ({}));
   if (!r.ok){ toast(j.error || 'The rules could not be checked.'); return; }
   const list = j.changes || [];
-  const label = t => esc(TYPES[t] ? TYPES[t].label : t);
-  modal(`<div class="mh">Apply the type rules to existing devices</div>
-    <div class="mb">${list.length ? `<p class="note">${list.length} ${list.length === 1 ? 'device from Lansweeper gets' : 'devices from Lansweeper get'} another type by the rules. Untick the ones to leave as they are. A type set by hand is never changed, and each change is in the device's history.</p>
+  const label = t => TYPES[t] ? TYPES[t].label : t;
+  modal(html`<div class="mh">Apply the type rules to existing devices</div>
+    <div class="mb">${list.length ? html`<p class="note">${list.length} ${list.length === 1 ? 'device from Lansweeper gets' : 'devices from Lansweeper get'} another type by the rules. Untick the ones to leave as they are. A type set by hand is never changed, and each change is in the device's history.</p>
       <div style="overflow:auto;max-height:52vh"><table class="grid mini" style="min-width:680px"><thead><tr><th><input type="checkbox" id="rtAll" checked aria-label="All"></th><th>Device</th><th>Lansweeper type</th><th>Model</th><th>Now</th><th>Becomes</th></tr></thead><tbody>
-      ${list.map(x => `<tr><td><input type="checkbox" data-rt="${esc(x.id)}" checked aria-label="Change ${esc(x.name)}"></td><td><b>${esc(x.name)}</b> <span class="code">${esc(x.code)}</span></td><td>${esc(x.assetType)}</td><td>${esc(x.model)}</td><td>${label(x.from)}</td><td><b>${label(x.to)}</b></td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="note">Every device from Lansweeper already has the type the rules give it.</p>'}</div>
-    <div class="mf"><button id="rtCancel">${list.length ? 'Cancel' : 'Close'}</button>${list.length ? `<button id="rtOk" class="primary">Change ${list.length} ${list.length === 1 ? 'device' : 'devices'}</button>` : ''}</div>`, 'wide');
+      ${list.map(x => html`<tr><td><input type="checkbox" data-rt="${x.id}" checked aria-label="Change ${x.name}"></td><td><b>${x.name}</b> <span class="code">${x.code}</span></td><td>${x.assetType}</td><td>${x.model}</td><td>${label(x.from)}</td><td><b>${label(x.to)}</b></td></tr>`)}
+      </tbody></table></div>` : html`<p class="note">Every device from Lansweeper already has the type the rules give it.</p>`}</div>
+    <div class="mf"><button id="rtCancel">${list.length ? 'Cancel' : 'Close'}</button>${list.length > 0 && html`<button id="rtOk" class="primary">Change ${list.length} ${list.length === 1 ? 'device' : 'devices'}</button>`}</div>`, 'wide');
   $('#rtCancel').onclick = closeModal;
   if (!list.length) return;
   const boxes = () => [...document.querySelectorAll('[data-rt]')];
@@ -196,9 +197,9 @@ export const ENTRA = 'https://entra.microsoft.com/#view/Microsoft_AAD_Registered
 export function scheduleRowHtml(job, edit){
   const plan = scheduleOf(st)[job], ro = edit ? '' : 'disabled';
   const label = h => h === 0 ? 'Off (only Sync now)' : h === 24 ? 'Daily' : h === 1 ? 'Every hour' : `Every ${h} hours`;
-  return `<div class="sched-row" data-sched="${job}"><span class="sched-l">Runs by itself</span>
-    <select data-sched-every="${job}" aria-label="How often ${esc(SCHEDULE_JOBS[job])} syncs" ${ro}>${EVERY_HOURS.map(h => `<option value="${h}" ${h === plan.every ? 'selected' : ''}>${label(h)}</option>`).join('')}</select>
-    <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span>${timeFieldHtml(`data-sched-at="${job}" aria-label="Start time" ${ro}`, plan.at, { hidden: !plan.every })}
+  return html`<div class="sched-row" data-sched="${job}"><span class="sched-l">Runs by itself</span>
+    <select data-sched-every="${job}" aria-label="How often ${SCHEDULE_JOBS[job]} syncs" ${ro}>${EVERY_HOURS.map(h => html`<option value="${h}" ${h === plan.every ? 'selected' : ''}>${label(h)}</option>`)}</select>
+    <span class="sched-from" ${plan.every ? '' : 'hidden'}>${plan.every === 24 ? 'at' : 'from'}</span>${rawHtml(timeFieldHtml(`data-sched-at="${job}" aria-label="Start time" ${ro}`, plan.at, { hidden: !plan.every }))}
     <span class="muted sched-next">${plan.every ? 'next at ' + nextRun(plan) : ''}</span></div>`;
 }
 export function bindScheduleRows(root){
@@ -212,7 +213,7 @@ export function bindScheduleRows(root){
       st.syncSchedule = {...(st.syncSchedule || {}), [job]: v};
       queueServerSave();
       const was = document.activeElement === every ? '[data-sched-every]' : document.activeElement === at ? '[data-sched-at]' : '';
-      row.outerHTML = scheduleRowHtml(job, true);
+      row.outerHTML = String(scheduleRowHtml(job, true));
       bindScheduleRows(root);
       /* The row is drawn again: the focus goes back to the control just changed. */
       const again = was && root.querySelector(`[data-sched="${job}"] ${was}`); if (again && !again.hidden) again.focus();
@@ -241,16 +242,16 @@ export function pushStatus(){
   /* The last push itself is in the header above (its run); what it brought beyond the counts there is said here. */
   const last = c ? `${c.links || 0} links, ${c.software || 0} with software` : '';
   const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
-  const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
-  return `${last ? `<label>Last push brought</label><span>${last}</span>` : ''}<label>Not seen</label><span>${stale}</span>`;
+  const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => o.name).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
+  return html`${last && html`<label>Last push brought</label><span>${last}</span>`}<label>Not seen</label><span>${stale}</span>`;
 }
 export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = isAdmin(), ro = edit ? '' : 'disabled';
-  const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
+  const field = (k, label, hint) => html`<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${L[k] || ''}" placeholder="${hint}" ${ro}>`;
   if (edit && pushInfo === undefined) loadPushInfo();
-  const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
+  const pushPanel = edit && html`<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
     <div class="note" style="padding:10px 12px 6px">
       <details class="how" ${pushInfo ? '' : 'open'}><summary>Setup on the Lansweeper server</summary>
       <ol style="margin:0;padding-left:20px;line-height:1.6">
@@ -260,17 +261,17 @@ export function renderSetFeed(){
       </ol>
       <p style="margin:6px 0 0">If the script cannot read the Lansweeper database, store its SQL login with <code>-SetSqlCredential</code>.</p></details>
     </div>
-    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${esc(pushDate(pushInfo.created))}` : 'None yet. Create one to connect the script.'}</span>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Token</label><span>${pushInfo ? `Active since ${pushDate(pushInfo.created)}` : 'None yet. Create one to connect the script.'}</span>
     ${pushStatus()}</div>
-    ${pushNew ? `<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${esc(pushNew)}"></div>
-    <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it on its first run.</p>` : ''}
+    ${pushNew && html`<div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="pushTok">New token</label><input id="pushTok" class="mono" readonly value="${pushNew}"></div>
+    <p class="note" style="padding:0 12px 10px">Copy it now. It is shown only once. The script asks for it on its first run.</p>`}
     <div class="addrel" style="padding:10px 12px">
       <button id="pushNew" class="primary" ${pushInfo === undefined ? 'disabled' : ''}>${pushInfo ? 'Replace token' : 'Create token'}</button>
-      ${pushNew ? '<button id="pushCopy">Copy token</button>' : ''}
-      ${pushInfo ? '<button id="pushRevoke" class="danger-text">Revoke</button>' : ''}
-      <button id="pushScript" ${pushInfo ? '' : 'disabled title="Create a token first"'}>Download script</button>
-      <span class="note" id="pushMsg">${esc(pushNote)}</span></div></div>` : '';
-  $('#setFeed').innerHTML = pushPanel + `<div class="panelbox" id="lsApiPanel"><div class="hdr">Lansweeper API <span class="chip warn" title="Not yet verified against a live Lansweeper">Experimental</span></div>
+      ${pushNew && html`<button id="pushCopy">Copy token</button>`}
+      ${pushInfo && html`<button id="pushRevoke" class="danger-text">Revoke</button>`}
+      <button id="pushScript" ${pushInfo ? '' : html`disabled title="Create a token first"`}>Download script</button>
+      <span class="note" id="pushMsg">${pushNote}</span></div></div>`;
+  $('#setFeed').innerHTML = html`${pushPanel}<div class="panelbox" id="lsApiPanel"><div class="hdr">Lansweeper API <span class="chip warn" title="Not yet verified against a live Lansweeper">Experimental</span></div>
     <div class="note" style="padding:10px 12px">${SERVER.lansweeper ? 'The API token is set on the server.' : 'No API token is set on the server yet. An administrator sets NI_LS_TOKEN (or NI_LS_TOKEN_FILE) on the server; the token is never stored in the inventory.'}</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
       ${field('endpoint', 'API address', 'https://api.lansweeper.com/api/v2/graphql')}
@@ -309,7 +310,7 @@ export function renderSetFeed(){
     pushInfo = null; pushNew = ''; pushNote = ''; renderSetFeed();
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
-  const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
+  const bad = t => html`<span style="color:var(--danger)">${t}</span>`;
   if ($('#lsSync')) $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
     btn.disabled = true; msg.textContent = 'Syncing…';
