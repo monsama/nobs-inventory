@@ -1,8 +1,11 @@
-import { $, st } from './01-core.js';
+import { $, COSTS, REVIEW, UNDO, objs, st } from './01-core.js';
 import { newObjModal } from './05-new-object.js';
-import { me, openSettings } from './04-settings.js';
+import { isAdmin, me, openSettings } from './04-settings.js';
 import { accountModal, loginModal, signOut, view } from './07-render.js';
-import { openObj } from './02-views.js';
+import { openObj, resetFilters } from './02-views.js';
+import { SOURCES, sources } from './16-sync.js';
+import { hideNotice, notices, shownNotices } from './notices.js';
+import { html } from './html.js';
 /* ---------- top bar ---------- */
 /* A type or room picked in the sidebar is the one the new object starts with. */
 $('#newBtn').onclick = () => newObjModal({type: st.type || null, loc: st.loc && st.loc.includes(' / ') ? st.loc : null});
@@ -15,6 +18,68 @@ $('#themeBtn').onclick = () => {
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('ni-theme', root.dataset.theme); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 };
+/* ---------- notifications ----------
+   The bell: what needs attention now (public/js/notices.js), with a count. Worked out again when the data changes (a
+   save, a reload) or an hour has passed, not on every redraw of a filter or search. A notice can be hidden until it
+   changes; what is hidden is kept in this browser. On a phone the bell is in More, which then shows a dot. */
+const HIDDEN_KEY = 'ni-notices-hidden';
+let hiddenN = {};
+try { hiddenN = JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') || {}; } catch { hiddenN = {}; }
+const keepHidden = () => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hiddenN)); } catch { /* Browser storage can be blocked: then it shows again next time. */ } };
+let NOTICES = [], bellKey = '';
+export function renderBell(changed = false){
+  const btn = $('#bellBtn'); if (!btn) return;
+  const u = me(), admin = isAdmin();
+  btn.hidden = !u;
+  const key = [UNDO.epoch, objs.length, REVIEW.length, st.meId, admin, Math.floor(Date.now() / 36e5)].join('|');
+  if (changed || key !== bellKey){
+    bellKey = key;
+    /* A viewer limited to some sites gets only their devices from the server; the notices keep to them as well. */
+    const sites = !admin && u && !u.own && Array.isArray(u.sites) && u.sites.length ? u.sites : null;
+    NOTICES = !u ? [] : notices({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts, syncRuns: st.syncRuns, syncSchedule: st.syncSchedule, restoreTest: st.restoreTest, backupExportRun: st.backupExportRun },
+      { admin, sites, sources: admin ? sources().map(([k]) => k) : [] });
+  }
+  drawBell();
+}
+function drawBell(){
+  const btn = $('#bellBtn'), pop = $('#bellPop'), badge = $('#bellN');
+  const shown = shownNotices(NOTICES, hiddenN), n = shown.length, worst = shown.some(x => x.sev === 'bad') ? 'bad' : n ? 'warn' : '';
+  const say = n ? `${n} ${n === 1 ? 'thing needs' : 'things need'} attention` : 'Nothing needs attention';
+  badge.textContent = n > 99 ? '99+' : String(n); badge.hidden = !n; badge.className = `bell-n ${worst}`;
+  btn.setAttribute('aria-label', `Notifications: ${say}`); btn.title = say;
+  const more = $('#barMoreBtn'); if (more){ more.classList.toggle('has-n', !!n); more.classList.toggle('bad', worst === 'bad'); }
+  const hid = NOTICES.length - n;
+  pop.innerHTML = html`<div class="bell-hdr"><b>Needs attention</b><span class="muted">${n || 'nothing'}</span></div>
+    ${n ? html`<div class="bell-list">${shown.map(x => html`<div class="bell-item ${x.sev}"><button type="button" class="bell-go" data-bell="${x.id}"><span class="dot ${x.sev}" aria-hidden="true"></span><span class="bell-t"><b>${x.title}</b><small>${x.text}</small></span></button><button type="button" class="icon bell-x" data-bellhide="${x.id}" title="Hide until it changes" aria-label="${`Hide until it changes: ${x.title}`}">×</button></div>`)}</div>`
+      : html`<p class="muted bell-none">Nothing needs attention right now.</p>`}
+    ${hid > 0 && html`<div class="bell-foot"><button type="button" class="link" data-bellall>Show ${hid} hidden</button></div>`}`;
+}
+/* Where a notice leads: the device, the Table filtered, a part of the Overview, a tab, To review or a Settings tab. */
+function goNotice(g){
+  for (const p of [$('#bellPop'), $('#barMore')]) if (p && p.matches(':popover-open')) p.hidePopover();
+  if (g.device) openObj(g.device);
+  else if (g.settings){ st.setTab = SOURCES[g.settings] ? SOURCES[g.settings].settings : g.settings; openSettings(); }
+  else {
+    if (g.table || g.review){ resetFilters(); Object.assign(st, { scope: g.review ? 'review' : null, rvSrc: '', rvKnown: false, rvOld: false, bulk: new Set() }, g.table || {}); }
+    if (g.tab) st.q = '';
+    st.tab = g.table ? 'table' : g.review ? 'cards' : g.overview ? 'overview' : g.tab;
+    view();
+    const el = g.overview && document.getElementById(g.overview); if (el) el.scrollIntoView({ block: 'start' });
+  }
+}
+$('#bellPop').addEventListener('click', e => {
+  const go = e.target.closest('[data-bell]'), hide = e.target.closest('[data-bellhide]'), all = e.target.closest('[data-bellall]');
+  if (go){ const x = NOTICES.find(n => n.id === go.dataset.bell); if (x) goNotice(x.go); }
+  else if (hide){
+    const x = NOTICES.find(n => n.id === hide.dataset.bellhide); if (!x) return;
+    const items = [...$('#bellPop').querySelectorAll('[data-bellhide]')], at = items.indexOf(hide);
+    hiddenN = hideNotice(hiddenN, x, NOTICES); keepHidden(); drawBell();
+    /* The focus goes to the next notice's hide button (or the one before), so the keyboard is not left nowhere. */
+    const left = [...$('#bellPop').querySelectorAll('[data-bellhide]')];
+    (left[Math.min(at, left.length - 1)] || $('#bellPop [data-bellall]') || $('#bellBtn')).focus();
+  } else if (all){ hiddenN = {}; keepHidden(); drawBell(); const first = $('#bellPop [data-bell]'); if (first) first.focus(); }
+});
+
 /* A link inside a row or card (a device's web interface) opens itself, not the device. */
 document.addEventListener('click', e => { const t = e.target.closest('[data-open]'); if (t && !e.target.closest('[data-close]') && !e.target.closest('a[href]')) openObj(t.dataset.open); });
 

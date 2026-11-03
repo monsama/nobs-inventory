@@ -15,6 +15,7 @@ import { autoBackup, takeBackup } from './backup.js';
 import { migrateState } from './migrate.js';
 import { exportSet, exportSettings, lastExport, runExport } from './backup-export.js';
 import { digestSettings, smtpConfig } from './digest.js';
+import { viewsDue } from './view-mail.js';
 import { purgeOrphanImages } from './device-images.js';
 import { collectParts, convertOldBackups } from './backup-store.js';
 import { purgePasswords, sheetKeyOf } from './sheets.js';
@@ -62,8 +63,8 @@ export function runFeedFile(db, file, now = new Date()) {
 /* The syncs the server runs by itself, each on its schedule from Settings (scheduleOf): the Lansweeper API when a token
    is set, otherwise the report file; the directory users; Microsoft Graph. Due in the same minute, they run in that order,
    so the devices Lansweeper adds are there for Graph to match. Kept passwords on entry sheets are cleared daily at 06:00. */
-export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null, digest = null, restoreTest = null, smtpOn = null } = {}, log = console.log) {
-  if (!restoreTest && !lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportSet(env) && !smtpConfig(env)) return null;
+export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = null, sheetKey = null, graphConfig = null, digest = null, restoreTest = null, smtpOn = null, viewMail = null } = {}, log = console.log) {
+  if (!restoreTest && !viewMail && !lansweeperConfig && !env.NI_FEED_CSV && !ldapConfig && !sheetKey && !graphConfig && !exportSet(env) && !smtpConfig(env)) return null;
   const done = {};
   const once = (key, t) => { const k = `${t.toDateString()} ${t.getHours()}:${t.getMinutes()}`; if (done[key] === k) return false; done[key] = k; return true; };
   /* One run at a time: a tick while a sync is still going is skipped, and the next one also looks at the minutes it
@@ -96,6 +97,10 @@ export function startScheduler(db, env, { lansweeperConfig = null, ldapConfig = 
       const dg = digestSettings(db);
       if (digest && dg.on && (smtpOn ? smtpOn() : smtpConfig(env)) && mins.some(t => t.getDay() === dg.day && t.getHours() === dg.hour && t.getMinutes() === 0 && once('digest', t))) {
         try { await digest(now); log('weekly e-mail sent'); } catch (e) { log('weekly e-mail failed:', e.message); audit(db, null, 'weekly e-mail failed: ' + e.message); }
+      }
+      /* Saved views sent by mail, each on its own schedule (server/view-mail.js); a failure is in the log. */
+      if (viewMail && (smtpOn ? smtpOn() : smtpConfig(env))) for (const v of viewsDue(db, mins, once)) {
+        try { await viewMail(v.id, now); log('saved view sent by mail:', v.name); } catch (e) { log('saved view by mail failed:', v.name, e.message); }
       }
       if (sheetKey && mins.some(t => t.getHours() === 6 && t.getMinutes() === 0 && once('sheets', t))) { const n = purgePasswords(db, sheetKey, now); if (n) log('entry sheets: password removed from', n); }
       const cur = loadState(db), plan = scheduleOf(cur);
@@ -147,7 +152,7 @@ export function start(env = process.env) {
   const app = createApp({ db, ldapConfig, lansweeperConfig, graphConfig, feedToken: resolved.NI_FEED_TOKEN, secureCookie: secure, sheetKey, trustedProxy, loginFailMs: 1000 });
   const port = Number(env.NI_PORT || 8080);
   const server = app.listen(port, () => console.log(`NOBS Inventory on http://localhost:${port}`));
-  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig(), digest: now => app.locals.sendDigest(now), smtpOn: () => app.locals.smtpOn(), restoreTest: now => app.locals.restoreTest(now) });
+  const timer = startScheduler(db, env, { lansweeperConfig, ldapConfig: () => app.locals.ldapConfig(), sheetKey, graphConfig: () => app.locals.graphConfig(), digest: now => app.locals.sendDigest(now), smtpOn: () => app.locals.smtpOn(), restoreTest: now => app.locals.restoreTest(now), viewMail: (id, now) => app.locals.sendViewMail(id, now) });
   server.on('close', () => { if (timer) clearInterval(timer); db.close(); });
   return { server, db };
 }
