@@ -15,17 +15,18 @@ import { MERGED } from '../public/js/people-match.js';
 import { audit } from './db.js';
 import { lifecycleProblem } from '../public/js/lifecycle.js';
 import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
+import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
 
 /* The settings that live beside the lists. Their names are the keys the page uses. */
-export const SETTING_KEYS = ['stockRooms', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
+export const SETTING_KEYS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'graph', 'graphUnmatched', 'graphAmbiguous', 'adUnmatched', 'syncRuns', 'graphFields', 'backupExport', 'backupExportRun', 'restoreTest', 'digest', 'digestRun', 'smtp', 'ldapCa', 'contracts', 'licences', 'currency', 'contacts', 'graphCerts', 'lsIpLocations', 'lsNets', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'intake', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'syncChanges', 'stocktakes', 'peopleNotSame', 'groupRoles', 'lifecycle', 'seq', 'codeN', 'rseq'];
 /* Preferences that are saved without a revision: the last save wins. */
 export const LAST_WINS = ['mapPos'];
 /* The settings a page may change. The counters, the connections' results and the certificates belong to the server. */
 /* The syncs that bring in devices of their own: their new devices wait in To review unless Settings says otherwise. */
 export const INTAKE_SOURCES = ['lansweeper', 'ad', 'graph'];
 export const intakeOf = (s, src) => ((s.intake || {})[src] === 'direct' ? 'direct' : 'review');
-export const PAGE_SETTINGS = ['stockRooms', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
+export const PAGE_SETTINGS = ['stockRooms', 'savedViews', 'syncSchedule', 'typeRules', 'company', 'contracts', 'licences', 'currency', 'contacts', 'autoBackups', 'fieldLayout', 'locs', 'sites', 'vlans', 'domains', 'models', 'subnets', 'typeFields', 'racks', 'policy', 'feedOn', 'feedSync', 'ldap', 'lansweeper', 'mapPos', 'plans', 'typeMap', 'modelMap', 'skipIpOnly', 'backupKeep', 'useLansweeper', 'lsSource', 'fillGraph', 'fillAd', 'mergeTwins', 'adLocMap', 'locMap', 'locFromOffice', 'fieldOrder', 'fieldMode', 'stocktakes', 'intake', 'peopleNotSame', 'groupRoles', 'lifecycle'];
 const KINDS = ['object', 'rel', 'user', 'type', 'history', 'setting'];
 /* The largest inventory stored: generous (5000 devices with their software are about 11 MB), it only guards against a
    runaway import. A page save is limited to 30 MB before it gets here. */
@@ -212,6 +213,8 @@ function checkStateRules(s, size = true) {
   /* The store room of each site (Settings → Locations): where taking a device back puts it. */
   if (s.stockRooms !== undefined && (!s.stockRooms || typeof s.stockRooms !== 'object' || Array.isArray(s.stockRooms) || Object.keys(s.stockRooms).length > 200
     || Object.entries(s.stockRooms).some(([k, v]) => k.length > 120 || typeof v !== 'string' || v.length > 240))) bad('The store rooms are one room per site.');
+  /* Saved views of the device list (the sidebar's Views), shared by all. */
+  { const p = savedViewsProblem(s.savedViews); if (p) bad(p); }
   for (const m of ['adLocMap', 'locMap']) if (s[m] !== undefined && (!s[m] || typeof s[m] !== 'object' || Array.isArray(s[m]) || Object.keys(s[m]).length > 1000
     || Object.entries(s[m]).some(([k, v]) => !k || k.length > 200 || typeof v !== 'string' || !v || v.length > 200))) bad('Location texts map to rooms.');
   /* The sources of each field, in their order (Settings → Data sources). */
@@ -560,7 +563,7 @@ export function movePersonRows(db, keepId, dropId, keepHadLogin) {
 
 /* A line for the log saying what a save from the page changed: the objects added, changed and removed by name, and how
    many relations, users, types and which settings. The history lines that go with an object change are not counted. */
-export const SETTING_NAMES = { stockRooms: 'store rooms', typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
+export const SETTING_NAMES = { stockRooms: 'store rooms', savedViews: 'saved views', typeRules: 'type rules', contracts: 'contracts', licences: 'licences', contacts: 'contacts', lifecycle: 'lifetimes and replacement prices', groupRoles: 'roles from groups', company: 'company', locs: 'locations', sites: 'sites',
   vlans: 'VLANs', domains: 'domains', models: 'models', subnets: 'subnets', typeFields: 'type fields', fieldLayout: 'field layout', racks: 'racks',
   policy: 'feed fields', ldap: 'LDAP', plans: 'floor plans', mapPos: 'map layout', typeMap: 'Lansweeper type names', modelMap: 'model renames', fieldOrder: 'field sources', stocktakes: 'stocktakes',
   locMap: 'location texts', adLocMap: 'AD location texts', locFromOffice: 'location from the user\'s office', intake: 'new devices from the sources', fillGraph: 'Intune fills fields',
