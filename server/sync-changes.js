@@ -18,12 +18,12 @@ export function noteChanges(s, src, lens, now = new Date()) {
   }
   /* A push comes in batches: what the batches of one run (within ten minutes) changed is added up. */
   const prev = (s.syncChanges || {})[src];
-  if (prev && now - Date.parse(prev.at) < 600000 && Date.parse(prev.at) <= now) {
+  if (prev && +now - Date.parse(prev.at) < 600000 && Date.parse(prev.at) <= +now) {
     for (const [k, n] of Object.entries(prev.changed || {})) changed[k] = (changed[k] || 0) + n;
     for (const [k, n] of Object.entries(prev.filled || {})) filled[k] = (filled[k] || 0) + n;
     for (const id of prev.ids || []) ids.add(id);
   }
-  const same = prev && now - Date.parse(prev.at) < 600000 && Date.parse(prev.at) <= now;
+  const same = prev && +now - Date.parse(prev.at) < 600000 && Date.parse(prev.at) <= +now;
   if (!ids.size && same) return;
   /* A run that changed nothing is not kept as an earlier one: the list is about changes. */
   const earlier = same ? (prev.earlier || []) : prev && prev.n ? [{ at: prev.at, changed: prev.changed || {}, filled: prev.filled || {}, ids: (prev.ids || []).slice(0, 200), n: prev.n }, ...(prev.earlier || [])] : (prev && prev.earlier) || [];

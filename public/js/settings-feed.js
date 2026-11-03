@@ -1,5 +1,5 @@
-/* Settings → Feed: Lansweeper on or off, its source (push or API), the push token and script, the type names and
-   type rules, the model renames, and the sync schedule rows every sync uses. */
+/* Settings → Lansweeper: its status header (on or off, Sync now), its source (push or API), the push token and script,
+   the type names and type rules, the model renames, and the sync schedule rows every sync uses. */
 import { parseTime, timeFieldHtml } from './datefield.js';
 import { dateTimeText } from './dates.js';
 import { scheduleOf, SCHEDULE_JOBS, EVERY_HOURS, nextRun, scheduleText } from './schedule.js';
@@ -8,21 +8,24 @@ import { DEFAULT_TYPE_RULES, RULE_FIELDS } from './type-rules.js';
 import { queueServerSave, render, flushSave, reloadFromServer, SERVER } from './07-render.js';
 import { isAdmin, renderSetPane, who } from './04-settings.js';
 import { $, LS_ON, SYNC, st, TYPES, objs, hist, now, modelNames, esc, MODELS, toast, daysSince } from './01-core.js';
-/* The switch that turns Lansweeper on or off for this inventory. */
+import { statusHeaderHtml } from './settings-status.js';
+/* The status header, with the switch that turns Lansweeper on or off for this inventory, and where its data comes from.
+   Sync now only for the API: a push comes from the script on the Lansweeper server. */
 export function renderLsToggle(){
   const host = $('#setLsToggle'); if (!host) return;
   const ro = isAdmin() ? '' : 'disabled';
   const on = LS_ON(), api = st.lsSource === 'api';
-  host.innerHTML = `<div class="panelbox"><div class="hdr">Lansweeper</div>
+  const head = statusHeaderHtml('ls', { on: { id: 'useLs', checked: on, label: on ? 'On' : 'Off' },
+    sync: on && api ? { id: 'lsSync', ready: !!SERVER.lansweeper } : null, msg: on && api ? 'lsMsg' : '',
+    note: on && !api ? 'Sent by the push script on the Lansweeper server' : '' });
+  host.innerHTML = head + (on ? `<div class="panelbox"><div class="hdr">Connection <span class="cnt">Lansweeper</span></div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)">
-      <label for="useLs">Connect Lansweeper</label>
-      <div><label class="pchk" style="width:auto"><input type="checkbox" id="useLs" ${on ? 'checked' : ''} ${ro}> ${on ? 'On. Lansweeper data comes in and is shown.' : 'Off. Lansweeper is not used: its settings, data and panels are hidden.'}</label></div>
       <label for="lsSource">Data comes from</label>
-      <div><select id="lsSource" ${ro} ${on ? '' : 'disabled'} aria-label="Where the Lansweeper data comes from">
+      <div><select id="lsSource" ${ro} aria-label="Where the Lansweeper data comes from">
         <option value="push" ${api ? '' : 'selected'}>Script push (recommended): the script on the Lansweeper server sends the data</option>
         <option value="api" ${api ? 'selected' : ''}>Lansweeper API: this server fetches the data</option></select>
         <p class="note" style="margin:6px 0 0">Only one of the two runs at a time, so they cannot overwrite each other. A manual CSV import is always available.</p></div>
-    </div></div>`;
+    </div></div>` : '<p class="note src-offnote">Lansweeper is off: it is not used, and its settings, data and panels are hidden. Turn it on above to connect it.</p>');
   const c = $('#useLs');
   if (c && isAdmin()) c.onchange = () => { st.useLansweeper = c.checked; queueServerSave(); renderSetPane(); render(); };
   const src = $('#lsSource');
@@ -235,17 +238,17 @@ export const pushDate = dateTimeText;
 /* Under the push token: the last push, and the linked devices that have not been seen for 30 days. */
 export function pushStatus(){
   const c = pushLast ? pushLast.counts : null;
-  const last = c ? `${pushDate(pushLast.at)}: ${c.created || 0} new, ${c.updated || 0} updated, ${c.links || 0} links, ${c.software || 0} with software${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}` : 'No push yet';
+  /* The last push itself is in the header above (its run); what it brought beyond the counts there is said here. */
+  const last = c ? `${c.links || 0} links, ${c.software || 0} with software` : '';
   const old = objs.filter(o => o.feed && o.feed.seen && daysSince(o.feed.seen) >= 30);
   const stale = old.length ? `${old.length} linked device${old.length === 1 ? '' : 's'} not seen for 30 days or more: ${old.slice(0, 20).map(o => esc(o.name)).join(', ')}${old.length > 20 ? ' …' : ''}.` : 'All linked devices were seen in the last 30 days.';
-  return `<label>Last push</label><span>${last}</span><label>Not seen</label><span>${stale}</span>`;
+  return `${last ? `<label>Last push brought</label><span>${last}</span>` : ''}<label>Not seen</label><span>${stale}</span>`;
 }
 export function renderSetFeed(){
   if (!LS_ON()){ $('#setFeed').innerHTML = ''; return; }
   if (!st.lansweeper) st.lansweeper = {};
   const L = st.lansweeper, edit = isAdmin(), ro = edit ? '' : 'disabled';
   const field = (k, label, hint) => `<label for="ls_${k}">${label}</label><input id="ls_${k}" data-ls="${k}" class="mono" value="${esc(L[k] || '')}" placeholder="${esc(hint)}" ${ro}>`;
-  const ready = SERVER.lansweeper && edit;
   if (edit && pushInfo === undefined) loadPushInfo();
   const pushPanel = edit ? `<div class="panelbox" id="lsPushPanel"><div class="hdr">Lansweeper push</div>
     <div class="note" style="padding:10px 12px 6px">
@@ -274,8 +277,7 @@ export function renderSetFeed(){
       ${field('site', 'Site ID', 'empty: the first site of the token')}
       ${field('authScheme', 'Authorization', 'Token')}
     </div>
-    <div style="padding:8px 12px 12px">${scheduleRowHtml('lansweeper', edit)}</div>
-    <div class="addrel" style="padding:10px 12px"><button id="lsSync" class="primary" ${ready ? '' : 'disabled'}>Sync now</button><span class="note" id="lsMsg"></span></div></div>
+    <div style="padding:8px 12px 12px">${scheduleRowHtml('lansweeper', edit)}</div></div>
   <details class="panelbox fold ls-csv"><summary class="hdr">Advanced: import a CSV report <span class="chip warn" title="Import is not yet verified against a live Lansweeper export">Experimental</span></summary>
     <div class="note" style="padding:10px 12px">Or upload a Lansweeper report (CSV). Matches are found by serial number, then name. Only the fields the policy allows are changed; what you set by hand stays.</div>
     <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label>Report</label><div style="display:flex;gap:8px;align-items:center;min-width:0"><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Choose CSV file…<input id="feedUp" type="file" accept=".csv,text/csv" hidden ${ro}></label><span class="muted" id="feedUpName">A Lansweeper report saved as CSV</span></div></div>
@@ -308,7 +310,7 @@ export function renderSetFeed(){
   };
   if ($('#pushScript')) $('#pushScript').onclick = () => { window.location.href = 'api/feed/push-script'; };
   const bad = t => `<span style="color:var(--danger)">${esc(t)}</span>`;
-  $('#lsSync').onclick = async () => {
+  if ($('#lsSync')) $('#lsSync').onclick = async () => {
     const msg = $('#lsMsg'), btn = $('#lsSync');
     btn.disabled = true; msg.textContent = 'Syncing…';
     await flushSave();
@@ -317,8 +319,10 @@ export function renderSetFeed(){
     btn.disabled = false;
     if (!r.ok){ msg.innerHTML = bad(j.error || 'The sync failed.'); return; }
     const c = j.counts;
-    msg.textContent = `${c.assets} assets: ${c.created} new, ${c.updated} updated, ${c.linked} linked${c.excluded ? ', ' + c.excluded + ' excluded' : ''}${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}.`;
+    const text = `${c.assets} assets: ${c.created} new, ${c.updated} updated, ${c.linked} linked${c.excluded ? ', ' + c.excluded + ' excluded' : ''}${c.ambiguous ? ', ' + c.ambiguous + ' skipped (shared names)' : ''}.`;
     await reloadFromServer();
+    /* The header shows the new run: drawn again, the message goes to its new line. */
+    renderLsToggle(); renderSetFeed(); const m2 = $('#lsMsg'); if (m2) m2.textContent = text;
   };
   $('#feedUp').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;

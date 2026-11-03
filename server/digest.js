@@ -74,7 +74,7 @@ export const lastDigest = db => getDoc(db, 'digestRun', null);
 /* What the mail says, from the inventory as saved: { subject, text, html, count }. */
 export function buildDigest(s, { link = '', backups = null, copy = null, health = [] } = {}, today = new Date()) {
   const live = (s.objs || []).filter(o => !o.review && o.status !== 'retired');
-  const days = d => Math.floor((new Date(d + 'T23:59:59') - today) / 864e5);
+  const days = d => Math.floor((new Date(d + 'T23:59:59').getTime() - +today) / 864e5);
   const wEnded = live.filter(o => o.status === 'active' && /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') && days(o.warranty) < 0);
   const wSoon = live.filter(o => /^\d{4}-\d{2}-\d{2}$/.test(o.warranty || '') && days(o.warranty) >= 0 && days(o.warranty) <= WARRANTY_SOON).sort((a, b) => a.warranty.localeCompare(b.warranty));
   const due = (s.contracts || []).map(c => ({ c, st: contractStatus(c, today) })).filter(x => ['soon', 'late'].includes(x.st.state)).sort((a, b) => (a.st.days ?? 0) - (b.st.days ?? 0));

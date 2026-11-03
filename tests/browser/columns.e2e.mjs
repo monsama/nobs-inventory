@@ -25,28 +25,28 @@ try {
   const heads = () => p.$$eval('#view thead th', ths => ths.map(t => t.textContent.trim()));
   let h = await heads();
   assert.ok(!h.includes('Rack'), 'Rack is shown by default: ' + h.join(','));
-  await p.click('#colMenu > summary');
+  await p.click('#colMenu > .menu-btn');
   // a column set in one click: Network shows the IP and MAC, not the model
   await p.click('[data-colpreset=network]');
   h = await heads();
   assert.ok(h.includes('IP') && h.includes('MAC') && !h.includes('Model'), 'the Network set: ' + h.join(','));
   assert.equal(await p.getAttribute('[data-colpreset=network]', 'aria-pressed'), 'true');
-  assert.equal(await p.evaluate(() => document.querySelector('#colMenu').open), false, 'a set picked closes the menu');
-  await p.click('#colMenu > summary');
+  assert.equal(await p.evaluate(() => !!document.querySelector('#colMenu .menubox:popover-open')), false, 'a set picked closes the menu');
+  await p.click('#colMenu > .menu-btn');
   await p.click('[data-colpreset=basic]');
   h = await heads();
   assert.ok(h.includes('Model') && h.includes('Serial') && !h.includes('MAC'), 'the Basic set: ' + h.join(','));
   // each column on its own, under Choose columns (back to the defaults first)
-  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(v.DEFAULT_HIDDEN_COLS); v.renderTable(); document.querySelector('#colMenu').open = true; });
+  await p.evaluate(async () => { const v = await import('/js/02-views.js'); v.setHiddenCols(v.DEFAULT_HIDDEN_COLS); v.renderTable(); document.querySelector('#colMenu .menubox').showPopover(); });
   await p.click('#colPick > summary');
   await p.check('[data-col="rack"]');
-  assert.equal(await p.evaluate(() => document.querySelector('#colMenu').open), true, 'the menu closed after a change');
+  assert.equal(await p.evaluate(() => !!document.querySelector('#colMenu .menubox:popover-open')), true, 'the menu closed after a change');
   h = await heads();
   assert.ok(h.includes('Rack'), 'Rack did not appear: ' + h.join(','));
   await p.uncheck('[data-col="model"]');
   assert.ok(!(await heads()).includes('Model'), 'Model did not hide');
   await p.keyboard.press('Escape');
-  assert.equal(await p.evaluate(() => document.querySelector('#colMenu').open), false, 'Esc closes the menu');
+  assert.equal(await p.evaluate(() => !!document.querySelector('#colMenu .menubox:popover-open')), false, 'Esc closes the menu');
   assert.deepEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('ni-hidden-cols'))), ['price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot', 'model'], 'the choice was not remembered (the cost, Responsible, Links, replacement, maintenance and Secure Boot columns are hidden until picked)');
   await p.reload(); await p.waitForSelector('#lgUser, #tabsbar');
   if (await p.isVisible('#lgUser')) { await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk'); }

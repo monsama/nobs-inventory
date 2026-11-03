@@ -1,4 +1,5 @@
-/* Two people on the same inventory, in two windows: separate edits both survive; an edit to a record that the
+/* Two people on the same inventory, in two windows: one sees the other's save at once (live updates), but not while
+   typing; separate edits both survive; an edit to a record that the
    other person changed first is refused and the window shows the newer version; a deletion reaches the other
    window; a stale copy does not bring a deleted object back; two new objects get different codes. */
 import { chromium } from 'playwright';
@@ -48,6 +49,27 @@ const editModel = async (p, name, model) => {
 
 try {
   const a = await person(), b = await person();
+  const modelIn = (p, name) => p.evaluate(async n => (await import('/js/01-core.js')).byName(n).model, name);
+
+  // 0. Live updates: B sees A's save within seconds, without a reload or waiting for the poll; only the changes are asked for.
+  await until(b, async () => (await import('/js/live.js')).liveOpen(), null, { timeout: 5000 });
+  const liveAsked = [];
+  b.on('request', q => { if (q.url().includes('/api/state')) liveAsked.push(q.url()); });
+  let t0 = Date.now();
+  await editModel(a, 'ZH-NB-0201', 'LIVE ONE');
+  await until(b, async () => (await import('/js/01-core.js')).byName('ZH-NB-0201').model === 'LIVE ONE', null, { timeout: 5000 });
+  assert.ok(Date.now() - t0 < 5000, 'B was slow to see the change');
+  assert.ok(liveAsked.length && liveAsked.every(u => /\/api\/state\?since=\d+$/.test(u)), 'only the changes are asked for: ' + liveAsked.join(', '));
+  // While B types, nothing is replaced; once B stops, the change comes.
+  await b.focus('#search');
+  await editModel(a, 'ZH-NB-0201', 'LIVE TWO');
+  await waitServer(() => serverObj('ZH-NB-0201')?.model === 'LIVE TWO', 'A live edit');
+  await new Promise(r => setTimeout(r, 1500));
+  assert.equal(await modelIn(b, 'ZH-NB-0201'), 'LIVE ONE', 'B was reloaded while typing');
+  await b.evaluate(() => document.activeElement.blur());
+  await until(b, async () => (await import('/js/01-core.js')).byName('ZH-NB-0201').model === 'LIVE TWO', null, { timeout: 6000 });
+  // The checks below are about a window that has not seen the other's save yet: live updates off for them.
+  for (const p of [a, b]) await p.evaluate(async () => (await import('/js/live.js')).stopLive());
 
   // 1. Separate records: both saves survive.
   await editModel(a, 'ZH-PC-0142', 'A MODEL');
@@ -77,7 +99,7 @@ try {
   await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
   await a.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await a.locator('table.grid td b', { hasText: /^MON-0433$/ }).first().click();
-  await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
+  await a.click('.menu > .menu-btn'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
   const asked = [];
   b.on('request', q => { if (q.url().includes('/api/state')) asked.push(q.url()); });

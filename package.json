@@ -1,6 +1,6 @@
 {
   "name": "nobs-inventory",
-  "version": "0.9.95",
+  "version": "0.9.96",
   "private": true,
   "description": "Inventory for PCs, servers, phones, network gear and racks, with a small API and SQLite storage.",
   "type": "module",
@@ -8,13 +8,14 @@
   "scripts": {
     "start": "node server/index.js",
     "bump": "node scripts/bump-version.mjs",
-    "test": "node --test --test-concurrency=1 tests/api.test.js tests/contacts-import.test.js tests/login-race.test.js tests/ldap.test.js tests/ldap-tls.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js tests/secrets.test.js tests/changes.test.js tests/checks.test.js tests/feed-rules.test.js tests/port-groups.test.js tests/kinds.test.js tests/type-fields.test.js tests/backup-restore.test.js tests/history-keep.test.js tests/startup-warnings.test.js tests/notes.test.js tests/secrets-leak.test.js tests/models.test.js tests/subnets.test.js tests/settings-roundtrip.test.js tests/graph.test.js tests/graph-cert.test.js tests/lansweeper-network.test.js tests/graph-certs.test.js tests/sheets.test.js tests/costs.test.js tests/update-script.test.js tests/compose.test.js tests/type-rules.test.js tests/review-fixes.test.js tests/graph-people.test.js tests/links.test.js tests/proxy-cert.test.js tests/directory-fill.test.js tests/sync-runs.test.js tests/hardening.test.js tests/sync-map.test.js tests/reports.test.js tests/sso.test.js tests/device-images.test.js tests/backup-store.test.js tests/backup-export.test.js tests/api-tokens.test.js tests/people-match.test.js tests/digest.test.js tests/scope.test.js tests/delta.test.js tests/group-roles.test.js tests/lifecycle.test.js tests/maintenance.test.js",
+    "test": "node --test --test-concurrency=1 tests/api.test.js tests/contacts-import.test.js tests/login-race.test.js tests/ldap.test.js tests/ldap-tls.test.js tests/lansweeper.test.js tests/schedule.test.js tests/users.test.js tests/secrets.test.js tests/changes.test.js tests/checks.test.js tests/feed-rules.test.js tests/port-groups.test.js tests/kinds.test.js tests/type-fields.test.js tests/backup-restore.test.js tests/history-keep.test.js tests/startup-warnings.test.js tests/notes.test.js tests/secrets-leak.test.js tests/models.test.js tests/subnets.test.js tests/settings-roundtrip.test.js tests/graph.test.js tests/graph-cert.test.js tests/lansweeper-network.test.js tests/graph-certs.test.js tests/sheets.test.js tests/costs.test.js tests/update-script.test.js tests/compose.test.js tests/type-rules.test.js tests/review-fixes.test.js tests/graph-people.test.js tests/links.test.js tests/proxy-cert.test.js tests/directory-fill.test.js tests/sync-runs.test.js tests/hardening.test.js tests/sync-map.test.js tests/reports.test.js tests/sso.test.js tests/device-images.test.js tests/backup-store.test.js tests/backup-export.test.js tests/api-tokens.test.js tests/people-match.test.js tests/digest.test.js tests/scope.test.js tests/delta.test.js tests/group-roles.test.js tests/lifecycle.test.js tests/maintenance.test.js tests/device-import.test.js tests/saved-views.test.js tests/live-events.test.js tests/html.test.js tests/restore.test.js tests/timeline.test.js",
     "lansweeper:introspect": "node tools/lansweeper-introspect.js",
     "test:browser": "node scripts/browser-tests.mjs",
     "test:browser:a": "node scripts/browser-tests.mjs --shard 1/3",
     "test:browser:b": "node scripts/browser-tests.mjs --shard 2/3",
     "test:browser:c": "node scripts/browser-tests.mjs --shard 3/3",
-    "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs"
+    "lint": "eslint server tests scripts eslint.config.js && node scripts/lint-front.mjs && tsc -p .",
+    "typecheck": "tsc -p ."
   },
   "engines": {
     "node": ">=22.13"
@@ -27,10 +28,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.5",
     "axe-core": "^4.10.2",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "ldapjs": "^3.0.7",
-    "playwright": "^1.64.1"
+    "playwright": "^1.64.1",
+    "typescript": "^7.0.2"
   }
 }

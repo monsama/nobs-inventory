@@ -1,4 +1,5 @@
 import { applyDelta } from './delta.js';
+import { pollForChanges, startLive } from './live.js';
 import { markHand, REVIEW, UNDO, CONTACTS, setAppVersion, lsLive, LS_USED, SYNC, daysSince } from './01-core.js';
 import { setUsers } from './04-settings.js';
 import { COMPANY, COSTS, updateSync, MODELS, SUBNETS, DOMAINS, FIELD_LAYOUT, TYPE_FIELDS, bindFullTextOnHover, fullTextTooltips, $, APP_VERSION, FIELD_LABEL, HISTORY, LOCS, VLANS, PLANS, PW_MIN, SITES, TYPES, byId, esc, objs, rels, st, toast, DEFAULT_TYPES } from './01-core.js';
@@ -163,7 +164,7 @@ export function documents(){
   USERS.forEach(u => m.set('user|' + u.id, {kind:'user', id:u.id, value:u}));
   Object.entries(TYPES).forEach(([k, t]) => m.set('type|' + k, {kind:'type', id:k, value:t}));
   Object.entries(HISTORY).forEach(([k, h]) => { if (h.length) m.set('history|' + k, {kind:'history', id:k, value:h}); });
-  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, stockRooms: st.stockRooms || {}, fieldOrder: st.fieldOrder || {}, fieldMode: st.fieldMode || {}, stocktakes: st.stocktakes || [], peopleNotSame: st.peopleNotSame || [], groupRoles: st.groupRoles || [], lifecycle: st.lifecycle || {}, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
+  const settings = {...(st.syncSchedule ? {syncSchedule: st.syncSchedule} : {}), autoBackups: st.autoBackups !== false, fieldLayout: FIELD_LAYOUT, locs: LOCS, sites: SITES, vlans: VLANS, domains: DOMAINS, models: MODELS, subnets: SUBNETS, typeFields: TYPE_FIELDS, lansweeper: st.lansweeper, policy: st.policy, feedOn: st.feedOn, feedSync: st.feedSync, ldap: st.ldap, mapPos: st.mapPos, plans: PLANS, useLansweeper: st.useLansweeper !== false, lsSource: st.lsSource === 'api' ? 'api' : 'push', typeMap: st.typeMap || {}, modelMap: st.modelMap || {}, skipIpOnly: !!st.skipIpOnly, mergeTwins: !!st.mergeTwins, adLocMap: st.adLocMap || {}, locMap: st.locMap || {}, locFromOffice: !!st.locFromOffice, stockRooms: st.stockRooms || {}, savedViews: st.savedViews || [], fieldOrder: st.fieldOrder || {}, fieldMode: st.fieldMode || {}, stocktakes: st.stocktakes || [], peopleNotSame: st.peopleNotSame || [], groupRoles: st.groupRoles || [], lifecycle: st.lifecycle || {}, fillGraph: st.fillGraph !== false, fillAd: st.fillAd !== false, intake: st.intake || {}, backupKeep: st.backupKeep || 10, contracts: COSTS.contracts, licences: COSTS.licences, contacts: CONTACTS.list, currency: COSTS.currency || 'CHF', company: {name: COMPANY.name || '', logo: COMPANY.logo || ''}};
   /* The type rules are kept only once edited; back to the defaults removes them, so the shipped ones apply. */
   if (Array.isArray(st.typeRules)) settings.typeRules = st.typeRules;
   Object.entries(settings).forEach(([k, v]) => m.set('setting|' + k, {kind:'setting', id:k, value:v}));
@@ -233,7 +234,7 @@ async function sendNow(){
   if (!isAdmin()) return;
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
-  SERVER.busy = true; setSave('saving');
+  SERVER.busy = true; SERVER.saves = (SERVER.saves || 0) + 1; setSave('saving');
   let ok = false;
   try {
     for (const {puts, dels} of batches(pending.puts, pending.dels)) {
@@ -254,8 +255,9 @@ async function sendNow(){
       if (Object.keys(j.codes || {}).length) render();
       const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
       for (const [key, rev] of Object.entries(j.revs || {})){
-        const c = sent.get(key); if (!c) continue;
         SERVER.revs[key] = rev;
+        /* A record the server wrote along with this save (the code counter): only its version is kept. */
+        const c = sent.get(key); if (!c) continue;
         if (c.json === undefined){ SERVER.base.delete(key); continue; }
         const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
         SERVER.base.set(key, JSON.stringify(v));
@@ -368,7 +370,8 @@ export function dropMissingTabs(){
   st.tabIds = st.tabIds.filter(id => !gone(id));
   if (gone(st.tab)) st.tab = 'table';
 }
-/* Other people's saves show up here: every 15 seconds and when the window gets focus. Nothing is replaced while there
+/* Other people's saves show up here: when the server says something was saved (live.js), every 15 seconds without that
+   (every 2 minutes with it), and when the window gets focus. Nothing is replaced while there
    are unsaved changes, a dialog is open, or someone is typing. A viewer cannot save, so what they changed on the page
    (a box moved on the map, a room a plan added) does not hold the refresh back: it is replaced by the server's. */
 /* The inventory as the server last sent it, untouched by the page, with its running number (cseq): the next check asks
@@ -377,29 +380,34 @@ function keepServerCopy(d){
   SERVER.copy = Number.isInteger(d.cseq) ? structuredClone(d) : null;
   SERVER.cseq = Number.isInteger(d.cseq) ? d.cseq : null;
 }
+/* false when it was held back (see above) and asked the server nothing. */
 export async function checkForChanges(){
-  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return;
-  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (!SERVER.base || SERVER.busy || document.querySelector('#mdl')) return false;
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return false;
   const {puts, dels} = pendingChanges();
   /* Changes that could not be sent while the server was away are sent again here. */
-  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return; }
+  if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
   let r;
-  const delta = SERVER.copy && SERVER.cseq !== null;
-  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return; }
-  if (!r.ok) return;
+  const delta = SERVER.copy && SERVER.cseq !== null, saves = SERVER.saves;
+  try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
+  if (!r.ok) return true;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
+  /* A save started while this was on its way: the answer may be older than the page's own change, which would then look
+     like someone else's and reload (losing Undo). It is dropped; the next check asks again. */
+  if (SERVER.busy || SERVER.saves !== saves) return false;
   if (d.delta){
     /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
     const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);
     applyDelta(SERVER.copy, d); SERVER.cseq = d.cseq;
     if (other) await reloadFromServer({ data: structuredClone(SERVER.copy) });
-    return;
+    return true;
   }
   keepServerCopy(d);
   const revs = d.revs || {};
   const changed = Object.keys(revs).some(k => (SERVER.revs[k] ?? 0) !== revs[k]) || Object.keys(SERVER.revs).some(k => !(k in revs));
   if (changed) await reloadFromServer({ data: structuredClone(d) });
+  return true;
 }
 export function applyState(d){
   UNDO.epoch++;
@@ -431,7 +439,7 @@ export function applyState(d){
   PLANS.splice(0, PLANS.length, ...(d.plans || []));
   st.useLansweeper = d.useLansweeper !== false; st.lsSource = d.lsSource === 'api' ? 'api' : 'push';
   st.lsNets = Array.isArray(d.lsNets) ? d.lsNets : [];   /* subnet suggestions from Lansweeper, read only */
-  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
+  st.autoBackups = d.autoBackups !== false; st.typeMap = d.typeMap || {}; st.modelMap = d.modelMap || {}; st.skipIpOnly = !!d.skipIpOnly; st.mergeTwins = !!d.mergeTwins; st.adLocMap = d.adLocMap || {}; st.locMap = d.locMap || {}; st.locFromOffice = !!d.locFromOffice; st.stockRooms = d.stockRooms && typeof d.stockRooms === 'object' ? d.stockRooms : {}; st.savedViews = Array.isArray(d.savedViews) ? d.savedViews : []; st.fieldOrder = d.fieldOrder || null; st.fieldMode = d.fieldMode || null; st.syncChanges = d.syncChanges || {}; st.stocktakes = Array.isArray(d.stocktakes) ? d.stocktakes : []; st.peopleNotSame = Array.isArray(d.peopleNotSame) ? d.peopleNotSame : []; st.groupRoles = Array.isArray(d.groupRoles) ? d.groupRoles : []; st.lifecycle = d.lifecycle && typeof d.lifecycle === 'object' ? d.lifecycle : {}; st.fillGraph = d.fillGraph !== false; st.fillAd = d.fillAd !== false; st.intake = d.intake && typeof d.intake === 'object' ? d.intake : {}; st.syncRuns = d.syncRuns && typeof d.syncRuns === 'object' ? d.syncRuns : {}; st.backupKeep = d.backupKeep || 10;
   LOCS.forEach(l => { const x = l.split(' / ')[0]; if (!SITES.includes(x)) SITES.push(x); });   /* locations saved before sites existed */
   if (d.types){   /* the built-in types are always there; the saved ones add to them or change them */
     Object.keys(TYPES).forEach(k => delete TYPES[k]); Object.assign(TYPES, JSON.parse(JSON.stringify({ ...DEFAULT_TYPES, ...d.types })));
@@ -583,7 +591,7 @@ export async function loadFromServer(user){
   st.meId = user.id;
   /* Someone who sees only their own devices starts on them. */
   if (ownOnly() && st.tab === 'cards') st.tab = 'mine';
-  if (!SERVER.watching){ SERVER.watching = true; setInterval(checkForChanges, 15000); window.addEventListener('focus', checkForChanges); }
+  if (!SERVER.watching){ SERVER.watching = true; setInterval(pollForChanges, 15000); window.addEventListener('focus', checkForChanges); startLive(); }
   render();
   restoreOffline();
   openLinked();

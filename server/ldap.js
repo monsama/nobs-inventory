@@ -239,6 +239,7 @@ export async function ldapCertReport(config, now = new Date()) {
 
 /* What the usual directory errors mean, in the words of the settings. Active Directory puts the reason of a failed bind
    in the message (data 52e, 775, …). */
+/** @type {[RegExp, string][]} */
 const LDAP_HINTS = [
   [/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ETIMEDOUT|timed? ?out|connect/i, 'The directory server cannot be reached. Check the server address and port (ldaps:// uses 636, ldap:// 389) and that the firewall lets this server through.'],
   [/key too (weak|small)/i, 'The domain controller\'s certificate has a key that is too short (TLS today needs at least 2048 bits): renew it with a 2048-bit key. Until then, "Accept old certificates" in Settings lets the inventory connect.'],
@@ -269,6 +270,7 @@ export const COMPUTER_ATTRS = ['cn', 'dnshostname', 'memberof', 'operatingsystem
   'description', 'managedby', 'location', 'serviceprincipalname', 'pwdlastset'];
 /* What a computer runs, as its service principal names tell: MSSQLSvc/db1.corp:1433 is SQL Server. Only the kinds
    known here are named; the rest (HOST, RestrictedKrbHost and the like every computer has) are left out. */
+/** @type {[RegExp, string][]} */
 const SERVICES = [[/^MSSQLSvc$/i, 'SQL Server'], [/^HTTP$/i, 'Web'], [/^TERMSRV$/i, 'Remote Desktop'], [/^Microsoft Virtual (System Migration Service|Console Service)$/i, 'Hyper-V'],
   [/^exchange/i, 'Exchange'], [/^SMTP(SVC)?$/i, 'Mail (SMTP)'], [/^ldap$/i, 'Domain controller'], [/^GC$/i, 'Global catalog'], [/^DNS$/i, 'DNS'],
   [/^WSMAN$/i, 'Remote management'], [/^MSServerCluster(MgmtAPI)?$/i, 'Failover cluster'], [/^MSOMSdkSvc$|^MSOMHSvc$/i, 'SCOM'], [/^SAP/i, 'SAP'], [/^FIMService$/i, 'Identity Manager']];

@@ -66,7 +66,7 @@ export function sheetPdf(sheet, company = {}, { compress = true } = {}) {
 
     heading('Devices handed out');
     if (sheet.devices.length) {
-      const cols = [['Inventory no.', 0.17], ['Type', 0.17], ['Name', 0.2], ['Model', 0.26], ['Serial number', 0.2]].map(([t, f]) => [t, f * W]);
+      const cols = [['Inventory no.', 0.17], ['Type', 0.17], ['Name', 0.2], ['Model', 0.26], ['Serial number', 0.2]].map(([t, f]) => /** @type {[string, number]} */ ([String(t), Number(f) * W]));
       const row = (cells, head) => {
         doc.font(head ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
         const h = Math.max(...cells.map((c, i) => doc.heightOfString(c || ' ', { width: cols[i][1] - 10 }))) + 10;

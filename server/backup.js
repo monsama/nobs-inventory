@@ -96,6 +96,7 @@ export function restoreBackup(db, data, sheetKey = null, { photosFrom = null } =
   const cur = loadState(db);
   const st = b.settings || {};
   const blank = blankState();
+  /** @type {Record<string, any>} */
   const s = { ...cur, objs: b.objs, rels: b.rels, history: b.history, types: b.types };
   /* An account of the backup that is not here (deleted since, or a new server) comes back switched off and without a password,
      never with old sign-ins: an admin switches them on again, and a directory user is switched on by the next LDAP sync

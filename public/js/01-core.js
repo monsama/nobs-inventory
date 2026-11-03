@@ -241,7 +241,8 @@ export const byName = n => objs.find(o => o.name === n);
 export const rels = [];
 export const HISTORY = {};
 /* The newest entries come first; the server keeps the same number (HISTORY_KEEP). */
-export const hist = (o, t, msg) => { const h = (HISTORY[o.id] ??= []); h.unshift({t, msg}); if (h.length > 500) h.length = 500; };
+/* extra: what an edit of one field changed (restore.js fieldNote), so the history can set it back. */
+export const hist = (o, t, msg, extra = null) => { const h = (HISTORY[o.id] ??= []); h.unshift(extra ? {t, msg, ...extra} : {t, msg}); if (h.length > 500) h.length = 500; };
 
 /* What Lansweeper may overwrite out of the box (Settings → Lansweeper, and the field order's default). */
 export const DEFAULT_POLICY = {ip:true, mac:true, os:true, model:true, cpu:true, ram:true, fw:true, boot:true, disk:false, av:false, domain:true, user:false, loc:false, status:false};
@@ -564,6 +565,20 @@ export const feedOwns = (o, k, linked = feedLinked(o)) => !!(LS_ON() && st.feedO
   : ['software', 'links'].includes(k) ? (st.policy || {})[k] !== false : !!(st.policy || {})[k]));
 /* A field (or list) set by hand: no sync writes it from then on. */
 export const pickHand = (o, k) => { o.pick = {...(o.pick || {}), [k]: 'hand'}; };
+/* Field k of o given value v by hand (on the device page, or set back from its history): on a device a sync fills in,
+   the value is kept from the syncs; the source mark says set by hand, or, emptied, nothing fills it again. True when it
+   was kept from a sync. */
+export function setByHand(o, k, v){
+  const changed = String(o[k] ?? '') !== String(v ?? ''), kept = changed && !!FIELD_LABEL[k] && (feedLinked(o) || !!(o.graph && o.graph.added));
+  if (kept) pickHand(o, k);
+  if (changed && (FIELD_LABEL[k] || ['name', 'purpose', 'serial', 'price', 'supplier', 'invoice'].includes(k))){
+    if (String(v ?? '') === ''){
+      if (o.src && o.src[k]){ delete o.src[k]; if (!Object.keys(o.src).length) delete o.src; pickHand(o, k); }
+    } else o.src = {...(o.src || {}), [k]: 'hand'};
+    keepByHand(o, k);
+  }
+  return kept;
+}
 
 /* ---------- helpers ---------- */
 /* What a custom type icon's viewBox and a type's colour may be. Checked by the server too (server/state.js). */
@@ -599,9 +614,22 @@ export const now = () => stamp(new Date());
 /* A short message at the bottom. The box is a live region that always stays in the page (it fades out, it is never
    hidden), so a screen reader hears each new text. The same message again is changed by an invisible character, so
    it is read again too. */
+/* A menu: a button that opens a popover under it. The browser closes it on a click beside it or Escape and tells a
+   screen reader whether it is open. id names the wrapper; the popover gets an id of its own. */
+let menuSeq = 0;
+export const menuHtml = (label, body, { id = '', cls = '', boxCls = '', btn = '' } = {}) => {
+  const pop = 'mnu' + ++menuSeq;
+  return `<div class="menu${cls ? ' ' + cls : ''}"${id ? ` id="${id}"` : ''}><button type="button" class="menu-btn" popovertarget="${pop}" ${btn}>${label}</button><div class="menubox${boxCls ? ' ' + boxCls : ''}" id="${pop}" popover>${body}</div></div>`;
+};
+/* Over a modal dialog the page is inert and drawn below it, so the toast moves into the open dialog while there is one
+   (leaving: the dialog is about to go). */
+export function keepToastOnTop(leaving = false){
+  const t = $('#toast'), host = (!leaving && document.querySelector('#mdl:modal')) || document.body;
+  if (t && t.parentNode !== host) host.append(t);
+}
 /* A short message at the bottom. One that says a change was not saved is red and stays longer (a click hides it). */
 export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
-  const t = $('#toast');
+  const t = $('#toast'); keepToastOnTop();
   t.textContent = t.textContent === msg ? msg + '\u200b' : msg;
   t.classList.toggle('err', kind === 'err');
   t.onclick = () => t.classList.add('off');
@@ -614,7 +642,7 @@ export function toast(msg, kind = /^Not saved/.test(msg) ? 'err' : ''){
 export const UNDO = { epoch: 0 };
 /* anyEpoch: an Undo that finds its records again by id, so a reload in between does not stop it. */
 export function toastUndo(msg, undo, { anyEpoch = false } = {}){
-  const t = $('#toast'), epoch = UNDO.epoch;
+  const t = $('#toast'), epoch = UNDO.epoch; keepToastOnTop();
   t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="t-undo">Undo</button>`;
   t.classList.remove('err', 'off');
   t.onclick = e => {
@@ -744,15 +772,10 @@ if (typeof document !== 'undefined'){
     }
     else if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('fsrc')){ e.preventDefault(); openSrcPop(e.target); }
   });
-  /* On a phone, More in the top bar opens the account, sign-out and display buttons; any choice or a click elsewhere
-     closes it. The search hint for Ctrl+K is left out where there is no keyboard. */
-  const moreBtn = document.getElementById('barMoreBtn');
-  const setMore = open => { document.body.classList.toggle('bar-more', open); if (moreBtn) moreBtn.setAttribute('aria-expanded', String(open)); };
-  document.addEventListener('click', e => {
-    if (e.target.closest && e.target.closest('#barMoreBtn')) { setMore(!document.body.classList.contains('bar-more')); return; }
-    if (document.body.classList.contains('bar-more')) setMore(false);
-  });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('bar-more')){ setMore(false); if (moreBtn) moreBtn.focus(); } });
+  /* On a phone, More in the top bar opens the account, sign-out and display buttons (a popover: a click elsewhere or
+     Escape closes it); any choice closes it too. The search hint for Ctrl+K is left out where there is no keyboard. */
+  const more = document.getElementById('barMore');
+  if (more) more.addEventListener('click', e => { if (e.target.closest('button, a') && more.matches(':popover-open')) more.hidePopover(); });
   if (window.matchMedia && matchMedia('(hover:none)').matches){ const q = document.getElementById('search'); if (q) q.placeholder = 'Search…'; }
   /* A file button (a label around a hidden file field) opens the file dialog from the keyboard too. */
   document.addEventListener('keydown', e => {

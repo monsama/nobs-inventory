@@ -1,25 +1,26 @@
 /* NOBS Inventory: the whole look of the page. Tokens (colours, radii) first, then the parts in the order of the page. */
 /* Layout: the NOBS editor frame - top bar, sidebar of filters, tab bar, toolbar, work area, status bar.
    Colours are the NOBS SQL Editor's own tokens, so both tools read as one family. */
-:root{--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
- --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;
- --bg:#fff;--fg:#1b1d21;--panel:#f4f5f7;--panel2:#eaecef;--bd:#d6d9de;--bd2:#e7e9ec;--tile:#eef0f3;--oktext:#1d6b38;--badtext:#b42318;--hover:#eaf2fb;--accent:#1565c0;--accentbtn:#1565c0;--accentfg:#fff;--muted:#5c5c5c;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%235c5c5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#f6f6f7;--sub:#eef3fa;--warntext:#8a4300;--linktext:#1565c0;--even:#fafafa;--btn:#fafafa;--in:#fff;--log:#1e1e1e;--logfg:#d4d4d4;
- --sb:rgba(0,0,0,.28);--port:#dfe3e8;--portbd:#b8bec6;--used:#2e7d46;--upl:#1565c0;--poe:#d9822b;--line:#2a5a9e;--hi:#f5c518;
- --t-pc:#1565c0;--t-server:#6a3fb5;--t-sip:#1a7a5e;--t-tablet:#b5651d;--t-monitor:#4f5b66;--t-switch:#a8442a;--t-printer:#7a6a00;--t-patch:#8a5a00;
- --shadow:0 4px 16px rgba(0,0,0,.18)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
- --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
- --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}}
-:root[data-theme="dark"]{
- --bg:#16181b;--fg:#e4e6ea;--panel:#1d2024;--panel2:#272a2f;--bd:#34383e;--bd2:#2a2d32;--tile:#262a30;--oktext:#7ad59a;--badtext:#ff9b93;--hover:#2c3744;--accent:#3b82f6;--accentbtn:#1d4ed8;--accentfg:#fff;--muted:#b4b4b4;--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
- --gridh:#1d2024;--sub:#1e242c;--warntext:#e0a35a;--linktext:#6ea8fe;--even:#1a1c20;--btn:#24272c;--in:#1b1e22;--log:#141414;--logfg:#d4d4d4;
- --sb:rgba(255,255,255,.24);--port:#3a3e44;--portbd:#555b63;--used:#2e7d46;--upl:#3b82f6;--poe:#e0a828;--line:#8fb8e8;--hi:#f5c518;
- --t-pc:#6ea8fe;--t-server:#b49cf0;--t-sip:#5dcaa5;--t-tablet:#f0a868;--t-monitor:#a9b4bf;--t-switch:#f0997b;--t-printer:#d8c44a;--t-patch:#d9a441;
- --shadow:0 4px 16px rgba(0,0,0,.45);color-scheme:dark}
+/* One set of colours: light-dark() picks the light or the dark value by color-scheme, which follows the system unless
+   the page sets data-theme (Settings: light or dark). The shadow and the chevron image are not colours and are set per scheme below. */
+:root{color-scheme:light dark;
+--danger:#e5534b;--danger-bg:#b23b3b;--warn:#d9822b;--warnbtn:#b45309;--ok:#2e7d46;--okdot:#3fb950;--r-s:4px;--r-m:7px;--r-l:10px;
+ --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,'DejaVu Sans Mono',monospace;--bg:light-dark(#fff,#16181b);--fg:light-dark(#1b1d21,#e4e6ea);
+ --panel:light-dark(#f4f5f7,#1d2024);--panel2:light-dark(#eaecef,#272a2f);--bd:light-dark(#d6d9de,#34383e);--bd2:light-dark(#e7e9ec,#2a2d32);
+ --tile:light-dark(#eef0f3,#262a30);--oktext:light-dark(#1d6b38,#7ad59a);--badtext:light-dark(#b42318,#ff9b93);--hover:light-dark(#eaf2fb,#2c3744);
+ --accent:light-dark(#1565c0,#3b82f6);--accentbtn:light-dark(#1565c0,#1d4ed8);--accentfg:#fff;--muted:light-dark(#5c5c5c,#b4b4b4);
+ --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%235c5c5c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+ --gridh:light-dark(#f6f6f7,#1d2024);--sub:light-dark(#eef3fa,#1e242c);--warntext:light-dark(#8a4300,#e0a35a);--linktext:light-dark(#1565c0,#6ea8fe);
+ --even:light-dark(#fafafa,#1a1c20);--btn:light-dark(#fafafa,#24272c);--in:light-dark(#fff,#1b1e22);--log:light-dark(#1e1e1e,#141414);--logfg:#d4d4d4;
+ --sb:light-dark(rgba(0,0,0,.28),rgba(255,255,255,.24));--port:light-dark(#dfe3e8,#3a3e44);--portbd:light-dark(#b8bec6,#555b63);--used:#2e7d46;
+ --upl:light-dark(#1565c0,#3b82f6);--poe:light-dark(#d9822b,#e0a828);--line:light-dark(#2a5a9e,#8fb8e8);--hi:#f5c518;--t-pc:light-dark(#1565c0,#6ea8fe);
+ --t-server:light-dark(#6a3fb5,#b49cf0);--t-sip:light-dark(#1a7a5e,#5dcaa5);--t-tablet:light-dark(#b5651d,#f0a868);
+ --t-monitor:light-dark(#4f5b66,#a9b4bf);--t-switch:light-dark(#a8442a,#f0997b);--t-printer:light-dark(#7a6a00,#d8c44a);
+ --t-patch:light-dark(#8a5a00,#d9a441);--shadow:0 4px 16px rgba(0,0,0,.18)}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}}
+:root[data-theme="dark"]{--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23b4b4b4' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");--shadow:0 4px 16px rgba(0,0,0,.45)}
 
 *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--sb) transparent}
 html,body{height:100%;margin:0;font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:13px;color:var(--fg);background:var(--bg)}
@@ -130,10 +131,10 @@ table.locs td.site{color:var(--muted)}
 .fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
-details.fmenu{flex:none;width:26px}
-details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
-.ctlrow:hover>details.fmenu>summary,details.fmenu>summary:focus-visible,details.fmenu[open]>summary{border-color:var(--bd);background:var(--btn);color:var(--fg)}
-details.fmenu .menubox{min-width:210px;top:30px}
+.fmenu{flex:none;width:26px}
+.fmenu>.menu-btn{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
+.ctlrow:hover>.fmenu>.menu-btn,.fmenu>.menu-btn:focus-visible,.fmenu:has(>:popover-open)>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)}
+.fmenu .menubox{min-width:210px}
 /* Other network adapters under the MAC address: name, address and details on one row each. */
 .nics{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
 .nics li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
@@ -252,7 +253,7 @@ table.types td input{width:100%;min-width:0;box-sizing:border-box}
 table.types .icondd{display:flex;min-width:0;width:100%}
 table.types td.n,table.types th.n{text-align:right}
 table.types td:last-child,table.types th:last-child{padding-right:12px}
-.tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.tabmenu{position:fixed;inset:auto;margin:0;color:var(--fg);display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
 .icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
@@ -262,8 +263,7 @@ table.types td:last-child,table.types th:last-child{padding-right:12px}
 /* The same chevron as every dropdown, in the same place (7px from the right edge). */
 .icondd-btn .icondd-caret{color:var(--muted);width:12px;height:12px;margin-right:-2px}
 .icondd-btn{width:100%;background:var(--in);border-color:var(--bd)}
-.icondd-list{position:fixed;z-index:30;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
-.icondd-list[hidden]{display:none}
+.icondd-list{position:fixed;inset:auto;margin:4px 0;position-area:bottom span-right;position-try-fallbacks:flip-block;width:anchor-size(width);color:var(--fg);max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
 .icondd-item{width:100%;border:0;background:transparent;box-shadow:none}
 .icondd-item:hover{background:var(--hover)}
 .icondd-item[aria-selected="true"]{background:var(--panel2);font-weight:600}
@@ -329,6 +329,12 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .item .sw{width:10px;height:10px;border-radius:2px;flex:none}
 .item.sub{padding-left:28px}
 .sidegroup{padding:4px 0 8px;border-bottom:1px solid var(--bd2)}
+/* A saved view in the sidebar: the view, and for admins Rename and Delete, shown on hover or focus. */
+.svrow{display:flex;align-items:center;padding-right:4px}
+.svrow .item{flex:1;min-width:0}
+.svrow .icon{width:24px;height:24px;flex:none;opacity:0}
+.svrow:hover .icon,.svrow:focus-within .icon{opacity:1}
+@media (hover:none){.svrow .icon{opacity:1}}
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
@@ -445,7 +451,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-btn.failed{color:var(--danger)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.sync-btn.spinning .i{animation:none}}
-.sync-menu{position:fixed;z-index:60;width:360px;max-width:calc(100vw - 16px);padding:8px;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;font-size:13px}
+.sync-menu{position:fixed;inset:auto;margin:0;width:360px;max-width:calc(100vw - 16px);padding:8px;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;font-size:13px}
 .sync-menu .sync-all{margin:2px 2px 6px}
 .sync-row{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:var(--r-s)}
 .sync-row:hover{background:var(--hover)}
@@ -987,12 +993,32 @@ a.link:hover{text-decoration:underline}
 .hist li{display:flex;gap:10px;align-items:center;padding:4px 0;line-height:1.5;border-bottom:1px dashed var(--bd2)}
 .hist li:last-child{border-bottom:none}
 .hist time{font-family:inherit;font-size:inherit;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+.hist .hist-restore{margin-left:auto;flex:none;font-size:12px}
+/* The timeline: one line per event on a thin rule, an icon per kind in the colours of the app (green fine, amber needs
+   a look, red a problem, grey retired); events still to come in italics. */
+.tl{list-style:none;margin:0;padding:6px 12px 6px;font-size:12px}
+.tl-ev{display:flex;gap:10px;align-items:center;padding:3px 0;line-height:1.45;position:relative}
+.tl-ev:not(:last-child)::before{content:"";position:absolute;left:10px;top:20px;bottom:-6px;border-left:1px solid var(--bd)}
+.tl-ico{width:21px;height:21px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--panel2);color:var(--muted);position:relative;z-index:1}
+.tl-ico svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tl-ok .tl-ico{background:color-mix(in srgb,var(--okdot) 16%,var(--bg));color:var(--oktext)}
+.tl-warn .tl-ico{background:color-mix(in srgb,var(--warn) 18%,var(--bg));color:var(--warntext)}
+.tl-bad .tl-ico{background:color-mix(in srgb,var(--danger) 16%,var(--bg));color:var(--badtext)}
+.tl-gone .tl-ico{background:var(--panel2);color:var(--muted)}
+.tl-gone .tl-text{color:var(--muted)}
+.tl time{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;min-width:72px}
+.tl-future .tl-text{font-style:italic}
+.tl-foot{padding:0 12px 10px 43px;font-size:12px}
+.lg-restore{margin-left:8px;font-size:12px}
 
 /* modal */
 /* Signed out: nothing of the app is drawn behind the sign-in dialog, and the dialog has a solid backdrop. */
 body.signed-out>:not(#modalHost){visibility:hidden}
-body.signed-out #modalHost .modal{background:var(--bg)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+body.signed-out #mdl::backdrop{background:var(--bg)}
+/* A native <dialog> shown modal (19-modal.js): it fills the window, centres its box and dims the page with its backdrop. */
+dialog.modal{position:fixed;inset:0;width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;background:transparent;color:inherit;overflow:visible;display:flex;align-items:center;justify-content:center;padding:16px}
+dialog.modal:not([open]){display:none}
+dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 .modal .box{position:relative;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-l);box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(860px,100%);max-height:100%;display:flex;flex-direction:column;min-height:0}
 .modal .box.sm{width:min(580px,100%)}
 .modal .box.wide{width:min(1000px,100%)}
@@ -1008,7 +1034,6 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .wctl>button.wc-close:hover,.wctl>button.wc-close:focus-visible{background:var(--danger-bg);color:#fff}
 .modal .box.maxed{width:100%!important;max-width:none;height:100%;max-height:none}
 .modal .box.maxed>.mb{flex:1}
-.modal.minimized{display:none}
 /* A minimized dialog waits here: its title restores it, the × closes it. */
 #mdlTray{position:fixed;right:12px;bottom:32px;z-index:60;display:flex;gap:8px}
 #mdlTray .tray-chip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel);box-shadow:var(--shadow);font-size:12px}
@@ -1045,10 +1070,9 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
 .grp.collapsed>#cards{display:none}
-details.menu{position:relative}
-details.menu>summary{list-style:none;display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);cursor:pointer}
-details.menu>summary::-webkit-details-marker{display:none}
-.menubox{position:absolute;right:0;top:32px;z-index:10;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px}
+/* A menu is a popover under its button (menuHtml in 01-core.js), right edges in line; it flips when there is no room. */
+.menubox{position:fixed;inset:auto;margin:4px 0;position-area:bottom span-left;position-try-fallbacks:flip-block,flip-inline;color:var(--fg);background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px;max-height:calc(100vh - 16px);overflow:auto}
+.menubox:not(:popover-open),.tabmenu:not(:popover-open),.sync-menu:not(:popover-open){display:none}
 .menubox button{justify-content:flex-start}
 /* A field locked for someone who may not change it reads as text in a quiet box: no white field, no chevron, no
    calendar or pick-list button, so nothing looks editable. */
@@ -1088,14 +1112,14 @@ table.grid a.rowopen:hover{text-decoration:underline}
 #barMoreBtn{display:none}
 #barMore{display:contents}
 @media (max-width:760px){
- #bar{flex-wrap:nowrap;position:relative}
+ #bar{flex-wrap:nowrap;position:relative;anchor-name:--bar}
  #bar>.grow{display:none}
  #brand{margin-right:0}
  #brand>span{display:none}
  .gs{order:0;flex:1 1 auto;min-width:0;width:auto}
  #barMoreBtn{display:inline-flex}
- #barMore{display:none;position:absolute;right:8px;top:calc(100% + 4px);z-index:40;flex-direction:column;align-items:stretch;gap:2px;min-width:200px;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
- body.bar-more #barMore{display:flex}
+ #barMore{display:none;position:fixed;inset:auto;position-anchor:--bar;position-area:bottom span-left;margin:4px 8px 0 0;color:var(--fg);flex-direction:column;align-items:stretch;gap:2px;min-width:200px;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+ #barMore:popover-open{display:flex}
  #barMore>*{justify-content:flex-start;width:100%;height:40px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
  #barMore>*:hover{background:var(--hover)}
  #barMore #coffeeBtn{display:inline-flex}
@@ -1105,7 +1129,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
 @media (pointer:coarse){
-  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item,.toolbar details.menu>summary{min-height:40px}
+  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item{min-height:40px}
   .toolbar .tbsep{display:none}   /* a wrapped toolbar would leave a divider with nothing after it */
   .form>.fieldnote{margin:-8px 0 6px}   /* a field's note stays with its field, not the next label */
   input:not([type=checkbox]):not([type=radio]),select{height:40px}
@@ -1344,6 +1368,17 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .imp-table .imp-why{color:var(--badtext)!important}
 .imp-table td:last-child{white-space:normal}
 @media (max-width:760px){.imp-pick{grid-template-columns:minmax(0,1fr)}.imp-kind select{width:100%}}
+/* The CSV import wizard: its steps, and the preview table (Line, Name, What, Details). */
+.wiz-steps{display:flex;gap:6px;margin:0;padding:0;list-style:none;counter-reset:wiz;flex-wrap:wrap}
+.wiz-steps li{counter-increment:wiz;display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--bd2);border-radius:999px;font-size:12px;color:var(--muted)}
+.wiz-steps li::before{content:counter(wiz);display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--bd2);font-size:11px}
+.wiz-steps li.on{color:var(--fg);border-color:var(--accent);font-weight:600}
+.wiz-steps li.on::before{background:var(--accentbtn);color:var(--accentfg)}
+.wiz-steps li.done::before{content:"✓"}
+.csvprev-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.csvprev table{min-width:640px}
+.csvprev th:nth-child(1){width:56px}.csvprev th:nth-child(2){width:200px}.csvprev th:nth-child(3){width:118px}.csvprev th:nth-child(4){width:auto}
+.csvprev td select{width:auto;display:inline-block}
 /* Directory and sync marks, quiet: the box stays neutral and a small dot carries the state, in its colour. The words
    say the rest, so the colours are not needed to tell them apart. */
 .jb,.jb.on{border:1px solid var(--bd2);background:transparent}
@@ -1399,6 +1434,22 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 
 /* Settings → Data sources: a card per source, the field matrix, and what each brings beyond the fields. */
 .ds-intro{padding:10px 12px 0;margin:0}
+/* The status header on top of each source's page: the dot in the app's colours, its state, the switch; the last sync; the buttons. */
+.src-status{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel)}
+#setPane>div:not(.panelbox)>div.src-status:not(.panelbox){gap:6px}
+.src-st-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.src-st-top .dot{width:10px;height:10px}
+.src-st-state{font-size:12px;color:var(--muted)}
+.src-st-run{font-size:12.5px;overflow-wrap:anywhere}.src-err{color:var(--badtext)}
+.src-st-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.src-st-act .note{min-width:0;overflow-wrap:anywhere}
+.src-switch{font-weight:600}
+.src-offnote{padding:4px 2px 12px}
+.src-hist{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
+.ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
+.ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
+.ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
+.ds-beyond-src{margin:6px 12px 12px}
+@media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
 
@@ -1754,18 +1805,17 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore[open]>summary{margin-bottom:8px}
 .ls-adv{margin:0 0 14px}
 .ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
-.umenu>summary{list-style:none;cursor:pointer;min-width:34px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--btn);font-size:16px;line-height:1}
-.umenu>summary::-webkit-details-marker{display:none}
-.umenu .menubox{min-width:190px;z-index:60}
+.umenu>.menu-btn{min-width:34px;min-height:30px;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
+.umenu .menubox{min-width:190px}
 .umenu .menubox>a{padding:6px 10px}
-@media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
+@media (pointer:coarse){.umenu>.menu-btn{min-height:40px;min-width:40px}}
 .menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}
 
 /* Simplify round 3 (0.9.90) */
 /* A field's ⋯ menu shows on the row under the mouse or with the focus, not on every row at once (always on touch). */
 @media (hover:hover) and (pointer:fine){
-  .form.props .ctlrow>details.fmenu>summary{opacity:0;transition:opacity .12s}
-  .form.props .ctlrow:hover>details.fmenu>summary,.form.props .ctlrow:focus-within>details.fmenu>summary,.form.props details.fmenu[open]>summary,.form.props details.fmenu>summary:focus-visible{opacity:1}
+  .form.props .ctlrow>.fmenu>.menu-btn{opacity:0;transition:opacity .12s}
+  .form.props .ctlrow:hover>.fmenu>.menu-btn,.form.props .ctlrow:focus-within>.fmenu>.menu-btn,.form.props .fmenu:has(>:popover-open)>.menu-btn{opacity:1}
 }
 .colmenu{min-width:240px;padding:8px}
 .colpresets{display:grid;grid-template-columns:1fr 1fr;gap:6px}

@@ -27,6 +27,7 @@ try {
   await p.click('#newBtn'); await p.waitForSelector('#nName');
   assert.equal(await p.locator('#mdl .mh .wctl button').count(), 3, 'minimize, maximize and close in the header');
   assert.equal(await p.evaluate(() => document.activeElement.id), 'nName', 'the first field has the focus, not a window button');
+  assert.equal(await p.evaluate(() => document.querySelector('#mdl').matches('dialog:modal')), true, 'a native modal dialog');
   await p.fill('#nName', 'ZH-PC-0999');
 
   // maximize and back
@@ -40,11 +41,13 @@ try {
   // minimize: hidden, a chip in the corner; Escape leaves it; restore keeps what was typed
   await p.click('.wc-min');
   assert.equal(await p.isVisible('#mdl'), false);
+  assert.equal(await p.evaluate(() => document.querySelector('#mdl').matches(':modal')), false, 'a minimized dialog does not block the page');
   assert.equal(await p.textContent('#mdlTray .tray-open'), 'New device');
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#mdl').count(), 1, 'Escape does not close a minimized dialog');
   await p.click('#mdlTray .tray-open');
   assert.equal(await p.isVisible('#mdl'), true);
+  assert.equal(await p.evaluate(() => document.querySelector('#mdl').matches(':modal')), true, 'restored it is modal again');
   assert.equal(await p.inputValue('#nName'), 'ZH-PC-0999', 'what was typed is kept');
   assert.equal(await p.locator('#mdlTray').count(), 0, 'the chip is gone once restored');
 

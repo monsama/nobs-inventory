@@ -1,13 +1,15 @@
-/* Settings → Data sources: what each source brings into the inventory, who wins when several know a field, and how each
-   is set up here right now. Drawn from sync-map.js (the lists the syncs themselves use) and from the current settings,
-   so it changes with them and is never out of date. */
-import { $, DEFAULT_POLICY, LS_ON, SYNC, esc, objs, st, toastUndo } from './01-core.js';
+/* Settings → Data sources: who wins when several sources know a field, for all of them (All fields) and for one (Fields
+   from this source, on its own tab), and what else each brings. Drawn from sync-map.js (the lists the syncs themselves
+   use) and from the current settings, so it changes with them and is never out of date. */
+import { $, DEFAULT_POLICY, SYNC, esc, objs, st, toastUndo } from './01-core.js';
 import { closeModal, modal } from './19-modal.js';
 import { LS_FILL, MODES, NEVER, ORDER_FIELDS, PEOPLE_SOURCES, SOURCES_OF, SOURCE_EXTRAS, SOURCE_LABEL, SYNC_FIELD_LABEL, fieldMode, fieldOrder, maySet } from './sync-map.js';
-import { SERVER, queueServerSave, render } from './07-render.js';
-import { isAdmin } from './04-settings.js';
+import { queueServerSave, render } from './07-render.js';
+import { isAdmin, renderSetPane } from './04-settings.js';
 import { resetFilters } from './02-views.js';
-import { runOf, summary, when } from './16-sync.js';
+import { bindPolicy, policyGrid } from './03-object-modals.js';
+import { SOURCE_TAB, sourceOn, sourceState } from './settings-status.js';
+import { intuneCoverageHtml } from './settings-graph.js';
 
 const SHORT = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'AD' };
 /* Quick setups for every field at once: [name, what it does]. */
@@ -102,50 +104,26 @@ function setOrder(k, list, what, modes = null){
   confirmChange(`${SYNC_FIELD_LABEL[k]}: ${what}`, { fieldOrder: fo, fieldMode: fm, policy }, [k], () => {
     const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
     st.fieldOrder = fo; st.fieldMode = fm; st.policy = policy;
-    queueServerSave(); renderSetSources();
-    toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+    queueServerSave(); redraw();
+    toastUndo(`${SYNC_FIELD_LABEL[k]}: ${what}`, () => { Object.assign(st, before); queueServerSave(); redraw(); });
   });
   /* Until applied, the lists show what is saved. */
-  renderSetSources();
+  redraw();
 }
 
-export function renderSetSources(){
-  const root = $('#setSources'); if (!root) return;
-  /* Set up, as Health says it: Lansweeper switched on and given an API, a push or a file; the directory and Graph set
-     on the server. */
-  const on = { ls: LS_ON() && !!SYNC.lansweeper, ad: !!(SERVER.ldap || (st.ldap && st.ldap.url)), graph: !!(SERVER.graph || SYNC.graph), defender: false };
-  /* Defender is read by the Entra & Intune sync, when turned on there. */
+/* Which sources are set up now, by the field keys the field rules use. Defender and Autopilot are read by the Entra &
+   Intune sync, when turned on there. */
+function sourcesOn(){
+  const on = { ls: sourceOn('ls'), ad: sourceOn('ad'), graph: sourceOn('graph') };
   on.defender = on.graph && !!SYNC.defender;
   on.autopilot = on.graph;
   SOURCES_ON = on;
-  const intake = src => (st.intake || {})[src] === 'direct' ? 'go straight into the inventory' : 'wait in To review';
-
-  /* What the last sync of a source changed on the fields, and the devices it changed (server/sync-changes.js). */
-  const changesHtml = src => {
-    const c = (st.syncChanges || {})[src]; if (!c || (!c.n && !(c.earlier || []).length)) return '';
-    const part = (o, verb) => { const e = Object.entries(o || {}).sort((a, b) => b[1] - a[1]); return e.length ? `${verb} ${list(e.slice(0, 4).map(([f, n]) => `${f} on ${n}`))}${e.length > 4 ? ` and ${e.length - 4} more` : ''}` : ''; };
-    const says = r => { const x = [part(r.changed, 'changed'), part(r.filled, 'filled in')].filter(Boolean).join('; '); return x.charAt(0).toUpperCase() + x.slice(1); };
-    const show = (r, i) => `<button type="button" class="link" data-dschg="${src}" data-dsrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button>`;
-    const earlier = c.earlier || [];
-    return `<div class="ds-changes">${c.n ? `${esc(says(c))} ${show(c, -1)}` : 'The last run changed nothing.'}
-      ${earlier.length ? `<details class="ds-earlier"><summary>Earlier runs (${earlier.length})</summary><ul>${earlier.map((r, i) => `<li><span class="muted">${esc(when(r.at))}</span> ${esc(says(r))} ${show(r, i)}</li>`).join('')}</ul></details>` : ''}</div>`;
-  };
-  /* One card per source: set up or not, its last run, where its new devices go and whether it fills fields. */
-  const card = (src, runKey, lines) => {
-    const r = runKey ? runOf(runKey) : null;
-    const run = !runKey ? '' : !r ? 'Not run yet' : r.ok ? `Last run ${when(r.at)}${r.how === 'push' ? ' (push)' : ''}: ${summary(runKey, r.counts)}` : `Last run ${when(r.at)} failed: ${r.error || ''}`;
-    return `<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${esc(SOURCE_LABEL[src])}</b><span class="chip ${on[src] ? 'ok' : ''}">${on[src] ? 'On' : 'Not set up'}</span></div>
-      ${run ? `<div class="muted ds-run${r && !r.ok ? ' err' : ''}">${esc(run)}</div>` : ''}${changesHtml(src)}<ul>${lines.filter(Boolean).map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
-  };
-  const cards = [
-    card('ls', 'lansweeper', [`New devices ${intake('lansweeper')}`, st.mergeTwins ? 'Docking-station records are merged into their device' : '', st.skipIpOnly ? 'Devices named only by an IP address wait in To review' : '']),
-    card('ad', 'ldap', [`New devices ${intake('ad')}`, st.fillAd === false ? 'Fills no fields (only shown beside them)' : 'Fills empty fields']),
-    card('graph', 'graph', [`New devices ${intake('graph')}`, st.fillGraph === false ? 'Fills no fields (only shown beside them)' : 'Fills empty fields']),
-    card('defender', '', ['Read with the Entra & Intune sync, when turned on there']),
-  ].join('');
-
-  /* Every field a sync knows, by topic: the sources that set it in their order (the first one wins), what that means in
-     a sentence, and Change… for an admin. The order is kept per field (st.fieldOrder); the syncs read it (sync-map.js). */
+  return on;
+}
+/* Every field a sync knows (or those of one source), by topic: the sources that set it in their order (the first one
+   wins), what that means in a sentence, and Change… for an admin. The order is kept per field (st.fieldOrder); the
+   syncs read it (sync-map.js). */
+function matrixHtml(on, only = null){
   const edit = isAdmin();
   const chain = k => {
     const order = fieldOrder(st, k), used = order.filter(x => !globalOff(x));
@@ -154,54 +132,90 @@ export function renderSetSources(){
     return `${used.length ? used.map((x, i) => chip(x, i + 1)).join('<span class="ds-arrow" aria-hidden="true">›</span>') : '<span class="muted">Kept as typed</span>'}
       ${[...shown, ...off].length ? `<span class="ds-also">shown only: ${esc(list([...shown, ...off].map(x => SHORT[x] + (off.includes(x) ? ' (off)' : ''))))}</span>` : ''}`;
   };
-  const custom = !!((st.fieldOrder && Object.keys(st.fieldOrder).length) || (st.fieldMode && Object.keys(st.fieldMode).length));
   /* Values set by hand per field: they stay, whatever the sources say; the count opens them, to give them back. */
   const hand = {};
   for (const o of objs) if (o.status !== 'retired') for (const k of ORDER_FIELDS) if ((o.pick && o.pick[k] === 'hand') || (o.src && o.src[k] === 'hand')) hand[k] = (hand[k] || 0) + 1;
   const isSet = k => !!((st.fieldOrder && st.fieldOrder[k]) || (st.fieldMode && st.fieldMode[k]));
   const row = k => `<tr${isSet(k) ? ' class="ds-set"' : ''}><th scope="row">${esc(SYNC_FIELD_LABEL[k])}${isSet(k) ? ' <span class="chip ds-custom" title="Set here, not the default">Custom</span>' : ''}${hand[k] ? `<button type="button" class="link ds-hand" data-dshand="${k}" title="Devices where this field was set by hand: no source changes it">${hand[k]} set by hand</button>` : ''}</th>
     <td class="ds-chain">${chain(k)}</td><td class="ds-how">${esc(orderSentence(k, fieldOrder(st, k)))}</td>${edit ? `<td class="ds-act"><button type="button" class="mini" data-dsedit="${k}" aria-label="Change the sources of ${esc(SYNC_FIELD_LABEL[k])}">Change…</button></td>` : ''}</tr>`;
-  const matrix = `<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? '<th><span class="sr-only">Change</span></th>' : ''}</tr></thead>
-    ${groupsOf().map(([name, keys]) => `<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${esc(name)}</th></tr>${keys.map(row).join('')}</tbody>`).join('')}</table>`;
-  /* One explanation, used everywhere on this page. */
-  const fieldNote = `<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
+  const groups = groupsOf().map(([n, ks]) => [n, ks.filter(k => !only || SOURCES_OF(k).includes(only))]).filter(g => g[1].length);
+  return `<table class="grid mini ds-matrix stack"><thead><tr><th>Field</th><th>Sources, in order</th><th>What happens</th>${edit ? '<th><span class="sr-only">Change</span></th>' : ''}</tr></thead>
+    ${groups.map(([name, keys]) => `<tbody><tr class="ds-grp"><th colspan="${edit ? 4 : 3}" scope="rowgroup">${esc(name)}</th></tr>${keys.map(row).join('')}</tbody>`).join('')}</table>`;
+}
+/* One explanation, used everywhere the field rules are. */
+const fieldNote = edit => `<details class="how ds-how"><summary>How a field is filled</summary><div class="ds-explain"><p>A value typed or picked by hand on a device always stays. Otherwise the sources write it in the order shown; a source higher up replaces what one below it wrote.</p>
     <p><b>Updates</b>: the source keeps the field in step with what it reports. <b>Only if empty</b>: it writes the field only while it is empty and never replaces a value. A source that is <b>shown only</b> writes nothing; its value is beside the field on the device page, to pick there.${edit ? ' Changes apply at each source\'s next sync, after a preview of what they change.' : ''}</p></div></details>`;
+/* The rows' buttons: the devices a field was set by hand on (listed in the Table), and Change… for an admin. */
+function bindMatrix(root, on){
+  root.querySelectorAll('[data-dshand]').forEach(b => b.onclick = () => { resetFilters(); st.handField = b.dataset.dshand; st.scope = null; st.tab = 'table'; closeModal(); render(); });
+  if (isAdmin()) root.querySelectorAll('[data-dsedit]').forEach(b => b.onclick = () => editOrder(b.dataset.dsedit, on));
+}
+/* After a change: whichever list of field rules is on the page now is drawn again. */
+function redraw(){ renderSetSources(); renderSourceFields(); }
+
+/* Settings → Data sources → All fields: the field rules of every source in one place, with the quick setups, and what
+   else each source brings. Each source's own state and settings are on its own tab. */
+export function renderSetSources(){
+  const root = $('#setSources'); if (!root) return;
+  const on = sourcesOn(), edit = isAdmin();
+  const custom = !!((st.fieldOrder && Object.keys(st.fieldOrder).length) || (st.fieldMode && Object.keys(st.fieldMode).length));
+  /* The sources, each opening its own tab: the same dot as its page's header. */
+  const srcs = ['ls', 'ad', 'graph'].map(src => { const s = sourceState(src); return `<button type="button" class="ds-srcbtn" data-dstab="${SOURCE_TAB[src]}"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${esc(SOURCE_LABEL[src])}</b><span class="muted">${esc(s.text)}</span></button>`; }).join('');
   /* Three common setups, each one click (with the preview and Undo). */
   const presets = edit ? `<div class="ds-presets"><span class="muted">Quick setup:</span>${Object.entries(PRESETS).map(([k, [l, tip]]) => `<button type="button" data-dspreset="${k}" title="${esc(tip)}">${esc(l)}</button>`).join('')}</div>` : '';
-  const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${Object.keys(st.fieldOrder).length} field${Object.keys(st.fieldOrder).length === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
+  const nSet = Object.keys(st.fieldOrder || {}).length;
+  const reset = edit && custom ? `<div class="ds-foot"><span class="muted">${nSet} field${nSet === 1 ? '' : 's'} set here (Custom)</span><button type="button" id="dsReset">Back to the defaults</button></div>` : '';
   const extras = Object.entries(SOURCE_EXTRAS).map(([src, list]) => `<div class="ds-card${on[src] ? '' : ' off'}"><div class="ds-head"><b>${esc(SOURCE_LABEL[src])}</b></div>
     <dl class="ds-dl">${list.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>`).join('');
 
-  root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">What each source brings into the inventory and how it is set up here now. This page is drawn from the same lists the syncs use, so it always shows what they do.</p><div class="ds-cards">${cards}</div></div>
-    <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrix}</div>${reset}</details></div>
+  root.innerHTML = `<div class="panelbox"><div class="hdr">Sources</div><p class="note ds-intro">Each source has a tab of its own: how it is doing, its connection and its fields. This page shows the fields of all of them together, drawn from the same lists the syncs use.</p><div class="ds-srcs">${srcs}</div></div>
+    <div class="panelbox"><div class="hdr">Device fields</div>${fieldNote(edit)}${presets}<details class="ds-adv" id="dsAdv" ${custom || advOpen ? 'open' : ''}><summary>Advanced: field by field</summary><div class="ds-scroll">${matrixHtml(on)}</div>${reset}</details></div>
     <details class="panelbox fold ds-beyond"><summary class="hdr">Beyond the fields <span class="cnt">what else each source brings</span></summary><div class="ds-cards ds-wide">${extras}</div></details>
     <div class="panelbox"><div class="hdr">People</div><dl class="ds-dl ds-pad">${PEOPLE_SOURCES.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></div>
     <div class="panelbox"><div class="hdr">Never</div><ul class="ds-never">${NEVER.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
 
-  /* The devices a sync changed, and the ones a field was set by hand on: listed in the Table. */
-  root.querySelectorAll('[data-dschg]').forEach(b => b.onclick = () => {
-    const all = (st.syncChanges || {})[b.dataset.dschg]; if (!all) return;
-    const i = Number(b.dataset.dsrun ?? -1), c = i < 0 ? all : (all.earlier || [])[i]; if (!c) return;
-    resetFilters(); st.ids = { label: i < 0 ? `Changed by ${SOURCE_LABEL[b.dataset.dschg]} at the last sync` : `Changed by ${SOURCE_LABEL[b.dataset.dschg]} on ${when(c.at)}`, ids: c.ids || [] }; st.scope = null; st.tab = 'table'; closeModal(); render();
-  });
-  root.querySelectorAll('[data-dshand]').forEach(b => b.onclick = () => { resetFilters(); st.handField = b.dataset.dshand; st.scope = null; st.tab = 'table'; closeModal(); render(); });
+  root.querySelectorAll('[data-dstab]').forEach(b => b.onclick = () => { st.setTab = b.dataset.dstab; renderSetPane(); $('#setPane').scrollTop = 0; });
+  bindMatrix(root, on);
   if (!edit) return;
   const adv = $('#dsAdv'); if (adv) adv.ontoggle = () => { advOpen = adv.open; };
-  root.querySelectorAll('[data-dsedit]').forEach(b => b.onclick = () => editOrder(b.dataset.dsedit, on));
   root.querySelectorAll('[data-dspreset]').forEach(b => b.onclick = () => {
     const [name] = PRESETS[b.dataset.dspreset], next = presetOf(b.dataset.dspreset);
     confirmChange(`Quick setup: ${name}`, next, ORDER_FIELDS, () => {
       const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
-      Object.assign(st, next); queueServerSave(); renderSetSources();
-      toastUndo(`Quick setup: ${name}`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+      Object.assign(st, next); queueServerSave(); redraw();
+      toastUndo(`Quick setup: ${name}`, () => { Object.assign(st, before); queueServerSave(); redraw(); });
     });
   });
   const resetPolicy = () => ({ ...(st.policy || {}), ...Object.fromEntries(ORDER_FIELDS.filter(k => k in DEFAULT_POLICY).map(k => [k, DEFAULT_POLICY[k]])) });
   const rs = $('#dsReset'); if (rs) rs.onclick = () => confirmChange('Field sources back to the defaults', { fieldOrder: null, fieldMode: null, policy: resetPolicy() }, ORDER_FIELDS, () => {
     const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
-    st.fieldOrder = null; st.fieldMode = null; st.policy = resetPolicy(); queueServerSave(); renderSetSources();
-    toastUndo('Field sources back to the defaults', () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+    st.fieldOrder = null; st.fieldMode = null; st.policy = resetPolicy(); queueServerSave(); redraw();
+    toastUndo('Field sources back to the defaults', () => { Object.assign(st, before); queueServerSave(); redraw(); });
   });
+}
+
+/* "Fields from this source" on a source's own tab (#srcFields, data-src ls, ad or graph): its switch for filling fields,
+   the rules of the fields it knows, with the same controls as All fields, and what else it brings. */
+export function renderSourceFields(){
+  const root = $('#srcFields'); if (!root) return;
+  const src = root.dataset.src, on = sourcesOn(), edit = isAdmin(), ro = edit ? '' : 'disabled';
+  const fill = src === 'ad' ? `<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="lk_fillAd" ${st.fillAd !== false ? 'checked' : ''} ${ro}> Fill in an empty operating system and domain from the computer account</label></div>
+      <p class="note ds-intro">Only in the order below: a value set by hand, from Lansweeper or from Intune goes first. The device shows where a value came from.</p>`
+    : src === 'graph' ? `<div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${ro}> Fill in empty fields from Intune</label></div>
+      <p class="note ds-intro">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>` : '';
+  /* Lansweeper also writes fields that have no order (its user, software, links…): ticked per field. */
+  const lsWrites = src === 'ls' ? `<div class="ds-subhdr">What Lansweeper writes</div>${policyGrid()}<p class="note" style="padding:10px 12px">The fields Lansweeper writes on every device. Who else writes a field, and whether a source updates it or only fills it while empty, is set above and in All fields. A value set by hand on a device always stays. Name and serial number find the device and are never changed.</p>` : '';
+  const extras = [src, ...(src === 'graph' ? ['autopilot'] : [])].flatMap(x => SOURCE_EXTRAS[x] || []);
+  root.innerHTML = `<div class="panelbox"><div class="hdr">Fields from this source</div>${fill}${fieldNote(edit)}<div class="ds-scroll">${matrixHtml(on, src)}</div>${lsWrites}
+    ${extras.length ? `<details class="how ds-beyond-src"><summary>What else it brings</summary><dl class="ds-dl ds-pad">${extras.map(([what, how]) => `<dt>${esc(what)}</dt><dd>${esc(how)}</dd>`).join('')}</dl></details>` : ''}</div>
+    ${src === 'graph' ? intuneCoverageHtml() : ''}`;
+  bindMatrix(root, on);
+  if (!edit) return;
+  /* Filling turned off makes the source "off" in its rules: they are drawn again. */
+  const ad = $('#lk_fillAd'); if (ad) ad.onchange = () => { st.fillAd = ad.checked; queueServerSave(); renderSourceFields(); $('#lk_fillAd')?.focus(); };
+  const gf = $('#gFill'); if (gf) gf.onchange = () => { st.fillGraph = gf.checked; queueServerSave(); renderSourceFields(); $('#gFill')?.focus(); };
+  bindPolicy(root);
+  root.querySelectorAll('[data-pol]').forEach(c => c.addEventListener('change', () => { const k = c.dataset.pol; renderSourceFields(); $(`#srcFields [data-pol="${k}"]`)?.focus(); }));
 }
 /* Change… for one field: its sources as a list in their order, each used or shown only, moved up and down; what that
    means is said below as it changes. Save shows what it changes on the devices first (confirmChange). */
@@ -247,8 +261,8 @@ function editOrder(k, on){
     const policy = k in DEFAULT_POLICY ? { ...(st.policy || {}), [k]: DEFAULT_POLICY[k] } : st.policy;
     confirmChange(`${SYNC_FIELD_LABEL[k]}: back to the default`, { fieldOrder: fo, fieldMode: fm, policy }, [k], () => {
       const before = { fieldOrder: st.fieldOrder, fieldMode: st.fieldMode, policy: st.policy };
-      st.fieldOrder = fo; st.fieldMode = fm; st.policy = policy; queueServerSave(); renderSetSources();
-      toastUndo(`${SYNC_FIELD_LABEL[k]}: back to the default`, () => { Object.assign(st, before); queueServerSave(); renderSetSources(); });
+      st.fieldOrder = fo; st.fieldMode = fm; st.policy = policy; queueServerSave(); redraw();
+      toastUndo(`${SYNC_FIELD_LABEL[k]}: back to the default`, () => { Object.assign(st, before); queueServerSave(); redraw(); });
     });
   };
 }

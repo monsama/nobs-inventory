@@ -1,5 +1,5 @@
 /* The relations map: layout, drawing, zoom and the toolbar (split out of 02-views.js, which re-exports it). */
-import { isAttached, $, STATUS, TYPES, byId, esc, filtered, objs, portLabel, rels, st, tcol, tico, toast, used } from './01-core.js';
+import { isAttached, $, menuHtml, STATUS, TYPES, byId, esc, filtered, objs, portLabel, rels, st, tcol, tico, toast, used } from './01-core.js';
 import { queueServerSave, render, view } from './07-render.js';
 import { isAdmin } from './04-settings.js';
 import { bindHiddenHits, hiddenHits, openObj } from './02-views.js';
@@ -192,7 +192,14 @@ export function mapExportSvg(){
   const shifted = {...L, pos: Object.fromEntries(Object.entries(L.pos).map(([k,p]) => [k, {x: p.x - b.x0 + pad, y: p.y - b.y0 + pad}]))};
   let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="system-ui, sans-serif">${mapInner(shifted)}</svg>`;
   const cs = getComputedStyle(document.documentElement);
-  return s.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#888');
+  /* A colour token is light-dark(…): a probe element resolves it to the colour on screen now, so the file has plain colours. */
+  const probe = document.body.appendChild(document.createElement('i'));
+  const value = n => {
+    const v = cs.getPropertyValue(n).trim();
+    if (!v.startsWith('light-dark(')) return v || '#888';
+    probe.style.color = `var(${n})`; return getComputedStyle(probe).color || '#888';
+  };
+  try { return s.replace(/var\((--[\w-]+)\)/g, (m, n) => value(n)); } finally { probe.remove(); }
 }
 
 /* The toolbar controls that redraw the map; bound also when the map is empty, so it can be switched back. */
@@ -230,7 +237,7 @@ export function renderMap(){
     <label class="pchk"><input type="checkbox" id="mapLabels" ${st.mapLabels?'checked':''}> Labels</label>
     <label class="pchk"><input type="checkbox" id="mapAttached" ${st.mapAttached?'checked':''}> Attached devices</label>
     <div class="grow"></div><span class="tbgroup"><span class="pl-zoom"><button id="mapZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="mapZoomReset" title="Actual size" class="pl-zv">${Math.round(MAP.zoom * 100)}%</button><button id="mapZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span><button id="mapFitBtn" title="Zoom so the whole map fits">Fit</button>
-    <details class="menu"><summary>More</summary><div class="menubox"><button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button></div></details></span>`;
+    ${menuHtml('More', '<button id="mapReset">Reset layout</button><button id="mapExport">Export SVG</button>')}</span>`;
   MAP.nodes = nodes;   /* a drag lays out these again, so a focused map keeps its own boxes */
   MAP.focused = !!focus;
   MAP.L = mapLayout(nodes);

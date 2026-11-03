@@ -7,7 +7,7 @@ export const NOTICE_SOON_DAYS = 60;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /* A real day: 2026-02-31 is not one, though Date would roll it over into March. */
-const isDay = v => { if (typeof v !== 'string' || !DAY.test(v)) return false; const d = new Date(v + 'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === v; };
+const isDay = v => { if (typeof v !== 'string' || !DAY.test(v)) return false; const d = new Date(v + 'T00:00:00Z'); return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v; };
 const text = (v, max) => v === undefined || (typeof v === 'string' && v.length <= max);
 const count = (v, max) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= max);
 const money = v => v === undefined || v === null || (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1e9);
@@ -54,7 +54,7 @@ export function listProblem(list, check, what){
 
 const iso = d => d.toISOString().slice(0, 10);
 const addMonths = (day, n) => { const d = new Date(day + 'T00:00:00Z'); const m = d.getUTCMonth() + n, want = ((m % 12) + 12) % 12; d.setUTCMonth(m); if (d.getUTCMonth() !== want) d.setUTCDate(0); return iso(d); };
-const daysTo = (day, today) => Math.round((new Date(day + 'T00:00:00Z') - new Date(iso(today) + 'T00:00:00Z')) / 86400000);
+const daysTo = (day, today) => Math.round((Date.parse(day + 'T00:00:00Z') - Date.parse(iso(today) + 'T00:00:00Z')) / 86400000);
 
 /* Where a contract stands today. A contract that renews by itself runs on in terms of `renew` months: its end is the end
    of the current term, and the notice is due `notice` months before it. One that does not renew ends on its end date.

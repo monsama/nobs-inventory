@@ -60,24 +60,23 @@ function menuHtml(){
   const runnable = list.filter(([, c]) => c).length;
   return `${runnable > 1 ? `<button type="button" class="primary sync-all" data-sync="all" ${running ? 'disabled' : ''}>${running === 'all' ? 'Syncing…' : 'Sync all'}</button>` : ''}${list.map(line).join('')}<div class="sync-row sync-reload"><div class="sync-what"><b>This page</b><span class="muted">what others changed since it loaded</span></div><button type="button" id="reloadBtn">Reload</button></div>`;
 }
-function closeMenu(){ const m = $('#syncMenu'); if (m) m.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', onKey, true); }
-const outside = e => { if (!e.target.closest('#syncMenu') && !e.target.closest('#syncBtn')) closeMenu(); };
-const onKey = e => { if (e.key === 'Escape'){ closeMenu(); const b = $('#syncBtn'); if (b) b.focus(); } };
-/* The menu lies over the page under the button: the tab bar scrolls sideways, so a menu inside it would be cut off. */
+function closeMenu(){ const m = $('#syncMenu'); if (m) m.remove(); }
+/* The menu is a popover under the button (the tab bar scrolls sideways, so a menu inside it would be cut off). A click
+   beside it or Escape closes it, and it is then gone; the button it came from gets the focus back. */
 function openMenu(){
   closeMenu();
   const b = $('#syncBtn'); if (!b) return;
   const m = document.createElement('div');
-  m.id = 'syncMenu'; m.className = 'sync-menu'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sync');
+  m.id = 'syncMenu'; m.className = 'sync-menu'; m.popover = 'auto'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sync');
   m.innerHTML = menuHtml();
   document.body.append(m);
+  m.addEventListener('toggle', e => { if (e.newState === 'closed') m.remove(); });
+  m.showPopover({ source: b });
   const r = b.getBoundingClientRect();
   m.style.top = `${r.bottom + 4}px`;
   m.style.left = `${Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth))}px`;
   m.querySelectorAll('[data-sync]').forEach(x => x.onclick = () => run(x.dataset.sync));
   m.querySelectorAll('[data-syncset]').forEach(x => x.onclick = async () => { closeMenu(); st.setTab = x.dataset.syncset; (await import('./04-settings.js')).openSettings(); });
-  document.addEventListener('mousedown', outside, true);
-  document.addEventListener('keydown', onKey, true);
   /* From the keyboard the menu is used at once: the focus moves into it. */
   const first = m.querySelector('button:not([disabled])'); if (first) first.focus();
 }

@@ -1,0 +1,10 @@
+// Type check of the server and the shared modules it imports from public/js (no build: the JavaScript runs as it is).
+{
+  "compilerOptions": {
+    "allowJs": true, "checkJs": true, "noEmit": true,
+    "target": "es2023", "module": "nodenext", "moduleResolution": "nodenext",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"], "strict": false, "skipLibCheck": true
+  },
+  "include": ["server/**/*.js"]
+}

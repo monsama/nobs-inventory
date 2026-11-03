@@ -1,12 +1,13 @@
-/* Settings → Entra & Intune, through Microsoft Graph: the app registration, certificates, people from Entra, test
-   and sync, and the devices Graph has that the inventory does not. */
+/* Settings → Entra & Intune, through Microsoft Graph: its status header, the app registration, certificates, people
+   from Entra, the devices Graph has that the inventory does not, and Defender for Endpoint as a section of its own. */
 import { intakeRowHtml, bindIntakeRows } from './15-review.js';
 import { ENTRA, scheduleRowHtml, bindScheduleRows } from './settings-feed.js';
-import { SERVER, reloadFromServer, queueServerSave } from './07-render.js';
+import { SERVER, reloadFromServer } from './07-render.js';
 const FIELD_NAMES = { category: 'Category', enrollType: 'How enrolled', enrollProfile: 'Enrollment profile', certExpires: 'Intune certificate end',
   patch: 'Android security patch', carrier: 'Carrier', imei: 'IMEI', phone: 'Phone number', ownership: 'Ownership', free: 'Free storage', jailbroken: 'Jailbroken', supervised: 'Supervised' };
 import { isAdmin, applyRole } from './04-settings.js';
-import { st, esc, byId, $, dayText, toast, SYNC } from './01-core.js';
+import { st, esc, byId, $, dayText, toast, SYNC, objs } from './01-core.js';
+import { statusHeaderHtml } from './settings-status.js';
 /* What a sync found, in one message: records are what Graph lists, devices what they come to once duplicates are one. */
 export function graphSummary(c){
   const n = (k, one, many) => c[k] ? ` ${c[k]} ${c[k] === 1 ? one : many}` : '';
@@ -33,6 +34,16 @@ function ambiguousHtml(){
       ${list.map(a => `<tr><td>${esc(a.name)}${a.serial ? ` <span class="mono muted">${esc(a.serial)}</span>` : ''}</td><td>${a.by === 'serial' ? 'serial number' : 'name'}</td><td>${a.devices.map(dev).filter(Boolean).join(', ')}</td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
+/* What the last sync brought from Intune: each field and for how many managed devices (some exist only for some
+   platforms). Shown under Fields from this source. */
+export function intuneCoverageHtml(){
+  const fr = st.graphFields;
+  if (!fr || !fr.managed) return '';
+  return `<div class="panelbox"><div class="hdr">Fields from Intune <span class="cnt">last sync ${esc(String(fr.at || '').slice(0, 10).split('-').reverse().join('.'))}</span></div>
+    ${fr.fallback ? '<p class="note warn" style="padding:10px 12px 0">Graph refused the extra fields at the last sync, so only the basic ones came: category, enrollment, certificate end, patch level and carrier are missing. Check the API version and permissions of the app.</p>' : ''}
+    <p class="note" style="padding:10px 12px">Of ${fr.managed} devices Intune manages, how many came with each field. A field only some platforms have (patch level: Android; supervised: Apple) is expected to be partial.</p>
+    <dl class="lsbox">${Object.entries(FIELD_NAMES).map(([k, l]) => `<dt>${esc(l)}</dt><dd>${fr.fields && fr.fields[k] ? `${fr.fields[k]} <span class="muted">of ${fr.managed}</span>` : '<span class="muted">none</span>'}</dd>`).join('')}</dl></div>`;
+}
 export async function renderSetGraph(){
   const root = $('#setGraph');
   if (!root) return;
@@ -52,7 +63,8 @@ export async function renderSetGraph(){
       <td>${day(c.expires)}${left(c.expires) < 60 ? ` <span class="chip ${left(c.expires) < 0 ? 'bad' : 'warn'}">${left(c.expires) < 0 ? 'expired' : 'in ' + left(c.expires) + ' days'}</span>` : ''}</td>
       <td>${c.inUse ? '<span class="chip ok">In use</span>' : c.onServer ? `<button data-gcuse="${esc(c.thumbprint)}" ${fromServer ? 'disabled title="The server settings decide the certificate"' : ''}>Use this one</button>` : '<span class="muted" title="Made before the server kept keys: make a new one">No key here</span>'}</td>
       <td class="act">${c.onServer ? `<a class="link" href="api/graph/cert/${esc(c.thumbprint)}/cer" download>Download .cer</a>` : ''}${fromServer && c.inUse ? '' : ` <button class="icon ghost" data-gcdel="${esc(c.thumbprint)}" ${c.inUse || c.chosen ? 'data-gcinuse="1"' : ''} aria-label="Delete this certificate" title="Delete">×</button>`}</td></tr>`).join('');
-  root.innerHTML = `<div class="panelbox"><div class="hdr">Microsoft Graph ${g.configured ? '<span class="chip ok">Connected</span>' : '<span class="cnt">not set up</span>'}</div>
+  const ready = g.configured && edit;
+  root.innerHTML = statusHeaderHtml('graph', { test: { id: 'graphTest', ready }, sync: { id: 'graphSync', ready }, msg: 'graphMsg' }) + `<div class="panelbox"><div class="hdr">Connection <span class="cnt">Microsoft Graph</span></div>
     <p class="note">Reads what Microsoft Entra and Intune know of each device: join type, management, compliance, encryption, primary user and last contact, shown on the device. Devices are matched by serial number, else by name. Fields a device does not have yet are filled in; ones it has stay, except on devices added from here, which Graph keeps up to date until Lansweeper takes them over. It only reads: it changes nothing in Entra or Intune.</p>
     ${fromServer ? '<p class="note" style="padding:8px 12px">The connection is set by the server settings (NI_GRAPH_TENANT, NI_GRAPH_CLIENT_ID, NI_GRAPH_CERT, NI_GRAPH_KEY). Remove them on the server to use the steps below instead.</p>' : ''}
     <ol class="graph-steps">
@@ -92,11 +104,6 @@ export async function renderSetGraph(){
           <option value="off" ${g.people === 'off' ? 'selected' : ''}>Don't read people</option>
           <option value="match" ${(g.people || 'match') === 'match' ? 'selected' : ''}>Mark the people who are in Entra</option>
           <option value="add" ${g.people === 'add' ? 'selected' : ''}>Mark them, and add the primary users of the devices</option></select></div></li>
-      <li><div class="gs-head"><b>Defender for Endpoint</b> <span class="muted">(optional)</span></div>
-        <p class="note">Beside Entra and Intune, the sync can read each device's state in Microsoft Defender for Endpoint: active or not, its risk and exposure, the antivirus and when Defender last saw it. It is a fourth mark on the cards. In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>APIs my organization uses</b> → <span class="mono">WindowsDefenderATP</span> → <b>Application permissions</b> → <span class="mono">Machine.Read.All</span>, then <b>Grant admin consent</b>. Read only, like the others.</p>
-        <div class="form" style="padding:8px 0 0"><label for="gDefender">Defender</label><select id="gDefender" ${edit ? '' : 'disabled'}>
-          <option value="off" ${(g.defender || 'off') === 'off' ? 'selected' : ''}>Don't read Defender</option>
-          <option value="on" ${g.defender === 'on' ? 'selected' : ''}>Read Defender for Endpoint</option></select></div></li>
       <li><div class="gs-head"><b>Windows Autopilot</b> <span class="muted">(optional)</span></div>
         <p class="note">The sync can read the devices registered in Windows Autopilot: each device gets its group tag and order number, and a device registered but not set up yet comes in by its serial number (in To review), before Intune knows it. Needs <span class="mono">DeviceManagementServiceConfig.Read.All</span> (Microsoft Graph, Application permissions), then <b>Grant admin consent</b>. Read only, like the others.</p>
         <div class="form" style="padding:8px 0 0"><label for="gAutopilot">Autopilot</label><select id="gAutopilot" ${edit ? '' : 'disabled'}>
@@ -113,33 +120,29 @@ export async function renderSetGraph(){
         <div class="form" style="padding:8px 0 0"><label for="gSso">Sign-in</label><select id="gSso" ${edit && g.configured ? '' : 'disabled'}>
           <option value="off" ${(g.sso || 'off') === 'off' ? 'selected' : ''}>Passwords only</option>
           <option value="on" ${g.sso === 'on' ? 'selected' : ''}>Also with Microsoft</option></select></div></li>
-      <li><div class="gs-head"><b>Device fields</b></div>
-        <p class="note">Intune can fill in a device's empty operating system, model, MAC address, memory and disks. A value set by hand or from Lansweeper goes first; one from Active Directory gives way. The device shows where a value came from.</p>
-        <label class="pchk" style="width:auto;padding-top:6px"><input type="checkbox" id="gFill" ${st.fillGraph !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Fill in empty fields from Intune</label></li>
       <li><div class="gs-head"><b>Test and sync</b>${done(g.configured)}</div>
-        <p class="note">Test connection signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set below.</p>
-        <div class="addrel" style="padding:8px 0 0;border:0;background:none"><button id="graphTest" ${g.configured && edit ? '' : 'disabled'}>Test connection</button><button id="graphSync" class="primary" ${g.configured && edit ? '' : 'disabled'}>Sync now</button><span class="note" id="graphMsg" role="status"></span></div>
+        <p class="note">Test connection at the top signs in and reads one device from each list; it names a permission that is still missing. Sync now reads them all; it also runs by itself, as set here.</p>
         ${scheduleRowHtml('graph', edit)}</li>
     </ol>
     ${certRows ? `<div style="overflow-x:auto;border-top:1px solid var(--bd2)"><table class="grid mini" style="min-width:0"><thead><tr><th>Certificate thumbprint (as Entra shows it)</th><th>Created</th><th>Expires</th><th>Sign-in</th><th></th></tr></thead><tbody>${certRows}</tbody></table></div>
     <p class="note" style="padding:8px 12px">Before one expires: create a new one, upload it to Entra, choose Use this one, test, then remove the old one here and in Entra.</p>` : ''}
     <div style="padding:0 0 8px">${intakeRowHtml('graph')}<p class="note" style="padding:0 12px">Devices in Entra or Intune that the inventory does not have yet are added as new devices; disabled records never do, and ones not heard from for 90 days always wait in To review.</p></div>${ambiguousHtml()}</div>`;
+  /* Defender for Endpoint: read by the same sync, so it has no header of its own; a section below the fields. */
+  const dh = $('#setDefender'), seen = objs.filter(o => o.defender).length;
+  if (dh) dh.innerHTML = `<div class="panelbox"><div class="hdr">Defender for Endpoint <span class="cnt">${!j ? '' : g.defender === 'on' ? `read with the Entra &amp; Intune sync · ${seen} ${seen === 1 ? 'device' : 'devices'}` : 'not read'}</span></div>
+    <p class="note" style="padding:10px 12px 0">Beside Entra and Intune, the sync can read each device's state in Microsoft Defender for Endpoint: active or not, its risk and exposure, the antivirus and when Defender last saw it. It is a fourth mark on the cards. In the app in Entra: <b>API permissions</b> → <b>Add a permission</b> → <b>APIs my organization uses</b> → <span class="mono">WindowsDefenderATP</span> → <b>Application permissions</b> → <span class="mono">Machine.Read.All</span>, then <b>Grant admin consent</b>. Read only, like the others. Test connection checks its permission.</p>
+    <div class="form" style="grid-template-columns:170px minmax(0,1fr)"><label for="gDefender">Defender</label><select id="gDefender" ${edit ? '' : 'disabled'}>
+      <option value="off" ${(g.defender || 'off') === 'off' ? 'selected' : ''}>Don't read Defender</option>
+      <option value="on" ${g.defender === 'on' ? 'selected' : ''}>Read Defender for Endpoint</option></select></div></div>`;
   const msg = $('#graphMsg');
-  const say = (text, bad) => { msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
+  const say = (text, bad) => { if (msg) msg.innerHTML = bad ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text); };
   const post = async (url, body) => { const x = await fetch(url, {method: 'POST', credentials: 'same-origin', headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined}); return {ok: x.ok, j: await x.json().catch(() => ({}))}; };
-  /* What the last sync brought from Intune: each field and for how many managed devices (some exist only for some platforms). */
-  const fr = st.graphFields;
-  if (fr && fr.managed) root.insertAdjacentHTML('beforeend', `<div class="panelbox"><div class="hdr">Fields from Intune <span class="cnt">last sync ${esc(String(fr.at || '').slice(0, 10).split('-').reverse().join('.'))}</span></div>
-    ${fr.fallback ? '<p class="note warn" style="padding:10px 12px 0">Graph refused the extra fields at the last sync, so only the basic ones came: category, enrollment, certificate end, patch level and carrier are missing. Check the API version and permissions of the app.</p>' : ''}
-    <p class="note" style="padding:10px 12px">Of ${fr.managed} devices Intune manages, how many came with each field. A field only some platforms have (patch level: Android; supervised: Apple) is expected to be partial.</p>
-    <dl class="lsbox">${Object.entries(FIELD_NAMES).map(([k, l]) => `<dt>${esc(l)}</dt><dd>${fr.fields && fr.fields[k] ? `${fr.fields[k]} <span class="muted">of ${fr.managed}</span>` : '<span class="muted">none</span>'}</dd>`).join('')}</dl></div>`);
   $('#gSave').onclick = async () => {
     const x = await post('api/graph/settings', {tenant: $('#gTenant').value, clientId: $('#gClient').value});
     if (!x.ok){ $('#gSaveMsg').innerHTML = `<span style="color:var(--danger)">${esc(x.j.error || 'Not saved.')}</span>`; return; }
     toast('Microsoft Graph IDs saved'); await refreshGraph();
   };
-  const gf = $('#gFill'); if (gf) gf.onchange = () => { st.fillGraph = gf.checked; queueServerSave(); };
-  $('#gDefender').onchange = async () => {
+  if ($('#gDefender')) $('#gDefender').onchange = async () => {
     const x = await post('api/graph/settings', {defender: $('#gDefender').value});
     toast(x.ok ? ($('#gDefender').value === 'on' ? 'Saved: Defender is read at the next sync. Test connection checks its permission.' : 'Saved: Defender is not read any more') : (x.j.error || 'Not saved.'));
   };
@@ -166,14 +169,14 @@ export async function renderSetGraph(){
     if (!x.ok){ toast(x.j.error || 'The certificate could not be made.'); return; }
     toast('Certificate created. Download the .cer and upload it to the app in Entra.'); await refreshGraph();
   };
-  $('#graphTest').onclick = async () => {
+  if ($('#graphTest')) $('#graphTest').onclick = async () => {
     say('Testing…');
     const x = await post('api/graph/test');
     if (!x.ok) return say(x.j.error || 'The test failed.', true);
     if (x.j.missing.length) return say('Signed in, but these permissions are missing or not consented: ' + x.j.missing.join(', ') + '.', true);
     say(x.j.users ? 'Signed in and read the devices and the people. Ready to sync.' : 'Signed in and read both device lists. Ready to sync.');
   };
-  $('#graphSync').onclick = async () => {
+  if ($('#graphSync')) $('#graphSync').onclick = async () => {
     const btn = $('#graphSync'); btn.disabled = true; say('Syncing…');
     const x = await post('api/graph/sync');
     btn.disabled = false;

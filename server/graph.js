@@ -42,7 +42,7 @@ export const thumbprintOf = certPem => crypto.createHash('sha256').update(new cr
 /* A signed assertion that proves the app holds the private key. It is valid for five minutes. */
 export function clientAssertion(cfg, now = new Date()) {
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const t = Math.floor(now.getTime() / 1000);
+  const t = Math.floor(+now / 1000);
   const head = b64({ alg: 'RS256', typ: 'JWT', 'x5t#S256': thumbprintOf(cfg.certPem) });
   const body = b64({ aud: `https://login.microsoftonline.com/${cfg.tenant}/oauth2/v2.0/token`, iss: cfg.clientId, sub: cfg.clientId, jti: crypto.randomUUID(), nbf: t, exp: t + 300 });
   const sig = crypto.sign('sha256', Buffer.from(`${head}.${body}`), cfg.keyPem).toString('base64url');
@@ -64,6 +64,7 @@ export async function graphToken(cfg, now = new Date(), fetchImpl = fetch, scope
 }
 
 /* What the usual sign-in errors mean, in the words of the setup steps. */
+/** @type {[RegExp, string][]} */
 const SIGN_IN_HINTS = [
   [/AADSTS700027|AADSTS700023|certificate|Client assertion contains an invalid signature/i, 'Entra does not know this certificate. Upload the .cer to the app registration, under Certificates & secrets, and check the thumbprint.'],
   [/AADSTS700016|application with identifier .* was not found/i, 'There is no app with this application (client) ID in this tenant. Copy it from the app registration\'s Overview page.'],
@@ -115,7 +116,7 @@ export async function graphAll(token, url, fetchImpl = fetch, origin = GRAPH_ORI
     if (pages >= 1000) throw new HttpError(502, `${what} returned more than 1000 pages; the sync was stopped so no device is marked as gone by mistake.`);
     if (new URL(next).origin !== origin) throw new HttpError(502, `${what} gave a link to somewhere else.`);
     const r = await fetchImpl(next, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
-    if (!r.ok) { const e = new HttpError(502, `${what} answered ${r.status} for ${new URL(url).pathname}.`); e.upstream = r.status; throw e; }
+    if (!r.ok) { const e = Object.assign(new HttpError(502, `${what} answered ${r.status} for ${new URL(url).pathname}.`), { upstream: r.status }); throw e; }
     const j = await r.json();
     out.push(...(j.value || []));
     next = j['@odata.nextLink'] || null;
@@ -343,7 +344,7 @@ export function pickPrimary(list) {
   const newest = Math.max(...list.map(activity));
   const recent = r => newest - activity(r) <= RECENT_MS;
   /* A record disabled in Entra is never the device now while an enabled one is there. */
-  return [...list].sort((a, b) => (!!a.disabled) - (!!b.disabled) || recent(b) - recent(a) || (!!b.intune) - (!!a.intune)
+  return [...list].sort((a, b) => Number(!!a.disabled) - Number(!!b.disabled) || Number(recent(b)) - Number(recent(a)) || Number(!!b.intune) - Number(!!a.intune)
     || (JOIN_RANK[b.join] || 0) - (JOIN_RANK[a.join] || 0) || activity(b) - activity(a))[0];
 }
 const lastOf = r => { const t = activity(r); return t ? new Date(t).toISOString() : ''; };
@@ -471,7 +472,7 @@ export const GRAPH_INTAKE_STALE_DAYS = 90;
    says so (one not heard from for long still waits). The list is used up. */
 export function intakeFromGraph(s, now = new Date()) {
   const list = s.graphUnmatched || [], direct = intakeOf(s, 'graph') === 'direct';
-  const stale = d => !Date.parse(d.lastSync) || (now - Date.parse(d.lastSync)) / 864e5 > GRAPH_INTAKE_STALE_DAYS;
+  const stale = d => !Date.parse(d.lastSync) || (+now - Date.parse(d.lastSync)) / 864e5 > GRAPH_INTAKE_STALE_DAYS;
   const n = addFromGraph(s, list.filter(d => direct && !stale(d)).map(d => d.id), 'the Microsoft Graph sync', now).length;
   const m = addFromGraph(s, 'all', 'the Microsoft Graph sync', now, { review: true }).length;
   s.graphUnmatched = [];

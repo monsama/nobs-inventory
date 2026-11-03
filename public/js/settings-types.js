@@ -28,18 +28,14 @@ export const ICON_LABEL = { plc: 'PLC / Controller', tablet: 'Tablet', pc: 'Comp
   printer: 'Printer', scanner: 'Scanner', projector: 'Projector', camera: 'Camera', storage: 'Storage', nas: 'NAS',
   ups: 'UPS', accesspoint: 'Access point', pbx: 'PBX', bmc: 'Remote management', other: 'Other' };
 export const iconLabel = n => (n === 'custom' ? 'Uploaded icon' : ICON_LABEL[n] || n);
-/* A dropdown that shows the icon and its name, for the object type's icon. */
+/* A dropdown that shows the icon and its name, for the object type's icon: a popover the width of its button, below it
+   (above when there is no room), closed by a click elsewhere or Escape. */
 export function iconChoice(k, t){
   const names = [...Object.keys(ICON), ...(t.svgInner ? ['custom'] : [])];
   const preview = n => n === 'custom' ? `<svg class="i cu" viewBox="${VIEWBOX_RE.test(t.svgView || '') ? t.svgView : '0 0 24 24'}">${t.svgInner}</svg>` : iconSvg(n);
-  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><svg class="icondd-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <div class="icondd-list" role="listbox" hidden>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
+  return `<div class="icondd"><button type="button" class="icondd-btn" aria-haspopup="listbox" popovertarget="icl-${k}" aria-label="${esc(iconLabel(t.icon))}, icon for ${esc(t.label)}">${preview(t.icon)}<span>${esc(iconLabel(t.icon))}</span><svg class="icondd-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="icondd-list" id="icl-${k}" role="listbox" popover>${names.map(n => `<button type="button" role="option" class="icondd-item" aria-selected="${n === t.icon}" data-ic="${k}" data-icon="${n}">${preview(n)}<span>${esc(iconLabel(n))}</span></button>`).join('')}<label class="icondd-up">Upload SVG icon…<input type="file" hidden accept=".svg,image/svg+xml" data-up="${k}" aria-label="Upload SVG icon for ${esc(t.label)}"></label></div></div>`;
 }
-export function closeIconLists(){ document.querySelectorAll('.icondd-list').forEach(l => { l.hidden = true; const b = l.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); }
-document.addEventListener('click', e => { if (!e.target.closest('.icondd')) closeIconLists(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIconLists(); });
-/* The list is fixed to the viewport, so it closes when the page scrolls away from its button. */
-document.addEventListener('scroll', e => { if (!e.target.closest?.('.icondd-list')) closeIconLists(); }, true);
 /* A key for a field, from its name: lowercase letters, digits and underscores, starting with a letter. */
 export const fieldKey = label => {
   let k = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 28);
@@ -173,20 +169,6 @@ export function renderSetTypes(){
   root.querySelectorAll('[data-tc]').forEach(i => i.oninput = () => { TYPES[i.dataset.tc].color = i.value; render(); });
   root.querySelectorAll('[data-tl]').forEach(i => i.onchange = () => { TYPES[i.dataset.tl].label = typeName(i.value) || TYPES[i.dataset.tl].label; renderSetTypes(); render(); });
   root.querySelectorAll('[data-ts]').forEach(i => i.onchange = () => { TYPES[i.dataset.ts].short = typeName(i.value) || TYPES[i.dataset.ts].short; render(); });
-  root.querySelectorAll('.icondd-btn').forEach(b => b.onclick = e => {
-    e.stopPropagation();
-    const list = b.nextElementSibling, open = list.hidden;
-    closeIconLists();
-    if (open) {
-      /* Below the button when there is room, above it when there is not, and kept inside the window. */
-      const r = b.getBoundingClientRect();
-      Object.assign(list.style, { left: Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8)) + 'px', width: r.width + 'px', top: '0px' });
-      list.hidden = false;
-      const h = Math.min(list.offsetHeight, 320), below = window.innerHeight - r.bottom - 8;
-      list.style.top = (h <= below || r.top < h + 8 ? r.bottom + 4 : r.top - h - 4) + 'px';
-    }
-    list.hidden = !open; b.setAttribute('aria-expanded', String(open));
-  });
   root.querySelectorAll('.icondd-item').forEach(b => b.onclick = () => { TYPES[b.dataset.ic].icon = b.dataset.icon; renderSetTypes(); render(); });
   root.querySelectorAll('[data-up]').forEach(f => f.onchange = async () => {
     const file = f.files[0]; if (!file) return;
