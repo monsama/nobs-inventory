@@ -1780,3 +1780,5 @@ details.how[open]>summary{margin-bottom:4px}
 .colpresets>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
 .colpick>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:6px 2px 2px}
 .colpick-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;padding-top:6px}
+.pl-body.side-off{grid-template-columns:minmax(0,1fr)}
+.pl-body.side-off>.pl-side{display:none}

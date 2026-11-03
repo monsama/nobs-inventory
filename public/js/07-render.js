@@ -503,7 +503,7 @@ document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   if (e.key === '?'){ e.preventDefault(); shortcutsModal(); return; }
   /* / goes to the list's own filter where the view has one (Cards, Table, Relationships, Contracts …), else to the search. */
-  if (e.key === '/'){ e.preventDefault(); const f = ['cards', 'table', 'map'].includes(st.tab) ? $('#search') : $('#plQ') || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
+  if (e.key === '/'){ e.preventDefault(); const f = ['cards', 'table', 'map'].includes(st.tab) ? $('#search') : ($('#plQ') && $('#plQ').offsetParent ? $('#plQ') : null) || $('#toolbar input[type=search]') || $('#search'); f.focus(); return; }
   if (key === 'n' && canEdit()){ e.preventDefault(); newObjModal(); return; }
   const tab = {c: 'cards', t: 'table', m: 'map', r: 'rack'}[key];
   if (tab){ if (tab === 'map' && st.open.includes(st.tab)) st.mapFocus = st.tab; st.tab = tab; render(); }
