@@ -1,6 +1,6 @@
 /* The status header every source page in Settings starts with: on or off, a dot for how it is doing, its last sync and
    what it brought, Sync now and Test connection, and the history of what its syncs changed on the devices. */
-import { $, LS_ON, SYNC, esc, st } from './01-core.js';
+import { $, LS_ON, SYNC, st } from './01-core.js';
 import { closeModal, leaveSettings, modal } from './19-modal.js';
 import { SERVER, render } from './07-render.js';
 import { isAdmin } from './04-settings.js';
@@ -8,6 +8,7 @@ import { resetFilters } from './02-views.js';
 import { scheduleOf } from './schedule.js';
 import { SOURCE_LABEL } from './sync-map.js';
 import { runOf, summary, when } from './16-sync.js';
+import { html } from './html.js';
 
 /* A source by its field key (ls, ad, graph), its sync key (syncRuns, the schedule) and its Settings tab. */
 export const RUN_KEY = { ls: 'lansweeper', ad: 'ldap', graph: 'graph' };
@@ -32,10 +33,10 @@ export function sourceState(src){
 /* The last run in one line: when, how (a push), and what it brought or why it failed. */
 function lastRunHtml(src){
   const r = runOf(RUN_KEY[src]);
-  if (!r) return `<span class="muted">${sourceOn(src) ? 'No sync yet' : 'Set up below, then sync'}</span>`;
-  const head = `Last sync ${esc(when(r.at))}${r.how === 'push' ? ' (push)' : ''}`;
+  if (!r) return html`<span class="muted">${sourceOn(src) ? 'No sync yet' : 'Set up below, then sync'}</span>`;
+  const head = `Last sync ${when(r.at)}${r.how === 'push' ? ' (push)' : ''}`;
   const warn = r.ok && r.counts && r.counts.ambiguous ? ` · ${r.counts.ambiguous} fit more than one device and were skipped` : '';
-  return r.ok ? `${head}: ${esc(summary(RUN_KEY[src], r.counts))}${esc(warn)}` : `<span class="src-err">${head} failed: ${esc(r.error || '')}</span>`;
+  return r.ok ? html`${head}: ${summary(RUN_KEY[src], r.counts)}${warn}` : html`<span class="src-err">${head} failed: ${r.error || ''}</span>`;
 }
 /* The header. on: the switch ({ id, checked, label }) where the source has one (Lansweeper), else a chip while it is set
    up (AD and Entra have no switch: they are on while their connection is set); test and
@@ -43,15 +44,15 @@ function lastRunHtml(src){
    Sync now is not (Lansweeper by push). */
 export function statusHeaderHtml(src, { on = null, test = null, sync = null, msg = '', note = '' } = {}){
   const s = sourceState(src), edit = isAdmin();
-  const sw = on ? `<label class="pchk src-switch"><input type="checkbox" role="switch" id="${on.id}" ${on.checked ? 'checked' : ''} ${edit ? '' : 'disabled'}> ${esc(on.label)}</label>`
-    : sourceOn(src) ? '<span class="chip ok" title="Set up below: turned off by removing its connection">Set up</span>' : '';
+  const sw = on ? html`<label class="pchk src-switch"><input type="checkbox" role="switch" id="${on.id}" ${on.checked ? 'checked' : ''} ${edit ? '' : 'disabled'}> ${on.label}</label>`
+    : sourceOn(src) ? html`<span class="chip ok" title="Set up below: turned off by removing its connection">Set up</span>` : '';
   const c = (st.syncChanges || {})[src], runs = c ? (c.n ? 1 : 0) + (c.earlier || []).length : 0;
-  const btn = (b, label, cls = '') => b && edit ? `<button type="button" id="${b.id}"${cls ? ` class="${cls}"` : ''} ${b.ready ? '' : 'disabled'}>${label}</button>` : '';
-  return `<div class="src-status" data-srcstatus="${src}">
-    <div class="src-st-top"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${esc(SOURCE_LABEL[src])}</b><span class="src-st-state">${esc(s.text)}</span><span class="grow"></span>${sw}</div>
+  const btn = (b, label, cls = '') => b && edit ? html`<button type="button" id="${b.id}"${cls ? html` class="${cls}"` : ''} ${b.ready ? '' : 'disabled'}>${label}</button>` : '';
+  return String(html`<div class="src-status" data-srcstatus="${src}">
+    <div class="src-st-top"><span class="dot ${s.cls}" aria-hidden="true"></span><b>${SOURCE_LABEL[src]}</b><span class="src-st-state">${s.text}</span><span class="grow"></span>${sw}</div>
     <div class="src-st-run">${lastRunHtml(src)}</div>
-    <div class="src-st-act">${btn(test, 'Test connection')}${btn(sync, 'Sync now', 'primary')}${note ? `<span class="muted">${esc(note)}</span>` : ''}${msg ? `<span class="note" id="${msg}" role="status"></span>` : ''}<span class="grow"></span>
-      <button type="button" class="link" data-srchist="${src}" ${runs ? '' : 'disabled title="No sync has changed a field yet"'}>History of changes${runs ? ` (${runs})` : ''}</button></div></div>`;
+    <div class="src-st-act">${btn(test, 'Test connection')}${btn(sync, 'Sync now', 'primary')}${note ? html`<span class="muted">${note}</span>` : ''}${msg ? html`<span class="note" id="${msg}" role="status"></span>` : ''}<span class="grow"></span>
+      <button type="button" class="link" data-srchist="${src}" ${runs ? '' : html`disabled title="No sync has changed a field yet"`}>History of changes${runs ? ` (${runs})` : ''}</button></div></div>`);
 }
 
 /* What the syncs of a source changed on the fields, run by run, newest first; each opens its devices in the Table
@@ -68,9 +69,9 @@ const says = r => {
 };
 function historyModal(src){
   const runs = changesOf(src), c = (st.syncChanges || {})[src];
-  modal(`<div class="mh">${esc(SOURCE_LABEL[src])}: history of changes</div>
+  modal(html`<div class="mh">${SOURCE_LABEL[src]}: history of changes</div>
     <div class="mb"><p class="note">What each sync changed or filled in on the devices' fields, newest first. ${c && !c.n ? 'The last sync changed nothing.' : ''}</p>
-      ${runs.length ? `<ul class="src-hist">${runs.map((r, i) => `<li><span class="muted">${esc(when(r.at))}</span> ${esc(says(r))} <button type="button" class="link" data-histrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button></li>`).join('')}</ul>` : '<p class="note">No sync has changed a field yet.</p>'}</div>
+      ${runs.length ? html`<ul class="src-hist">${runs.map((r, i) => html`<li><span class="muted">${when(r.at)}</span> ${says(r)} <button type="button" class="link" data-histrun="${i}">${r.n === 1 ? 'Show the device' : `Show the ${r.n} devices`}</button></li>`)}</ul>` : html`<p class="note">No sync has changed a field yet.</p>`}</div>
     <div class="mf"><span class="grow"></span><button id="histClose" class="primary">Close</button></div>`, 'sm');
   $('#histClose').onclick = closeModal;
   document.querySelectorAll('[data-histrun]').forEach(b => b.onclick = () => {

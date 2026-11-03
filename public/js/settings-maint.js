@@ -9,6 +9,7 @@ import { $, esc, st, toast } from './01-core.js';
 import { dateTimeText } from './dates.js';
 import { CERT, certAttention, certPanel, loadCert, wireCertPanel } from './certificate.js';
 import { forgetPhotos, prepare } from './23-photos.js';
+import { html, rawHtml } from './html.js';
 /* The log: what was synced, saved, restored and signed in, and what failed. */
 export let LOG_FILTER = 'all';
 export const LOG_KINDS = [['all', 'All'], ['errors', 'Errors'], ['settings', 'Settings'], ['sync', 'Sync and push'], ['backup', 'Backups'], ['access', 'Access']];
@@ -31,10 +32,10 @@ function drawLog(){
   const pane = $('#setLog');
   if (!pane || !LOG_DATA) return;
   const j = LOG_DATA, errors = j.entries.filter(e => e.level === 'error').length;
-  pane.innerHTML = `<div class="panelbox"><div class="hdr">Log <span class="cnt">${j.entries.length}</span>${errors ? ` <span class="chip warn">${errors} error${errors === 1 ? '' : 's'}</span>` : ''}</div>
+  pane.innerHTML = html`<div class="panelbox"><div class="hdr">Log <span class="cnt">${j.entries.length}</span>${errors ? html` <span class="chip warn">${errors} error${errors === 1 ? '' : 's'}</span>` : ''}</div>
     <div class="addrel" style="padding:10px 12px;border-top:0">
-      ${LOG_KINDS.map(([k, l]) => `<button class="tab ${LOG_FILTER === k ? 'active' : ''}" data-logf="${k}">${l}</button>`).join('')}
-      <span class="grow"></span><input id="logQ" type="search" placeholder="Search the log" aria-label="Search the log" value="${esc(LOG_Q)}" style="width:200px"><button id="logRefresh">Refresh</button></div>
+      ${LOG_KINDS.map(([k, l]) => html`<button class="tab ${LOG_FILTER === k ? 'active' : ''}" data-logf="${k}">${l}</button>`)}
+      <span class="grow"></span><input id="logQ" type="search" placeholder="Search the log" aria-label="Search the log" value="${LOG_Q}" style="width:200px"><button id="logRefresh">Refresh</button></div>
     <div id="logBody">${logRows()}</div></div>`;
   pane.querySelectorAll('[data-logf]').forEach(b => b.onclick = () => { LOG_FILTER = b.dataset.logf; drawLog(); });
   $('#logRefresh').onclick = () => renderSetLog();
@@ -54,7 +55,7 @@ function restoreLogged(e, c){
   const cur = (documents().get('setting|' + e.detail.setting) || {}).value, now = r.keys.length ? valueAt(cur, r.keys) : cur;
   const what = `${e.action.replace(/^setting changed: /, '')}${c.path ? ` · ${c.path}` : ''}`;
   const since = settingChangedSince(cur, r) ? ' It was changed again since.' : '';
-  confirmModal(`Restore ${what}?`, `Sets it back to its value before the change of ${esc(pushDate(e.at))}.${since}<br>Now: <b>${esc(shownValue(now))}</b><br>Restore: <b>${esc(r.unset ? 'empty' : shownValue(r.value))}</b>`, 'Restore', async () => {
+  confirmModal(`Restore ${what}?`, html`Sets it back to its value before the change of ${pushDate(e.at)}.${since}<br>Now: <b>${shownValue(now)}</b><br>Restore: <b>${r.unset ? 'empty' : shownValue(r.value)}</b>`, 'Restore', async () => {
     await flushSave();
     const res = await fetch('api/log/restore', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({at: e.at, setting: e.detail.setting, path: c.path})});
     if (!res.ok){ const j = await res.json().catch(() => ({})); toast(j.error || 'The setting could not be restored.'); return; }
@@ -68,22 +69,23 @@ function logRows(){
   const entries = LOG_DATA.entries.filter(e => LOG_FILTER === 'all' || (LOG_FILTER === 'errors' ? e.level === 'error' : logKind(e) === LOG_FILTER))
     .filter(e => !q || `${e.action} ${e.who} ${e.detail ? JSON.stringify(e.detail.changes || []) : ''}`.toLowerCase().includes(q));
   const idx = new Map(LOG_DATA.entries.map((e, i) => [e, i]));
-  return entries.length ? `<div style="overflow-x:auto"><table class="grid mini stack" style="min-width:560px"><thead><tr><th style="width:170px">Time</th><th style="width:90px">Level</th><th style="width:160px">Who</th><th>What happened</th></tr></thead><tbody>
-      ${entries.map(e => `<tr class="${e.level === 'error' ? 'logerr' : ''}"><td class="mono">${esc(pushDate(e.at))}</td><td>${e.level === 'error' ? '<span class="chip warn">Error</span>' : '<span class="chip kept">Info</span>'}</td><td>${esc(e.who)}</td><td style="white-space:normal">${esc(e.action)}${detailHtml(e.detail, idx.get(e))}</td></tr>`).join('')}
-      </tbody></table></div>` : `<p class="note" style="padding:12px">Nothing to show for this ${q ? 'search' : 'filter'}.</p>`;
+  return entries.length ? html`<div style="overflow-x:auto"><table class="grid mini stack" style="min-width:560px"><thead><tr><th style="width:170px">Time</th><th style="width:90px">Level</th><th style="width:160px">Who</th><th>What happened</th></tr></thead><tbody>
+      ${entries.map(e => html`<tr class="${e.level === 'error' ? 'logerr' : ''}"><td class="mono">${pushDate(e.at)}</td><td>${e.level === 'error' ? html`<span class="chip warn">Error</span>` : html`<span class="chip kept">Info</span>`}</td><td>${e.who}</td><td style="white-space:normal">${e.action}${detailHtml(e.detail, idx.get(e))}</td></tr>`)}
+      </tbody></table></div>` : html`<p class="note" style="padding:12px">Nothing to show for this ${q ? 'search' : 'filter'}.</p>`;
 }
 /* What a settings change changed, under its log line: each value before and after, or the items added, changed and removed. */
 /* A plain value the log kept whole has Restore (public/js/restore.js); secrets, lists and pictures do not. */
 function detailHtml(d, i){
   const list = d && Array.isArray(d.changes) ? d.changes : [];
   if (!list.length) return '';
-  const restore = (c, j) => settingRestore(d.setting, c) ? ` <button type="button" class="link lg-restore" data-lgr="${i}:${j}" title="Set back to the value before this change">Restore</button>` : '';
+  const restore = (c, j) => settingRestore(d.setting, c) ? html` <button type="button" class="link lg-restore" data-lgr="${i}:${j}" title="Set back to the value before this change">Restore</button>` : '';
   const row = (c, j) => {
     const what = [c.changed && `changed ${c.changed.join(', ')}`, c.added && `added ${c.added.join(', ')}`, c.removed && `removed ${c.removed.join(', ')}`].filter(Boolean);
-    return `<tr>${c.path ? `<th scope="row" class="mono">${esc(c.path)}</th>` : ''}<td${c.path ? '' : ' colspan="2"'}>${what.length ? esc(what.join('; '))
-      : `<span class="lg-was">${esc(c.before)}</span> <span aria-hidden="true">→</span><span class="sr-only">changed to</span> <span class="lg-now">${esc(c.after)}</span>${restore(c, j)}`}</td></tr>`;
+    /* before and after as text: a missing value shows nothing. */
+    return html`<tr>${c.path ? html`<th scope="row" class="mono">${c.path}</th>` : ''}<td${c.path ? '' : html` colspan="2"`}>${what.length ? what.join('; ')
+      : html`<span class="lg-was">${String(c.before ?? '')}</span> <span aria-hidden="true">→</span><span class="sr-only">changed to</span> <span class="lg-now">${String(c.after ?? '')}</span>${restore(c, j)}`}</td></tr>`;
   };
-  return `<details class="lg-detail"><summary>${list.length} change${list.length === 1 ? '' : 's'}</summary><table class="lg-diff"><tbody>${list.map(row).join('')}</tbody></table></details>`;
+  return html`<details class="lg-detail"><summary>${list.length} change${list.length === 1 ? '' : 's'}</summary><table class="lg-diff"><tbody>${list.map(row)}</tbody></table></details>`;
 }
 /* A size as people read it: kB below a megabyte, so a small backup does not show as 0.0 MB. */
 const sizeText = n => n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} kB` : `${(n / 1048576).toFixed(1)} MB`;
@@ -104,22 +106,22 @@ function restoreTestHtml(edit){
   const x = EXPORT; if (!x) return '';
   const t = x.restoreTest;
   const text = !t ? 'Not tested yet: the first test runs on Sunday at 03:30.' : t.ok
-    ? `Last test ${esc(pushDate(t.at))}: ${t.from === 'copy' ? `the copy <span class="mono">${esc(t.name)}</span>` : `the backup of ${esc(Date.parse(String(t.name).split(' ')[0]) ? pushDate(String(t.name).split(' ')[0]) : t.name)}`} came back whole, ${t.objects} device${t.objects === 1 ? '' : 's'}${t.photos ? `, ${t.photos} photo${t.photos === 1 ? '' : 's'}` : ''}.`
-    : `<span class="warn">The last test ${esc(pushDate(t.at))} failed: ${esc(t.error || '')}</span>`;
-  return `<div class="bk-export"><div class="bk-head"><b>Restore test</b> ${!t ? '<span class="chip kept">Not yet</span>' : t.ok ? '<span class="chip ok">Works</span>' : '<span class="chip bad">Failed</span>'}</div>
+    ? html`Last test ${pushDate(t.at)}: ${t.from === 'copy' ? html`the copy <span class="mono">${t.name}</span>` : `the backup of ${Date.parse(String(t.name).split(' ')[0]) ? pushDate(String(t.name).split(' ')[0]) : t.name}`} came back whole, ${t.objects} device${t.objects === 1 ? '' : 's'}${t.photos ? `, ${t.photos} photo${t.photos === 1 ? '' : 's'}` : ''}.`
+    : html`<span class="warn">The last test ${pushDate(t.at)} failed: ${t.error || ''}</span>`;
+  return html`<div class="bk-export"><div class="bk-head"><b>Restore test</b> ${!t ? html`<span class="chip kept">Not yet</span>` : t.ok ? html`<span class="chip ok">Works</span>` : html`<span class="chip bad">Failed</span>`}</div>
     <p class="note">Each Sunday the newest ${(x.where || []).includes('folder') && x.on ? 'copy outside the server' : 'backup'} is restored into memory, apart from the inventory, and what comes back is counted. So you know a restore works before you need one.</p>
     <div class="bk-exrow"><span class="note" style="flex:1" id="rtLast">${text}</span><button id="rtRun" ${edit ? '' : 'disabled'}>Test now</button></div></div>`;
 }
 function exportHtml(edit){
   const x = EXPORT; if (!x) return '';
-  if (!x.dir) return `<div class="bk-export"><div class="bk-head"><b>Copy outside the server</b> <span class="chip kept">Not set up</span></div><p class="note">Optional. To keep a nightly encrypted copy off this server, mount a share and set <span class="mono">NI_BACKUP_EXPORT_DIR</span>, or name cloud storage with <span class="mono">NI_BACKUP_EXPORT_AZURE_URL</span> (Azure Blob, a SAS URL) or <span class="mono">NI_BACKUP_EXPORT_S3_URL</span> (S3) on the server (see the README). It can then be turned on here.</p></div>`;
+  if (!x.dir) return html`<div class="bk-export"><div class="bk-head"><b>Copy outside the server</b> <span class="chip kept">Not set up</span></div><p class="note">Optional. To keep a nightly encrypted copy off this server, mount a share and set <span class="mono">NI_BACKUP_EXPORT_DIR</span>, or name cloud storage with <span class="mono">NI_BACKUP_EXPORT_AZURE_URL</span> (Azure Blob, a SAS URL) or <span class="mono">NI_BACKUP_EXPORT_S3_URL</span> (S3) on the server (see the README). It can then be turned on here.</p></div>`;
   const l = x.last;
-  const lastText = !l ? 'No copy yet.' : l.ok ? `Last copy ${esc(pushDate(l.at))}: <span class="mono">${esc(l.file)}</span>, ${(l.bytes / 1048576).toFixed(1)} MB${l.cloud ? `, uploaded to ${esc(l.cloud)}` : ''}.` : `<span class="warn">The last copy failed ${esc(pushDate(l.at))}: ${esc(l.error || '')}</span>`;
-  return `<div class="bk-export"><div class="bk-head"><b>Copy outside the server</b> ${x.on ? '<span class="chip ok">On</span>' : '<span class="chip kept">Off</span>'}</div>
-    <p class="note">Each night at 02:30 the inventory is written as one encrypted file to ${esc((x.where || ['the folder the server names']).map(w => w === 'folder' ? 'the folder the server names' : w).join(' and '))}.${(x.where || []).some(w => w !== 'folder') ? ' In cloud storage, set a lifecycle rule there for how long copies are kept.' : ''} Restore it here with Restore from file…, or on any computer with <span class="mono">scripts/decrypt-backup.mjs</span>. Keep the password apart from the server: without it a copy cannot be read.</p>
+  const lastText = !l ? 'No copy yet.' : l.ok ? html`Last copy ${pushDate(l.at)}: <span class="mono">${l.file}</span>, ${(l.bytes / 1048576).toFixed(1)} MB${l.cloud ? `, uploaded to ${l.cloud}` : ''}.` : html`<span class="warn">The last copy failed ${pushDate(l.at)}: ${l.error || ''}</span>`;
+  return html`<div class="bk-export"><div class="bk-head"><b>Copy outside the server</b> ${x.on ? html`<span class="chip ok">On</span>` : html`<span class="chip kept">Off</span>`}</div>
+    <p class="note">Each night at 02:30 the inventory is written as one encrypted file to ${(x.where || ['the folder the server names']).map(w => w === 'folder' ? 'the folder the server names' : w).join(' and ')}.${(x.where || []).some(w => w !== 'folder') ? ' In cloud storage, set a lifecycle rule there for how long copies are kept.' : ''} Restore it here with Restore from file…, or on any computer with <span class="mono">scripts/decrypt-backup.mjs</span>. Keep the password apart from the server: without it a copy cannot be read.</p>
     <div class="bk-exrow"><label class="pchk" style="width:auto"><input type="checkbox" id="bxOn" ${x.on ? 'checked' : ''} ${edit && x.passwordSet ? '' : 'disabled'}> Copy each night</label>
       <label for="bxKeep" class="note">Keep the last</label><input id="bxKeep" type="number" min="1" max="365" value="${x.keep}" style="width:70px" ${edit ? '' : 'disabled'}><span class="note">copies</span></div>
-    <div class="bk-exrow"><label for="bxPw" class="note">Password</label><input id="bxPw" type="password" autocomplete="new-password" placeholder="${x.passwordSet ? 'Set ' + esc(pushDate(x.passwordSet)) + ': type to replace' : `At least ${x.passwordMin} characters`}" ${edit ? '' : 'disabled'} style="flex:1;min-width:160px"><button id="bxPwSave" ${edit ? '' : 'disabled'}>Save password</button></div>
+    <div class="bk-exrow"><label for="bxPw" class="note">Password</label><input id="bxPw" type="password" autocomplete="new-password" placeholder="${x.passwordSet ? 'Set ' + pushDate(x.passwordSet) + ': type to replace' : `At least ${x.passwordMin} characters`}" ${edit ? '' : 'disabled'} style="flex:1;min-width:160px"><button id="bxPwSave" ${edit ? '' : 'disabled'}>Save password</button></div>
     <div class="bk-exrow"><span class="note" style="flex:1" id="bxLast">${lastText}</span><button id="bxRun" ${edit && x.passwordSet ? '' : 'disabled'}>Copy now</button></div></div>`;
 }
 function wireExport(){
@@ -137,15 +139,15 @@ function wireExport(){
 }
 export function backupPanel(edit){
   const list = BACKUPS || [];
-  const rows = list.map(b => `<tr><td>${esc(pushDate(b.at))}</td><td>${esc(b.reason)}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${sizeText(b.bytes)}</td>
-    <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${esc(b.id)}" data-bat="${esc(pushDate(b.at))}" ${edit ? '' : 'disabled'}>Restore</button> <button class="mini" data-bdel="${esc(b.id)}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">Delete</button></td></tr>`).join('');
-  return `<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
+  const rows = list.map(b => html`<tr><td>${pushDate(b.at)}</td><td>${b.reason}</td><td class="n hide-n">${b.objects}</td><td class="n hide-n">${sizeText(b.bytes)}</td>
+    <td class="act"><a class="link" href="api/backups/${b.id}/download">Download</a> <button data-brestore="${b.id}" data-bat="${pushDate(b.at)}" ${edit ? '' : 'disabled'}>Restore</button> <button class="mini" data-bdel="${b.id}" ${edit ? '' : 'disabled'} aria-label="Delete this backup">Delete</button></td></tr>`);
+  return String(html`<div class="panelbox"><div class="hdr">Backups <span class="cnt">${list.length}</span></div>
     <p class="note" style="padding:10px 12px">${st.autoBackups !== false ? 'A backup is taken once a day before the first change, and before every Lansweeper sync, push and import, before an LDAP or Microsoft Graph sync (once a day for Graph), before devices are added from Graph and before the type rules are applied.' : 'Automatic backups are off: none is taken before a sync, push or import. Backups made by hand and before a restore still are.'} A backup holds the devices, relations, history, types, locations, networks, plans with their pictures, device photos, contracts, licences, the settings and the entry sheets (still sealed). Each part is stored once: what did not change since the last backup, a photo above all, takes no room again. Restoring puts all of that back as it was. Users are kept, and the current state is backed up before a restore, so it can be restored again. Not in a backup: passwords, the Lansweeper push token, the Graph certificates' private keys, the LDAP service password and the log; the connections stay as they are now.</p>
     <div class="lpanel-add"><label class="pchk" style="width:auto"><input type="checkbox" id="bkAuto" ${st.autoBackups !== false ? 'checked' : ''} ${edit ? '' : 'disabled'}> Automatic backups</label></div>
     <div class="lpanel-add"><span class="note" style="flex:1">${list.length} backup${list.length === 1 ? '' : 's'}${BACKUP_STORAGE != null ? `, ${(BACKUP_STORAGE / 1048576).toFixed(1)} MB on disk for all of them` : ''}. Keep the last <input id="bkKeep" type="number" min="1" max="100" value="${st.backupKeep || 10}" style="width:64px;min-width:0" aria-label="Backups to keep" ${edit ? '' : 'disabled'}> (applied at the next backup).</span></div>
-    ${list.length ? `<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n" title="In the inventory, without those waiting in To review">Objects</th><th class="n hide-n" title="The size of the backup downloaded as a file">File size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:0 12px 10px">No backups yet.</p>'}
-    ${edit ? exportHtml(edit) + restoreTestHtml(edit) : ''}
-    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`;
+    ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Taken</th><th>Reason</th><th class="n hide-n" title="In the inventory, without those waiting in To review">Objects</th><th class="n hide-n" title="The size of the backup downloaded as a file">File size</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : html`<p class="note" style="padding:0 12px 10px">No backups yet.</p>`}
+    ${edit ? html`${exportHtml(edit)}${restoreTestHtml(edit)}` : ''}
+    <div class="addrel" style="padding:10px 12px"><button id="bkNew" class="primary" ${edit ? '' : 'disabled'}>Back up now</button><span class="note" style="flex:1"></span><label class="btnlike ${edit ? '' : 'disabled'}" tabindex="${edit ? 0 : -1}" role="button">Restore from file…<input type="file" id="bkFile" accept="application/json,.json,.nobsbak" hidden ${edit ? '' : 'disabled'}></label></div></div>`);
 }
 export function wireBackups(edit){
   const msg = t => toast(t);
@@ -182,8 +184,8 @@ export function wireBackups(edit){
 }
 /* A restore replaces the inventory, so it asks for the word RESTORE. */
 export function restoreModal(label, run, { encrypted = false } = {}){
-  modal(`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${esc(label)}. The current state is backed up first, so the restore can be undone from the list.</p>
-    <div class="form" style="padding:0">${encrypted ? `<label for="rsPw">Password of the copy</label><input id="rsPw" type="password" autocomplete="off" placeholder="${EXPORT && EXPORT.passwordSet ? 'Empty: the one set on this server' : 'The password it was made with'}">` : ''}<label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
+  modal(html`<div class="mh">Restore a backup</div><div class="mb"><p class="note">The inventory is replaced with the backup from ${label}. The current state is backed up first, so the restore can be undone from the list.</p>
+    <div class="form" style="padding:0">${encrypted ? html`<label for="rsPw">Password of the copy</label><input id="rsPw" type="password" autocomplete="off" placeholder="${EXPORT && EXPORT.passwordSet ? 'Empty: the one set on this server' : 'The password it was made with'}">` : ''}<label for="rsWord">Type RESTORE to confirm</label><input id="rsWord" autocomplete="off"></div></div>
     <div class="mf"><button id="rsCancel">Cancel</button><button id="rsOk" class="danger-text" disabled>Restore</button></div>`, 'sm');
   $('#rsCancel').onclick = closeModal;
   $('#rsWord').oninput = () => { $('#rsOk').disabled = $('#rsWord').value !== 'RESTORE'; };
@@ -234,9 +236,9 @@ function healthPanel(){
   const worst = checks.some(c => c.state === 'bad') ? 'bad' : checks.some(c => c.state === 'warn') ? 'warn' : 'ok';
   const areas = [...new Set(checks.map(c => c.area))];
   const head = { ok: 'Everything is in order', warn: 'Something needs a look', bad: 'Something needs action' }[worst];
-  return `<div class="panelbox hl-${worst}"><div class="hdr">Health <span class="chip ${HEALTH_CHIP[worst][0]}">${esc(head)}</span></div>
-    <div class="hl-tools"><span class="muted">Checked ${esc(HEALTH.at ? dateTimeText(HEALTH.at) : '')}</span><button id="hlAgain" class="mini">Check again</button></div>
-    ${areas.map(a => `<div class="side-sub hl-area">${esc(a)}</div><div class="hl-list">${checks.filter(c => c.area === a).map(c => `<div class="hl-row"><span class="chip ${HEALTH_CHIP[c.state][0]}">${HEALTH_CHIP[c.state][1]}</span>${hlTarget(c) ? `<button type="button" class="link hl-go" data-hlgo="${esc(c.area)}|${esc(c.name)}" title="Go to where this is set">${esc(c.name)}</button>` : `<b>${esc(c.name)}</b>`}<span class="hl-val">${esc(c.value)}${c.note ? `<small>${esc(c.note)}</small>` : ''}</span></div>`).join('')}</div>`).join('')}</div>`;
+  return html`<div class="panelbox hl-${worst}"><div class="hdr">Health <span class="chip ${HEALTH_CHIP[worst][0]}">${head}</span></div>
+    <div class="hl-tools"><span class="muted">Checked ${HEALTH.at ? dateTimeText(HEALTH.at) : ''}</span><button id="hlAgain" class="mini">Check again</button></div>
+    ${areas.map(a => html`<div class="side-sub hl-area">${a}</div><div class="hl-list">${checks.filter(c => c.area === a).map(c => html`<div class="hl-row"><span class="chip ${HEALTH_CHIP[c.state][0]}">${HEALTH_CHIP[c.state][1]}</span>${hlTarget(c) ? html`<button type="button" class="link hl-go" data-hlgo="${c.area}|${c.name}" title="Go to where this is set">${c.name}</button>` : html`<b>${c.name}</b>`}<span class="hl-val">${String(c.value ?? '')}${c.note ? html`<small>${c.note}</small>` : ''}</span></div>`)}</div>`)}</div>`;
 }
 /* The weekly e-mail to the admins (server/digest.js): set up on the server (NI_SMTP_*), turned on and addressed here. */
 let DIGEST = null;
@@ -297,7 +299,7 @@ function wireDigest(){
   $('#dgSend').onclick = async () => { try { await call('PUT', 'api/digest', body()); DIGEST = await call('POST', 'api/digest/send'); toast('Sent'); } catch (e) { toast(e.message); DIGEST = null; } renderSetMaint(); };
   $('#dgPreview').onclick = async () => {
     try { const j = await call('GET', 'api/digest/preview');
-      modal(`<div class="mh">${esc(j.subject)}</div><div class="mb"><pre class="dg-pre">${esc(j.text)}</pre></div><div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
+      modal(html`<div class="mh">${j.subject}</div><div class="mb"><pre class="dg-pre">${j.text}</pre></div><div class="mf"><button id="dgClose" class="primary">Close</button></div>`, 'wide');
       $('#dgClose').onclick = () => { closeModal(); }; } catch (e) { toast(e.message); }
   };
 }
@@ -363,7 +365,7 @@ export function renderSetMaint(){
     return;
   }
   if (part === 'mail'){ $('#setMaint').innerHTML = edit ? digestPanel() : '<p class="note" style="padding:12px">Only an admin sets up the e-mail.</p>'; if (edit) wireDigest(); return; }
-  $('#setMaint').innerHTML = `${edit ? healthPanel() : ''}${certPanel()}${edit ? photosShrinkPanel() : ''}`;
+  $('#setMaint').innerHTML = html`${edit ? rawHtml(healthPanel()) : ''}${rawHtml(certPanel())}${edit ? rawHtml(photosShrinkPanel()) : ''}`;
   wireCertPanel(() => { if ($('#setMaint')) renderSetMaint(); });
   wirePhotosShrink();
   $('#setMaint').querySelectorAll('[data-hlgo]').forEach(b => b.onclick = () => { const [area, name] = b.dataset.hlgo.split('|'); const c = HEALTH && HEALTH.checks.find(x => x.area === area && x.name === name); healthGo(c || { area, name }); });

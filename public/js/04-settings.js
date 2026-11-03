@@ -10,8 +10,9 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $, LS_ON, TYPES, fullTextTooltips, byId, esc, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
+import { html } from './html.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
 export * from './settings-feed.js';
@@ -104,10 +105,10 @@ export function renderSetPane(){
 export async function renderSetAbout(){
   const version = await loadVersion();
   if (!$('#setAbout')) return;   /* Settings was closed while the version was loading */
-  $('#setAbout').innerHTML = `<div class="panelbox" style="padding:12px 14px">
+  $('#setAbout').innerHTML = html`<div class="panelbox" style="padding:12px 14px">
     <div class="muted" style="font-size:12px;line-height:1.6">
       <div class="brandmark" style="margin-bottom:8px;color:var(--fg)"><img src="logo.svg" alt=""><div><b>NOBS</b> <span>Inventory</span></div></div>
-      Version ${esc(version || 'unknown')}<br>
+      Version ${version || 'unknown'}<br>
       An inventory of PCs, servers, phones, switches and other devices, with their relations.<br>
       <i>No BS, just inventory.</i><br>
       Copyright &copy; 2026 Viktor Ljuca
@@ -122,7 +123,7 @@ export async function renderSetAbout(){
     </div>
     <div class="hdr" style="margin:14px -14px 8px">Links</div>
     <div style="display:grid;grid-template-columns:70px 1fr;gap:2px 12px;font-size:13px;line-height:1.7;overflow-wrap:anywhere">
-      ${[['Website', 'https://monsama.ch'], ['Source', 'https://github.com/monsama/nobs-inventory'], ['License', 'https://www.gnu.org/licenses/gpl-3.0.html']].map(([k, u]) => `<span class="muted">${k}</span><a class="link" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`).join('')}
+      ${[['Website', 'https://monsama.ch'], ['Source', 'https://github.com/monsama/nobs-inventory'], ['License', 'https://www.gnu.org/licenses/gpl-3.0.html']].map(([k, u]) => html`<span class="muted">${k}</span><a class="link" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`)}
     </div>
     <div style="margin-top:12px"><a class="btnlike" href="https://buymeacoffee.com/monsama" target="_blank" rel="noopener noreferrer" title="If NOBS Inventory saves you some time"><svg class="i" viewBox="0 0 24 24"><path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/></svg>Buy me a coffee</a></div>
     <div class="hdr" style="margin:14px -14px 8px">Third party</div>
@@ -219,18 +220,18 @@ export function rackCheck(rackId, u, h, exceptId){
 export function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and the source mark and menu columns stay free. */
-  const slot = '<span class="fsrc-slot" aria-hidden="true"></span>' + (isAdmin() ? '<span class="fm-slot" aria-hidden="true"></span>' : '');
-  return `<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => `<option value="${esc(r.id)}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>${slot}</div>
+  const slot = html`<span class="fsrc-slot" aria-hidden="true"></span>${isAdmin() ? html`<span class="fm-slot" aria-hidden="true"></span>` : ''}`;
+  return String(html`<label for="rk_rack">Rack</label><div class="ctlrow"><select id="rk_rack" data-rk="rack"><option value="">Not in a rack</option>${racksList().map(r => html`<option value="${r.id}" ${o.rack===r.id && o.u!=null && !o.ontop ? 'selected' : ''}>${r.name}</option>`)}</select>${slot}</div>
     <div class="rk-mount" ${o.rack && o.u != null && !o.ontop ? '' : 'hidden'}><label>Mounted at</label><div class="ctlrow"><div class="rkrow"><span class="muted">U</span><input type="number" min="1" data-rk="u" value="${o.u ?? ''}" style="width:64px" aria-label="Start U"><span class="muted">height</span><input type="number" min="1" data-rk="h" value="${o.h ?? TYPE_U[o.type] ?? 1}" style="width:64px" aria-label="Height in U"><span class="muted">U</span></div>${slot}</div></div>
-    <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => `<option value="${esc(x.id)}" ${o.ontop===x.id ? 'selected' : ''}>${esc(x.name)} · U${x.u}</option>`).join('')}</select>${slot}</div>`;
+    <label for="rk_top">Or on top of</label><div class="ctlrow"><select id="rk_top" data-rk="ontop"><option value="">Nothing</option>${objs.filter(x => x.id !== o.id && x.rack && x.u != null && !x.ontop && RACKABLE.includes(x.type)).map(x => html`<option value="${x.id}" ${o.ontop===x.id ? 'selected' : ''}>${x.name} · U${x.u}</option>`)}</select>${slot}</div>`);
 }
 /* Mount device…: pick a rack device that has no rack yet, a start U and a height. */
 export function mountModal(){
   const free = objs.filter(o => RACKABLE.includes(o.type) && !o.rack && !(o.type === 'server' && o.kind === 'vm'));
   if (!free.length){ toast('Every rackable device is already in a rack.'); return; }
-  modal(`<div class="mh">Mount device in ${esc(rackOf(st.rackId).name)}</div>
+  modal(html`<div class="mh">Mount device in ${rackOf(st.rackId).name}</div>
     <div class="mb"><div class="form" style="padding:0">
-      <label for="mdDev">Device</label><select id="mdDev">${free.map(o => `<option value="${esc(o.id)}">${esc(o.name)} · ${esc(TYPES[o.type].label)}</option>`).join('')}</select>
+      <label for="mdDev">Device</label><select id="mdDev">${free.map(o => html`<option value="${o.id}">${o.name} · ${TYPES[o.type].label}</option>`)}</select>
       <label for="mdU">Start U</label><input id="mdU" type="number" min="1" value="${rackUnits(rackOf(st.rackId))}">
       <label for="mdH">Height</label><input id="mdH" type="number" min="1" value="${TYPE_U[free[0].type] ?? 1}">
     </div><p class="note" id="mdErr"></p></div>
