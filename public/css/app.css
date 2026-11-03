@@ -749,6 +749,15 @@ table.grid tr.fr input{width:100%;height:22px;font-weight:400;font-size:11px;pad
 .tf-fixed{font-size:12px}
 .tf-note-k{font-size:12px;white-space:nowrap}
 .tf-row .fl-move button{height:24px;width:26px;padding:0}
+/* On a phone a field takes two lines: the arrows, its name and the bin on the first, its note, how many have it and
+   Shown on the second, so the name keeps its width. */
+@media (max-width:760px){
+  .tf-row{grid-template-columns:62px minmax(0,1fr) auto auto 30px;row-gap:2px;padding:6px}
+  .tf-row.tf-head{display:none}
+  .tf-row>:nth-child(2){grid-column:2/5;grid-row:1} .tf-row>:nth-child(6){grid-column:5;grid-row:1}
+  .tf-row>:nth-child(3){grid-column:2;grid-row:2;padding-left:7px;white-space:normal} .tf-row>:nth-child(4){grid-column:3;grid-row:2} .tf-row>:nth-child(5){grid-column:4;grid-row:2}
+  .tf-list>.tf-row:not(.tf-head)+.tf-row{border-top:1px solid var(--bd2);border-radius:0}
+}
 .tf-add{border-top:1px solid var(--bd2)}
 #setPane .panelbox>.hdr+.note:not(.lempty),#setPane .panelbox>.hdr+div>p.note:first-child:not(.lempty),.modal .panelbox>.hdr+.note{margin:0;padding:9px 12px!important;background:var(--sub);border-bottom:1px solid var(--bd2);color:var(--muted)}
 .face{padding:14px;overflow-x:auto}
@@ -1481,7 +1490,6 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 .ds-srcs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 12px}
 .ds-srcbtn{display:inline-flex;align-items:center;gap:8px;height:auto;min-height:32px;padding:4px 12px}
 .ds-subhdr{padding:12px 12px 4px;font-weight:600;border-top:1px solid var(--bd2);margin-top:10px}
-.ds-beyond-src{margin:6px 12px 12px}
 @media (max-width:760px){table.stack.ds-matrix td.ds-act{width:auto}table.stack.ds-matrix td.ds-act>button{justify-self:start}}
 .ds-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:10px 12px 12px}
 .ds-card{border:1px solid var(--bd);border-radius:var(--r-m);padding:10px 12px;background:var(--bg);min-width:0}
@@ -1800,6 +1808,8 @@ table.stack>tbody>tr>td{max-width:none}
 
 /* Explanations and step lists folded behind their title (0.9.88) */
 details.how{margin:6px 0}
+/* Directly in a panel: the panel's own 12px on both sides, as the notes and lists in it have. */
+.panelbox>details.how.ds-beyond-src{margin:6px 12px 12px}
 details.how>summary{cursor:pointer;font-size:12.5px;color:var(--linktext);padding:2px 0;width:max-content;max-width:100%}
 details.how[open]>summary{margin-bottom:4px}
 .panelbox>details.how.u-how,.panelbox>details.how.ds-how{margin:0;padding:8px 12px 0}
