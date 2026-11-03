@@ -336,6 +336,8 @@ function replayLocal({ puts, dels }, skip){
   for (const c of puts){
     if (skip.includes(c.key)) continue;
     const v = JSON.parse(c.json);
+    /* A change kept by a page from before 0.9.88 can still say Not in use or In repair: In stock now, as on the server. */
+    if (c.kind === 'object' && (v.status === 'unused' || v.status === 'repair')) v.status = 'stock';
     if (c.kind === 'object'){ for (const a of [objs, REVIEW]){ const i = a.findIndex(x => x.id === c.id); if (i >= 0) a.splice(i, 1); } (v.review ? REVIEW : objs).push(v); n++; }
     else if (lists[c.kind]){ const a = lists[c.kind], i = a.findIndex(x => String(x.id) === c.id); if (i >= 0) a[i] = v; else a.push(v); n++; }
     else if (maps[c.kind]){ maps[c.kind][c.id] = v; n++; }

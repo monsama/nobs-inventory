@@ -41,7 +41,8 @@ try {
 
   // from the device: found by part of the name, handed out, in use with her
   await open('n1'); await p.waitForSelector('#handOutBtn');
-  assert.equal(await p.locator('.stk-note').count(), 0, 'no "Not confirmed on site yet" before any stocktake');
+  assert.equal(await p.locator('text=Not confirmed on site yet').count(), 0, 'no "Not confirmed on site yet" before any stocktake');
+  assert.equal(await p.locator('[data-verify="n1"]').count(), 1, 'but it can be confirmed on its own page');
   await p.click('#handOutBtn'); await p.waitForSelector('#hoQ');
   assert.equal(await p.isDisabled('#hoOk'), true, 'nobody picked yet');
   await p.fill('#hoQ', 'mus');

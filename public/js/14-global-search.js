@@ -91,7 +91,7 @@ function pick(i){
 box.setAttribute('role', 'combobox'); box.setAttribute('aria-controls', 'gsList'); box.setAttribute('aria-expanded', 'false'); box.setAttribute('aria-autocomplete', 'list');
 /* On a list (Cards, Table, Relationships) the same field also narrows the list as one types (st.q, shown as a Filter
    chip over it): one field, not two. Escape closes the hits and keeps the filter; a second Escape clears both. */
-const LIST = ['cards', 'table', 'map'];
+const LIST = ['cards', 'table', 'map', 'plans'];
 const onList = () => LIST.includes(st.tab);
 /* The hits show at once; the list is drawn again once typing pauses (a big Table takes a moment to draw). */
 let redraw = 0;

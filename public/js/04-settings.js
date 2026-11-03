@@ -37,9 +37,9 @@ export function openSettings(){
     <div id="setTabs"><div class="settabs">${TOP_TABS.map(([k,l]) => SET_GROUPS[k] ? `<button class="tab" data-sg="${k}">${l}</button>` : `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>
       ${Object.entries(SET_GROUPS).map(([g, list]) => `<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => `<button class="tab" data-st="${k}">${l}</button>`).join('')}</div>`).join('')}</div>
     <div class="mb" id="setPane"></div>
-    <div class="mf"><button type="button" class="link" id="setAbout" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
+    <div class="mf"><button type="button" class="link" id="setAboutBtn" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
   const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? g.dataset.sg : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
-  $('#setTabs').addEventListener('click', go); $('#setAbout').addEventListener('click', go);
+  $('#setTabs').addEventListener('click', go); $('#setAboutBtn').addEventListener('click', go);
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;
   renderSetPane();

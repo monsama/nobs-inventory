@@ -314,11 +314,16 @@ export function renderTabs(){
 }
 /* Moved the way NOBS SQL does it: after the target when moving right, before it when moving left. */
 export function reorderTabs(src, tgt){
-  const arr = st.tabIds, a = arr.indexOf(src), b = arr.indexOf(tgt);
+  /* A grouped tab (Devices, Contracts) moves with all its views, and lands before or after the whole target group. */
+  const members = id => TAB_GROUP_OF[id] ? TAB_GROUPS[TAB_GROUP_OF[id]][1] : [id];
+  const move = members(src), arr = st.tabIds, onto = members(tgt);
+  if (move.includes(tgt)) return;
+  const a = arr.findIndex(x => move.includes(x)), b = arr.findIndex(x => onto.includes(x));
   if (a < 0 || b < 0) return;
-  arr.splice(a, 1);
-  const nb = arr.indexOf(tgt);
-  arr.splice(a < b ? nb + 1 : nb, 0, src);
+  const kept = arr.filter(x => !move.includes(x)), at = kept.findIndex(x => onto.includes(x));
+  const atEnd = at + onto.filter(x => kept.includes(x)).length;
+  kept.splice(a < b ? atEnd : at, 0, ...move.filter(x => arr.includes(x)));
+  st.tabIds = kept;
   view();
 }
 export function closeObjTab(id){

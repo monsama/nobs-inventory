@@ -402,7 +402,7 @@ export function renderObj(o){
   /* Short by default: the fields that say what and where a device is, and the others only where they hold something;
      "Show all fields" lists the empty ones too (remembered in this browser). */
   const valOf = f => (f[0].startsWith('custom.') ? (o.custom || {})[f[0].slice(7)] : o[f[0]]);
-  const emptyF = f => !KEY_FIELDS.includes(f[0]) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
+  const emptyF = f => !KEY_FIELDS.includes(f[0]) && !(st.addPorts === o.id && ['ports', 'pfx'].includes(f[0])) && (() => { const v = valOf(f); return v === undefined || v === null || v === '' || v === 0 || (Array.isArray(v) && !v.length); })();
   const nEmpty = fields.filter(emptyF).length, allF = allFields();
   if (!allF) fields = fields.filter(f => !emptyF(f));
   const edit = canEdit(), menuSlot = edit ? '<span class="fm-slot" aria-hidden="true"></span>' : '';
