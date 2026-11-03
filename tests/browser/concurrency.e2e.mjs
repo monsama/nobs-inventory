@@ -77,7 +77,7 @@ try {
   await a.evaluate(async () => { const __mods = await Promise.all([import('/js/07-render.js')]); return (__mods[0].checkForChanges()); });
   await a.evaluate(async t => { (await import('/js/01-core.js')).st.tab = t; (await import('/js/07-render.js')).view(); }, 'table');
   await a.locator('table.grid td b', { hasText: /^MON-0433$/ }).first().click();
-  await a.click('details.menu > summary'); await a.click('#purgeBtn'); await a.click('#pgOk');
+  await a.click('.menu > .menu-btn'); await a.click('#purgeBtn'); await a.click('#pgOk');
   await waitServer(() => !serverObj('MON-0433'), 'the deletion');
   const asked = [];
   b.on('request', q => { if (q.url().includes('/api/state')) asked.push(q.url()); });

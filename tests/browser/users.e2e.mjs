@@ -52,7 +52,7 @@ try {
   }
   assert.equal(role, 'admin', 'the promotion is saved on the server');
 
-  await page.locator('tr', { has: page.locator('[data-pw="1"]') }).locator('.umenu > summary').click();
+  await page.locator('tr', { has: page.locator('[data-pw="1"]') }).locator('.umenu > .menu-btn').click();
   await page.locator('[data-pw="1"]').click();
   await page.fill('#pwNew', 'short');
   await page.click('#pwOk'); await page.waitForTimeout(200);

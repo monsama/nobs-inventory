@@ -1,7 +1,7 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
-import { LOCS, REVIEW, $, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
+import { LOCS, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
@@ -289,10 +289,6 @@ document.addEventListener('keydown', e => {
   const ok = m.querySelector('.mf button.primary:not(:disabled), .mf button[id$="Ok"]:not(:disabled)');
   if (ok){ e.preventDefault(); ok.click(); }
 });
-/* An open menu (a field's, or More in a toolbar) closes on a click beside it. */
-document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
-/* Esc closes an open menu first, and only that. */
-document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const d = document.querySelector('details.fmenu[open], details.menu[open]'); if (d){ e.preventDefault(); e.stopImmediatePropagation(); d.open = false; d.querySelector('summary').focus(); } }, true);
 /* Fields every object keeps on its page: they cannot be hidden or cleared. */
 export const FIXED_FIELDS = ['name', 'type', 'status', 'loc'];
 /* Counts and sizes: emptying them is setting a number, so they are not offered to clear. */
@@ -310,7 +306,7 @@ export function fieldMenu(o, f, hiddenBy = ''){
     : [b('hide', 'Hide on this device'), b('hidetype', `Hide on every ${esc(t)}`),
        NO_CLEAR.includes(k) ? '' : b('clear', 'Clear value…', empty ? 'disabled title="The field is empty"' : ''),
        own ? b('delete', `Delete field from ${esc(t)}…`) : ''];
-  return `<details class="menu fmenu"><summary aria-label="Options for ${esc(f[1])}" title="Field options">⋯</summary><div class="menubox">${items.join('')}</div></details>`;
+  return menuHtml('⋯', items.join(''), { cls: 'fmenu', btn: `aria-label="Options for ${esc(f[1])}" title="Field options"` });
 }
 /* When a device was last saved here, for the toolbar: the time today, else the day. */
 export const savedAt = iso => { const d = new Date(iso), t = new Date(); return d.toDateString() === t.toDateString() ? d.toTimeString().slice(0, 5) : dateText(d); };

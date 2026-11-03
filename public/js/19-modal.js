@@ -1,6 +1,6 @@
-/* Dialogs: one at a time over the page, minimized to a chip in a tray, Escape and Tab kept inside; a dialog opened
-   from Settings brings Settings back when it closes. */
-import { $, esc, fullTextTooltips, toast } from './01-core.js';
+/* Dialogs: one at a time over the page (a native modal <dialog>), minimized to a chip in a tray; a dialog opened from
+   Settings brings Settings back when it closes. */
+import { $, esc, fullTextTooltips, keepToastOnTop, toast } from './01-core.js';
 import { applyRole } from './04-settings.js';
 import { checkForChanges, render } from './07-render.js';
 import { bindPolicy } from './03-object-modals.js';
@@ -14,16 +14,25 @@ export const setSettingsOpener = fn => { settingsOpener = fn; };
 export const leaveSettings = () => { backToSettings = false; };
 export function modal(html, cls=''){
   /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
-  const gone = $('#mdl.minimized .box'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
+  const gone = $('#mdl.minimized'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
   if (/\bsettings\b/.test(cls)) backToSettings = false;
   else if ($('#mdl:not(.minimized) #setPane')) backToSettings = true;
   /* The control that opened the first dialog gets the focus back; one replaced while minimized does not keep it. */
   if (!$('#mdl') || gone) modalOpener = gone ? null : document.activeElement;
   /* The dialog is named by its heading, so a screen reader says what it is. */
   const title = ((html.match(/<div class="mh"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || 'Dialog').replace(/<[^>]+>/g, '').trim();
-  $('#modalHost').innerHTML = `<div class="modal" id="mdl"><div class="box ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}">${html}</div></div>`;
-  if (!/locked/.test(cls)) $('#mdl').addEventListener('mousedown', e => { if (e.target.id === 'mdl') closeModal(); });
-  if (!/locked/.test(cls)) addWindowControls($('#mdl'));
+  keepToastOnTop(true);
+  $('#modalHost').innerHTML = `<dialog class="modal" id="mdl" aria-label="${esc(title)}"><div class="box ${cls}">${html}</div></dialog>`;
+  const d = $('#mdl'), locked = /locked/.test(cls);
+  /* The browser's top layer keeps Tab inside and the page behind inert. Escape asks to close (cancel), which goes
+     through closeModal like the × does; one that must be answered stays. An Escape that closed something inside the
+     dialog first (an open list) does not get here. */
+  d.addEventListener('cancel', e => { e.preventDefault(); if (!locked) closeModal(); });
+  /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
+  d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) d.showModal(); else closeModal(); } });
+  if (!locked) d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); });
+  if (!locked) addWindowControls(d);
+  d.showModal(); keepToastOnTop();
   renderTray();
   bindPolicy($('#mdl'));
   fullTextTooltips($('#mdl'));
@@ -66,7 +75,7 @@ const keepPlace = (key, xy) => { try { const all = places(); if (xy) all[key] = 
 function makeMovable(m){
   const head = m.querySelector('.mh'), box = m.querySelector('.box');
   if (!head || box.classList.contains('settings') || box.querySelector('#setPane')) return;
-  const key = box.getAttribute('aria-label') || 'Dialog';
+  const key = m.getAttribute('aria-label') || 'Dialog';
   const fixed = () => box.classList.contains('maxed') || matchMedia('(max-width:760px)').matches;
   let x = 0, y = 0;
   const place = (nx, ny) => { x = nx; y = ny; box.style.transform = x || y ? `translate(${x}px, ${y}px)` : ''; };
@@ -91,15 +100,16 @@ function makeMovable(m){
   });
   head.addEventListener('dblclick', e => { if (!e.target.closest('button, input, select, textarea, a, .wctl')) { const b = head.querySelector('.wc-max'); if (b) b.click(); } });
 }
+/* A minimized dialog is closed (not modal), so the page works while it waits; restoring makes it modal again. */
 export function minimizeModal(){
   const m = $('#mdl'); if (!m) return;
-  m.classList.add('minimized');
+  m.classList.add('minimized'); m.close(); keepToastOnTop();
   const back = modalOpener; if (back && document.contains(back)) back.focus();
   renderTray();
 }
 export function restoreModal(){
   const m = $('#mdl'); if (!m) return;
-  m.classList.remove('minimized'); renderTray();
+  m.classList.remove('minimized'); m.showModal(); keepToastOnTop(); renderTray();
   const first = m.querySelector('.mb input, .mb select, .mb textarea, .mb button, button'); if (first) first.focus();
 }
 /* The chip of a minimized dialog: its title restores it, the × closes it. */
@@ -108,7 +118,7 @@ function renderTray(){
   const m = $('#mdl.minimized');
   if (!m){ if (tray) tray.remove(); return; }
   if (!tray){ tray = document.createElement('div'); tray.id = 'mdlTray'; document.body.appendChild(tray); }
-  const title = m.querySelector('.box').getAttribute('aria-label') || 'Dialog';
+  const title = m.getAttribute('aria-label') || 'Dialog';
   tray.innerHTML = `<span class="tray-chip"><button type="button" class="tray-open" title="${esc(title)}: restore">${esc(title)}</button><button type="button" class="tray-x" title="Close" aria-label="Close ${esc(title)}">×</button></span>`;
   tray.querySelector('.tray-open').onclick = restoreModal;
   tray.querySelector('.tray-x').onclick = closeModal;
@@ -118,21 +128,10 @@ export let modalOpener = null;
 /* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
 export const closeModal = () => {
   const wasSettings = !!$('#modalHost #setPane');
+  keepToastOnTop(true);
   $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();
   renderTray();
   /* While Settings was open the page did not look for changes on the server (a push, someone else): it does now. */
   if (wasSettings){ render(); checkForChanges(); }
   else if (backToSettings && settingsOpener){ backToSettings = false; render(); settingsOpener(); }
 };
-document.addEventListener('keydown', e => {
-  if (!$('#mdl') || $('#mdl.minimized')) return;
-  /* Escape that closed something inside the dialog (an open list) does not also close the dialog. */
-  if (e.key === 'Escape' && (e.defaultPrevented || $('#mdl .locked'))) return;
-  if (e.key === 'Escape' && !$('#mdl .locked')) closeModal();
-  if (e.key !== 'Tab') return;
-  const f = [...$('#mdl .box').querySelectorAll('button:not([disabled]), input:not([disabled]), select, textarea')];
-  if (!f.length) return;
-  const first = f[0], last = f[f.length - 1];
-  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
-});

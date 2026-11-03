@@ -78,7 +78,7 @@ try {
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'cards'; (await import('/js/07-render.js')).render(); });
   assert.equal(await p.locator('#tabsbar [data-tab=map]').count(), 0, 'no Relationships tab of its own');
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('o2')); await p.waitForSelector('#relMapBtn', { state: 'attached' });
-  await p.locator('details.menu', { has: p.locator('#relMapBtn') }).locator('summary').click();
+  await p.locator('.menu', { has: p.locator('#relMapBtn') }).locator('.menu-btn').click();
   await p.click('#relMapBtn'); await p.waitForSelector('#mapFocus');
   assert.equal(await p.inputValue('#mapFocus'), 'o2');
   assert.equal(await p.locator('#tabsbar [data-tab=map].active').count(), 1);

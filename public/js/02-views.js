@@ -7,7 +7,7 @@ import { nextTask } from './maintenance.js';
 import { respText, setResponsible } from './11-contacts.js';
 import { CONTACT_KINDS, contactLabel } from './contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { QUALITY, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
+import { menuHtml, QUALITY, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, pickHand, twinOf, markHand, FIELD_LABEL, sourceText, REVIEW, lastSeenOf, GRAPH_STALE_DAYS, seenChip, CONTACTS, contactOf, GRAPH_TYPES, joinBadges, feedLinked, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, scanChip, LS_ON, LS_USED, relIndex, FIELD_LAYOUT, WARRANTY_SOON_DAYS, warrantyState, dayText, graphChip, isAttached, markHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, O, SITES, STATUS, TYPES, byId, esc, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, portLabel, rels, relsOf, st, syncChip, tcol, tico, toast, used } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -345,8 +345,9 @@ export function closeObjTabs(keep){
   if (!FIXED_TABS[st.tab] && st.tab !== keep) st.tab = keep || 'cards';
   view();
 }
+/* The menu of a tab is a popover at the pointer: a click beside it or Escape closes it, and it is then gone. */
 export let tabMenu = null;
-export function hideTabMenu(){ if (tabMenu){ tabMenu.remove(); tabMenu = null; } }
+export function hideTabMenu(){ if (tabMenu){ const m = tabMenu; tabMenu = null; m.remove(); } }
 /* A menu opens at the pointer, but never past the window edge: it moves left or up to stay whole. */
 function placeMenu(el, x, y){
   const w = el.offsetWidth, h = el.offsetHeight, m = 8;
@@ -356,13 +357,13 @@ function placeMenu(el, x, y){
 export function showTabMenu(e, id){
   e.preventDefault(); hideTabMenu();
   tabMenu = document.createElement('div');
-  tabMenu.className = 'tabmenu';
+  tabMenu.className = 'tabmenu'; tabMenu.popover = 'auto';
   const others = st.open.some(x => x !== id);
   tabMenu.innerHTML = `<button data-a="close">Close tab</button><button data-a="others" ${others ? '' : 'disabled'}>Close other tabs</button><button data-a="all">Close all tabs</button>`;
-  tabMenu.style.visibility = 'hidden';
   document.body.appendChild(tabMenu);
+  const m = tabMenu; m.addEventListener('toggle', ev => { if (ev.newState === 'closed' && tabMenu === m) hideTabMenu(); });
+  tabMenu.showPopover();
   placeMenu(tabMenu, e.clientX, e.clientY);
-  tabMenu.style.visibility = '';
   tabMenu.addEventListener('click', ev => {
     const a = ev.target.dataset.a; hideTabMenu();
     if (a === 'close') closeObjTab(id);
@@ -370,8 +371,6 @@ export function showTabMenu(e, id){
     if (a === 'all') closeObjTabs(null);
   });
 }
-document.addEventListener('click', hideTabMenu);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTabMenu(); });
 const onTabClick = e => {
   flushSearch();
   if (e.target.closest('#closeAllTabs')){ closeObjTabs(null); return; }
@@ -743,9 +742,9 @@ let colPickOpen = false;
 const presetOn = (shown, hidden) => tableCols().filter(c => !c.fixed).every(c => shown.includes(c.k) !== hidden.includes(c.k));
 export function columnsMenu(){
   const hidden = hiddenCols();
-  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox colmenu">
+  return menuHtml('Columns', `
     <div class="colpresets" role="group" aria-label="Column sets">${Object.entries(COL_PRESETS).map(([k, [l, shown]]) => `<button type="button" data-colpreset="${k}" class="${presetOn(shown, hidden) ? 'on' : ''}" aria-pressed="${presetOn(shown, hidden)}">${l}</button>`).join('')}</div>
-    <details class="colpick" id="colPick" ${colPickOpen ? 'open' : ''}><summary>Choose columns…</summary><div class="colpick-list">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details></div></details>`;
+    <details class="colpick" id="colPick" ${colPickOpen ? 'open' : ''}><summary>Choose columns…</summary><div class="colpick-list">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`, { id: 'colMenu', boxCls: 'colmenu' });
 }
 
 /* A field's cell says where its value came from in its hover text (the device page shows it as a mark). */
@@ -774,7 +773,7 @@ const QUALITY_FIX = {
 let QFIX = null;
 export function renderTable(){
   let list = filtered();
-  const colOpen = !!($('#colMenu') && $('#colMenu').open);
+  const colOpen = !!$('#colMenu .menubox:popover-open');
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
@@ -783,14 +782,14 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
 ${isAdmin() ? `<optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}` : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
-  if (colOpen) $('#colMenu').open = true;
+  if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
   $('#toolbar').querySelectorAll('[data-colpreset]').forEach(b => b.onclick = () => {
     const shown = COL_PRESETS[b.dataset.colpreset][1];
     setHiddenCols(tableCols().filter(c => !c.fixed && !shown.includes(c.k)).map(c => c.k));
     /* A set is a whole choice: the menu closes on it, so the table (and a selection bar under it) shows. */
-    $('#colMenu').open = false; renderTable();
+    $('#colMenu .menubox').hidePopover(); renderTable();
   });
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();

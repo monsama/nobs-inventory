@@ -47,7 +47,7 @@ try {
   assert.match(await page.getAttribute('.company-logo img', 'src'), /^data:image\/png;base64,/);
   await openSetTab(page, 'users');
   const row = page.locator('#setUsers tr', { hasText: 'Anna Muster' });
-  await row.locator('.umenu > summary').click(); await row.locator('[data-sheet]').click();
+  await row.locator('.umenu > .menu-btn').click(); await row.locator('[data-sheet]').click();
   await page.waitForSelector('#sheetMake');
   assert.equal(await page.inputValue('#sheetLogin'), 'amuster', 'the sign-in name is filled in from the directory');
   assert.deepEqual(await page.locator('[data-sdev]').evaluateAll(cs => cs.map(c => c.dataset.sdev)), ['o1', 'o2'], 'the person\'s devices, no others');

@@ -130,10 +130,10 @@ table.locs td.site{color:var(--muted)}
 .fsrc-pop{position:absolute;z-index:1000;max-width:280px;padding:6px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--fg);color:var(--bg);font-size:12px;line-height:1.35;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none}
 /* The ⋯ menu of a field: quiet until the row is pointed at or the menu has focus. */
 .fm-slot{display:inline-block;width:26px;flex:none}
-details.fmenu{flex:none;width:26px}
-details.fmenu>summary{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
-.ctlrow:hover>details.fmenu>summary,details.fmenu>summary:focus-visible,details.fmenu[open]>summary{border-color:var(--bd);background:var(--btn);color:var(--fg)}
-details.fmenu .menubox{min-width:210px;top:30px}
+.fmenu{flex:none;width:26px}
+.fmenu>.menu-btn{height:26px;width:26px;padding:0;justify-content:center;border-color:transparent;background:transparent;color:var(--muted);font-weight:700}
+.ctlrow:hover>.fmenu>.menu-btn,.fmenu>.menu-btn:focus-visible,.fmenu:has(>:popover-open)>.menu-btn{border-color:var(--bd);background:var(--btn);color:var(--fg)}
+.fmenu .menubox{min-width:210px}
 /* Other network adapters under the MAC address: name, address and details on one row each. */
 .nics{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
 .nics li{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:4px 8px;border-radius:var(--r-s);background:var(--panel2)}
@@ -252,7 +252,7 @@ table.types td input{width:100%;min-width:0;box-sizing:border-box}
 table.types .icondd{display:flex;min-width:0;width:100%}
 table.types td.n,table.types th.n{text-align:right}
 table.types td:last-child,table.types th:last-child{padding-right:12px}
-.tabmenu{position:fixed;z-index:60;display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.tabmenu{position:fixed;inset:auto;margin:0;color:var(--fg);display:flex;flex-direction:column;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .tabmenu button{justify-content:flex-start;border:0;background:transparent;box-shadow:none;height:30px}
 .tabmenu button:hover:not(:disabled){background:var(--hover)}
 .icondd{position:relative;display:inline-block;min-width:200px;max-width:100%}
@@ -262,8 +262,7 @@ table.types td:last-child,table.types th:last-child{padding-right:12px}
 /* The same chevron as every dropdown, in the same place (7px from the right edge). */
 .icondd-btn .icondd-caret{color:var(--muted);width:12px;height:12px;margin-right:-2px}
 .icondd-btn{width:100%;background:var(--in);border-color:var(--bd)}
-.icondd-list{position:fixed;z-index:30;max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
-.icondd-list[hidden]{display:none}
+.icondd-list{position:fixed;inset:auto;margin:4px 0;position-area:bottom span-right;position-try-fallbacks:flip-block;width:anchor-size(width);color:var(--fg);max-height:320px;overflow:auto;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:0 8px 24px rgba(0,0,0,.25);padding:4px}
 .icondd-item{width:100%;border:0;background:transparent;box-shadow:none}
 .icondd-item:hover{background:var(--hover)}
 .icondd-item[aria-selected="true"]{background:var(--panel2);font-weight:600}
@@ -445,7 +444,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-btn.failed{color:var(--danger)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.sync-btn.spinning .i{animation:none}}
-.sync-menu{position:fixed;z-index:60;width:360px;max-width:calc(100vw - 16px);padding:8px;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;font-size:13px}
+.sync-menu{position:fixed;inset:auto;margin:0;width:360px;max-width:calc(100vw - 16px);padding:8px;background:var(--in);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;font-size:13px}
 .sync-menu .sync-all{margin:2px 2px 6px}
 .sync-row{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:var(--r-s)}
 .sync-row:hover{background:var(--hover)}
@@ -991,8 +990,11 @@ a.link:hover{text-decoration:underline}
 /* modal */
 /* Signed out: nothing of the app is drawn behind the sign-in dialog, and the dialog has a solid backdrop. */
 body.signed-out>:not(#modalHost){visibility:hidden}
-body.signed-out #modalHost .modal{background:var(--bg)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+body.signed-out #mdl::backdrop{background:var(--bg)}
+/* A native <dialog> shown modal (19-modal.js): it fills the window, centres its box and dims the page with its backdrop. */
+dialog.modal{position:fixed;inset:0;width:auto;height:auto;max-width:none;max-height:none;margin:0;border:0;background:transparent;color:inherit;overflow:visible;display:flex;align-items:center;justify-content:center;padding:16px}
+dialog.modal:not([open]){display:none}
+dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 .modal .box{position:relative;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-l);box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(860px,100%);max-height:100%;display:flex;flex-direction:column;min-height:0}
 .modal .box.sm{width:min(580px,100%)}
 .modal .box.wide{width:min(1000px,100%)}
@@ -1008,7 +1010,6 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .wctl>button.wc-close:hover,.wctl>button.wc-close:focus-visible{background:var(--danger-bg);color:#fff}
 .modal .box.maxed{width:100%!important;max-width:none;height:100%;max-height:none}
 .modal .box.maxed>.mb{flex:1}
-.modal.minimized{display:none}
 /* A minimized dialog waits here: its title restores it, the × closes it. */
 #mdlTray{position:fixed;right:12px;bottom:32px;z-index:60;display:flex;gap:8px}
 #mdlTray .tray-chip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--panel);box-shadow:var(--shadow);font-size:12px}
@@ -1045,10 +1046,9 @@ body.signed-out #modalHost .modal{background:var(--bg)}
 .collapsed>.sechdr::before{transform:rotate(-90deg)}
 .collapsed>:not(.sechdr){display:none}
 .grp.collapsed>#cards{display:none}
-details.menu{position:relative}
-details.menu>summary{list-style:none;display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);cursor:pointer}
-details.menu>summary::-webkit-details-marker{display:none}
-.menubox{position:absolute;right:0;top:32px;z-index:10;background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px}
+/* A menu is a popover under its button (menuHtml in 01-core.js), right edges in line; it flips when there is no room. */
+.menubox{position:fixed;inset:auto;margin:4px 0;position-area:bottom span-left;position-try-fallbacks:flip-block,flip-inline;color:var(--fg);background:var(--panel);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:4px;min-width:150px;max-height:calc(100vh - 16px);overflow:auto}
+.menubox:not(:popover-open),.tabmenu:not(:popover-open),.sync-menu:not(:popover-open){display:none}
 .menubox button{justify-content:flex-start}
 /* A field locked for someone who may not change it reads as text in a quiet box: no white field, no chevron, no
    calendar or pick-list button, so nothing looks editable. */
@@ -1088,14 +1088,14 @@ table.grid a.rowopen:hover{text-decoration:underline}
 #barMoreBtn{display:none}
 #barMore{display:contents}
 @media (max-width:760px){
- #bar{flex-wrap:nowrap;position:relative}
+ #bar{flex-wrap:nowrap;position:relative;anchor-name:--bar}
  #bar>.grow{display:none}
  #brand{margin-right:0}
  #brand>span{display:none}
  .gs{order:0;flex:1 1 auto;min-width:0;width:auto}
  #barMoreBtn{display:inline-flex}
- #barMore{display:none;position:absolute;right:8px;top:calc(100% + 4px);z-index:40;flex-direction:column;align-items:stretch;gap:2px;min-width:200px;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
- body.bar-more #barMore{display:flex}
+ #barMore{display:none;position:fixed;inset:auto;position-anchor:--bar;position-area:bottom span-left;margin:4px 8px 0 0;color:var(--fg);flex-direction:column;align-items:stretch;gap:2px;min-width:200px;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);box-shadow:var(--shadow)}
+ #barMore:popover-open{display:flex}
  #barMore>*{justify-content:flex-start;width:100%;height:40px;padding:0 10px;border-color:transparent;background:transparent;color:var(--fg);font-weight:400}
  #barMore>*:hover{background:var(--hover)}
  #barMore #coffeeBtn{display:inline-flex}
@@ -1105,7 +1105,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 /* Touch screens: the controls are bigger, so a finger hits the one it means to. The desktop size is unchanged. */
 @media (pointer:coarse){
-  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item,.toolbar details.menu>summary{min-height:40px}
+  button,input:not([type=checkbox]):not([type=radio]),select,.tab,.item{min-height:40px}
   .toolbar .tbsep{display:none}   /* a wrapped toolbar would leave a divider with nothing after it */
   .form>.fieldnote{margin:-8px 0 6px}   /* a field's note stays with its field, not the next label */
   input:not([type=checkbox]):not([type=radio]),select{height:40px}
@@ -1754,18 +1754,17 @@ details.how[open]>summary{margin-bottom:4px}
 .nmore[open]>summary{margin-bottom:8px}
 .ls-adv{margin:0 0 14px}
 .ls-adv>summary{cursor:pointer;padding:10px 4px;color:var(--linktext);font-size:13px}
-.umenu>summary{list-style:none;cursor:pointer;min-width:34px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);border-radius:var(--r-m);background:var(--btn);font-size:16px;line-height:1}
-.umenu>summary::-webkit-details-marker{display:none}
-.umenu .menubox{min-width:190px;z-index:60}
+.umenu>.menu-btn{min-width:34px;min-height:30px;padding:0;border-radius:var(--r-m);font-size:16px;line-height:1}
+.umenu .menubox{min-width:190px}
 .umenu .menubox>a{padding:6px 10px}
-@media (pointer:coarse){.umenu>summary{min-height:40px;min-width:40px}}
+@media (pointer:coarse){.umenu>.menu-btn{min-height:40px;min-width:40px}}
 .menubox>hr.msep{border:0;border-top:1px solid var(--bd);margin:2px 0;width:100%}
 
 /* Simplify round 3 (0.9.90) */
 /* A field's ⋯ menu shows on the row under the mouse or with the focus, not on every row at once (always on touch). */
 @media (hover:hover) and (pointer:fine){
-  .form.props .ctlrow>details.fmenu>summary{opacity:0;transition:opacity .12s}
-  .form.props .ctlrow:hover>details.fmenu>summary,.form.props .ctlrow:focus-within>details.fmenu>summary,.form.props details.fmenu[open]>summary,.form.props details.fmenu>summary:focus-visible{opacity:1}
+  .form.props .ctlrow>.fmenu>.menu-btn{opacity:0;transition:opacity .12s}
+  .form.props .ctlrow:hover>.fmenu>.menu-btn,.form.props .ctlrow:focus-within>.fmenu>.menu-btn,.form.props .fmenu:has(>:popover-open)>.menu-btn{opacity:1}
 }
 .colmenu{min-width:240px;padding:8px}
 .colpresets{display:grid;grid-template-columns:1fr 1fr;gap:6px}
