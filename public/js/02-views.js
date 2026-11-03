@@ -717,9 +717,20 @@ export function setHiddenCols(list){
   st.hiddenCols = list;
   try { localStorage.setItem('ni-hidden-cols', JSON.stringify(list)); } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
 }
+/* Column sets for the usual jobs, and each column on its own under Choose columns (kept open while the menu is). */
+const COL_PRESETS = {
+  basic: ['Basic', ['code', 'type', 'model', 'serial', 'loc', 'user', 'status']],
+  network: ['Network', ['type', 'ip', 'mac', 'loc', 'conn', 'status', 'seen']],
+  lifecycle: ['Lifecycle', ['type', 'model', 'purchased', 'warranty', 'due', 'replPrice', 'maint', 'status']],
+  costs: ['Costs', ['type', 'price', 'supplier', 'invoice', 'purchased', 'replPrice', 'resp']],
+};
+let colPickOpen = false;
+const presetOn = (shown, hidden) => tableCols().filter(c => !c.fixed).every(c => shown.includes(c.k) !== hidden.includes(c.k));
 export function columnsMenu(){
   const hidden = hiddenCols();
-  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details>`;
+  return `<details class="menu" id="colMenu"><summary>Columns</summary><div class="menubox colmenu">
+    <div class="colpresets" role="group" aria-label="Column sets">${Object.entries(COL_PRESETS).map(([k, [l, shown]]) => `<button type="button" data-colpreset="${k}" class="${presetOn(shown, hidden) ? 'on' : ''}" aria-pressed="${presetOn(shown, hidden)}">${l}</button>`).join('')}</div>
+    <details class="colpick" id="colPick" ${colPickOpen ? 'open' : ''}><summary>Choose columns…</summary><div class="colpick-list">${tableCols().map(c => `<label style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" data-col="${c.k}" ${c.fixed ? 'disabled' : ''} ${c.fixed || !hidden.includes(c.k) ? 'checked' : ''}> ${c.label}</label>`).join('')}</div></details></div></details>`;
 }
 
 /* A field's cell says where its value came from in its hover text (the device page shows it as a mark). */
@@ -759,6 +770,13 @@ ${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${me
 ${CONTACTS.list.length && canEdit() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
   if (colOpen) $('#colMenu').open = true;
   bindScopeActs(list);
+  const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
+  $('#toolbar').querySelectorAll('[data-colpreset]').forEach(b => b.onclick = () => {
+    const shown = COL_PRESETS[b.dataset.colpreset][1];
+    setHiddenCols(tableCols().filter(c => !c.fixed && !shown.includes(c.k)).map(c => c.k));
+    /* Drawn anew, the menu stays open (after the click that closes menus elsewhere has passed). */
+    renderTable(); setTimeout(() => { const m = $('#colMenu'); if (m) m.open = true; }, 0);
+  });
   $('#toolbar').querySelectorAll('[data-col]').forEach(c => c.onchange = () => {
     const k = c.dataset.col, hidden = hiddenCols();
     setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);

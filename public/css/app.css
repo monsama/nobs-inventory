@@ -1775,3 +1775,8 @@ details.how[open]>summary{margin-bottom:4px}
   .form.props .ctlrow>details.fmenu>summary{opacity:0;transition:opacity .12s}
   .form.props .ctlrow:hover>details.fmenu>summary,.form.props .ctlrow:focus-within>details.fmenu>summary,.form.props details.fmenu[open]>summary,.form.props details.fmenu>summary:focus-visible{opacity:1}
 }
+.colmenu{min-width:240px;padding:8px}
+.colpresets{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.colpresets>button.on{background:var(--sub);color:var(--linktext);font-weight:600}
+.colpick>summary{cursor:pointer;color:var(--linktext);font-size:13px;padding:6px 2px 2px}
+.colpick-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto;padding-top:6px}
