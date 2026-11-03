@@ -143,6 +143,13 @@ const MANAGED_SELECT = MANAGED_BASE + ',deviceCategoryDisplayName,jailBroken,isS
    from there: hybrid joined. A device joined to the on-premises AD only is not in Graph at all. */
 export const JOIN = { AzureAd: 'Entra joined', ServerAd: 'Hybrid joined', Workplace: 'Entra registered' };
 const clean = v => String(v ?? '').trim();
+/* The model with its maker in front, unless the model already starts with it: Intune gives "HP" and "HP ProDesk 600"
+   for the same device, which would read "HP HP ProDesk 600". */
+export const makerModel = (maker, model) => {
+  const mk = clean(maker), md = clean(model);
+  if (!mk) return md; if (!md) return mk;
+  return md.toLowerCase() === mk.toLowerCase() || md.toLowerCase().startsWith(mk.toLowerCase() + ' ') ? md : mk + ' ' + md;
+};
 const OWNERSHIP = { company: 'Company', personal: 'Personal' };
 const gb = bytes => (Number(bytes) > 0 ? `${Math.round(Number(bytes) / 2 ** 30)} GB` : '');
 
@@ -161,7 +168,7 @@ export function toRecords(devices, managed) {
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',
       owner: clean(m.userPrincipalName), ownerName: clean(m.userDisplayName), os: clean([m.operatingSystem, m.osVersion].filter(Boolean).join(' ')),
       platform: clean(m.operatingSystem), lastCheckIn: clean(m.lastSyncDateTime), lastSignIn: clean(d.approximateLastSignInDateTime),
-      model: clean([m.manufacturer, m.model].filter(Boolean).join(' ')), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
+      model: makerModel(m.manufacturer, m.model), mac: macOf(m.wiFiMacAddress) || macOf(m.ethernetMacAddress),
       ram: gb(m.physicalMemoryInBytes), disk: gb(m.totalStorageSpaceInBytes), free: gb(m.freeStorageSpaceInBytes),
       /* A phone's number and IMEI, and whether the company or the person owns it. */
       imei: clean(m.imei).replace(/\s+/g, ''), phone: clean(m.phoneNumber), ownership: OWNERSHIP[m.managedDeviceOwnerType] || '',
@@ -526,7 +533,7 @@ export function applyAutopilot(s, list, now = new Date()) {
     do { s.seq = (s.seq || 100) + 1; } while (ids.has('o' + s.seq));
     const code = 'INV-' + String(s.codeN).padStart(4, '0'), id = 'o' + s.seq;
     codes.add(code); ids.add(id);
-    const model = modelFor(s, clean([a.manufacturer, a.model].filter(Boolean).join(' ')));
+    const model = modelFor(s, makerModel(a.manufacturer, a.model));
     const t = typeFor(s, '', model, '', serial, '');
     const n = { id, code, type: t === 'other' ? 'pc' : t, name: serial, serial, status: 'active', loc: '', feed: null,
       ...(model ? { model, src: { model: 'graph', serial: 'graph' } } : { src: { serial: 'graph' } }), autopilot: { ...info, seen: at },

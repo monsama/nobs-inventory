@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { clientAssertion, graphToken, graphAll, thumbprintOf, toRecords, applyGraph, JOIN } from '../server/graph.js';
+import { clientAssertion, graphToken, graphAll, thumbprintOf, toRecords, applyGraph, JOIN, makerModel } from '../server/graph.js';
 import { HttpError } from '../server/errors.js';
 
 /* Recorded test certificate: it signs nothing real, and it only checks the sign-in is built the way Microsoft reads it. */
@@ -343,4 +343,13 @@ test('Secure Boot: asked of the Windows devices Intune manages, in batches of 20
   const no = await fetchGraphAll({ ...cfg, secureBoot: 'on' }, NOW, fakeFetch(true));
   assert.match(no.secureBootError, /Secure Boot was not read: .*DeviceManagementManagedDevices\.Read\.All/);
   assert.equal(no.records.length, 26);
+});
+
+test('the maker is not doubled when the model already starts with it', () => {
+  assert.equal(makerModel('HP', 'HP ProDesk 600 G6 Desktop Mini PC'), 'HP ProDesk 600 G6 Desktop Mini PC');
+  assert.equal(makerModel('LENOVO', 'Lenovo ThinkPad T14'), 'Lenovo ThinkPad T14');
+  assert.equal(makerModel('Dell Inc.', 'Latitude 7450'), 'Dell Inc. Latitude 7450');
+  assert.equal(makerModel('HP', 'HPE Server'), 'HP HPE Server');
+  assert.equal(makerModel('', 'Surface Pro'), 'Surface Pro');
+  assert.equal(makerModel('Apple', ''), 'Apple');
 });
