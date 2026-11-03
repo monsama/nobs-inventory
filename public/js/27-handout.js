@@ -1,7 +1,7 @@
 /* Handing devices out and taking them back, in one step each. Hand out: a person (found by name, or added on the spot),
    the device is then in use with them; an admin can print the entry sheet right after. Take back: the device is in
    stock again, with nobody. Both with Undo, and in the device's history. */
-import { $, esc, feedLinked, hist, now, objs, pickHand, restoreSnapshot, snapshot, toastUndo } from './01-core.js';
+import { $, LOCS, esc, feedLinked, hist, markHand, now, objs, pickHand, restoreSnapshot, snapshot, toastUndo } from './01-core.js';
 import { USERS, ensureUser, isAdmin, who } from './04-settings.js';
 import { SERVER, queueServerSave, render } from './07-render.js';
 import { closeModal, modal } from './19-modal.js';
@@ -11,13 +11,18 @@ const low = v => String(v || '').trim().toLowerCase();
 /* A synced device keeps the person given here: the next sync does not put its own user back. */
 const keepUser = o => { if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'user'); };
 
-function give(list, u){
+function give(list, u, loc = ''){
   for (const o of list){
-    const was = o.user;
+    const was = o.user, moved = loc && o.loc !== loc;
     delete o.hotdesk; o.uid = u.id; o.status = 'active'; keepUser(o);
-    hist(o, now(), `Handed out to ${u.name}${was && was !== u.name ? ` (was ${was})` : ''} by ${who()}`);
+    /* Where it goes with the person: a synced device keeps this room too, as one moved by hand. */
+    if (moved){ if (feedLinked(o) || (o.graph && o.graph.added)) pickHand(o, 'loc'); o.loc = loc; markHand(o, 'loc'); }
+    hist(o, now(), `Handed out to ${u.name}${was && was !== u.name ? ` (was ${was})` : ''}${moved ? `, to ${loc}` : ''} by ${who()}`);
   }
 }
+/* Where the devices go: where they are (the default), or a room. */
+const locField = () => `<label for="hoLoc" class="ho-l">Where</label><select id="hoLoc"><option value="">Where it is now</option>${LOCS.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>`;
+const locPicked = () => ($('#hoLoc') && $('#hoLoc').value) || '';
 export function takeBack(list){
   const live = list.filter(o => o.status !== 'retired');
   if (!live.length) return;
@@ -44,6 +49,7 @@ export function handOutModal(ids){
   modal(`<div class="mh">Hand out ${list.length === 1 ? esc(list[0].name) : `${list.length} devices`}</div><div class="mb">
     <label for="hoQ" class="ho-l">To whom</label><input id="hoQ" autocomplete="off" placeholder="Name, login or department">
     <div id="hoList" class="ho-list" role="listbox" aria-label="People"></div>
+    ${locField()}
     ${SERVER.on && isAdmin() ? '<label class="pchk ho-sheet"><input type="checkbox" id="hoSheet"> Then make the entry sheet</label>' : ''}
     <p class="note" id="hoSays">The device is in use with the person from now on.</p></div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
@@ -71,7 +77,7 @@ export function handOutModal(ids){
     if (!picked) return;
     const u = picked.isNew ? ensureUser(picked.name, 'manual') : picked, sheet = $('#hoSheet') && $('#hoSheet').checked;
     const snap = snapshot(list);
-    give(list, u);
+    give(list, u, locPicked());
     closeModal(); queueServerSave(); render();
     toastUndo(`${list.length === 1 ? list[0].name : `${list.length} devices`} handed out to ${u.name}`, () => { restoreSnapshot(snap, 'Handing out undone'); queueServerSave(); render(); });
     if (sheet) sheetModal(u, null, list.length === 1 ? { only: list[0].id } : {});
@@ -85,6 +91,7 @@ export function handOutToModal(u){
   modal(`<div class="mh">Hand out to ${esc(u.name)}</div><div class="mb">
     <label for="hsQ" class="ho-l">Devices in stock</label><input id="hsQ" autocomplete="off" placeholder="Name, code, model or serial number">
     <div id="hsList" class="ho-list ho-devs"></div>
+    ${locField()}
     ${SERVER.on && isAdmin() ? '<label class="pchk ho-sheet"><input type="checkbox" id="hoSheet"> Then make the entry sheet</label>' : ''}</div>
     <div class="mf"><button id="hoNo">Cancel</button><button id="hoOk" class="primary" disabled>Hand out</button></div>`, 'sm');
   const chosen = new Set();
@@ -101,7 +108,7 @@ export function handOutToModal(u){
   $('#hoOk').onclick = () => {
     const list = [...chosen].map(id => objs.find(o => o.id === id)).filter(Boolean); if (!list.length) return;
     const sheet = $('#hoSheet') && $('#hoSheet').checked, snap = snapshot(list);
-    give(list, u);
+    give(list, u, locPicked());
     closeModal(); queueServerSave(); render();
     toastUndo(`${list.length === 1 ? list[0].name : `${list.length} devices`} handed out to ${u.name}`, () => { restoreSnapshot(snap, 'Handing out undone'); queueServerSave(); render(); });
     if (sheet) sheetModal(u);

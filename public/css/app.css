@@ -1697,6 +1697,8 @@ table.stack>tbody>tr>td[data-label=""]:last-child{justify-items:end}}
 
 /* Hand out: the people (or devices in stock) found, each a row to pick. */
 .ho-l{display:block;font-weight:600;margin-bottom:4px}
+#hoLoc{width:100%;margin:0 0 10px}
+.ho-list+.ho-l{margin-top:10px}
 #hoQ,#hsQ{width:100%}
 .ho-list{display:flex;flex-direction:column;gap:2px;margin:8px 0;max-height:300px;overflow:auto}
 .ho-p{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;height:auto;padding:6px 10px;border:1px solid transparent;background:none}

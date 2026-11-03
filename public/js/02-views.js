@@ -1,3 +1,4 @@
+import { handOutModal } from './27-handout.js';
 import { syncButtonHtml } from './16-sync.js';
 import { money } from './09-costs.js';
 import { parseCsv } from './csv.js';
@@ -775,7 +776,7 @@ export function renderTable(){
   const n = st.bulk.size;
   $('#toolbar').innerHTML = `<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
     ${columnsMenu()}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button><button id="csvImp">Import CSV…</button>${st.scope || !SERVER.on ? '' : '<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>'}${!n && st.scope ? `<span class="grow"></span>${scopeActs(list, true)}` : ''}${n && st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${scopeActs(list)}${mergeBtn()}<button id="bkOpen" title="Open each as a tab">Open in tabs</button><button id="bkClear">Clear selection</button></div>` : ''}
-${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>
+${n && !st.scope ? `<div class="pickrow"><b class="pick-n">${n} selected</b>${mergeBtn()}<select id="bkAct" aria-label="Do with the selected"><option value="">Actions…</option><option value="open">Open in tabs</option>${isAdmin() ? '<option value="handout">Hand out to a person…</option>' : ''}
 <optgroup label="Move to location">${LOCS.map(l => `<option value="loc:${esc(l)}">${esc(l)}</option>`).join('')}</optgroup>
 <optgroup label="Set status">${Object.entries(STATUS).map(([k, v]) => `<option value="status:${k}">${v.label}</option>`).join('')}<option value="status:__back">Take back into stock (no user)</option></optgroup>
 ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l]) => `<optgroup label="${l} responsible">${CONTACTS.list.filter(c => c.kind === k).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="resp:${k}:${esc(c.id)}">${esc(contactLabel(c))}</option>`).join('')}<option value="resp:${k}:">— no ${l.toLowerCase()} responsible</option></optgroup>`).join('') : ''}</select><button id="bkClear">Clear selection</button></div>` : ''}`;
@@ -830,7 +831,7 @@ ${CONTACTS.list.length && isAdmin() ? Object.entries(CONTACT_KINDS).map(([k, l])
   /* One menu for what is done with the selected: open them, move them, set their status or responsible. */
   const ba = $('#bkAct'); if (ba) ba.onchange = () => {
     const v = ba.value, at = v.indexOf(':'), what = at < 0 ? v : v.slice(0, at), arg = v.slice(at + 1);
-    if (what === 'open') openObjs([...st.bulk]); else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
+    if (what === 'open') openObjs([...st.bulk]); else if (what === 'handout'){ ba.value = ''; handOutModal([...st.bulk]); } else if (what === 'loc') bulkLoc(arg); else if (what === 'status') bulkStatus(arg); else if (what === 'resp') bulkResp(arg);
   };
   const idx = relIndex();   /* one index of the relations for all rows */
   let shown = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
