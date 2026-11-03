@@ -74,7 +74,7 @@ try {
   await p.evaluate(async () => { const __mods = await Promise.all([import('/js/19-modal.js')]); return (__mods[0].closeModal()); });
   await p.click('#setBtn'); await openSetTab(p, 'types');
   await p.click('.icondd-btn[aria-label$="icon for PC"]');
-  if (!(await p.isVisible('.icondd-list:not([hidden]) .icondd-up'))) throw new Error('the icon dropdown does not open');
+  if (!(await p.isVisible('.icondd-list:popover-open .icondd-up'))) throw new Error('the icon dropdown does not open');
   await p.click('.icondd-item[data-ic=pc][data-icon=server]');
   assert.equal(await p.evaluate(async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].TYPES.pc.icon); }), 'server', 'the icon was not chosen');
   if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT });

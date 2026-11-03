@@ -170,7 +170,7 @@ try {
 
   // 2. retiring clears what the device holds, with a reason; Undo puts it all back
   await core(async () => (await import('/js/02-views.js')).openObj('nb1'));
-  await p.click('details.menu > summary'); await p.click('#delBtn');
+  await p.click('.menu > .menu-btn'); await p.click('#delBtn');
   await p.waitForSelector('.rt-ties');
   assert.equal(await p.locator('.rt-ties input:checked').count(), 6, 'user, port, attached monitor, plan, contract, responsible');
   await p.fill('#rtWhy', 'broken screen');

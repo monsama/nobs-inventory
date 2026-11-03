@@ -26,7 +26,7 @@ const TIPS = [
   ['.ps-name[data-open], a.link[data-open], .node[data-open]', 'Open this device'],
   ['.ov-tile, .ov-row, .ov-bar', 'Open the list this counts'],
   /* The table, the map, ports, racks, software, plans, contracts. */
-  ['#colMenu > summary', 'Choose the columns the table shows'],
+  ['#colMenu > .menu-btn', 'Choose the columns the table shows'],
   ['[data-col]', 'Show or hide this column'],
   ['#csvBtn', 'Download the table as it is shown (filters and columns) as a CSV file'],
   ['#csvImp', 'Add devices from a CSV file, or update the ones already here (by serial number or name); you see what changes before anything is saved'],
@@ -46,7 +46,7 @@ const TIPS = [
   ['#plNew, #plNew2', 'Add a floor plan from a picture of the floor'],
   ['#ctNew', 'Record a contract: supplier, costs, term and notice period'],
   /* The device page. */
-  ['#toolbar details.menu > summary', 'More actions for this device'],
+  ['#toolbar .menu > .menu-btn', 'More actions for this device'],
   ['#dupBtn', 'Make a copy with a new code: name, model and settings are copied, the serial number is not'],
   ['#addPortsBtn', 'Give this device network ports, so that other devices can be plugged into it'],
   ['#delBtn', 'Mark as retired: the record is kept, it is taken out of racks and plans and no longer counted'],

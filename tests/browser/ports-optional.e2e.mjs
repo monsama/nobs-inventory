@@ -28,14 +28,14 @@ try {
   await open('p1'); await page.waitForSelector('.obj .form');
   assert.equal(await page.locator('[data-k=ports]').count(), 0, 'a printer without ports shows no port fields');
   // keyboard only: More opens with Enter, the item is reached with Tab and taken with Enter
-  await page.focus('details.menu summary'); await page.keyboard.press('Enter');
+  await page.focus('.menu > .menu-btn'); await page.keyboard.press('Enter');
   await page.focus('#addPortsBtn'); await page.keyboard.press('Enter');
   await page.waitForSelector('[data-k=ports]');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.k), 'ports', 'the cursor is in Ports');
   await page.fill('[data-k=ports]', '2'); await page.locator('[data-k=ports]').press('Tab');
   await page.waitForFunction(async () => (await import('/js/01-core.js')).byId('p1').ports === 2);
   await open('s1'); await open('p1'); await page.waitForSelector('[data-k=ports]');
-  await page.click('details.menu summary');
+  await page.click('.menu > .menu-btn');
   assert.equal(await page.locator('#addPortsBtn').count(), 0, 'a device with ports is not offered them again');
   await page.keyboard.press('Escape');
   await page.fill('[data-k=ports]', '0'); await page.locator('[data-k=ports]').press('Tab');
@@ -43,7 +43,7 @@ try {
   await open('s1'); await open('p1'); await page.waitForSelector('.obj .form');
   assert.equal(await page.locator('[data-k=ports]').count(), 0, 'back at 0 the fields are hidden again');
   await open('s1'); await page.waitForSelector('[data-k=ports]');
-  await page.click('details.menu summary');
+  await page.click('.menu > .menu-btn');
   assert.equal(await page.locator('#addPortsBtn').count(), 0, 'a switch has its ports anyway');
   assert.deepEqual(errors, [], 'no page errors');
   console.log('optional ports: all checks passed');

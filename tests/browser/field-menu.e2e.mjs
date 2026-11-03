@@ -28,13 +28,13 @@ try {
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.length > 0);
   const open = id => p.evaluate(async i => (await import('/js/02-views.js')).openObj(i), id);
-  const menu = async (k, act) => { await p.click(`.ctlrow:has([data-k="${k}"]) details.fmenu > summary`); await p.click(`[data-fm="${act}"][data-fk="${k}"]`); };
+  const menu = async (k, act) => { await p.click(`.ctlrow:has([data-k="${k}"]) .fmenu > .menu-btn`); await p.click(`[data-fm="${act}"][data-fk="${k}"]`); };
   const saved = f => until(p, f);
 
   await open('a'); await p.waitForSelector('#f_a_fw');
-  assert.equal(await p.locator('.ctlrow:has([data-k="name"]) details.fmenu').count(), 0, 'no menu on the name');
-  assert.equal(await p.locator('.ctlrow:has([data-k="fw"]) details.fmenu').count(), 1);
-  if (process.env.SHOTS){ await p.click('.ctlrow:has([data-k="fw"]) details.fmenu > summary'); await p.locator('.obj .panelbox').first().screenshot({ path: path.join(process.env.SHOTS, 'field-menu.png') }); await p.keyboard.press('Escape'); }
+  assert.equal(await p.locator('.ctlrow:has([data-k="name"]) .fmenu').count(), 0, 'no menu on the name');
+  assert.equal(await p.locator('.ctlrow:has([data-k="fw"]) .fmenu').count(), 1);
+  if (process.env.SHOTS){ await p.click('.ctlrow:has([data-k="fw"]) .fmenu > .menu-btn'); await p.locator('.obj .panelbox').first().screenshot({ path: path.join(process.env.SHOTS, 'field-menu.png') }); await p.keyboard.press('Escape'); }
 
   // hide on this device: gone here, still on PC-B, value kept; shown again through Show hidden fields
   await menu('fw', 'hide');

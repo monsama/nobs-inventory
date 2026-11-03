@@ -1,6 +1,6 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
-import { $, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
+import { $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
 import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
@@ -154,9 +154,9 @@ export function renderPlans(){
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         ${editArea && planMode === 'view' ? `<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${esc(editArea.name)}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${esc(editArea.name)}</button>` : ''}
         ${planMode === 'area' && planParts.length ? `<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
-        <details class="menu" id="plMenu"><summary>Plan…</summary><div class="menubox"><button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
+        ${menuHtml('Plan…', `<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
         ${isAdmin() && planDevices(plan).length ? '<button id="plClear" class="danger-text" title="Take every device off this plan. The inventory does not change.">Clear devices</button>' : ''}
-        <button id="plDel" class="danger-text">Delete plan</button></div></details>` : ''}
+        <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' })}` : ''}
         <button type="button" id="plSideBtn" aria-pressed="${sideOpen()}" title="Show or hide the list of devices not on this plan">${sideOpen() ? 'Hide device list' : 'Device list'}</button>
         <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
       <span class="grow"></span>

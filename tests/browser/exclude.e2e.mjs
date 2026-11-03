@@ -41,7 +41,7 @@ try {
   await waitServer(() => srv().rels.length === 1, 'the relation');
 
   // Exclude the laptop with its relations: the switch is excluded too; the server is not.
-  await p.click('details.menu > summary'); await p.click('#exclRelBtn');
+  await p.click('.menu > .menu-btn'); await p.click('#exclRelBtn');
   await waitServer(() => srv().objs.filter(o => o.excluded).length === 2, 'the exclusion');
   const ex = srv().objs.filter(o => o.excluded).map(o => o.name).sort();
   assert.deepEqual(ex, ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the wrong objects were excluded: ' + ex);

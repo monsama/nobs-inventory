@@ -74,7 +74,7 @@ try {
 
   // a plan's name, an area's name; the area keeps the room the devices are in
   await core(async () => { const c = await import('/js/01-core.js'); c.st.tab = 'plans'; (await import('/js/07-render.js')).render(); });
-  await p.waitForSelector('#plMenu'); await p.click('#plMenu > summary'); await p.click('#plEdit');
+  await p.waitForSelector('#plMenu'); await p.click('#plMenu > .menu-btn'); await p.click('#plEdit');
   assert.equal(await p.isDisabled('#peSite'), true, 'the site stays while the plan has areas');
   await p.fill('#peName', 'Erdgeschoss'); await p.click('#peOk');
   await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').name === 'Erdgeschoss');
