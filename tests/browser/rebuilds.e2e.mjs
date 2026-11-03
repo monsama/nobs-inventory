@@ -55,7 +55,7 @@ try {
   const bar = await p.textContent('#fbar .fb-person');
   assert.match(bar, /Dino Brunner/); assert.match(bar, /left/); assert.match(bar, /2 devices/); assert.match(bar, /Hand-back list/);
   assert.equal(await p.locator('#view table.grid[data-data] tbody tr').count(), 2, 'only his devices');
-  await p.click('[data-pact="back"]');
+  await p.click('[data-pact="back"]'); await p.click('#tbOk');
   await until(() => { const s = loadState(db); return ['d1', 'd2'].every(id => { const o = s.objs.find(x => x.id === id); return o.status === 'stock' && !o.uid; }); });
   assert.equal(loadState(db).objs.find(o => o.id === 'a1').uid, 'u-anna', 'other people keep theirs');
 
