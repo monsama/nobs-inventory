@@ -687,5 +687,7 @@ export function applyChanges(db, body, guard = () => {}) {
   writeDocs(db, s, touched);
   const applied = {};
   for (const c of [...okPuts, ...okDels]) { const r = revOf.get(c.kind, c.id); applied[docKey(c.kind, c.id)] = r ? r.rev : 0; }
+  /* The code counter moved with this save: the page learns its new version, so it does not take it for someone else's change. */
+  if (Object.keys(codes).length) { const r = revOf.get('setting', 'codeN'); if (r) applied[docKey('setting', 'codeN')] = r.rev; }
   return { revs: applied, codes, conflicts };
 }

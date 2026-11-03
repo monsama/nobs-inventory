@@ -234,7 +234,7 @@ async function sendNow(){
   if (!isAdmin()) return;
   const pending = pendingChanges();
   if (!pending.puts.length && !pending.dels.length) return;
-  SERVER.busy = true; setSave('saving');
+  SERVER.busy = true; SERVER.saves = (SERVER.saves || 0) + 1; setSave('saving');
   let ok = false;
   try {
     for (const {puts, dels} of batches(pending.puts, pending.dels)) {
@@ -255,8 +255,9 @@ async function sendNow(){
       if (Object.keys(j.codes || {}).length) render();
       const sent = new Map([...puts, ...dels].map(c => [c.key, c]));
       for (const [key, rev] of Object.entries(j.revs || {})){
-        const c = sent.get(key); if (!c) continue;
         SERVER.revs[key] = rev;
+        /* A record the server wrote along with this save (the code counter): only its version is kept. */
+        const c = sent.get(key); if (!c) continue;
         if (c.json === undefined){ SERVER.base.delete(key); continue; }
         const v = JSON.parse(c.json); if (j.codes && j.codes[c.id]) v.code = j.codes[c.id];
         SERVER.base.set(key, JSON.stringify(v));
@@ -387,11 +388,14 @@ export async function checkForChanges(){
   /* Changes that could not be sent while the server was away are sent again here. */
   if ((puts.length || dels.length) && isAdmin()){ if (SERVER.save === 'offline') sendChanges(); return false; }
   let r;
-  const delta = SERVER.copy && SERVER.cseq !== null;
+  const delta = SERVER.copy && SERVER.cseq !== null, saves = SERVER.saves;
   try { r = await fetch(delta ? `api/state?since=${SERVER.cseq}` : 'api/state', {credentials: 'same-origin'}); } catch { setSave('offline'); return true; }
   if (!r.ok) return true;
   if (SERVER.save === 'offline') setSave('saved');
   const d = await r.json();
+  /* A save started while this was on its way: the answer may be older than the page's own change, which would then look
+     like someone else's and reload (losing Undo). It is dropped; the next check asks again. */
+  if (SERVER.busy || SERVER.saves !== saves) return false;
   if (d.delta){
     /* The page's own saves come back here too: the copy takes them, but only a record someone else wrote reloads. */
     const other = Object.keys(d.revs).some(k => (SERVER.revs[k] ?? 0) !== d.revs[k]);

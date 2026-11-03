@@ -54,6 +54,8 @@ test('two new objects saved at the same time get different codes', async () => {
     const r2 = await put(srv, a.cookie, { puts: [{ kind: 'object', id: 'oBBB', value: pc('oBBB', 'NEW-2', ''), base: 0 }], dels: [] });
     const codes = [r1.json.codes.oAAA, r2.json.codes.oBBB];
     assert.ok(codes[0] && codes[1] && codes[0] !== codes[1], 'codes are not unique: ' + codes);
+    /* The code counter moved with each save: its new version comes back, so the page does not take it for someone else's change. */
+    assert.ok(r2.json.revs['setting|codeN'] > r1.json.revs['setting|codeN'], 'the code counter version is not in the answer: ' + JSON.stringify(r2.json.revs));
     const now = await load(srv, a.cookie);
     assert.equal(new Set(now.objs.map(o => o.code)).size, now.objs.length, 'two objects share a code');
   } finally { await srv.close(); }
