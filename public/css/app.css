@@ -371,6 +371,9 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .tab.dragging{opacity:.4}
 .tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
 .toolbar{padding:4px var(--edge) 4px var(--gutter);background:var(--panel);border-bottom:1px solid var(--bd2);display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:none;min-height:38px}
+/* A device's name, code, type and status: on one baseline (the mono name and code, the type in the UI font and the
+   status chip would each be centred on its own box otherwise, and sit a pixel or two apart). */
+.obj-id{display:inline-flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:wrap}
 .tbsep{width:1px;align-self:stretch;background:var(--bd);margin:2px 2px}
 /* Views and dialog bodies keep room for their scrollbar: content that starts to scroll moves nothing sideways. */
 .view{flex:1;overflow:auto;min-height:0;position:relative;scrollbar-gutter:stable}

@@ -189,6 +189,20 @@ test('pushed links: only a monitor is linked to its PC; switch ports are not det
 });
 
 
+test('pushed links: a monitor that is a Lansweeper asset of its own hangs on the computer its relations name', async () => {
+  const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  /* The notebook's own record names no monitor (scanned undocked); the monitor's asset record names the notebook. */
+  mergeRecords(s, recordsFromJson([
+    { name: 'NB1', assetType: 'Windows', chassis: 'notebook', ref: '501', links: [] },
+    { name: 'HP VNG1', serial: 'VNG1', assetType: 'Monitor', ref: '17152', links: [{ ref: '501', kind: 'attached' }] }
+  ]));
+  const id = n => s.objs.find(o => o.name === n).id;
+  assert.ok(s.rels.some(r => r.from === id('HP VNG1') && r.to === id('NB1') && r.kind === 'attached'), 'the monitor hangs on the notebook');
+  mergeRecords(s, recordsFromJson([{ name: 'NB1', assetType: 'Windows', ref: '501', links: [] }, { name: 'HP VNG1', serial: 'VNG1', assetType: 'Monitor', ref: '17152', links: [{ ref: '501', kind: 'attached' }] }]));
+  assert.equal(s.rels.length, 1, 'the next push keeps it, once');
+});
+
 test('a push keeps a connection made by hand, and its port', async () => {
   const { mergeRecords, recordsFromJson } = await import('../server/feed.js');
   const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
