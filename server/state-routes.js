@@ -13,11 +13,12 @@ import { purgeOrphanImages } from './device-images.js';
    factory reset, clearing the connections, and the floor-plan images. Only admins change anything. */
 export function registerStateRoutes(app, ctx) {
   const { db, requireUser, requireAdmin } = ctx;
-  /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN). */
+  /* What a page that is not an admin's does not get: the connections' settings, sign-in names (the login, the UPN, and
+     the other sign-in names kept as aliases by the directory sync and by merging people). */
   const redactObj = o => (o.graph && o.graph.owner ? { ...o, graph: { ...o.graph, owner: '' } } : o);
   /* Who a saved view is mailed to is for admins too. */
   const redactViews = list => Array.isArray(list) ? list.map(v => { if (!v || !v.mail) return v; const c = { ...v }; delete c.mail; return c; }) : list;
-  const redactUser = ({ login, groups, groupDns, entraGroups, entraGroupsAt, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
+  const redactUser = ({ login, aliases, groups, groupDns, entraGroups, entraGroupsAt, entra, ...u }) => (entra ? { ...u, entra: { enabled: entra.enabled, synced: entra.synced, ...(entra.gone ? { gone: entra.gone } : {}) } } : u);
   app.get('/api/state', requireUser, (req, res, next) => {
     /* Only what changed since the page's copy (since: the running number it got with it): the records written since,
        with their revisions, and the ones deleted. A page that sees part of the inventory (sites, own devices) and a

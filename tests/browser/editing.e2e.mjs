@@ -80,7 +80,7 @@ try {
   await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').name === 'Erdgeschoss');
   const box = await p.locator('#plCanvas').boundingBox();
   await p.mouse.move(box.x + box.width * 0.385, box.y + box.height * 0.385); await p.mouse.down(); await p.mouse.up();   // the area's lower right corner, clear of its spread-out pins
-  await p.waitForSelector('#plAreaEdit'); await p.click('#plAreaEdit');
+  await p.waitForSelector('#plAreaMenu'); await p.click('#plAreaMenu .menu-btn'); await p.click('#plAreaEdit');
   assert.equal(await p.inputValue('#aeRoom'), 'Zürich HQ / Büro', 'the area\'s room is chosen');
   await p.fill('#aeName', 'Büro Nord'); await p.click('#aeOk');
   const area = await core(async () => (await import('/js/20-plans.js')).planById('pl1').areas[0]);

@@ -348,6 +348,14 @@ export function addRoom(){
   if (LOCS.includes(name)){ msg.innerHTML = warn(name + ' already exists.'); return; }
   LOCS.push(name); toast('Added ' + name); renderSetLocs(); render();
 }
+/* The settings that name a place, renamed with it: the store room of each site (its key, a site, and its room), the place
+   a saved view filters on, and the rooms that location texts from the sources are mapped to. move gives the new name of
+   a place, or the same one. */
+function renamePlaceRefs(move){
+  if (st.stockRooms) st.stockRooms = Object.fromEntries(Object.entries(st.stockRooms).map(([k, v]) => [move(k), move(v)]));
+  if (Array.isArray(st.savedViews)) st.savedViews = st.savedViews.map(v => v && v.filters && v.filters.loc && move(v.filters.loc) !== v.filters.loc ? { ...v, filters: { ...v.filters, loc: move(v.filters.loc) } } : v);
+  for (const k of ['locMap', 'adLocMap']) if (st[k]) st[k] = Object.fromEntries(Object.entries(st[k]).map(([t, room]) => [t, move(room)]));
+}
 /* Renaming a site renames its rooms, the locations of the objects in them, and the racks. */
 export function renameSite(old, value){
   const name = value.trim();
@@ -361,6 +369,7 @@ export function renameSite(old, value){
   /* Plans and their areas follow the rename, so the devices stay on them. */
   PLANS.forEach(p => { if (p.site === old) p.site = name; (p.areas || []).forEach(a => { if (a.room) a.room = move(a.room); }); });
   if (st.loc) st.loc = move(st.loc);
+  renamePlaceRefs(move);
   const n = objs.filter(o => String(o.loc || '').startsWith(name)).length;
   toastUndo(`Site renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameSite(name, old); queueServerSave(); });
   renderSetLocs(); render();
@@ -374,8 +383,10 @@ export function renameLoc(old, value){
   if (name === old) return;
   LOCS[LOCS.indexOf(old)] = name;
   objs.forEach(o => { if (o.loc === old) o.loc = name; });
-  PLANS.forEach(p => (p.areas || []).forEach(a => { if (a.room === old) a.room = name; }));
+  /* An area that only names its room (a room called like the area) gets the new name as its room, so its devices stay on it. */
+  PLANS.forEach(p => (p.areas || []).forEach(a => { if (a.room === old || (!a.room && `${p.site} / ${a.name}` === old)) a.room = name; }));
   if (st.loc === old) st.loc = name;
+  renamePlaceRefs(l => l === old ? name : l);
   /* Undo renames it back: the devices, plan areas and filter follow again. */
   const n = objs.filter(o => o.loc === name).length;
   toastUndo(`Renamed to ${name}${n ? ` · ${n} device${n === 1 ? '' : 's'}` : ''}`, () => { renameLoc(name, old); queueServerSave(); }); renderSetLocs(); render();

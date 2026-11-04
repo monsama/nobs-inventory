@@ -117,7 +117,7 @@ export function renderCardsBody(){
   let list = filtered();
   const pool = scopePool();
   $('#toolbar').innerHTML = html`<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
-    <label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select>
+    <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() ? html`<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
     ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;

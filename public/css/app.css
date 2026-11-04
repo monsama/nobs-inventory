@@ -89,6 +89,8 @@ button{padding:0 9px;height:28px;border:1px solid var(--bd);border-radius:var(--
 button:hover:not(:disabled){filter:brightness(1.08)} button:active:not(:disabled){filter:brightness(.93)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* The other things that take the focus get the same ring, not the browser's own. */
+:is(summary,a,th[tabindex],.hdr[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .locgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:16px;align-items:start}
 /* A count in a title bar, the same everywhere: muted, normal case. */
 .hdr .cnt{font-weight:500;font-size:12px;margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0}
@@ -163,7 +165,7 @@ label.fm-hid::after{content:" · hidden";font-size:11px}
 
 /* The floor plan fills the view down to the status bar, like the relationship map. */
 .plans{display:flex;flex-direction:column;min-height:0;position:absolute;inset:0}
-.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 8px;min-height:38px;box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
+.pl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px var(--edge) 4px var(--gutter);min-height:38px;box-sizing:border-box;border-bottom:1px solid var(--bd2)}   /* as tall as the other views' toolbars */
 .pl-bar select{min-width:200px}
 .pl-bar button.on{background:var(--accent);color:var(--accentfg);border-color:var(--accent)}
 .pl-sep{width:1px;height:22px;background:var(--bd2);margin:0 4px}
@@ -199,6 +201,23 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-area.movable{pointer-events:none}
 .pl-area.movable .pl-area-fill,.pl-area.movable .pl-area-edge{pointer-events:visiblePainted;cursor:move}
 .pl-area.editing .pl-area-edge{stroke-width:3px}
+/* The size handles of the chosen area: small squares on its corners and sides, kept the same size at any zoom. */
+.pl-h{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;box-sizing:border-box;background:var(--panel);border:1.5px solid var(--accent);border-radius:2px;z-index:6;touch-action:none}
+.pl-h:hover{background:var(--accent)}
+.pl-h-nw,.pl-h-se{cursor:nwse-resize}.pl-h-ne,.pl-h-sw{cursor:nesw-resize}.pl-h-n,.pl-h-s{cursor:ns-resize}.pl-h-e,.pl-h-w{cursor:ew-resize}
+/* × on a rectangle of the chosen area (one of several): at its top right corner, inside it. */
+.pl-rx{position:absolute;width:18px;height:18px;min-height:0;padding:0;margin:4px 0 0 -22px;border-radius:50%;font-size:12px;line-height:1;z-index:6;display:grid;place-items:center;background:var(--panel);border:1px solid var(--bd);color:var(--muted)}
+.pl-rx:hover{color:var(--danger,#c62828);border-color:currentColor}
+/* A text on the plan (Entrance …): centred on its point, readable over the picture. */
+.pl-label{position:absolute;transform:translate(-50%,-50%);z-index:4;padding:1px 6px;border-radius:var(--r-s);background:color-mix(in srgb,var(--panel) 85%,transparent);color:var(--fg);font-size:12px;font-weight:600;white-space:nowrap;pointer-events:auto;user-select:none}
+.pl-label.movable{cursor:move}
+/* The device list's button is on most of the time: marked quietly, like a chosen view, not like a drawing mode. */
+.pl-bar #plSideBtn.on{background:var(--sub);color:var(--linktext);border-color:var(--bd);font-weight:600}
+/* The plan bar's Show: as wide as its text, so the bar stays on one line. */
+.pl-bar #plShow{width:auto;min-width:0;max-width:180px}
+/* Panning: Space held shows the hand, dragging shows it closed. */
+.pl-stage.can-pan,.pl-stage.can-pan *{cursor:grab!important}
+.pl-stage.panning,.pl-stage.panning *{cursor:grabbing!important;user-select:none}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
 .pl-card{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--bg);color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:12px;font-weight:400;text-align:left;white-space:nowrap;pointer-events:none;z-index:2}
 .pl-pin:hover .pl-card,.pl-pin:focus-visible .pl-card{display:flex}
@@ -403,7 +422,7 @@ svg.cu{fill:currentColor;stroke:none}
 .card .hd{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .kv{display:grid;grid-template-columns:72px 1fr;gap:2px 8px;padding:8px 10px;font-size:12px;margin:0}
 .kv dt{color:var(--muted)} .kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kv dd.none{color:var(--muted);opacity:.6}
+.kv dd.none{color:var(--muted)}
 /* On a card a long value wraps to a second line and ends in … after that (the device page shows it whole). */
 .card .kv dd,.card .model{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
 .cert-kv{grid-template-columns:100px 1fr;gap:6px 12px;padding:12px;font-size:13px}.cert-kv dd{white-space:normal;overflow-wrap:anywhere}
@@ -509,7 +528,7 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .gs-why>summary{cursor:pointer;font-size:12px;color:var(--accent)}
 .gs-why>p{margin:4px 0 0}
 /* overview */
-.ov{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1400px;margin:0 auto;width:100%;box-sizing:border-box}
+.ov{display:flex;flex-direction:column;gap:12px;padding:12px var(--gutter);width:100%;box-sizing:border-box}   /* on the toolbar's gutter */
 .ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .ct-sum{padding:12px 12px 0}
 /* contacts: one card per person, the company's own first, then each IT partner */
@@ -601,7 +620,7 @@ button.ov-tile{cursor:pointer}button.ov-tile:hover{border-color:var(--accent)}
 .ov-wide .ov-bar{grid-template-columns:minmax(150px,48%) 1fr 40px}
 /* A header or group of the sidebar that does not apply is hidden, whatever its display. */
 #side [hidden]{display:none!important}
-@media (max-width:640px){.ov{padding:8px}.ov-cols{grid-template-columns:1fr}.ov-bar{grid-template-columns:minmax(90px,40%) 1fr 40px}}
+@media (max-width:640px){.ov-cols{grid-template-columns:1fr}.ov-bar{grid-template-columns:minmax(90px,40%) 1fr 40px}}
 /* costs: contracts, licences */
 .sw-page{display:flex;flex-direction:column;gap:12px}
 .sw-page>.panelbox.lic{margin:12px 12px 0}
@@ -851,7 +870,7 @@ table.grid tr.fr input{width:100%;height:24px;font-weight:400;font-size:11px;pad
 .pp-table td{white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
 .pp-table td.n .dot{margin-right:4px;vertical-align:middle}
 .pp-table td.pp-act{width:1%;text-align:right}
-.pp-table td.pp-act button{height:24px;width:auto;padding:0 8px;font-size:12px}
+.pp-table td.pp-act button{height:24px;width:auto;padding:0 3px 0 8px;font-size:12px}   /* its text ends on the line of the header count */
 .pp-table tr[data-state=warn] td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
 .pp-prev{margin-top:10px}.pp-prev table{min-width:0;table-layout:auto}.pp-prev th:nth-child(n){width:auto}
 .ps-out{cursor:default}
@@ -888,7 +907,7 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 .fieldnote{margin:-2px 0 2px;font-size:12px}
 /* Under a field on the device page, a note and the other adapters end where the field ends: the source mark and the ⋯
    menu keep their columns (16px + 26px and the gaps; 16px without the menu). On a phone those columns are not kept. */
-@media (min-width:761px){.form.props>:is(.fieldnote,.nics){margin-right:62px}.form.props.ro>:is(.fieldnote,.nics){margin-right:26px}}
+@media (min-width:761px){.form.props>:is(.fieldnote,.nics,.vnote){margin-right:62px}.form.props.ro>:is(.fieldnote,.nics,.vnote){margin-right:26px}}
 /* Disks: a bar per drive, filled as far as the drive is used; orange from 80 %, red from 90 %. */
 .disks{display:flex;flex-direction:column;gap:5px;min-width:0;padding:3px 0}
 .disk{display:grid;grid-template-columns:24px minmax(60px,1fr) auto;align-items:center;gap:8px;font-size:12px}
@@ -939,6 +958,10 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relist{display:flex;flex-direction:column}
 .relrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2);min-width:0}
 .relrow:last-child{border-bottom:none}
+/* The × at the end of a row in a panel: its glyph ends where the counts in the panel headers end (12px in from the
+   edge), so the numbers and the ×s make one line on the right. The button keeps its size; only its padding overlaps. */
+.relrow>button.icon.ghost:last-child{margin-right:-6px}
+.obj .panelbox table.grid.mini .rm-cell{width:1%;padding-right:1px;padding-left:0}
 .relrow .k{color:var(--muted);width:118px;flex:none;font-size:12px}
 /* Relation names are written lower case for sentences ("attached to PC-1"); as a label they start with a capital. */
 .relrow .k::first-letter{text-transform:uppercase}
@@ -1050,7 +1073,7 @@ dialog.modal::backdrop{background:rgba(0,0,0,.45)}
 /* Minimize, maximize and close in the top right corner of a dialog. */
 .wctl{display:inline-flex;gap:2px;align-items:center;margin-left:auto;flex:none}
 .box>.wctl{position:absolute;top:8px;right:10px}
-.wctl>button{width:24px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--r-s);background:transparent;color:var(--muted);cursor:pointer}
+.wctl>button{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--r-s);background:transparent;color:var(--muted);cursor:pointer}
 .wctl>button:hover,.wctl>button:focus-visible{background:var(--panel2);color:var(--fg)}
 .wctl>button.wc-close:hover,.wctl>button.wc-close:focus-visible{background:var(--danger-bg);color:#fff}
 .modal .box.maxed{width:100%!important;max-width:none;height:100%;max-height:none}
@@ -1242,7 +1265,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 /* Cards in a row are as tall as the tallest, with the footer at the bottom of each. */
 .card{content-visibility:auto;contain-intrinsic-size:auto 150px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r-m);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;min-height:0;cursor:pointer;min-width:0;text-align:left;color:var(--fg);font:inherit;padding:0;gap:0;white-space:normal;align-self:stretch;border-color:var(--bd2);box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s}
 .card:hover{border-color:var(--bd);box-shadow:0 2px 8px rgba(0,0,0,.12)}
-.card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
+.card .cf{display:flex;align-items:center;gap:6px;padding:5px 10px;min-height:29px;box-sizing:border-box;border-top:1px solid var(--bd2);border-radius:0 0 var(--r-m) var(--r-m);font-size:11px;color:var(--muted);white-space:nowrap;background:transparent}
 /* Section headers: no grey bar; the panel's own background, a plain title and a thin line under it. Panels keep their
    titles in normal case; the sidebar's group names stay small capitals, as quiet labels. */
 .hdr{padding:4px 12px;font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;height:38px;flex:none;background:transparent;border-bottom-color:var(--bd2);color:var(--fg)}
@@ -1301,7 +1324,7 @@ input[type=file]::file-selector-button{font:inherit;height:28px;padding:0 10px;m
 /* A button that removes something is quiet where it waits on a page; solid red only in the small dialog that confirms it. */
 button.danger-text{background:transparent;color:var(--fg);border-color:var(--bd);font-weight:400}
 button.danger-text:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent);color:var(--badtext);border-color:color-mix(in srgb,var(--danger) 45%,var(--bd))}
-.lsbox{display:grid;gap:4px 10px;padding:10px 12px;font-size:12px;margin:0;grid-template-columns:120px minmax(0,1fr)}
+.lsbox{display:grid;gap:4px 10px;padding:10px 12px;font-size:12px;margin:0;grid-template-columns:110px minmax(0,1fr)}   /* the values start where Properties' fields do */
 .jb.no{border-left:1px dashed var(--bd);background:transparent;border-style:solid;border-color:var(--bd2)}
 /* Not known (no Microsoft Graph): faded, so it does not read as "not joined". */
 .jb.unk{background:transparent;opacity:.6;border-style:solid;border-color:var(--bd2)}
@@ -1453,10 +1476,12 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 
 /* The Sources panel on the device page: one tab per source in its header, the source's own note on the right. */
 .srctabs{gap:4px}
-.srctab-list{display:inline-flex;gap:2px}
-.srctab{height:26px;padding:0 10px;border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--muted);font-weight:600}
-.srctab:hover{color:var(--fg);background:var(--hover)}
-.srctab.sel{color:var(--fg);background:var(--bg);border-color:var(--bd)}
+/* The source tabs read as the panel's title: the same size as the other titles, the first one starting where theirs do,
+   and no frame (it would run into the fold caret). The chosen source is in full colour and underlined. */
+.srctab-list{display:inline-flex;gap:16px;margin-left:-4px}
+.hdr .srctab{height:26px;padding:0;border:0;border-radius:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;box-shadow:inset 0 -2px 0 transparent}
+.srctab:hover{color:var(--fg);background:transparent}
+.srctab.sel{color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
 /* Edit and Delete side by side at the end of a row or in a card's corner; Delete turns red only under the pointer. */
 .rowacts{display:inline-flex;align-items:center;gap:2px}
 .delbtn{color:var(--muted)}
@@ -1592,7 +1617,7 @@ table.grid.ds-matrix{min-width:720px}
 .ds-custom{margin-left:6px;font-size:10.5px;height:18px;padding:0 6px}
 .ds-chain{white-space:nowrap}
 .ds-src{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 3px;border:1px solid var(--bd);border-radius:11px;background:var(--bg);font-size:12px;font-weight:500}
-.ds-src b{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px}
+.ds-src b{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--accentbtn);color:#fff;font-size:10px}
 .ds-src:not(:has(b)){padding-left:8px}
 .ds-arrow{margin:0 4px;color:var(--muted)}
 .ds-also{display:block;margin-top:3px;font-size:11.5px;color:var(--muted)}
@@ -1612,7 +1637,7 @@ table.grid.ds-matrix td{white-space:normal;overflow:visible;text-overflow:clip;m
 a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weight:600}.lg-ms svg{width:18px;height:18px}
 .gs-uri{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--panel2);font-size:12px;overflow-wrap:anywhere}.gs-uri .mono{flex:1;min-width:0}
 /* Stocktake: progress, the scan field, the devices by room to tick; the summary on finishing. */
-.stk{display:flex;flex-direction:column;gap:12px;padding:12px}
+.stk{display:flex;flex-direction:column;gap:12px;padding:12px var(--gutter)}   /* in #view, which has its own scrollbar: the toolbar's gutter */
 .stk-pad{padding-left:12px;padding-right:12px}
 .stk .panelbox{margin:0}
 .stk-prog{display:flex;align-items:center;gap:12px;padding-top:12px}.stk-prog .ov-qbar{max-width:420px}
@@ -1630,7 +1655,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .stk-sum div{display:flex;flex-direction:column;align-items:center;padding:10px 6px;border:1px solid var(--bd);border-radius:var(--r-m)}
 .stk-sum b{font-size:20px}.stk-sum span{font-size:11.5px;color:var(--muted);text-align:center}.stk-sum .bad b{color:var(--danger)}
 .fieldnote.ok{color:var(--muted)}.stk-note .link{margin-left:6px}
-@media (max-width:640px){.stk{padding:8px}.stk-when{display:none}.stk-sum{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.stk-when{display:none}.stk-sum{grid-template-columns:repeat(2,1fr)}}
 /* Contracts: their contacts, under the supplier in the list and as a list in the dialog. */
 .ct-who{font-size:12px;margin-top:2px;white-space:normal}.ct-who .link{font-size:12px}
 .ct-people{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}.ct-people:empty{display:none}
@@ -1707,7 +1732,7 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .start-step{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd2)}
 .start-step:last-child{border-bottom:none}
 .start-n{flex:none;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bd);font-size:12px;font-weight:600}
-.start-step.done .start-n{background:var(--accent);border-color:var(--accent);color:#fff}
+.start-step.done .start-n{background:var(--accentbtn);border-color:var(--accentbtn);color:#fff}   /* white on it reads in dark too */
 .start-t{flex:1;display:flex;flex-direction:column;min-width:0}
 .start-t .muted{font-size:12px}
 @media (max-width:760px){table.stack{min-width:0!important;table-layout:auto!important;width:100%}table.stack>colgroup,table.stack>thead{display:none}
@@ -1721,7 +1746,6 @@ body.noside #side,body.noside #sideBtn{display:none!important}
 /* GUI check: entry sheet on a phone, stocktake scan row and width, review card buttons, person bar and cards on a phone. */
 .sheet-pwopt{display:flex;flex-direction:column;gap:2px}.sheet-pwopt .note{margin:0}
 @media (max-width:760px){.form.sheet-form{grid-template-columns:minmax(0,1fr)}}
-.stk{max-width:1400px}
 .stk-scanrow{align-items:center;flex-wrap:wrap}.stk-scanrow button{height:40px}
 @media (max-width:760px){.stk-scanrow input{flex:1 1 100%}}
 .card .rv-act{height:28px;padding:0 10px}
@@ -1809,6 +1833,9 @@ table.stack>tbody>tr>td{max-width:none}
 .ct-curl{margin-left:14px;padding-left:14px;border-left:1px solid var(--bd)}
 /* A row of a list in Settings → Users: every cell starts at the top, so a cell with a second line does not lift the rest. */
 #setUsers table.grid td{vertical-align:top}
+/* A cell of plain text sits level with the fields beside it (28px), and the ⋯ menu button (24px) in their middle. */
+#setUsers table.grid td:not(:has(> *)){line-height:28px}
+#setUsers table.grid td .menu>.menu-btn{margin-top:2px}
 /* A contract on a device: its state wraps under the name rather than cutting the name short. */
 .relrow:has([data-contract]){flex-wrap:wrap}
 /* Labels beside a field of more than one line start at its first line. */
@@ -1918,3 +1945,16 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 .be-field{margin-bottom:10px}.be-field .note{margin:4px 0}.be-list{margin:4px 0 0;padding-left:18px;font-size:12px}.be-list li{margin:2px 0}
 @media (max-width:760px){.be-row{grid-template-columns:1fr 1fr}.be-row .be-v{grid-column:1/-1}}
 .xhide{margin-left:6px;min-height:0;height:20px;width:20px;padding:0;line-height:1;font-size:15px;flex:none}
+
+/* "Attachments" and the like: when the first thing beside the label is a note, not a field, the label sits on its line. */
+.form label:has(+.entries .entries-box>.note:first-child){padding-top:1px}
+@media (max-width:760px){
+  /* Phone toolbars: what follows the bar's spacer goes on a row of its own, on the right, instead of one button alone
+     on the left. */
+  #toolbar>.grow:has(~ :is(button,.menu,a)){flex:1 0 100%;height:0}
+  #toolbar>.grow:has(~ :is(button,.menu,a))+*{margin-left:auto}
+  /* An empty grid cell beside a note would make a row of its own. */
+  .form.props>span:empty{display:none}
+}
+/* "Group by" and its list stay together when the toolbar wraps. */
+.tb-grp{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}

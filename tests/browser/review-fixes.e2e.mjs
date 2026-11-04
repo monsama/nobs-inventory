@@ -87,7 +87,7 @@ try {
   const cb = await a.locator('#plCanvas').boundingBox();
   assert.equal(await ev(a, ([x, y]) => !!document.elementFromPoint(x, y).closest('[data-area-drag]'), [cb.x + cb.width * .8, cb.y + cb.height * .8]), false, 'an empty part of the plan is taken by an area');
   await a.mouse.click(cb.x + cb.width * .8, cb.y + cb.height * .8); await a.waitForTimeout(200);
-  assert.equal(await a.locator('#plAreaAdd').count(), 0, 'a click outside the area selected it');
+  assert.equal(await a.locator('#plAreaMenu').count(), 0, 'a click outside the area selected it');
   // area drag preview: drag area from 20,20 by +10,+0, sample svg left mid-drag
   await a.mouse.move(cb.x + cb.width * .2, cb.y + cb.height * .2); await a.mouse.down(); await a.mouse.move(cb.x + cb.width * .3, cb.y + cb.height * .2, {steps: 4});
   const r = await a.locator('[data-area-drag] .pl-area-edge').first().boundingBox();

@@ -556,7 +556,7 @@ test('a viewer does not receive sign-in names or directory groups of the other u
   const srv = await startServer();
   try {
     const admin = await signIn(srv, 'admin', 'adminpass123');
-    const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true, groups: ['Staff'] }];
+    const users = [adminUser, { id: 'u-anna', login: 'anna', name: 'Anna', role: 'viewer', active: true, groups: ['Staff'], aliases: ['anna@example.ch'] }];
     assert.equal((await srv.call('PUT', '/api/state', { body: baseState({ users }), cookie: admin.cookie })).status, 200);
     assert.equal((await srv.call('POST', '/api/users/u-anna/password', { body: { password: 'viewerpw12345' }, cookie: admin.cookie })).status, 200);
     const viewer = await signIn(srv, 'anna', 'viewerpw12345');
@@ -565,8 +565,10 @@ test('a viewer does not receive sign-in names or directory groups of the other u
     assert.equal(anna.name, 'Anna');
     assert.equal('login' in anna, false, 'the viewer received a login');
     assert.equal('groups' in anna, false, 'the viewer received directory groups');
+    assert.equal('aliases' in anna, false, 'the viewer received other sign-in names (aliases)');
     const own = await srv.call('GET', '/api/state', { cookie: admin.cookie });
     assert.equal(own.json.users.find(u => u.id === 'u-anna').login, 'anna', 'the admin lost the login');
+    assert.deepEqual(own.json.users.find(u => u.id === 'u-anna').aliases, ['anna@example.ch'], 'the admin lost the aliases');
   } finally { await srv.close(); }
 });
 
