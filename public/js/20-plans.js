@@ -63,6 +63,8 @@ export let planParts = [];
 /* The area that new rectangles are added to, after it is clicked. */
 export let planEditArea = null;
 let planAreaDrag = null;
+/* A rectangle of the chosen area being resized by one of its handles: which rectangle, which side(s), and how it was. */
+let planResize = null;
 export let planZoom = 1;
 /* Ctrl + wheel steps not drawn yet (see renderPlans). */
 const planWheel = { dy: 0, at: null, raf: 0 };
@@ -201,7 +203,7 @@ export function renderPlans(){
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planEditArea && isAdmin() ? 'Drag the area to move it, or one of the squares on its edge to change its size. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
@@ -265,6 +267,8 @@ export function renderPlans(){
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
     if (planMode === 'area'){ const s = snapPoint(plan, x, y, r, e.altKey); planDraw = {x0: s.x, y0: s.y, x1: s.x, y1: s.y}; showGuides(c, s.gx, s.gy); return; }
+    /* A click on the plan beside the chosen area lets it go (its handles go away). */
+    if (planEditArea && !planPlace){ planEditArea = null; renderPlans(); return; }
     if (planPlace && isAdmin()){
       if (!areaAt(plan, x, y)){ toast('A device goes inside an area. Draw the area first.'); return; }
       placeDevice(plan, planPlace, round1(x), round1(y));
@@ -306,6 +310,14 @@ export function renderPlans(){
       .filter(p => p.own || rects.some(q => inRect(q, p.x, p.y)));
     planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
+  /* A handle of the chosen area changes the size of its rectangle. */
+  c.querySelectorAll('[data-rh]').forEach(h => h.onpointerdown = e => {
+    if (e.button !== 0 || !isAdmin()) return;
+    const area = (plan.areas || []).find(a => a.id === planEditArea); if (!area) return;
+    e.stopPropagation(); e.preventDefault();
+    const [i, d] = h.dataset.rh.split(':'), rects = areaRects(area).map(q => ({...q}));
+    planResize = {area, planId: plan.id, i: +i, d, rects, before: JSON.stringify({rects: area.rects, x: area.x, y: area.y, w: area.w, h: area.h}), rect: rects[+i], moved: false};
+  });
 }
 /* The colours an area can have. A name, not a free value: the page draws it from its own CSS (one class per colour),
    in light and dark. Blue is the default and is not stored. */
@@ -315,6 +327,30 @@ const areaColor = a => AREA_COLORS.some(([k]) => k === (a && a.color)) ? a.color
 const colorPicker = cur => html`<label>Colour</label><div class="ar-colors" role="radiogroup" aria-label="Colour of the area">${AREA_COLORS.map(([k, label]) => html`<label class="ar-sw ac-${k}" title="${label}"><input type="radio" name="arColor" value="${k}" ${k === cur ? 'checked' : ''} aria-label="${label}"><span></span></label>`)}</div>`;
 const pickedColor = () => { const v = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name=arColor]:checked')); return v ? v.value : 'blue'; };
 const setColor = (area, c) => { if (c === 'blue') delete area.color; else area.color = c; };
+/* The handles of the chosen area, for an admin in view mode: on each of its rectangles one at every corner and one in the
+   middle of every side. Dragging one changes the size of that rectangle (07-style pointer handlers below). */
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const handleAt = (r, d) => ({ x: d.includes('w') ? r.x : d.includes('e') ? r.x + r.w : r.x + r.w / 2, y: d.includes('n') ? r.y : d.includes('s') ? r.y + r.h : r.y + r.h / 2 });
+function resizeHandles(plan){
+  const a = planEditArea && planMode === 'view' && isAdmin() ? (plan.areas || []).find(x => x.id === planEditArea) : null;
+  if (!a) return '';
+  return String(html`${areaRects(a).map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}`);
+}
+/* The rectangle r resized: the sides in d (n, e, s, w) moved to the point x, y (in percent), each snapped on its own to
+   the edges of the other areas, the area's other rectangles and the plan's border. It keeps at least MIN_SIDE percent. */
+const MIN_SIDE = 2;
+function resized(plan, area, i, r, d, x, y, box, off){
+  const others = areaRects(area).filter((_, k) => k !== i);
+  const L = snapLines(plan, area.id), xs = [...L.xs, ...others.flatMap(q => [q.x, q.x + q.w])], ys = [...L.ys, ...others.flatMap(q => [q.y, q.y + q.h])];
+  const tx = SNAP_PX / box.width * 100, ty = SNAP_PX / box.height * 100;
+  const gx = off ? null : nearest(x, xs, tx), gy = off ? null : nearest(y, ys, ty);
+  const sx = gx ?? x, sy = gy ?? y;
+  let x0 = r.x, x1 = r.x + r.w, y0 = r.y, y1 = r.y + r.h;
+  if (d.includes('w')) x0 = Math.min(sx, x1 - MIN_SIDE); if (d.includes('e')) x1 = Math.max(sx, x0 + MIN_SIDE);
+  if (d.includes('n')) y0 = Math.min(sy, y1 - MIN_SIDE); if (d.includes('s')) y1 = Math.max(sy, y0 + MIN_SIDE);
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(100, x1); y1 = Math.min(100, y1);
+  return { rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, gx: d.includes('w') || d.includes('e') ? gx : null, gy: d.includes('n') || d.includes('s') ? gy : null };
+}
 /* An area is drawn as one shape: its rectangles are filled together and outlined once, with no edges between them.
    attrs: markup of attributes, made by html``. */
 export function areaShape(rects, cls = '', attrs = ''){
@@ -358,6 +394,7 @@ export function planCanvas(plan){
   return String(html`<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? html`<img src="${src}" alt="Floor plan ${plan.name}" draggable="false">` : (plan.areas || []).length ? '' : html`<div class="pl-noimg">No picture yet. Use Plan… → Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => rawHtml(areaShape(areaRects(a), ` ac-${areaColor(a)}${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, String(html`data-area-drag="${a.id}"`)) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)))}
+    ${rawHtml(resizeHandles(plan))}
     ${planParts.length ? rawHtml(areaShape(planParts, ' pending')) : ''}
     ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${(plan.areas || []).some(a => areaLocName(plan, a) === o.loc) ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`)}
   </div>`);
@@ -428,6 +465,19 @@ document.addEventListener('pointermove', e => {
     const s = pl ? snapPoint(pl, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey) : { x: pctOf(e.clientX, r.left, r.width), y: pctOf(e.clientY, r.top, r.height), gx: null, gy: null };
     planDraw.x1 = s.x; planDraw.y1 = s.y; showGuides(c, s.gx, s.gy); drawPreview();
   }
+  if (planResize){
+    const r = c.getBoundingClientRect(), d = planResize, pl = planById(d.planId);
+    if (pl){
+      const n = resized(pl, d.area, d.i, d.rects[d.i], d.d, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey);
+      d.rect = n.rect; d.moved = true; showGuides(c, n.gx, n.gy);
+      /* The shape, its name tag and the handles are drawn again from the rectangles as they are now. */
+      const rects = d.rects.map((q, k) => k === d.i ? n.rect : q), box = boxOf(rects);
+      const svg = c.querySelector(`svg[data-area-drag="${d.area.id}"]`);
+      if (svg){ const t = document.createElement('template'); t.innerHTML = areaShape(rects, svg.getAttribute('class').replace(/^pl-area/, ''), String(html`data-area-drag="${d.area.id}"`)); svg.replaceWith(t.content.firstElementChild); }
+      const tag = /** @type {HTMLElement|null} */ (c.querySelector(`[data-area-tag="${d.area.id}"]`)); if (tag){ tag.style.left = box.x + '%'; tag.style.top = box.y + '%'; }
+      c.querySelectorAll(`[data-rh^="${d.i}:"]`).forEach(h => { const p = handleAt(n.rect, /** @type {HTMLElement} */ (h).dataset.rh.split(':')[1]); /** @type {HTMLElement} */ (h).style.left = p.x + '%'; /** @type {HTMLElement} */ (h).style.top = p.y + '%'; });
+    }
+  }
   if (planAreaDrag){
     const r = c.getBoundingClientRect(), d = planAreaDrag;
     const pl = planById(d.planId), raw = { dx: pctOf(e.clientX, r.left, r.width) - d.x0, dy: pctOf(e.clientY, r.top, r.height) - d.y0 };
@@ -471,6 +521,17 @@ document.addEventListener('pointerup', e => {
     if (rect.w > 2 && rect.h > 2) planParts = [...planParts, rect];
     renderPlans();
   }
+  if (planResize){
+    const d = planResize; planResize = null;
+    if (d.moved){
+      const r1 = v => round1(v), q = d.rect;
+      d.area.rects = d.rects.map((x, k) => k === d.i ? {x: r1(q.x), y: r1(q.y), w: r1(q.w), h: r1(q.h)} : x);
+      const box = boxOf(d.area.rects); Object.assign(d.area, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
+      queueServerSave(); renderPlans();
+      const area = d.area, before = JSON.parse(d.before);
+      toastUndo(`${area.name} resized`, () => { for (const k of ['rects', 'x', 'y', 'w', 'h']) { if (before[k] === undefined) delete area[k]; else area[k] = before[k]; } queueServerSave(); renderPlans(); });
+    }
+  }
   if (planAreaDrag){
     const d = planAreaDrag; planAreaDrag = null;
     if (d.moved){
@@ -498,7 +559,7 @@ document.addEventListener('pointerup', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area')){ planPlace = null; planMode = 'view'; planParts = []; renderPlans(); }
+  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area' || planEditArea)){ planPlace = null; planMode = 'view'; planParts = []; planEditArea = null; renderPlans(); }
 });
 /* Adds the rectangles drawn to the area that was clicked, and widens its box to take them. */
 export function addPartsToArea(plan){

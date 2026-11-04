@@ -199,6 +199,10 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-area.movable{pointer-events:none}
 .pl-area.movable .pl-area-fill,.pl-area.movable .pl-area-edge{pointer-events:visiblePainted;cursor:move}
 .pl-area.editing .pl-area-edge{stroke-width:3px}
+/* The size handles of the chosen area: small squares on its corners and sides, kept the same size at any zoom. */
+.pl-h{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;box-sizing:border-box;background:var(--panel);border:1.5px solid var(--accent);border-radius:2px;z-index:6;touch-action:none}
+.pl-h:hover{background:var(--accent)}
+.pl-h-nw,.pl-h-se{cursor:nwse-resize}.pl-h-ne,.pl-h-sw{cursor:nesw-resize}.pl-h-n,.pl-h-s{cursor:ns-resize}.pl-h-e,.pl-h-w{cursor:ew-resize}
 .pl-x{pointer-events:auto;position:absolute;right:4px;top:4px;width:20px;height:20px;padding:0;line-height:1;font-size:14px;background:rgba(0,0,0,.55);color:#fff;border:0}
 .pl-card{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--bg);color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:12px;font-weight:400;text-align:left;white-space:nowrap;pointer-events:none;z-index:2}
 .pl-pin:hover .pl-card,.pl-pin:focus-visible .pl-card{display:flex}
