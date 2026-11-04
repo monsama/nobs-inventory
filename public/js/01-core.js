@@ -675,6 +675,8 @@ export function toastUndo(msg, undo, { anyEpoch = false } = {}){
     if (!e.target.closest('.t-undo')) return;
     if (!anyEpoch && UNDO.epoch !== epoch){ toast('The inventory was reloaded since, so this can no longer be undone. Change it back by hand.'); return; }
     undo(); toast('Undone');
+    /* Whatever the undo touched, the page shows it: the view (and Settings, when open) is drawn again. */
+    document.dispatchEvent(new CustomEvent('ni:undone'));
   };
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('off'), 10000);
 }

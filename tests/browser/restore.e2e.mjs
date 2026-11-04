@@ -49,6 +49,7 @@ try {
   await p.click('#toast .t-undo');
   await eventually(() => stored('p1').supplier === 'Beta');
   assert.match(await p.textContent('.hist li:first-child'), /Supplier back to Beta \(restore undone\)/);
+  assert.equal(await p.inputValue('#f_p1_supplier'), 'Beta', 'after Undo the page shows the value put back');
 
   // changed again since: asked first, with the value now and the one to set back
   await p.fill('#f_p1_supplier', 'Gamma'); await p.keyboard.press('Tab');

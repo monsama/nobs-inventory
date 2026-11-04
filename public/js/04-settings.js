@@ -71,6 +71,8 @@ export function collapsibleSections(root, prefix){
 let typeAdvOpen = false;
 /* Draws the Settings tab in st.setTab: its empty boxes, then each filled by its settings-*.js module. Someone who is not
    an admin gets a Read only note on top. */
+/* After an Undo, an open Settings tab is drawn again, so it shows the value put back. */
+document.addEventListener('ni:undone', () => { if (document.getElementById('setPane')) renderSetPane(); });
 export function renderSetPane(){
   const grp = setGroupOf(st.setTab);
   $$('#setTabs [data-st]').forEach(b => b.classList.toggle('active', b.dataset.st === st.setTab));

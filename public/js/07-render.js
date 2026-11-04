@@ -75,6 +75,8 @@ function noteNav(){
   if (NAV_KEYS.some(k => (was[k] ?? null) !== now_[k])) history.pushState(now_, '');
   else if (was.q !== now_.q) history.replaceState(now_, '');
 }
+/* After an Undo the view is drawn again from the data, so nothing shows the state that was undone. */
+document.addEventListener('ni:undone', () => view());
 window.addEventListener('popstate', e => {
   const to = e.state; if (!to || !to.nobs) return;
   /* An open dialog closes first, as Escape would; the view behind it stays. A dialog that must be answered stays open. */
