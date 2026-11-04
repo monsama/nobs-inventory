@@ -77,8 +77,8 @@ try {
   // A clicked area takes more rectangles: Add rectangle draws one, Done widens the area to take it.
   const [cx, cy] = at(25, 17);
   await p.mouse.move(cx, cy); await p.mouse.down(); await p.mouse.up();
-  await p.waitForSelector('#plAreaAdd');
-  await p.click('#plAreaAdd');
+  await p.waitForSelector('#plAreaMenu');
+  await p.click('#plAreaMenu .menu-btn'); await p.click('#plAreaAdd');
   const [dx0, dy0] = at(60, 60), [dx1, dy1] = at(70, 70);
   await p.mouse.move(dx0, dy0); await p.mouse.down(); await p.mouse.move(dx1, dy1, { steps: 4 }); await p.mouse.up();
   await p.click('#plAreaDone');

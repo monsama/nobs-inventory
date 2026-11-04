@@ -1,6 +1,6 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
-import { $$, $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
+import { $$, $, evEl, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
 import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
@@ -65,6 +65,12 @@ export let planEditArea = null;
 let planAreaDrag = null;
 /* A rectangle of the chosen area being resized by one of its handles: which rectangle, which side(s), and how it was. */
 let planResize = null;
+/* The rectangle of the chosen area last resized: the one Shift + arrow keys change. */
+let planLastRect = 0;
+/* A burst of arrow-key steps on the chosen area: where it was before the first one, so one Undo takes them all back. */
+let planKeyBurst = null;
+/* A text label on the plan being dragged, and panning the zoomed plan (middle button, or Space held and drag). */
+let planLabelDrag = null, planPan = null, planSpace = false;
 export let planZoom = 1;
 /* Ctrl + wheel steps not drawn yet (see renderPlans). */
 const planWheel = { dy: 0, at: null, raf: 0 };
@@ -111,6 +117,14 @@ export const boxOf = rects => {
   const x0 = Math.min(...rects.map(r => r.x)), y0 = Math.min(...rects.map(r => r.y));
   const x1 = Math.max(...rects.map(r => r.x + r.w)), y1 = Math.max(...rects.map(r => r.y + r.h));
   return {x: x0, y: y0, w: x1 - x0, h: y1 - y0};
+};
+/* Where an area is (its rectangles and their box), to put back on Undo; and putting it back. */
+const areaGeom = a => JSON.parse(JSON.stringify({rects: a.rects, x: a.x, y: a.y, w: a.w, h: a.h}));
+const setAreaGeom = (a, g) => { for (const k of ['rects', 'x', 'y', 'w', 'h']) { if (g[k] === undefined) delete a[k]; else a[k] = JSON.parse(JSON.stringify(g[k])); } };
+/* Sets an area's rectangles (rounded) and its box from them. */
+const setAreaRects = (a, rects) => {
+  a.rects = rects.map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}));
+  const box = boxOf(a.rects); Object.assign(a, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
 };
 const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 export const areaAt = (plan, x, y) => (plan.areas || []).find(a => areaRects(a).some(r => inRect(r, x, y)));
@@ -188,13 +202,15 @@ export function renderPlans(){
       ${isAdmin() ? html`<button id="plNew" ${PLANS.length ? html`class="primary"` : ''}>New plan</button>` : ''}
       ${plan ? html`${isAdmin() ? html`<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
-        ${editArea && planMode === 'view' ? html`<button id="plAreaEdit" title="Rename the area or choose its room">Edit ${editArea.name}</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle to ${editArea.name}</button>` : ''}
+        <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
+        ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${editArea.name}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
         ${planMode === 'area' && planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
-        ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button>
+        ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
-        <button type="button" id="plSideBtn" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">${sideOpen() ? 'Hide device list' : 'Device list'}</button>
-        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button></span>` : ''}
+        <button type="button" id="plSideBtn" class="${sideOpen() ? 'on' : ''}" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">Device list</button>
+        <span class="pl-zoom"><button id="plZoomOut" aria-label="Zoom out" title="Zoom out (Ctrl + wheel)">−</button><button id="plZoomReset" title="Actual size" class="pl-zv">${Math.round(planZoom * 100)}%</button><button id="plZoomIn" aria-label="Zoom in" title="Zoom in (Ctrl + wheel)">+</button><button id="plZoomFit" title="The whole plan in view (to move a zoomed plan: drag with the middle button, or hold Space and drag)">Fit</button></span>` : ''}
       <span class="grow"></span>
+      ${plan ? rawHtml(showTypeSelect(plan)) : ''}
       ${plan ? html`<span class="muted">${(plan.areas || []).length} ${(plan.areas || []).length === 1 ? 'area' : 'areas'} · ${planDevices(plan).length} ${planDevices(plan).length === 1 ? 'device' : 'devices'}</span>` : ''}
     </div>`;
   const body = plan ? html`<div class="pl-body${sideOpen() ? '' : ' side-off'}">
@@ -203,7 +219,7 @@ export function renderPlans(){
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planEditArea && isAdmin() ? 'Drag the area to move it, or one of the squares on its edge to change its size. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
@@ -222,7 +238,7 @@ export function renderPlans(){
   /* A zoom keeps one point of the plan where it is on the screen: the pointer for Ctrl + wheel (and a pinch on a
      touchpad), the middle of the view for the buttons. The plan is drawn again at the new size, then scrolled back. */
   const zoom = (v, at) => {
-    const next = Math.max(0.5, Math.min(3, Math.round(v * 1000) / 1000));
+    const next = Math.max(0.25, Math.min(3, Math.round(v * 1000) / 1000));
     const stage = $('#plStage'), cv = $('#plCanvas');
     if (next === planZoom) return;
     if (!stage || !cv){ planZoom = next; renderPlans(); return; }
@@ -237,9 +253,27 @@ export function renderPlans(){
     s2.scrollLeft += r2.left + fx * r2.width - px; s2.scrollTop += r2.top + fy * r2.height - py;
   };
   on('#plZoomOut', () => zoom(planZoom - 0.25)); on('#plZoomIn', () => zoom(planZoom + 0.25)); on('#plZoomReset', () => zoom(1));
+  /* Fit: the zoom at which the whole plan is in view, its width and its height. */
+  on('#plZoomFit', () => {
+    const stage = $('#plStage'), cv = $('#plCanvas'); if (!stage || !cv) return;
+    const h1 = cv.getBoundingClientRect().height / planZoom, w1 = cv.getBoundingClientRect().width / planZoom;
+    zoom(Math.min(stage.clientWidth / w1, (stage.clientHeight - 4) / h1, 1));
+  });
+  on('#plText', () => { planMode = planMode === 'text' ? 'view' : 'text'; planPlace = null; planParts = []; planEditArea = null; renderPlans(); });
+  on('#plAreaDup', () => { const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) duplicateArea(plan, a); });
+  on('#plPrint', () => printPlan(plan));
+  const shw = $('#plShow'); if (shw) shw.onchange = () => { st.plShow = shw.value || null; renderPlans(); };
   /* Ctrl + wheel zooms at the pointer, as in a map or a picture viewer; the wheel alone still scrolls. Several wheel
      steps in one frame are one zoom, so a fast wheel or a touchpad does not draw the plan many times over. */
   const stage = $('#plStage');
+  /* Panning: the middle button, or the left one with Space held, drags the plan inside its frame. */
+  if (stage) stage.addEventListener('pointerdown', e => {
+    if (!(e.button === 1 || (e.button === 0 && planSpace))) return;
+    e.preventDefault(); e.stopPropagation();
+    planPan = { sx: e.clientX, sy: e.clientY, l: stage.scrollLeft, t: stage.scrollTop };
+    stage.classList.add('panning');
+  }, true);
+  if (stage) stage.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
   if (stage) stage.addEventListener('wheel', e => {
     if (!e.ctrlKey) return;
     e.preventDefault();
@@ -267,6 +301,7 @@ export function renderPlans(){
     const r = c.getBoundingClientRect();
     const x = pctOf(e.clientX, r.left, r.width), y = pctOf(e.clientY, r.top, r.height);
     if (planMode === 'area'){ const s = snapPoint(plan, x, y, r, e.altKey); planDraw = {x0: s.x, y0: s.y, x1: s.x, y1: s.y}; showGuides(c, s.gx, s.gy); return; }
+    if (planMode === 'text' && isAdmin()){ labelModal(plan, null, round1(x), round1(y)); return; }
     /* A click on the plan beside the chosen area lets it go (its handles go away). */
     if (planEditArea && !planPlace){ planEditArea = null; renderPlans(); return; }
     if (planPlace && isAdmin()){
@@ -310,7 +345,17 @@ export function renderPlans(){
     const pins = [...c.querySelectorAll('.pl-pin')].filter(el => !el.dataset.parea || el.dataset.parea === area.id)
       .map(el => ({id: el.dataset.pin, x: parseFloat(el.dataset.homeX || el.style.left), y: parseFloat(el.dataset.homeY || el.style.top), own: el.dataset.parea === area.id}))
       .filter(p => p.own || rects.some(q => inRect(q, p.x, p.y)));
-    planAreaDrag = {area, planId: plan.id, rects, pins, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
+    planAreaDrag = {area, planId: plan.id, rects, pins, before: areaGeom(area), pinSnap: snapshot(pins.map(p => byId(p.id))), x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
+  });
+  /* × on a rectangle of the chosen area (one of several) takes that rectangle away. */
+  c.querySelectorAll('[data-rx]').forEach(b => { b.onpointerdown = e => e.stopPropagation(); b.onclick = e => { e.stopPropagation(); const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) removeRect(plan, a, +b.dataset.rx); }; });
+  /* A text label: an admin drags it to move it, or clicks it to change or remove it. */
+  c.querySelectorAll('[data-label]').forEach(el => el.onpointerdown = e => {
+    if (e.button !== 0 || !isAdmin() || planMode !== 'view') return;
+    e.stopPropagation();
+    const l = (plan.labels || []).find(x => x.id === el.dataset.label); if (!l) return;
+    const r = c.getBoundingClientRect();
+    planLabelDrag = { plan, l, el, x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), from: { x: l.x, y: l.y }, moved: false };
   });
   /* A handle of the chosen area changes the size of its rectangle. */
   c.querySelectorAll('[data-rh]').forEach(h => h.onpointerdown = e => {
@@ -318,7 +363,7 @@ export function renderPlans(){
     const area = (plan.areas || []).find(a => a.id === planEditArea); if (!area) return;
     e.stopPropagation(); e.preventDefault();
     const [i, d] = h.dataset.rh.split(':'), rects = areaRects(area).map(q => ({...q}));
-    planResize = {area, planId: plan.id, i: +i, d, rects, before: JSON.stringify({rects: area.rects, x: area.x, y: area.y, w: area.w, h: area.h}), rect: rects[+i], moved: false};
+    planResize = {area, planId: plan.id, i: +i, d, rects, before: areaGeom(area), rect: rects[+i], moved: false}; planLastRect = +i;
   });
 }
 /* The colours an area can have. A name, not a free value: the page draws it from its own CSS (one class per colour),
@@ -336,7 +381,8 @@ const handleAt = (r, d) => ({ x: d.includes('w') ? r.x : d.includes('e') ? r.x +
 function resizeHandles(plan){
   const a = planEditArea && planMode === 'view' && isAdmin() ? (plan.areas || []).find(x => x.id === planEditArea) : null;
   if (!a) return '';
-  return String(html`${areaRects(a).map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}`);
+  const rects = areaRects(a);
+  return String(html`${rects.map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}${rects.length > 1 ? rects.map((r, i) => html`<button type="button" class="pl-rx" data-rx="${i}" style="left:${r.x + r.w}%;top:${r.y}%" aria-label="Remove this rectangle of ${a.name}" title="Remove this rectangle">×</button>`) : ''}`);
 }
 /* The rectangle r resized: the sides in d (n, e, s, w) moved to the point x, y (in percent), each snapped on its own to
    the edges of the other areas, the area's other rectangles and the plan's border. It keeps at least MIN_SIDE percent. */
@@ -390,13 +436,16 @@ function ridersHtml(o){
   return html`<span class="pl-riders"><span class="muted">${o.type === 'rack' ? 'In this rack' : 'Attached'}</span>${shown}${list.length > 8 ? html`<span class="muted">and ${list.length - 8} more</span>` : ''}</span>`;
 }
 export function planCanvas(plan){
-  const cursor = planMode === 'area' ? 'crosshair' : planPlace ? 'copy' : 'default';
-  const src = planImgSrc(plan), layout = planLayout(plan);
+  const cursor = planMode === 'area' ? 'crosshair' : planMode === 'text' ? 'text' : planPlace ? 'copy' : 'default';
+  const src = planImgSrc(plan), all = planLayout(plan);
+  /* The plan can show one type only (the bar's Show); the area counts then count that type. */
+  const layout = st.plShow ? all.filter(p => p.o.type === st.plShow) : all;
   /* Without a picture the plan still has room to draw on, with a line saying what to do. */
   return String(html`<div class="pl-canvas${src ? '' : ' noimg'}" id="plCanvas" style="cursor:${cursor};width:${planZoom * 100}%">
     ${src ? html`<img src="${src}" alt="Floor plan ${plan.name}" draggable="false">` : (plan.areas || []).length ? '' : html`<div class="pl-noimg">No picture yet. Use Plan… → Replace image to add the floor plan, then draw areas and place devices on it.</div>`}
     ${(plan.areas || []).map(a => rawHtml(areaShape(areaRects(a), ` ac-${areaColor(a)}${planMode === 'view' ? ' movable' : ''}${planEditArea === a.id ? ' editing' : ''}`, String(html`data-area-drag="${a.id}"`)) + areaTag(a, planMode !== 'area' && isAdmin(), layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).length)))}
     ${rawHtml(resizeHandles(plan))}
+    ${(plan.labels || []).map(l => html`<div class="pl-label${isAdmin() && planMode === 'view' ? ' movable' : ''}" data-label="${l.id}" style="left:${l.x}%;top:${l.y}%"${isAdmin() ? html` title="Drag to move it; click to change or remove it"` : ''}>${l.text}</div>`)}
     ${planParts.length ? rawHtml(areaShape(planParts, ' pending')) : ''}
     ${layout.map(({o, box, area, ...pos}) => html`<button class="pl-pin${pos.auto ? ' auto' : ''}${(box ? box.y : pos.y) < 35 ? ' below' : ''}" data-pin="${o.id}"${box ? html` data-box="${box.x},${box.y},${box.w},${box.h}" data-parea="${area}"` : ''} style="left:${pos.x}%;top:${pos.y}%;--tc:${tcol(o.type)}">${rawHtml(tico(o.type, 'tico sm'))}<span class="pl-code">${o.name || o.code || ''}</span>${planRiders(o).length ? html`<span class="pl-rcount" aria-hidden="true">+${planRiders(o).length}</span>` : ''}<span class="pl-card"><b>${o.name}</b><span>${TYPES[o.type] ? TYPES[o.type].label : ''}${o.model ? ' · ' + o.model : ''}</span><span class="muted">${[o.code, o.loc || 'No location'].filter(Boolean).join(' · ')}</span>${ridersHtml(o)}</span><span class="pl-unpin" data-unpin="${o.id}" aria-label="Remove ${o.name} from the plan" title="${(plan.areas || []).some(a => areaLocName(plan, a) === o.loc) ? 'Remove from this location' : 'Remove from the plan'}">×</span></button>`)}
   </div>`);
@@ -467,6 +516,13 @@ document.addEventListener('pointermove', e => {
     const s = pl ? snapPoint(pl, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey) : { x: pctOf(e.clientX, r.left, r.width), y: pctOf(e.clientY, r.top, r.height), gx: null, gy: null };
     planDraw.x1 = s.x; planDraw.y1 = s.y; showGuides(c, s.gx, s.gy); drawPreview();
   }
+  if (planPan){ const stg = $('#plStage'); if (stg){ stg.scrollLeft = planPan.l - (e.clientX - planPan.sx); stg.scrollTop = planPan.t - (e.clientY - planPan.sy); } }
+  if (planLabelDrag){
+    const r = c.getBoundingClientRect(), d = planLabelDrag;
+    const x = Math.max(0, Math.min(100, d.from.x + pctOf(e.clientX, r.left, r.width) - d.x0)), y = Math.max(0, Math.min(100, d.from.y + pctOf(e.clientY, r.top, r.height) - d.y0));
+    d.moved = d.moved || Math.abs(x - d.from.x) + Math.abs(y - d.from.y) > 0.3;
+    d.x = x; d.y = y; d.el.style.left = x + '%'; d.el.style.top = y + '%';
+  }
   if (planResize){
     const r = c.getBoundingClientRect(), d = planResize, pl = planById(d.planId);
     if (pl){
@@ -523,6 +579,14 @@ document.addEventListener('pointerup', e => {
     if (rect.w > 2 && rect.h > 2) planParts = [...planParts, rect];
     renderPlans();
   }
+  if (planPan){ planPan = null; const stg = $('#plStage'); if (stg) stg.classList.remove('panning'); }
+  if (planLabelDrag){
+    const d = planLabelDrag; planLabelDrag = null;
+    if (d.moved){
+      d.l.x = round1(d.x); d.l.y = round1(d.y); queueServerSave(); renderPlans();
+      toastUndo('Text moved', () => { d.l.x = d.from.x; d.l.y = d.from.y; queueServerSave(); renderPlans(); });
+    } else labelModal(d.plan, d.l);
+  }
   if (planResize){
     const d = planResize; planResize = null;
     if (d.moved){
@@ -530,8 +594,8 @@ document.addEventListener('pointerup', e => {
       d.area.rects = d.rects.map((x, k) => k === d.i ? {x: r1(q.x), y: r1(q.y), w: r1(q.w), h: r1(q.h)} : x);
       const box = boxOf(d.area.rects); Object.assign(d.area, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
       queueServerSave(); renderPlans();
-      const area = d.area, before = JSON.parse(d.before);
-      toastUndo(`${area.name} resized`, () => { for (const k of ['rects', 'x', 'y', 'w', 'h']) { if (before[k] === undefined) delete area[k]; else area[k] = before[k]; } queueServerSave(); renderPlans(); });
+      const area = d.area, before = d.before;
+      toastUndo(`${area.name} resized`, () => { setAreaGeom(area, before); queueServerSave(); renderPlans(); });
     }
   }
   if (planAreaDrag){
@@ -541,6 +605,7 @@ document.addEventListener('pointerup', e => {
       const box = boxOf(d.area.rects); Object.assign(d.area, {x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
       d.pins.forEach(p => { const o = byId(p.id); if (!o) return; o.planPos = {plan: d.planId, x: round1(p.x + d.dx), y: round1(p.y + d.dy)}; hist(o, now(), `Moved with the area ${d.area.name} by ${who()}`); });
       queueServerSave(); renderPlans();
+      toastUndo(`${d.area.name} moved`, () => { setAreaGeom(d.area, d.before); restoreSnapshot(d.pinSnap, `Moving ${d.area.name} undone`); queueServerSave(); renderPlans(); });
     } else { planEditArea = d.area.id; renderPlans(); }
   }
   if (planDrag){
@@ -561,8 +626,114 @@ document.addEventListener('pointerup', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode === 'area' || planEditArea)){ planPlace = null; planMode = 'view'; planParts = []; planEditArea = null; renderPlans(); }
+  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode !== 'view' || planEditArea)){ planPlace = null; planMode = 'view'; planParts = []; planEditArea = null; renderPlans(); return; }
+  const t = evEl(e);
+  if (st.tab !== 'plans' || $('#mdl') || (t.closest && t.closest('input,select,textarea,[contenteditable]'))) return;
+  /* Space held: a drag moves the plan in its frame (as in a picture editor), and the page does not scroll. */
+  if (e.key === ' ' && $('#plStage')){ if (!planSpace){ planSpace = true; $('#plStage').classList.add('can-pan'); } if (!(t.closest && t.closest('button'))) e.preventDefault(); return; }
+  /* The arrow keys move the chosen area by 1% (Shift: its last resized rectangle gets bigger or smaller). */
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!dir || !planEditArea || planMode !== 'view' || !isAdmin() || e.ctrlKey || e.metaKey || e.altKey) return;
+  const plan = planById(planSel), area = plan && (plan.areas || []).find(a => a.id === planEditArea); if (!area) return;
+  e.preventDefault();
+  keyStep(plan, area, dir[0], dir[1], e.shiftKey);
 });
+document.addEventListener('keyup', e => { if (e.key === ' ' && planSpace){ planSpace = false; const stg = $('#plStage'); if (stg) stg.classList.remove('can-pan'); } });
+window.addEventListener('blur', () => { planSpace = false; });
+/* One arrow-key step on the chosen area: moved by dx, dy percent (its devices placed inside move with it), or with
+   resize its last resized rectangle's right or bottom side moved. Steps close together are one Undo. */
+function keyStep(plan, area, dx, dy, resize){
+  const rects = areaRects(area);
+  const inside = planDevices(plan).filter(o => o.planPos && o.planPos.plan === plan.id && rects.some(q => inRect(q, o.planPos.x, o.planPos.y)));
+  if (!planKeyBurst || planKeyBurst.area !== area){ planKeyBurst = { area, geom: areaGeom(area), pins: snapshot(inside), resize }; }
+  clearTimeout(planKeyBurst.timer); planKeyBurst.timer = setTimeout(() => { planKeyBurst = null; }, 1500);
+  if (resize){
+    const i = Math.min(planLastRect, rects.length - 1), r = rects[i];
+    const n = { ...r, w: Math.max(MIN_SIDE, Math.min(100 - r.x, r.w + dx)), h: Math.max(MIN_SIDE, Math.min(100 - r.y, r.h + dy)) };
+    setAreaRects(area, rects.map((q, k) => k === i ? n : q));
+  } else {
+    const sh = shiftRects(rects, dx, dy);
+    if (!sh.dx && !sh.dy) return;
+    setAreaRects(area, sh.rects);
+    for (const o of inside) o.planPos = { plan: plan.id, x: round1(o.planPos.x + sh.dx), y: round1(o.planPos.y + sh.dy) };
+  }
+  queueServerSave(); renderPlans();
+  const b = planKeyBurst;
+  toastUndo(`${area.name} ${resize ? 'resized' : 'moved'}`, () => { setAreaGeom(area, b.geom); restoreSnapshot(b.pins, `Moving ${area.name} undone`); planKeyBurst = null; queueServerSave(); renderPlans(); });
+}
+/* Takes rectangle i of an area of several away. Devices placed by hand inside it (and in no other rectangle of the
+   area) leave the plan, as when the area is removed. With Undo. */
+function removeRect(plan, area, i){
+  const rects = areaRects(area); if (rects.length < 2) return;
+  const gone = rects[i], rest = rects.filter((_, k) => k !== i);
+  const out = planDevices(plan).filter(o => o.planPos && o.planPos.plan === plan.id && inRect(gone, o.planPos.x, o.planPos.y) && !rest.some(q => inRect(q, o.planPos.x, o.planPos.y)));
+  const geom = areaGeom(area), pins = snapshot(out);
+  setAreaRects(area, rest); for (const o of out) delete o.planPos;
+  planLastRect = 0; queueServerSave(); renderPlans();
+  toastUndo(`Rectangle of ${area.name} removed`, () => { setAreaGeom(area, geom); restoreSnapshot(pins, 'Removing the rectangle undone'); queueServerSave(); renderPlans(); });
+}
+/* A copy of an area beside it (moved by 3% where there is room), with the same colour and rectangles, named "Name 2"
+   (or the next free number) and so a room of its own. It is chosen at once, to move it. With Undo. */
+function duplicateArea(plan, area){
+  const names = new Set((plan.areas || []).map(a => a.name.toLowerCase()));
+  const base = area.name.replace(/ \d+$/, ''); let n = 2; while (names.has(`${base} ${n}`.toLowerCase())) n++;
+  const sh = shiftRects(areaRects(area), 3, 3);
+  const copy = { id: 'ar' + rid(), name: `${base} ${n}` };
+  setAreaRects(copy, sh.rects); if (area.color) copy.color = area.color;
+  const locsBefore = [...LOCS], sitesBefore = [...SITES];
+  plan.areas = [...(plan.areas || []), copy];
+  if (plan.site) areaLoc(plan, copy);
+  planEditArea = copy.id; queueServerSave(); renderPlans();
+  toastUndo(`${copy.name} added`, () => { plan.areas = plan.areas.filter(a => a.id !== copy.id); LOCS.splice(0, LOCS.length, ...locsBefore); SITES.splice(0, SITES.length, ...sitesBefore); if (planEditArea === copy.id) planEditArea = null; queueServerSave(); renderPlans(); });
+}
+/* The bar's Show: all devices, or one type of those on the plan. */
+function showTypeSelect(plan){
+  const types = [...new Set(planLayout(plan).map(p => p.o.type))].filter(k => TYPES[k]).sort((a, b) => TYPES[a].label.localeCompare(TYPES[b].label));
+  if (st.plShow && !types.includes(st.plShow)) st.plShow = null;
+  if (types.length < 2 && !st.plShow) return '';
+  return String(html`<select id="plShow" aria-label="Devices shown on the plan" title="Show one type of device on the plan"><option value="">All devices</option>${types.map(k => html`<option value="${k}" ${st.plShow === k ? 'selected' : ''}>${TYPES[k].label}</option>`)}</select>`);
+}
+/* A text on the plan (Entrance, Server room door …): new at x, y, or l to change or remove. Saved, with Undo. */
+function labelModal(plan, l, x, y){
+  modal(html`<div class="mh">${l ? 'Change text' : 'New text'}</div><div class="mb"><div class="form" style="padding:0">
+      <label for="lbText">Text</label><input id="lbText" maxlength="60" value="${l ? l.text : ''}" placeholder="e.g. Entrance, Server room door"></div></div>
+    <div class="mf">${l ? html`<button id="lbDel" class="danger-text">Remove</button><span class="grow"></span>` : ''}<button id="lbNo">Cancel</button><button id="lbOk" class="primary">${l ? 'Save' : 'Add text'}</button></div>`, 'sm');
+  $('#lbNo').onclick = closeModal;
+  const was = JSON.parse(JSON.stringify(plan.labels || []));
+  const undo = msg => toastUndo(msg, () => { plan.labels = was; if (!plan.labels.length) delete plan.labels; queueServerSave(); renderPlans(); });
+  $('#lbOk').onclick = () => {
+    const text = $('#lbText').value.trim();
+    if (!text){ $('#lbText').focus(); return; }
+    if (l) l.text = text; else plan.labels = [...(plan.labels || []), { id: 'lb' + rid(), text, x, y }];
+    planMode = 'view'; queueServerSave(); closeModal(); renderPlans(); undo(l ? 'Text changed' : 'Text added');
+  };
+  const del = $('#lbDel'); if (del) del.onclick = () => { plan.labels = plan.labels.filter(x => x.id !== l.id); if (!plan.labels.length) delete plan.labels; queueServerSave(); closeModal(); renderPlans(); undo('Text removed'); };
+  $('#lbText').focus();
+}
+/* The plan to print or save as PDF: in a window of its own, in light colours, with every pin's name, the texts, and
+   after it the devices by area. The browser's print dialog opens once the picture is loaded. */
+function printPlan(plan){
+  const w = window.open('', '_blank');
+  if (!w){ toast('The browser blocked the print window. Allow pop-ups for this page and try again.'); return; }
+  const keep = { planEditArea, planMode, planPlace, planZoom, planParts };
+  planEditArea = null; planMode = 'print'; planPlace = null; planZoom = 1; planParts = [];
+  const canvas = planCanvas(plan);
+  ({ planEditArea, planMode, planPlace, planZoom, planParts } = keep);
+  const layout = planLayout(plan), byArea = (plan.areas || []).map(a => [a, layout.filter(p => p.area ? p.area === a.id : areaRects(a).some(q => inRect(q, p.x, p.y))).map(p => p.o)]);
+  const rest = layout.map(p => p.o).filter(o => !byArea.some(([, list]) => list.includes(o)));
+  const row = o => html`<li><b>${o.name}</b> <span class="muted">${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.code, o.model].filter(Boolean).join(' · ')}</span></li>`;
+  const css = new URL('css/app.css', location.href).href;
+  w.document.open();
+  w.document.write(String(html`<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><title>${plan.name}${plan.site ? ' · ' + plan.site : ''}</title><link rel="stylesheet" href="${css}">
+    <style>body{background:#fff;padding:16px}.pl-print .pl-canvas{width:100%!important;cursor:default!important}.pl-print .pl-unpin,.pl-print .pl-card{display:none!important}.pl-legend{columns:2;gap:24px;margin-top:16px}.pl-legend h3{break-after:avoid;margin:12px 0 4px;font-size:13px}.pl-legend ul{margin:0;padding-left:16px}@page{margin:12mm}</style></head>
+    <body><h2 style="margin:0 0 8px">${plan.name}${plan.site ? html` <span class="muted">· ${plan.site}</span>` : ''}</h2><p class="muted" style="margin:0 0 12px">${layout.length} ${layout.length === 1 ? 'device' : 'devices'} · printed ${new Date().toLocaleDateString()}</p>
+    <div class="plans pl-print">${rawHtml(canvas)}</div>
+    <div class="pl-legend">${byArea.filter(([, list]) => list.length).map(([a, list]) => html`<h3>${a.name} (${list.length})</h3><ul>${list.map(row)}</ul>`)}${rest.length ? html`<h3>Elsewhere on the plan (${rest.length})</h3><ul>${rest.map(row)}</ul>` : ''}</div></body></html>`));
+  w.document.close();
+  const go = () => { try { w.focus(); w.print(); } catch { /* the window was closed */ } };
+  const img = w.document.querySelector('img');
+  if (img && !img.complete){ img.onload = go; img.onerror = go; } else setTimeout(go, 300);
+}
 /* Adds the rectangles drawn to the area that was clicked, and widens its box to take them. */
 export function addPartsToArea(plan){
   const area = (plan.areas || []).find(a => a.id === planEditArea), drawn = planParts;
