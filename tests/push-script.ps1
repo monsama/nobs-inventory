@@ -89,6 +89,27 @@ $h = Get-HealthByAsset (New-Conn $vol)
 Check 'disks: optical and no size' ($h['7']['disk'] -replace '[0-9][^/;]*/[^;]* GB', 'n/n GB') 'C: n/n GB; D: optical; E:'
 $script:Cols = $saveCols
 
+# A monitor that is an asset of its own is linked to its computer from Lansweeper's Relations, either way round; an
+# ended relation and one between two computers are passed over, and of two open ones the newer counts.
+$saveCols = $script:Cols
+$script:Cols = @{ tblAssetRelations = @{ parentassetid = 'ParentAssetID'; childassetid = 'ChildAssetID'; startdate = 'StartDate'; enddate = 'EndDate' } }
+$recs = @(
+  [ordered]@{ ref = '501'; assetType = 'Windows'; links = @() }, [ordered]@{ ref = '502'; assetType = 'Windows'; links = @() },
+  [ordered]@{ ref = '17152'; assetType = 'Monitor'; links = @() }, [ordered]@{ ref = '17153'; assetType = 'Monitor'; links = @() },
+  [ordered]@{ ref = '17154'; assetType = 'Monitor'; links = @() }, [ordered]@{ ref = 'mon-X1'; assetType = 'Monitor'; links = @([ordered]@{ ref = '501'; kind = 'attached'; port = '' }) })
+$rel = New-Table @('ParentAssetID','ChildAssetID','StartDate') @(
+  @('501', '17152', '2026-10-05 12:49:16'), @('17153', '501', '2026-10-05 12:49:16'),
+  @('17154', '501', '2026-01-02 08:00:00'), @('17154', '502', '2026-10-05 12:49:16'), @('501', '502', '2026-10-05 12:49:16'))
+Check 'relations: monitors linked' (Add-MonitorRelations (New-Conn $rel) $recs) 3
+Check 'relations: monitor as child' $recs[2]['links'][0].ref '501'
+Check 'relations: monitor as parent' $recs[3]['links'][0].ref '501'
+Check 'relations: kind' $recs[3]['links'][0].kind 'attached'
+Check 'relations: the newer of two' $recs[4]['links'][0].ref '502'
+Check 'relations: computers keep theirs' $recs[0]['links'].Count 0
+Check 'relations: the monitor scan link stays' $recs[5]['links'][0].ref '501'
+Check 'relations: none without the table' (& { $script:Cols = @{}; Add-MonitorRelations (New-Conn $rel) $recs }) 0
+$script:Cols = $saveCols
+
 # What the push leaves out is counted in Lansweeper and said in the log.
 $Config = @{ MaxAgeDays = 0 }
 $script:Cols['tblAssetCustom'] = @{ state = 'State'; assetid = 'AssetID' }; $script:Cols['tblAssets'] = @{ lastseen = 'Lastseen' }

@@ -12,7 +12,8 @@
     Purchase data goes along: the order number, and the price and supplier from the custom fields named in the
     configuration (PriceField, SupplierField). NOBS fills them in only where the device has none.
 
-    Monitors are linked to the PC they are attached to (from the monitor scan). The installed software of each device is
+    Monitors are linked to the PC they are attached to (from the monitor scan, and from Lansweeper's Relations for
+    monitors that are assets of their own). The installed software of each device is
     sent as well, and its firmware, last power event, disks and antivirus state. Switch ports and hosts are not read: the
     inventory keeps those connections by hand.
 
@@ -96,6 +97,9 @@ $script:Wanted = [ordered]@{
     tblADusers     = @('Username', 'Userdomain', 'Department', 'Displayname')
     tsysIPLocations = @('IPLocation', 'StartIP', 'EndIP')
     tblMonitor     = @('AssetID', 'MonitorModel', 'SerialNumber', 'MonitorManufacturer')
+    # Lansweeper's Relations ("Connected To"): a monitor asset of its own is linked to its computer here, also when
+    # the computer's last scan did not see it (undocked, or seen through a dock).
+    tblAssetRelations = @('ParentAssetID', 'ChildAssetID', 'StartDate', 'EndDate')
     tblSoftware    = @('AssetID', 'softID', 'softwareVersion')
     tblSoftwareUni = @('SoftID', 'softwareName')
     tblBIOS        = @('AssetID', 'Version')
@@ -467,6 +471,40 @@ function Get-MonitorRecords($conn) {
     return , $list.ToArray()
 }
 
+# Monitors that are Lansweeper assets of their own: each is linked to the computer its Relations name ("Connected To",
+# either way round), as Lansweeper shows "Monitor on <computer>". A relation that has ended is passed over; of several open
+# ones the newest counts. The monitor scan's own link (Get-MonitorRecords) stays as well. Changes the records in place
+# and returns how many monitors got a link.
+function Add-MonitorRelations($conn, $records) {
+    if (-not ((Test-Col 'tblAssetRelations' 'ParentAssetID') -and (Test-Col 'tblAssetRelations' 'ChildAssetID'))) { return 0 }
+    $byRef = @{}
+    foreach ($rec in $records) { if ($rec['ref'] -and "$($rec['ref'])" -notlike 'mon-*') { $byRef[[string]$rec['ref']] = $rec } }
+    $isMonitor = { param($r) $r -and "$($r['assetType'])" -eq 'Monitor' }
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = 'SELECT [ParentAssetID], [ChildAssetID]' +
+        $(if (Test-Col 'tblAssetRelations' 'StartDate') { ', [StartDate]' } else { ', NULL AS [StartDate]' }) +
+        ' FROM [tblAssetRelations] WHERE [ParentAssetID] IS NOT NULL AND [ChildAssetID] IS NOT NULL' +
+        $(if (Test-Col 'tblAssetRelations' 'EndDate') { ' AND [EndDate] IS NULL' } else { '' })
+    $cmd.CommandTimeout = 300
+    $best = @{}   # monitor ref -> @{ pc; start }
+    $reader = $cmd.ExecuteReader()
+    try {
+        while ($reader.Read()) {
+            $p = ConvertTo-Text $reader['ParentAssetID']; $c = ConvertTo-Text $reader['ChildAssetID']
+            $start = Get-DateText $reader['StartDate']
+            $pr = $byRef[$p]; $cr = $byRef[$c]
+            if (-not $pr -or -not $cr) { continue }
+            if ((& $isMonitor $cr) -and -not (& $isMonitor $pr)) { $mon = $c; $pc = $p }
+            elseif ((& $isMonitor $pr) -and -not (& $isMonitor $cr)) { $mon = $p; $pc = $c }
+            else { continue }
+            $was = $best[$mon]
+            if (-not $was -or [string]::CompareOrdinal($start, $was.start) -gt 0) { $best[$mon] = @{ pc = $pc; start = $start } }
+        }
+    } finally { $reader.Close() }
+    foreach ($mon in $best.Keys) { $byRef[$mon]['links'] = @([ordered]@{ ref = $best[$mon].pc; kind = 'attached'; port = '' }) }
+    return $best.Count
+}
+
 # Virtual machines are their own type (no rack slot); a computer whose manufacturer or model says virtual is one.
 $script:VmPattern = 'vmware|virtual|qemu|kvm|xen|hyper-v|virtualbox|parallels|bochs|nutanix|proxmox'
 function Get-AssetTypeText($reader) {
@@ -788,6 +826,7 @@ function Get-LsRecords {
         # The monitors go as records of their own; counted apart, so the log adds up with Lansweeper's assets.
         $script:MonitorCount = 0
         foreach ($m in (Get-MonitorRecords $conn)) { $list.Add($m); $script:MonitorCount++ }
+        try { $n = Add-MonitorRelations $conn $list; if ($n) { Write-PushLog "$n monitor(s) linked to their computer from Lansweeper's relations" } } catch { Write-PushLog "Could not read the asset relations: $($_.Exception.Message)" 'WARN' }
         $script:IpLocations = Get-IpLocations $conn
         return , $list.ToArray()
     } finally { $conn.Dispose() }
