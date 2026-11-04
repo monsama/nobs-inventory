@@ -1,5 +1,5 @@
 /* Browser test of the floor plan tools: Undo after moving an area, taking one rectangle of an area away, the arrow
-   keys on the chosen area (Shift: its size), duplicating an area, texts on the plan (add, drag, change, remove),
+   keys on the chosen area (Shift: its size), moving one rectangle of several by its grip, duplicating an area, texts on the plan (add, drag, change, remove),
    showing one type of device, Fit and panning a zoomed plan, and printing it with a list of the devices by area. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -53,6 +53,14 @@ try {
   await storedBy(() => area('ar2'), a => a.rects.length === 1 && a.w === 15);
   await p.click('#toast .t-undo');
   await storedBy(() => area('ar2'), a => a.rects.length === 2 && a.w === 30);
+  // one rectangle of several moved by its grip: only it moves; Undo puts it back
+  await p.mouse.click(...at(55, 70)); await p.waitForSelector('[data-rm="1"]');
+  const g = await p.locator('[data-rm="1"]').boundingBox();
+  await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await p.mouse.down();
+  await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2 + cb.height * 0.05, { steps: 6 }); await p.mouse.up();
+  await storedBy(() => area('ar2'), a => Math.abs(a.rects[1].y - 55) < 1 && a.rects[1].x === 65 && a.rects[0].y === 50 && a.rects[0].h === 30);
+  await p.click('#toast .t-undo');
+  await storedBy(() => area('ar2'), a => a.rects[1].y === 50);
 
   // 3. arrow keys move the chosen area by 1%, Shift + arrow makes it bigger; one Undo for the steps
   await p.mouse.click(...at(20, 15)); await p.waitForSelector('[data-rh]');

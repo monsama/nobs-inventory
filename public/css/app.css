@@ -208,6 +208,9 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 /* × on a rectangle of the chosen area (one of several): at its top right corner, inside it. */
 .pl-rx{position:absolute;width:18px;height:18px;min-height:0;padding:0;margin:4px 0 0 -22px;border-radius:50%;font-size:12px;line-height:1;z-index:6;display:grid;place-items:center;background:var(--panel);border:1px solid var(--bd);color:var(--muted)}
 .pl-rx:hover{color:var(--danger,#c62828);border-color:currentColor}
+/* The grip that moves one rectangle of the chosen area: left of its ×. */
+.pl-rm{position:absolute;width:18px;height:18px;margin:4px 0 0 -44px;border-radius:50%;font-size:11px;line-height:1;z-index:6;display:grid;place-items:center;background:var(--panel);border:1px solid var(--bd);color:var(--muted);cursor:move;touch-action:none;user-select:none}
+.pl-rm:hover{color:var(--accent);border-color:var(--accent)}
 /* A text on the plan (Entrance …): centred on its point, readable over the picture. */
 .pl-label{position:absolute;transform:translate(-50%,-50%);z-index:4;padding:1px 6px;border-radius:var(--r-s);background:color-mix(in srgb,var(--panel) 85%,transparent);color:var(--fg);font-size:12px;font-weight:600;white-space:nowrap;pointer-events:auto;user-select:none}
 .pl-label.movable{cursor:move}
@@ -353,15 +356,19 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .item.sub{padding-left:28px}
 .sidegroup{padding:4px 0 8px;border-bottom:1px solid var(--bd2)}
 /* A saved view in the sidebar: the view, and for admins Rename and Delete, shown on hover or focus. */
-.svrow{display:flex;align-items:center;padding-right:4px}
-.svrow .item{flex:1;min-width:0}
-.svrow .icon{width:24px;height:24px;flex:none;opacity:0}
-.svrow:hover .icon,.svrow:focus-within .icon{opacity:1}
+/* The view's row goes to the edge like the other sidebar rows; Rename and Delete lie over its right end on hover or
+   focus (the name makes room then), instead of keeping a gap there all the time. */
+.svrow{position:relative}
+.svrow .item{width:100%;min-width:0}
+.svrow .icon{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;opacity:0;pointer-events:none}
+.svrow .editbtn{right:32px}.svrow .delbtn{right:6px}
+.svrow:is(:hover,:focus-within) .icon{opacity:1;pointer-events:auto}
+.svrow:is(:hover,:focus-within):has(.icon) .item{padding-right:62px}
 .svrow .sv-mail-i{width:13px;height:13px;flex:none;color:var(--muted)}
 .sv-mail{margin:12px 0 0;padding:8px 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m)}
 .sv-mail legend{padding:0 4px;font-weight:600}
 .sv-mail textarea{width:100%;resize:vertical}
-@media (hover:none){.svrow .icon{opacity:1}}
+@media (hover:none){.svrow .icon{opacity:1;pointer-events:auto}.svrow:has(.icon) .item{padding-right:62px}}
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
