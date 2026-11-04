@@ -1,6 +1,6 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
-import { $$, $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
+import { $$, $, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
 import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
@@ -288,10 +288,12 @@ export function renderPlans(){
       /* The plan shows where devices are: a device in the room of one of its areas leaves that room (and its place on
          the plan). One placed by hand outside every area's room only loses its place. */
       const inRoom = (plan.areas || []).some(a => areaLocName(plan, a) === o.loc);
+      const snap = snapshot([o]);
       delete o.planPos; delete o.planOff;
-      if (inRoom){ const was = o.loc; o.loc = ''; hist(o, now(), `Removed from ${was} by ${who()}`); queueServerSave(); toast(o.name + ' is out of the location'); }
-      else { hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave(); toast(o.name + ' is off the plan'); }
-      renderPlans();
+      /* The room is emptied as by hand on the device page, so a sync does not fill it in again. With Undo, like placing. */
+      if (inRoom){ const was = o.loc; setByHand(o, 'loc', ''); o.loc = ''; hist(o, now(), `Removed from ${was} by ${who()}`); queueServerSave(); renderPlans(); toastUndo(o.name + ' is out of the location', () => { restoreSnapshot(snap, 'Removal undone'); queueServerSave(); renderPlans(); }); return; }
+      hist(o, now(), `Removed from ${plan.name} by ${who()}`); queueServerSave(); renderPlans();
+      toastUndo(o.name + ' is off the plan', () => { restoreSnapshot(snap, 'Removal undone'); queueServerSave(); renderPlans(); });
     };
   });
   /* Pins that cover each other are grouped; a device dragged out of a group's list is moved like one from the side list. */

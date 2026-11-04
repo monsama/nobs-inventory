@@ -21,7 +21,7 @@ const room = loc => String(loc || '').split(' / ').pop();
 /* Changes to panels (their outlets) and relations, set back as one: the panels as they were, and the relations added
    and removed in between. track() before the change, then its result after it gives the Undo. */
 function track(panels){
-  const snap = snapshot(panels), before = new Set(rels);
+  const snap = snapshot([...new Set(panels)]), before = new Set(rels);
   return () => {
     const after = new Set(rels), added = rels.filter(r => !before.has(r)), removed = [...before].filter(r => !after.has(r));
     return () => {
@@ -108,7 +108,8 @@ export function portModal(panel, port){
     if (loc && !name){ say('A room goes with an outlet name.'); return; }
     if (sw && !(cord && cord.to === sw.id && cord.port === n)){ const why = swPortProblem(sw, n, rels, { panel, panelPort: port }); if (why){ say(why + '.'); return; } }
     const panels = [panel], oldDev = plug && byId(plug.from);
-    const done = track(panels);
+    /* The devices plugged in or out are tracked too: Undo notes it in their history, after the lines this writes there. */
+    const done = track([...panels, oldDev, dev]);
     const msgs = [];
     if ((out.name || '') !== name || (out.loc || '') !== loc){ setOutlet(panel, port, { name, loc }); msgs.push(name ? `outlet ${name}` : 'outlet removed'); }
     if ((cord ? cord.to + '|' + cord.port : '') !== (sw ? sw.id + '|' + n : '')){ setCord(panel, port, sw, n); msgs.push(sw ? `patched to ${swLabel(sw, n)}` : 'patch cord removed'); }
@@ -195,7 +196,7 @@ export function patchRangeModal(panel){
   $('#ppGo').onclick = () => {
     const ok = plan.filter(p => !p.err && !p.same);
     if (!ok.length || !sw) return;
-    const done = track([panel]);
+    const done = track([panel, sw]);
     for (const p of ok) setCord(panel, p.port, sw, p.swPort);
     const msg = `${ok[0].port}-${ok[ok.length - 1].port} patched to ${sw.name} ports ${portLabel(sw, ok[0].swPort)}-${portLabel(sw, ok[ok.length - 1].swPort)}`;
     hist(panel, now(), `${msg} by ${who()}`); hist(sw, now(), `Patch cords from ${panel.name}: ${msg} by ${who()}`);
