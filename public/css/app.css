@@ -356,15 +356,19 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 .item.sub{padding-left:28px}
 .sidegroup{padding:4px 0 8px;border-bottom:1px solid var(--bd2)}
 /* A saved view in the sidebar: the view, and for admins Rename and Delete, shown on hover or focus. */
-.svrow{display:flex;align-items:center;padding-right:4px}
-.svrow .item{flex:1;min-width:0}
-.svrow .icon{width:24px;height:24px;flex:none;opacity:0}
-.svrow:hover .icon,.svrow:focus-within .icon{opacity:1}
+/* The view's row goes to the edge like the other sidebar rows; Rename and Delete lie over its right end on hover or
+   focus (the name makes room then), instead of keeping a gap there all the time. */
+.svrow{position:relative}
+.svrow .item{width:100%;min-width:0}
+.svrow .icon{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;opacity:0;pointer-events:none}
+.svrow .editbtn{right:32px}.svrow .delbtn{right:6px}
+.svrow:is(:hover,:focus-within) .icon{opacity:1;pointer-events:auto}
+.svrow:is(:hover,:focus-within):has(.icon) .item{padding-right:62px}
 .svrow .sv-mail-i{width:13px;height:13px;flex:none;color:var(--muted)}
 .sv-mail{margin:12px 0 0;padding:8px 12px 12px;border:1px solid var(--bd);border-radius:var(--r-m)}
 .sv-mail legend{padding:0 4px;font-weight:600}
 .sv-mail textarea{width:100%;resize:vertical}
-@media (hover:none){.svrow .icon{opacity:1}}
+@media (hover:none){.svrow .icon{opacity:1;pointer-events:auto}.svrow:has(.icon) .item{padding-right:62px}}
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
