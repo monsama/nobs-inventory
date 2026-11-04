@@ -208,6 +208,9 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 /* × on a rectangle of the chosen area (one of several): at its top right corner, inside it. */
 .pl-rx{position:absolute;width:18px;height:18px;min-height:0;padding:0;margin:4px 0 0 -22px;border-radius:50%;font-size:12px;line-height:1;z-index:6;display:grid;place-items:center;background:var(--panel);border:1px solid var(--bd);color:var(--muted)}
 .pl-rx:hover{color:var(--danger,#c62828);border-color:currentColor}
+/* The grip that moves one rectangle of the chosen area: left of its ×. */
+.pl-rm{position:absolute;width:18px;height:18px;margin:4px 0 0 -44px;border-radius:50%;font-size:11px;line-height:1;z-index:6;display:grid;place-items:center;background:var(--panel);border:1px solid var(--bd);color:var(--muted);cursor:move;touch-action:none;user-select:none}
+.pl-rm:hover{color:var(--accent);border-color:var(--accent)}
 /* A text on the plan (Entrance …): centred on its point, readable over the picture. */
 .pl-label{position:absolute;transform:translate(-50%,-50%);z-index:4;padding:1px 6px;border-radius:var(--r-s);background:color-mix(in srgb,var(--panel) 85%,transparent);color:var(--fg);font-size:12px;font-weight:600;white-space:nowrap;pointer-events:auto;user-select:none}
 .pl-label.movable{cursor:move}

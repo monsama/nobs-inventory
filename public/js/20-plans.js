@@ -71,6 +71,8 @@ let planLastRect = 0;
 let planKeyBurst = null;
 /* A text label on the plan being dragged, and panning the zoomed plan (middle button, or Space held and drag). */
 let planLabelDrag = null, planPan = null, planSpace = false;
+/* One rectangle of the chosen area being moved by its grip. */
+let planRectMove = null;
 export let planZoom = 1;
 /* Ctrl + wheel steps not drawn yet (see renderPlans). */
 const planWheel = { dy: 0, at: null, raf: 0 };
@@ -219,7 +221,7 @@ export function renderPlans(){
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
@@ -347,6 +349,17 @@ export function renderPlans(){
       .filter(p => p.own || rects.some(q => inRect(q, p.x, p.y)));
     planAreaDrag = {area, planId: plan.id, rects, pins, before: areaGeom(area), pinSnap: snapshot(pins.map(p => byId(p.id))), x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
   });
+  /* The grip on a rectangle of the chosen area (one of several) moves only that rectangle; devices placed inside it
+     (and in no other rectangle of the area) go with it. */
+  c.querySelectorAll('[data-rm]').forEach(g => g.onpointerdown = e => {
+    if (e.button !== 0 || !isAdmin()) return;
+    const area = (plan.areas || []).find(a => a.id === planEditArea); if (!area) return;
+    e.stopPropagation(); e.preventDefault();
+    const i = +g.dataset.rm, rects = areaRects(area).map(q => ({...q})), rest = rects.filter((_, k) => k !== i), r = c.getBoundingClientRect();
+    const inside = planDevices(plan).filter(o => o.planPos && o.planPos.plan === plan.id && inRect(rects[i], o.planPos.x, o.planPos.y) && !rest.some(q => inRect(q, o.planPos.x, o.planPos.y)));
+    planRectMove = {area, planId: plan.id, i, rects, before: areaGeom(area), pins: inside.map(o => ({id: o.id, x: o.planPos.x, y: o.planPos.y})), pinSnap: snapshot(inside), x0: pctOf(e.clientX, r.left, r.width), y0: pctOf(e.clientY, r.top, r.height), dx: 0, dy: 0, moved: false};
+    planLastRect = i;
+  });
   /* × on a rectangle of the chosen area (one of several) takes that rectangle away. */
   c.querySelectorAll('[data-rx]').forEach(b => { b.onpointerdown = e => e.stopPropagation(); b.onclick = e => { e.stopPropagation(); const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) removeRect(plan, a, +b.dataset.rx); }; });
   /* A text label: an admin drags it to move it, or clicks it to change or remove it. */
@@ -382,7 +395,17 @@ function resizeHandles(plan){
   const a = planEditArea && planMode === 'view' && isAdmin() ? (plan.areas || []).find(x => x.id === planEditArea) : null;
   if (!a) return '';
   const rects = areaRects(a);
-  return String(html`${rects.map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}${rects.length > 1 ? rects.map((r, i) => html`<button type="button" class="pl-rx" data-rx="${i}" style="left:${r.x + r.w}%;top:${r.y}%" aria-label="Remove this rectangle of ${a.name}" title="Remove this rectangle">×</button>`) : ''}`);
+  return String(html`${rects.map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}${rects.length > 1 ? rects.map((r, i) => html`<span class="pl-rm" data-rm="${i}" style="left:${r.x + r.w}%;top:${r.y}%" title="Drag to move only this rectangle; Alt: without snapping" aria-hidden="true">✥</span><button type="button" class="pl-rx" data-rx="${i}" style="left:${r.x + r.w}%;top:${r.y}%" aria-label="Remove this rectangle of ${a.name}" title="Remove this rectangle">×</button>`) : ''}`);
+}
+/* While a rectangle of an area is resized or moved: its shape, name tag, and the handles, grip and × of rectangle i drawn
+   from the rectangles as they are now. */
+function previewRects(c, area, rects, i){
+  const box = boxOf(rects), r = rects[i];
+  const svg = c.querySelector(`svg[data-area-drag="${area.id}"]`);
+  if (svg){ const t = document.createElement('template'); t.innerHTML = areaShape(rects, svg.getAttribute('class').replace(/^pl-area/, ''), String(html`data-area-drag="${area.id}"`)); svg.replaceWith(t.content.firstElementChild); }
+  const tag = /** @type {HTMLElement|null} */ (c.querySelector(`[data-area-tag="${area.id}"]`)); if (tag){ tag.style.left = box.x + '%'; tag.style.top = box.y + '%'; }
+  c.querySelectorAll(`[data-rh^="${i}:"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h), p = handleAt(r, el.dataset.rh.split(':')[1]); el.style.left = p.x + '%'; el.style.top = p.y + '%'; });
+  c.querySelectorAll(`[data-rm="${i}"],[data-rx="${i}"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h); el.style.left = r.x + r.w + '%'; el.style.top = r.y + '%'; });
 }
 /* The rectangle r resized: the sides in d (n, e, s, w) moved to the point x, y (in percent), each snapped on its own to
    the edges of the other areas, the area's other rectangles and the plan's border. It keeps at least MIN_SIDE percent. */
@@ -523,17 +546,25 @@ document.addEventListener('pointermove', e => {
     d.moved = d.moved || Math.abs(x - d.from.x) + Math.abs(y - d.from.y) > 0.3;
     d.x = x; d.y = y; d.el.style.left = x + '%'; d.el.style.top = y + '%';
   }
+  if (planRectMove){
+    const r = c.getBoundingClientRect(), d = planRectMove, pl = planById(d.planId), one = [d.rects[d.i]];
+    const raw = { dx: pctOf(e.clientX, r.left, r.width) - d.x0, dy: pctOf(e.clientY, r.top, r.height) - d.y0 };
+    /* It snaps to the other areas, the plan's border and the area's own other rectangles, so they can be put flush. */
+    const others = d.rects.filter((_, k) => k !== d.i);
+    planParts = others; const sn = pl ? snapShift(pl, d.area.id, one, raw.dx, raw.dy, r, e.altKey) : { ...raw, gx: null, gy: null }; planParts = [];
+    const sh = shiftRects(one, sn.dx, sn.dy);
+    d.dx = sh.dx; d.dy = sh.dy; d.moved = d.moved || Math.abs(sh.dx) + Math.abs(sh.dy) > 0.2;
+    showGuides(c, sn.gx, sn.gy);
+    previewRects(c, d.area, d.rects.map((q, k) => k === d.i ? sh.rects[0] : q), d.i);
+    d.pins.forEach(p => { const pin = /** @type {HTMLElement|null} */ (c.querySelector(`[data-pin="${esc(p.id)}"]`)); if (pin){ pin.style.left = p.x + d.dx + '%'; pin.style.top = p.y + d.dy + '%'; } });
+  }
   if (planResize){
     const r = c.getBoundingClientRect(), d = planResize, pl = planById(d.planId);
     if (pl){
       const n = resized(pl, d.area, d.i, d.rects[d.i], d.d, pctOf(e.clientX, r.left, r.width), pctOf(e.clientY, r.top, r.height), r, e.altKey);
       d.rect = n.rect; d.moved = true; showGuides(c, n.gx, n.gy);
       /* The shape, its name tag and the handles are drawn again from the rectangles as they are now. */
-      const rects = d.rects.map((q, k) => k === d.i ? n.rect : q), box = boxOf(rects);
-      const svg = c.querySelector(`svg[data-area-drag="${d.area.id}"]`);
-      if (svg){ const t = document.createElement('template'); t.innerHTML = areaShape(rects, svg.getAttribute('class').replace(/^pl-area/, ''), String(html`data-area-drag="${d.area.id}"`)); svg.replaceWith(t.content.firstElementChild); }
-      const tag = /** @type {HTMLElement|null} */ (c.querySelector(`[data-area-tag="${d.area.id}"]`)); if (tag){ tag.style.left = box.x + '%'; tag.style.top = box.y + '%'; }
-      c.querySelectorAll(`[data-rh^="${d.i}:"]`).forEach(h => { const p = handleAt(n.rect, /** @type {HTMLElement} */ (h).dataset.rh.split(':')[1]); /** @type {HTMLElement} */ (h).style.left = p.x + '%'; /** @type {HTMLElement} */ (h).style.top = p.y + '%'; });
+      previewRects(c, d.area, d.rects.map((q, k) => k === d.i ? n.rect : q), d.i);
     }
   }
   if (planAreaDrag){
@@ -586,6 +617,16 @@ document.addEventListener('pointerup', e => {
       d.l.x = round1(d.x); d.l.y = round1(d.y); queueServerSave(); renderPlans();
       toastUndo('Text moved', () => { d.l.x = d.from.x; d.l.y = d.from.y; queueServerSave(); renderPlans(); });
     } else labelModal(d.plan, d.l);
+  }
+  if (planRectMove){
+    const d = planRectMove; planRectMove = null;
+    if (d.moved){
+      const moved = shiftRects([d.rects[d.i]], d.dx, d.dy).rects[0];
+      setAreaRects(d.area, d.rects.map((q, k) => k === d.i ? moved : q));
+      d.pins.forEach(p => { const o = byId(p.id); if (o) o.planPos = {plan: d.planId, x: round1(p.x + d.dx), y: round1(p.y + d.dy)}; });
+      queueServerSave(); renderPlans();
+      toastUndo(`Rectangle of ${d.area.name} moved`, () => { setAreaGeom(d.area, d.before); restoreSnapshot(d.pinSnap, 'Moving the rectangle undone'); queueServerSave(); renderPlans(); });
+    }
   }
   if (planResize){
     const d = planResize; planResize = null;
