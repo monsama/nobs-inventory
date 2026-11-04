@@ -1457,10 +1457,12 @@ button.primary:disabled{box-shadow:none;background:var(--accentbtn);color:var(--
 
 /* The Sources panel on the device page: one tab per source in its header, the source's own note on the right. */
 .srctabs{gap:4px}
-.srctab-list{display:inline-flex;gap:2px}
-.srctab{height:26px;padding:0 10px;border:1px solid transparent;border-radius:var(--r-s);background:transparent;color:var(--muted);font-weight:600}
-.srctab:hover{color:var(--fg);background:var(--hover)}
-.srctab.sel{color:var(--fg);background:var(--bg);border-color:var(--bd)}
+/* The source tabs read as the panel's title: the same size as the other titles, the first one starting where theirs do,
+   and no frame (it would run into the fold caret). The chosen source is in full colour and underlined. */
+.srctab-list{display:inline-flex;gap:16px;margin-left:-4px}
+.hdr .srctab{height:26px;padding:0;border:0;border-radius:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;box-shadow:inset 0 -2px 0 transparent}
+.srctab:hover{color:var(--fg);background:transparent}
+.srctab.sel{color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
 /* Edit and Delete side by side at the end of a row or in a card's corner; Delete turns red only under the pointer. */
 .rowacts{display:inline-flex;align-items:center;gap:2px}
 .delbtn{color:var(--muted)}
