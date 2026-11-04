@@ -939,6 +939,10 @@ button.chip{cursor:pointer;height:24px;font-size:12px}
 .relist{display:flex;flex-direction:column}
 .relrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd2);min-width:0}
 .relrow:last-child{border-bottom:none}
+/* The × at the end of a row in a panel: its glyph ends where the counts in the panel headers end (12px in from the
+   edge), so the numbers and the ×s make one line on the right. The button keeps its size; only its padding overlaps. */
+.relrow>button.icon.ghost:last-child{margin-right:-6px}
+.obj .panelbox table.grid.mini .rm-cell{width:1%;padding-right:1px;padding-left:0}
 .relrow .k{color:var(--muted);width:118px;flex:none;font-size:12px}
 /* Relation names are written lower case for sentences ("attached to PC-1"); as a label they start with a capital. */
 .relrow .k::first-letter{text-transform:uppercase}

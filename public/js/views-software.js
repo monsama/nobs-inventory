@@ -13,8 +13,8 @@ export const SW_TYPES = ['pc','notebook','server'];
 export function softwarePanel(o){
   const list = o.software || [], edit = isAdmin();
   return String(html`<div class="panelbox"><div class="hdr">Software <span class="cnt">${list.length ? list.length + ' installed' : 'none'}</span></div>
-    ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? html`<th></th>` : ''}</tr></thead><tbody>
-    ${list.map((p, i) => html`<tr><td>${p.name}</td><td class="mono">${p.version || ''}</td>${edit ? html`<td><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${p.name}">×</button></td>` : ''}</tr>`)}
+    ${list.length ? html`<div style="overflow-x:auto"><table class="grid mini" style="min-width:0"><thead><tr><th>Name</th><th>Version</th>${edit ? html`<th class="rm-cell"></th>` : ''}</tr></thead><tbody>
+    ${list.map((p, i) => html`<tr><td>${p.name}</td><td class="mono">${p.version || ''}</td>${edit ? html`<td class="rm-cell"><button class="icon ghost" data-swdel="${i}" aria-label="Remove ${p.name}">×</button></td>` : ''}</tr>`)}
     </tbody></table></div>` : html`<p class="note lempty">No software recorded yet: Lansweeper sends it, or add it below.</p>`}
     <div class="addrel"><input id="swName" placeholder="Name, e.g. Google Chrome" style="flex:1;min-width:140px" aria-label="Software name"><input id="swVer" placeholder="Version" style="width:110px" aria-label="Version"><button id="swAdd">Add</button></div></div>`);
 }
