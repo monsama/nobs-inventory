@@ -123,7 +123,7 @@ try {
   // To review: the other sources that know a device, and the filter by AD or Entra
   await p.click('#tabsbar [data-tab=review]');
   await p.waitForSelector('#cards .card[data-open="r7"]');
-  assert.match(await p.textContent('#cards .card[data-open="r7"]'), /also AD/);
+  assert.match(await p.textContent('#cards .card[data-open="r7"]'), /also in AD/);
   await p.click('#scopeList [data-rvknown]');
   await until(p, () => document.querySelectorAll('#cards .card').length === 1);
   await p.click('#fbar [data-fx=rvKnown]');
