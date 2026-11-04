@@ -470,6 +470,10 @@ table.grid td .chip{display:inline-block;max-width:100%;overflow:hidden;text-ove
 .sync-err{color:var(--danger)}
 .sync-row>button{flex:none;height:24px;min-height:0;padding:0 10px}
 .rv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
+/* On a card: where it came from, on one line between the directory bar and the actions, on the card's 10px edge. */
+.card .rv-chips{padding:0 10px 6px;align-items:center}
+.rv-from{flex:1 1 auto;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:22px}
+.rv-from b{color:var(--fg);font-weight:600}
 .rv-chips .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .card.stale{background:var(--panel)}.card.stale .nm,.card.stale .model{color:var(--muted)}
 .fb-scope{font-weight:600}
@@ -1690,11 +1694,11 @@ button.ph-nav{flex:none;width:40px;height:56px;font-size:28px;line-height:1}
 .fbar .fb-person{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 100%;padding:2px 0 6px;border-bottom:1px solid var(--bd2);margin-bottom:4px}
 .fbar .fb-person .grow{flex:1}
 /* To review: Accept, Merge and Ignore on the card itself. */
-.card .rv-acts{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 6px}
-.card .rv-act{display:inline-flex;align-items:center;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
+.card .rv-acts{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;padding:6px 10px;border-top:1px solid var(--bd2)}
+.card .rv-act{display:inline-flex;align-items:center;justify-content:center;gap:5px;font-weight:600;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);font-size:12px;cursor:pointer}
 .card .rv-act:hover,.card .rv-act:focus-visible{border-color:var(--accent);outline:none}
-.card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 50%,var(--bd))}
-.card .rv-act.no{color:var(--muted)}
+.card .rv-act.yes{border-color:color-mix(in srgb,var(--ok,#1a7f37) 55%,var(--bd));background:color-mix(in srgb,var(--ok,#1a7f37) 16%,var(--btn));color:var(--fg)}
+.card .rv-act.no{color:var(--muted);font-weight:500}
 /* Overview: getting started, for a new inventory. */
 .start-list{list-style:none;margin:0;padding:6px 12px 10px;display:flex;flex-direction:column;gap:6px}
 .start-step{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bd2)}
