@@ -207,7 +207,7 @@ export function bindFullTextOnHover(){
 export const KIND_HINTS = {
   connected:'A device on a port of a switch, router, firewall or patch panel. Give its port number.',
   uplink:'A switch, router or firewall connected to the upstream device above it. Give the port on that upstream device.',
-  attached:'A monitor or accessory attached to a computer, a physical server or a phone.',
+  attached:'A monitor or accessory attached to a computer, a physical server, a phone or a docking station (type Other).',
   hosted:'A virtual machine that runs on this physical server.',
   patched:'A patch cord from a port of this patch panel to a switch port. Set them on the panel\'s Ports table.'
 };

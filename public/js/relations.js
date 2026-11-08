@@ -9,7 +9,8 @@ export const NET_GEAR = ['switch', 'router', 'firewall'];
 export const HOST_KINDS = ['attached', 'hosted'];
 export const isVm = o => !!o && (o.type === 'vm' || (o.type === 'server' && o.kind === 'vm'));
 const ported = o => !!o && o.type !== 'patch' && (['switch', 'router', 'firewall', 'server'].includes(o.type) || o.ports > 0);
-const ATTACH_TO = ['pc', 'notebook', 'server', 'android', 'ios', 'mobile'];
+/* Other too: a docking station is kept as Other, and its monitors are attached to it. */
+const ATTACH_TO = ['pc', 'notebook', 'server', 'android', 'ios', 'mobile', 'other'];
 const NOT_ATTACHED = ['rack', 'patch', 'server', 'vm', ...NET_GEAR];
 const PLUG_INTO = ['sip', 'pc', 'notebook', 'patch', 'pbx'];
 
@@ -17,7 +18,7 @@ const PLUG_INTO = ['sip', 'pc', 'notebook', 'patch', 'pbx'];
 export function kindProblem(kind, from, to){
   const a = from.name || 'This device', b = to.name || 'that device';
   if (kind === 'attached') return !NOT_ATTACHED.includes(from.type) && ATTACH_TO.includes(to.type) && !isVm(to) ? ''
-    : `${a} cannot be attached to ${b}: a monitor or accessory is attached to a computer, a physical server or a phone.`;
+    : `${a} cannot be attached to ${b}: a monitor or accessory is attached to a computer, a physical server, a phone or a docking station (Other).`;
   if (kind === 'hosted') return isVm(from) && to.type === 'server' && !isVm(to) ? '' : `${a} cannot run on ${b}: a virtual machine runs on a physical server.`;
   if (kind === 'connected') return !isVm(from) && from.type !== 'rack' && (ported(to) || PLUG_INTO.includes(to.type)) ? ''
     : `${a} cannot be plugged into ${b}: a device is plugged into a switch, router, firewall, patch panel, phone or computer.`;
