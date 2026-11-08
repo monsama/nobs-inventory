@@ -90,7 +90,16 @@ try {
   await p.click('#plAreaDone'); await p.waitForSelector('#arTo');
   assert.equal(await p.inputValue('#arTo'), '', 'an area away from the others starts as a new one');
   assert.equal(await p.isVisible('#arName'), true);
-  await p.click('#arCancel');
+  // the parts that touch carry one name; a part apart from them carries the name too, without the count and ×
+  assert.equal(await p.locator(`[data-area-tag="${firstId}"]`).count(), 1, 'two touching rectangles are one part');
+  await p.selectOption('#arTo', firstId); await p.click('#arOk');
+  await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas[0].rects.length === 3);
+  await p.waitForSelector(`[data-area-tag="${firstId}"].pl-area-more`);
+  assert.equal(await p.locator(`[data-area-tag="${firstId}"]`).count(), 2);
+  assert.equal((await p.textContent(`[data-area-tag="${firstId}"].pl-area-more`)).trim(), 'Büro 2.OG');
+  assert.equal(await p.locator(`[data-area-tag="${firstId}"].pl-area-more .pl-x`).count(), 0, 'the area is removed from its first name only');
+  const more = await p.locator(`[data-area-tag="${firstId}"].pl-area-more`).boundingBox(), cv = await p.locator('#plCanvas').boundingBox();
+  assert.ok(more.x > cv.x + cv.width * 0.8 && more.y > cv.y + cv.height * 0.65, 'the name is not on the part apart');
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }

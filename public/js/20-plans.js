@@ -404,10 +404,16 @@ function resizeHandles(plan){
 /* While a rectangle of an area is resized or moved: its shape, name tag, and the handles, grip and × of rectangle i drawn
    from the rectangles as they are now. */
 function previewRects(c, area, rects, i){
-  const box = boxOf(rects), r = rects[i];
+  const r = rects[i];
   const svg = c.querySelector(`svg[data-area-drag="${area.id}"]`);
   if (svg){ const t = document.createElement('template'); t.innerHTML = areaShape(rects, svg.getAttribute('class').replace(/^pl-area/, ''), String(html`data-area-drag="${area.id}"`)); svg.replaceWith(t.content.firstElementChild); }
-  const tag = /** @type {HTMLElement|null} */ (c.querySelector(`[data-area-tag="${area.id}"]`)); if (tag){ tag.style.left = box.x + '%'; tag.style.top = box.y + '%'; }
+  /* The name tags again, one on each part as the rectangles are now; the count and × of the area kept as they were. */
+  const tags = [...c.querySelectorAll(`[data-area-tag="${area.id}"]`)], main = tags.find(t => !t.classList.contains('pl-area-more'));
+  if (main){
+    const t = document.createElement('template');
+    t.innerHTML = areaTag({...area, rects}, !!main.querySelector('.pl-x'), +(main.querySelector('.pl-acount')?.textContent || 0));
+    main.after(t.content); tags.forEach(x => x.remove());
+  }
   c.querySelectorAll(`[data-rh^="${i}:"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h), p = handleAt(r, el.dataset.rh.split(':')[1]); el.style.left = p.x + '%'; el.style.top = p.y + '%'; });
   c.querySelectorAll(`[data-rm="${i}"],[data-rx="${i}"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h); el.style.left = r.x + r.w + '%'; el.style.top = r.y + '%'; });
 }
@@ -450,10 +456,21 @@ export function areaShape(rects, cls = '', attrs = ''){
   }
   return String(html`<svg class="pl-area${cls}" ${rawHtml(attrs)} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="pl-area-fill" d="${fill}"/><path class="pl-area-edge" d="${edge}"/></svg>`);
 }
-/* The name of an area and its ×, placed at the top left of the area. */
+/* The rectangles of an area in the parts they make: rectangles that touch or overlap are one part, one apart from the
+   others (a store room in two places) is a part of its own. Returns the index of the rectangle at the top left of each
+   part, the area's first rectangle first. */
+export function areaPartCorners(rects){
+  const near = (a, b) => a.x <= b.x + b.w + 0.05 && b.x <= a.x + a.w + 0.05 && a.y <= b.y + b.h + 0.05 && b.y <= a.y + a.h + 0.05;
+  const part = rects.map((_, i) => i), top = i => part[i] === i ? i : (part[i] = top(part[i]));
+  rects.forEach((a, i) => rects.forEach((b, j) => { if (j > i && near(a, b)) part[top(j)] = top(i); }));
+  const groups = new Map();
+  rects.forEach((_, i) => { const g = top(i); groups.set(g, [...(groups.get(g) || []), i]); });
+  return [...groups.values()].map(list => list.includes(0) ? 0 : list.reduce((b, i) => rects[i].y < rects[b].y || (rects[i].y === rects[b].y && rects[i].x < rects[b].x) ? i : b));
+}
+/* The name of an area and its ×, placed at the top left of the area; on every further part of it, the name again. */
 export function areaTag(a, removable, count = 0){
-  const r = areaRects(a)[0];
-  return String(html`<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
+  const rects = areaRects(a), [first, ...more] = areaPartCorners(rects), r = rects[first];
+  return String(html`${more.map(i => html`<div class="pl-area-tag pl-area-more ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${rects[i].x}%;top:${rects[i].y}%" aria-hidden="true"><span>${a.name}</span></div>`)}<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
