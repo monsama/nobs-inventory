@@ -377,3 +377,15 @@ test('directory sign-in goes only to the directory it was set up with: a changed
     assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 200, 'sign-in goes to the server the service password was saved for');
   } finally { await srv.close(); dir.close(); }
 });
+
+test('wrong passwords for one directory login stop being sent to the directory after four, so its account there is not locked', async () => {
+  const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory', 'Inventory-Users'], 'annas-secret') };
+  const dir = await startDirectory(people), port = dir.address().port;
+  const srv = await startServer({ ldapConfig: () => ({ ...cfg(`ldap://127.0.0.1:${port}`), servicePassword: '' }) });
+  try {
+    const codes = [];
+    for (let i = 0; i < 5; i++) codes.push((await signIn(srv, 'anna', 'wrong-' + i)).status);
+    assert.deepEqual(codes, [401, 401, 401, 401, 429], 'the fifth wrong password still went to the directory');
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 429, 'held back for this login for a while');
+  } finally { await srv.close(); dir.close(); }
+});

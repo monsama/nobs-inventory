@@ -3,6 +3,9 @@
 const WINDOW_MS = 15 * 60e3;
 const LIMIT_IP = 8;       /* failures from one address */
 const LIMIT_LOGIN = 20;  /* failures on one login: higher, so an attacker cannot lock an account for everyone */
+/* Wrong passwords sent to the directory for one login: below the usual lockout of the directory itself (5 to 10), so
+   guesses from the internet stop here before they lock the person's account there. */
+const LIMIT_DIR = 4;
 const LOCK_MS = 15 * 60e3;
 /* One throttle per server, so separate servers (and tests) do not share their counts. */
 export function createThrottle() {
@@ -14,7 +17,7 @@ export function createThrottle() {
     blocked(keys, now = Date.now()) {
       const login = keys.find(k => k.startsWith('login:')), ip = keys.find(k => k.startsWith('ip:'));
       const trusted = login && ip && (known.get(login) || new Set()).has(ip);
-      return keys.some(k => { if (trusted && k === login) return false; const b = buckets.get(k); return b && b.lockedUntil > now; });
+      return keys.some(k => { if (trusted && (k === login || k === 'dir:' + login.slice(6))) return false; const b = buckets.get(k); return b && b.lockedUntil > now; });
     },
     rememberSuccess(keys) {
       const login = keys.find(k => k.startsWith('login:')), ip = keys.find(k => k.startsWith('ip:'));
@@ -31,7 +34,7 @@ export function createThrottle() {
         const b = bucket(k);
         b.fails = b.fails.filter(t => now - t < WINDOW_MS);
         b.fails.push(now);
-        const limit = k.startsWith('login:') ? LIMIT_LOGIN : LIMIT_IP;
+        const limit = k.startsWith('dir:') ? LIMIT_DIR : k.startsWith('login:') ? LIMIT_LOGIN : LIMIT_IP;
         if (b.fails.length >= limit) { b.lockedUntil = now + LOCK_MS; b.fails = []; }
       }
     },
