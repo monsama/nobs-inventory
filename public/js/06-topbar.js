@@ -49,15 +49,15 @@ export function renderBell(changed = false){
 function drawBell(){
   const btn = $('#bellBtn'), pop = $('#bellPop'), badge = $('#bellN');
   const shown = shownNotices(NOTICES, hiddenN), n = shown.length, worst = shown.some(x => x.sev === 'bad') ? 'bad' : n ? 'warn' : '';
-  const say = n ? `${n} ${n === 1 ? 'thing needs' : 'things need'} attention` : 'Nothing needs attention';
+  const say = n ? `${n} ${n === 1 ? 'notification' : 'notifications'}` : 'No notifications';
   badge.textContent = n > 99 ? '99+' : String(n); badge.hidden = !n; badge.className = `bell-n ${worst}`;
-  btn.setAttribute('aria-label', `Notifications: ${say}`); btn.title = say;
+  btn.setAttribute('aria-label', say); btn.title = say;
   const more = $('#barMoreBtn'); if (more){ more.classList.toggle('has-n', !!n); more.classList.toggle('bad', worst === 'bad'); }
   const hid = NOTICES.length - n;
-  pop.innerHTML = html`<div class="bell-hdr"><b>Needs attention</b><span class="muted">${n || 'nothing'}</span></div>
+  pop.innerHTML = html`<div class="bell-hdr"><b>Notifications</b><span class="muted">${n || 'none'}</span></div>
     ${n ? html`<div class="bell-list">${shown.map(x => html`<div class="bell-item ${x.sev}"><button type="button" class="bell-go" data-bell="${x.id}"><span class="dot ${x.sev}" aria-hidden="true"></span><span class="bell-t"><b>${x.title}</b><small>${x.text}</small></span></button><button type="button" class="icon bell-x" data-bellhide="${x.id}" title="Hide until it changes" aria-label="${`Hide until it changes: ${x.title}`}">×</button></div>`)}</div>`
-      : html`<p class="muted bell-none">Nothing needs attention right now.</p>`}
-    ${hid > 0 && html`<div class="bell-foot"><button type="button" class="link" data-bellall>Show ${hid} hidden</button></div>`}`;
+      : html`<p class="muted bell-none">No notifications right now.</p>`}
+    <div class="bell-foot">${hid > 0 && html`<button type="button" class="link" data-bellall>Show ${hid} hidden</button>`}<span class="grow"></span><button type="button" class="link" data-bellov title="Everything open, counted by topic, on the Overview">All that needs attention</button></div>`;
 }
 /* Where a notice leads: the device, the Table filtered, a part of the Overview, a tab, To review or a Settings tab. */
 function goNotice(g){
@@ -74,6 +74,7 @@ function goNotice(g){
 }
 $('#bellPop').addEventListener('click', e => {
   const go = e.target.closest('[data-bell]'), hide = e.target.closest('[data-bellhide]'), all = e.target.closest('[data-bellall]');
+  if (e.target.closest('[data-bellov]')){ goNotice({ overview: 'ovAttention' }); return; }
   if (go){ const x = NOTICES.find(n => n.id === go.dataset.bell); if (x) goNotice(x.go); }
   else if (hide){
     const x = NOTICES.find(n => n.id === hide.dataset.bellhide); if (!x) return;

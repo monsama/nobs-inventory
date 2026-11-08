@@ -148,7 +148,7 @@ export function renderOverview(){
       ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
     </div>
     <div class="ov-cols">
-      <div class="panelbox"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
+      <div class="panelbox" id="ovAttention"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
         ${attention.length ? html`<div class="ov-att">${attention.map(([n, cls, label, sub, attr]) => html`<button class="ov-row" ${rawHtml(attr)}><span class="chip ${cls}">${compact(n)}</span><span><b>${label}</b><small>${sub}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>`}
       </div>

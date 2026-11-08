@@ -57,6 +57,11 @@ try {
   await a.waitForSelector('#bellPop:popover-open');
   assert.deepEqual(await items(a), ['warranty-ended', 'restore-test', 'reported-o9', 'reported-o3'], 'red first, then the oldest problem');
   assert.equal(await a.locator('#bellPop .bell-item.bad').count(), 2);
+  /* The bell is Notifications; its foot leads to the full list on the Overview. */
+  assert.match(await a.textContent('#bellPop .bell-hdr'), /Notifications/);
+  await a.click('#bellPop [data-bellov]');
+  await a.waitForSelector('#ovAttention');
+  await a.click('#bellBtn'); await a.waitForSelector('#bellPop:popover-open');
   /* A search redraws the page but does not work the notices out again. */
   const before = await a.evaluate(() => document.querySelector('#bellPop .bell-list').outerHTML);
   await a.keyboard.press('Escape');

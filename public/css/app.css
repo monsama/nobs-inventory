@@ -1184,7 +1184,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .bell-t small{color:var(--muted);overflow-wrap:anywhere}
 .bell-x{flex:none;margin:4px;border-color:transparent;background:transparent;color:var(--muted);font-size:16px}
 .bell-none{margin:0;padding:12px}
-.bell-foot{padding:6px 12px;border-top:1px solid var(--bd)}
+.bell-foot{padding:6px 12px;border-top:1px solid var(--bd);display:flex;gap:8px;align-items:center}
 @media (max-width:760px){
  #bar{flex-wrap:nowrap;position:relative;anchor-name:--bar}
  #bar>.grow{display:none}
