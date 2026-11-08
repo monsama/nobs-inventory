@@ -20,10 +20,13 @@ const shown = (k, v) => v === undefined || v === null || v === '' ? 'empty' : k 
 /* The field's name as the line wrote it ("Location changed from …"), else its usual name. */
 const labelOf = h => (/^(.+?) (?:changed from|set to|cleared|restored from|back to) /.exec(h.msg || '') || [])[1] || FIELD_LABEL[h.f] || h.f;
 const canRestore = (o, h) => isAdmin() && fieldRestore(h, o, k => syncOwned(o, k));
+const HIST_KEY = 'ni-hist-open';
+const histOpen = () => { try { return localStorage.getItem(HIST_KEY) === '1'; } catch { return false; } };
 export function historyPanel(o){
   const list = HISTORY[o.id] || [];
   const btn = (h, i) => canRestore(o, h) ? html`<button type="button" class="link hist-restore" data-hrestore="${i}" title="Set ${labelOf(h)} back to ${shown(h.f, h.from)}">Restore</button>` : '';
-  return String(html`<details class="panelbox fold" id="histPanel" ${list.length ? 'open' : ''}><summary class="hdr">History${list.length ? '' : html` <span class="cnt">none</span>`}</summary>${list.length ? html`<ul class="hist">${list.map((h, i) => html`<li><time>${h.t}</time><span>${h.msg}</span>${btn(h, i)}</li>`)}</ul>` : html`<div class="chain"><span class="muted">No changes recorded yet.</span></div>`}</details>`);
+  /* The Timeline above tells the device's life; this is every change, with Restore: folded until opened (remembered). */
+  return String(html`<details class="panelbox fold" id="histPanel" ${list.length && histOpen() ? 'open' : ''}><summary class="hdr">All changes <span class="cnt">${list.length || 'none'}</span></summary>${list.length ? html`<ul class="hist">${list.map((h, i) => html`<li><time>${h.t}</time><span>${h.msg}</span>${btn(h, i)}</li>`)}</ul>` : html`<div class="chain"><span class="muted">No changes recorded yet.</span></div>`}</details>`);
 }
 /* Sets field k of o to v as an edit by hand would, with its line in the history. */
 function setField(o, k, v, msg){
@@ -45,6 +48,8 @@ export function restoreField(o, h){
   confirmModal(`Restore ${label}?`, html`${label} was changed again after ${h.t}.<br>Now: <b>${shown(r.k, r.current)}</b><br>Restore: <b>${shown(r.k, r.value)}</b>`, 'Restore', go, { primary: true });
 }
 export function bindHistory(o){
+  const p = /** @type {HTMLDetailsElement} */ (document.getElementById('histPanel'));
+  if (p) p.ontoggle = () => { try { localStorage.setItem(HIST_KEY, p.open ? '1' : '0'); } catch { /* not kept */ } };
   $('#view').querySelectorAll('[data-hrestore]').forEach(b => b.onclick = () => restoreField(o, (HISTORY[o.id] || [])[+b.dataset.hrestore]));
 }
 /* A save that does not draw the page again: the timeline and the history take its new lines; a panel folded stays folded. */

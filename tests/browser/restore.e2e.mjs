@@ -24,7 +24,7 @@ const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_C
 const errors = [];
 try {
   const ctx = await browser.newContext({ viewport: { width: 1300, height: 900 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('ni-start-hidden', '1'); localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-all-fields', '1'); } catch { /* none */ } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('ni-start-hidden', '1'); localStorage.setItem('ni-started', '1'); localStorage.setItem('ni-all-fields', '1'); localStorage.setItem('ni-hist-open', '1'); } catch { /* none */ } });
   const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.goto(`http://127.0.0.1:${server.address().port}/`); await p.waitForSelector('#lgUser');
   await p.fill('#lgUser', 'admin'); await p.fill('#lgPw', 'adminpass123'); await p.click('#lgOk');

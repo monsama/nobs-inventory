@@ -58,6 +58,11 @@ try {
   await until(p, () => [...document.querySelectorAll('#tlPanel .tl-ev')].some(e => e.dataset.tl === 'move' && /Moved to Bern \/ 1/.test(e.textContent)));
   assert.equal((await events(p))[3][0], 'move');
   assert.ok(await p.locator('#histPanel [data-hrestore]').count() > 0, 'an admin can restore the location');
+  // every change, with Restore, is under All changes: folded at first, so the Timeline is not said twice; opened, it stays open
+  assert.match(await p.textContent('#histPanel > summary'), /All changes\s*\d+/);
+  assert.equal(await p.evaluate(() => document.querySelector('#histPanel').open), false, 'the changes are open beside the Timeline');
+  await p.click('#histPanel > summary');
+  await until(p, () => localStorage.getItem('ni-hist-open') === '1');
 
   // a viewer sees the timeline, and no Restore (once the move is on the server)
   await storedBy(() => loadState(db), st => st.objs.find(o => o.id === 'n1').loc === 'Bern / 1' && (st.history.n1 || []).some(h => /Bern \/ 1/.test(h.msg || '')));
