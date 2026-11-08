@@ -46,6 +46,17 @@ export function modal(body, cls=''){
   /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
   d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) d.showModal(); else closeModal(); } });
   if (!locked) d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); });
+  /* Tab goes round inside the dialog: from its last control to its first (Shift + Tab the other way), never out to the
+     page or the browser's bar. */
+  d.addEventListener('keydown', e => {
+    if (e.key !== 'Tab' || d.classList.contains('minimized')) return;
+    const f = /** @type {HTMLElement[]} */ ([...d.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')])
+      .filter(el => !(/** @type {any} */ (el).disabled) && el.getClientRects().length && !el.closest('[hidden], [inert]') && !el.closest('details:not([open]) > :not(summary)'));
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1], at = document.activeElement;
+    if (!e.shiftKey && (at === last || !d.contains(at))){ e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && (at === first || !d.contains(at))){ e.preventDefault(); last.focus(); }
+  });
   if (!locked) addWindowControls(d);
   d.showModal(); keepToastOnTop();
   renderTray();

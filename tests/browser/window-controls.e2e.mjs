@@ -29,6 +29,11 @@ try {
   assert.equal(await p.evaluate(() => document.activeElement.id), 'nName', 'the first field has the focus, not a window button');
   assert.equal(await p.evaluate(() => document.querySelector('#mdl').matches('dialog:modal')), true, 'a native modal dialog');
   await p.fill('#nName', 'ZH-PC-0999');
+  // Tab goes round inside the dialog: from Create to its first control, and Shift + Tab back
+  await p.focus('#nOk'); await p.keyboard.press('Tab');
+  assert.equal(await p.evaluate(() => !!document.activeElement.closest('#mdl')), true, 'Tab left the dialog');
+  await p.keyboard.press('Shift+Tab');
+  assert.equal(await p.evaluate(() => document.activeElement.id), 'nOk', 'Shift + Tab did not go back to Create');
 
   // maximize and back
   const w0 = await p.$eval('#mdl .box', b => b.getBoundingClientRect().width);
