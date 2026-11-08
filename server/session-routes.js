@@ -40,7 +40,8 @@ export function registerSessionRoutes(app, ctx) {
     const back = (code, cookies = []) => { res.setHeader('Set-Cookie', [ssoCookie('', 0), ...cookies]); res.redirect(302, `../../${code ? `?sso=${code}` : ''}`); };
     try {
       if (!ssoOn()) return back('off');
-      if (req.query.error) { audit(db, null, `sign in with Microsoft refused by Microsoft: ${String(req.query.error_description || req.query.error).split(/[\r\n]/)[0].slice(0, 200)}`); return back('denied'); }
+      /* Anyone can call this address: only Microsoft's error code is logged (not text a caller made up), and a flood once a minute. */
+      if (req.query.error) { const code = /^[a-z_]{1,40}$/.test(String(req.query.error)) ? String(req.query.error) : 'unknown'; auditQuiet('sso-refused:' + req.ip, `sign in with Microsoft refused by Microsoft (${code})`); return back('denied'); }
       const claims = await finishSso(cfgGraph(), { state: req.query.state, code: req.query.code, bind: readCookie(req.headers.cookie, SSO_COOKIE) }, graphFetch);
       let user = userForClaims(loadState(db).users, claims);
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
@@ -82,7 +83,7 @@ export function registerSessionRoutes(app, ctx) {
       audit(db, user.id, `sign in with Microsoft (${who})`);
       back('', [cookie(token, 43200)]);
     } catch (e) {
-      audit(db, null, `sign in with Microsoft failed: ${String(e.message || e).slice(0, 200)}`);
+      auditQuiet('sso-failed:' + req.ip, `sign in with Microsoft failed: ${String(e.message || e).split(/[\r\n]/)[0].slice(0, 200)}`);
       back('failed');
     }
   });
