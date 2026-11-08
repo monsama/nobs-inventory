@@ -41,7 +41,8 @@ export function applyTypeMap(only){
     if (!TYPES[type] || name.toLowerCase() !== only) continue;
     for (const o of objs) {
       const fromLs = o.feed && String(o.feed.assetType || '').toLowerCase() === name.toLowerCase();
-      if (!fromLs || o.excluded || o.detached || o.type === type) continue;
+      /* Not a retired device, nor a type set by hand: the mapping is for what Lansweeper decides. */
+      if (!fromLs || o.excluded || o.detached || o.status === 'retired' || (o.pick && o.pick.type === 'hand') || o.type === type) continue;
       hist(o, now(), `Type changed to ${TYPES[type].label} by the type mapping of ${name}`);
       o.type = type; n++;
     }

@@ -149,10 +149,11 @@ test('every box in Feed may overwrite does what it says: location, room from IP,
   const pc = (extra = {}) => ({ id: 'a', code: 'INV-1', type: 'pc', name: 'PC-A', status: 'active', loc: 'Bern / Büro', ovr: {}, feed: { sys: 'Lansweeper', ref: '1' }, ...extra });
   const mon = { id: 'm', code: 'INV-2', type: 'monitor', name: 'MON-A', status: 'active', loc: '', ovr: {}, feed: { sys: 'Lansweeper', ref: '2' } };
   const rec = { name: 'PC-A', ref: '1', ip: '172.21.108.14', ip6: '2001:DB8::14', patch: 'KB5066835 (2026-10-14)', location: 'Bern / Lager',
-    user: 'Anna Muster', userDept: 'Logistik', software: [{ name: 'Tool A', version: '1' }], links: [{ kind: 'attached', ref: '2' }] };
+    user: 'Anna Muster', userDept: 'Logistik', software: [{ name: 'Tool A', version: '1' }] };
   const run = (policy, objs = [pc(), { ...mon }], users = []) => {
     const s = base({ policy, objs, users });
-    mergeRecords(s, recordsFromJson([rec, { name: 'MON-A', ref: '2' }]), now, IP_LOCATIONS);
+    /* As the push sends it: the monitor's record names the computer it is attached to. */
+    mergeRecords(s, recordsFromJson([rec, { name: 'MON-A', ref: '2', links: [{ kind: 'attached', ref: '1' }] }]), now, IP_LOCATIONS);
     return s;
   };
   const all = { loc: true, ipRoom: true, ip6: true, patch: true, software: true, links: true, dept: true, user: true };
@@ -163,7 +164,7 @@ test('every box in Feed may overwrite does what it says: location, room from IP,
   assert.equal(o.ip6, '2001:db8::14', 'IPv6 is kept in its stored form');
   assert.equal(o.patch, 'KB5066835 (2026-10-14)');
   assert.deepEqual(o.software.map(x => x.name), ['Tool A']);
-  assert.ok(s.rels.some(r => r.from === 'a' && r.to === 'm' && r.kind === 'attached'), 'the monitor is attached');
+  assert.ok(s.rels.some(r => r.from === 'm' && r.to === 'a' && r.kind === 'attached'), 'the monitor is attached');
 
   s = run({ loc: false, ipRoom: true, ip6: false, patch: false, software: false, links: false, dept: false, user: true });
   o = s.objs.find(x => x.id === 'a');
