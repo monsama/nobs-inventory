@@ -74,7 +74,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
 | Logs | `docker compose logs -f` (the app), `docker logs nobs-proxy` (the proxy) |
 
-Backups contain the database, `.env`, the Compose file, the proxy (`proxy/`: its Caddyfile, every site file and the certificate) and the secrets. Copy them off the server; keep them as private as the secrets. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
+Backups made by `backup.sh` contain the database, `.env`, the Compose file and the proxy (`proxy/`: its Caddyfile, every site file and the certificate). The secrets (`secrets/` and the sheet key) are in them only when they are encrypted (`BACKUP_PASSPHRASE_FILE`) or with `BACKUP_INCLUDE_SECRETS=yes`; otherwise keep a copy of `secrets/` elsewhere, as a server rebuilt without it cannot open entry sheets, the Graph certificates' keys or the saved LDAP password. Copy the backups off the server and keep them private. The backups the app makes itself (Settings → Backups) never held the secrets and are unchanged. Restore replaces the inventory data; secrets (with `secrets/sheet_key`) are restored only with `RESTORE_SECRETS=yes`, and restore warns when the key on the server is not the backup's.
 
 ## Accounts and directory
 
