@@ -2,6 +2,7 @@
    it a number, so later saves still go through; "Back to automatic" follows the order set in Settings → Data sources;
    New device asks before what was typed is dropped and says when another device has the serial number;
    Last seen filters the list (never seen); Export CSV gives the columns shown, named after the filter, or all fields;
+   Settings → Users says a short password under the row as it is typed, and a person without a login has No sign-in;
    a save of more changes than the server takes at once is sent in batches. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -9,7 +10,7 @@ import { createApp } from '../../server/app.js';
 import { openDb } from '../../server/db.js';
 import { bootstrap } from '../../server/index.js';
 import { loadState, saveState } from '../../server/state.js';
-import { storedBy, until } from './until.mjs';
+import { openSetTab, storedBy, until } from './until.mjs';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ni-sweep-'));
@@ -107,6 +108,17 @@ try {
   const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#csvBtn')]);
   assert.match(fs.readFileSync(await dl2.path(), 'utf8'), /^\ufeffcode,name,type,model,serial/);
   await p.click('[data-fx=seen]');
+  // Settings → Users: a short password is said under the row; someone without a login shows No sign-in
+  await p.click('#setBtn'); await openSetTab(p, 'users'); await p.waitForSelector('#nuAdd');
+  await p.fill('#nuFirst', 'Nora'); await p.fill('#nuLogin', 'nora'); await p.fill('#nuPw', 'short');
+  await until(p, () => /at least 12 characters: 7 more/.test(document.querySelector('#nuPwNote').textContent));
+  await p.click('#nuAdd');
+  assert.ok(!loadState(db).users?.some?.(u => u.login === 'nora'), 'added with a short password');
+  await p.fill('#nuLogin', ''); await p.fill('#nuPw', '');
+  await until(p, () => document.querySelector('#nuPwNote').textContent === '');
+  await p.click('#nuAdd');
+  await p.waitForSelector('#setUsers td.muted:has-text("No sign-in")');
+  await p.keyboard.press('Escape');
   // more changes than the server takes at once go in batches of at most 4000
   const sizes = await p.evaluate(async () => { const { batches } = await import('/js/server-save.js'); const dels = Array.from({ length: 9001 }, (_, i) => ({ kind: 'history', id: 'h' + i })); return batches([], dels).map(b => b.dels.length); });
   assert.deepEqual(sizes, [4000, 4000, 1001]);

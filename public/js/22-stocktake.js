@@ -54,7 +54,7 @@ function startHtml(edit){
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
   const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
   return html`<div class="panelbox"><div class="hdr">New inventory check</div>
-    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} An inventory check lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
+    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} ${live.length === 1 ? 'device was' : 'devices were'} confirmed on site in the last 12 months.` : 'No devices yet.'} An inventory check lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
     ${edit ? html`<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select>
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Inventory check ${dateText(today())}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the inventory check</button><span class="muted" id="stkCount"></span></div>` : html`<p class="note stk-pad">An admin starts an inventory check.</p>`}</div>`;
@@ -63,7 +63,7 @@ function startHtml(edit){
    inventory check, saves it and puts the focus in the scan field. */
 function wireStart(edit){
   if (!edit) return;
-  const count = () => { $('#stkCount').textContent = `${stocktakeDevices(objs, $('#stkPlace').value).length} devices`; };
+  const count = () => { const n = stocktakeDevices(objs, $('#stkPlace').value).length; $('#stkCount').textContent = `${n} ${n === 1 ? 'device' : 'devices'}`; };
   $('#stkPlace').onchange = count; count();
   $('#stkStart').onclick = () => {
     const scope = $('#stkPlace').value, name = $('#stkName').value.trim() || `Inventory check ${placeName(scope)} ${dateText(today())}`;

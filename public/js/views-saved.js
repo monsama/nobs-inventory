@@ -2,7 +2,7 @@
    edit and delete them (setting savedViews, shared by all), and can have one sent by mail as an Excel file
    (server/view-mail.js); everyone can open them. */
 import { VIEWS_MAX, VIEW_MAIL_EVERY, WEEKDAYS, applyViewFilters, hiddenFor, mailList, mailText, nextMail, removeView, renameView, sameView, serializeView, setViewMail, tableStateFor, upsertView, viewMailProblem } from './saved-views.js';
-import { $$, $, deleteButton, editButton, esc, rid, st, toast } from './01-core.js';
+import { $$, $, deleteButton, editButton, esc, rid, st, toast, toastUndo } from './01-core.js';
 import { flushSave, queueServerSave, render, view } from './07-render.js';
 import { dateTimeText, stamp } from './dates.js';
 import { html } from './html.js';
@@ -58,12 +58,22 @@ function nameModal(title, name, note, ok){
 /* Save view…: the list as it is shown now, under a name; a view of that name is replaced. */
 export function saveViewModal(){
   const shown = views().find(isShown);
+  /* Another view of that name (not the one shown): said under the field first; Save again replaces it. */
+  let sure = '';
   nameModal('Save view', shown ? shown.name : '', 'Keeps the filters, the search, the columns shown, the column filters and the sort. Every user sees the view in the sidebar; a view of the same name is replaced.', name => {
-    const list = upsertView(views(), currentView(), name, 'v' + rid());
+    const twin = views().find(v => v.name.toLowerCase() === name.toLowerCase());
+    if (twin && twin !== shown && sure !== name.toLowerCase()){
+      sure = name.toLowerCase();
+      let n = $('#svTwin'); if (!n){ n = document.createElement('p'); n.id = 'svTwin'; n.className = 'fieldnote warn'; n.setAttribute('role', 'alert'); $('#svName').closest('.form').after(n); }
+      n.textContent = `A view is already called “${twin.name}”. Save again to replace it with this list.`;
+      $('#svName').focus(); return false;
+    }
+    const was = views(), list = upsertView(was, currentView(), name, 'v' + rid());
     if (list.length > VIEWS_MAX){ toast(`At most ${VIEWS_MAX} views: delete one first.`); return false; }
-    const replaced = list.length === views().length;
+    const replaced = list.length === was.length;
     st.savedViews = list; queueServerSave(); render();
-    toast(`View “${name}” ${replaced ? 'replaced' : 'saved'}`);
+    if (replaced) toastUndo(`View “${name}” replaced`, () => { st.savedViews = was; queueServerSave(); render(); });
+    else toast(`View “${name}” saved`);
   });
 }
 /* Edit: the name, and Send by mail: how often, the day and hour, the addresses, the last send, and Send now. Mail needs

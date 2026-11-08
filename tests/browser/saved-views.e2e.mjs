@@ -80,6 +80,17 @@ try {
   await a.click('#statList [data-status="stock"]');
   await a.click('#svSave'); await a.fill('#svName', 'In stock'); await a.press('#svName', 'Enter');
   await a.waitForSelector('#viewList .item.sel:has-text("In stock")');
+  /* Saving under the name of another view says so first; Save again replaces it, and Undo gives it back. */
+  const office = () => JSON.stringify(loadState(db).savedViews.find(x => x.name === 'Office PCs'));
+  const before = office();
+  await a.click('#svSave'); await a.fill('#svName', 'office pcs'); await a.click('#svOk');
+  await a.waitForSelector('#svTwin:has-text("already called “Office PCs”")');
+  assert.equal(office(), before, 'replaced without asking');
+  await a.click('#svOk');
+  await a.waitForSelector('#toast:has-text("replaced")');
+  await storedBy(() => loadState(db), t => !t.savedViews.some(x => x.name === 'Office PCs'));
+  await a.click('#toast .t-undo');
+  await storedBy(() => loadState(db), () => office() === before);
   await a.hover('#viewList .svrow:has-text("Office PCs")'); await a.click('#viewList [data-svren]');
   await a.fill('#svName', 'in stock'); await a.click('#svOk');
   await a.waitForSelector('#toast:has-text("already called")');

@@ -25,7 +25,7 @@ const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
    attr: the name of the data attribute, written here. */
 const bars = (rows, attr) => {
   const max = Math.max(1, ...rows.map(r => r.n));
-  return html`<div class="ov-bars">${rows.map(r => html`<button class="ov-bar" ${rawHtml(attr)}="${r.key}" title="${r.label}: ${r.n} devices${r.bad ? ` (${r.bad})` : ''}${r.hint ? `\n${r.hint}` : ''}">
+  return html`<div class="ov-bars">${rows.map(r => html`<button class="ov-bar" ${rawHtml(attr)}="${r.key}" title="${r.label}: ${r.n} ${r.n === 1 ? 'device' : 'devices'}${r.bad ? ` (${r.bad})` : ''}${r.hint ? `\n${r.hint}` : ''}">
     <span class="ov-lbl">${r.icon || ''}<span>${r.label}</span></span><span class="ov-track"><span ${r.bad ? html`class="bad" ` : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`)}</div>`;
 };
 

@@ -196,7 +196,7 @@ export function renderSetUsers(){
     <label class="pchk" style="width:auto"><input type="checkbox" id="uDevs" ${st.userDevs ? 'checked' : ''}> With devices</label>
     <span class="muted">${filtering ? `${nShown} of ${USERS.length}` : ''}</span>${filtering ? html`<button type="button" class="link" id="uClear">Clear</button>` : ''}</div>`;
   const rows = USERS.map((u, i) => [u, i]).filter(([u]) => shown(u)).map(([u, i]) => html`<tr>
-      ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}<td class="mono">${u.login || '-'}</td>
+      ${fromDirectory(u) ? html`<td title="From ${u.source === 'ldap' ? 'LDAP' : 'Entra'}: changed there${profileTip(u)}">${u.name}${profileLine(u)}</td>` : html`<td><input data-uname="${i}" maxlength="80" value="${u.name}" aria-label="Name of ${u.name}"></td>`}${u.login ? html`<td class="mono">${u.login}</td>` : html`<td class="muted" title="No login: this person cannot sign in to the app (Set password… or Give a login name… in ⋯)">No sign-in</td>`}
       ${fromDirectory(u) ? html`<td>${u.dept || ''}</td>` : html`<td><input data-udept="${i}" maxlength="80" value="${u.dept || ''}" placeholder="Department" aria-label="Department of ${u.name}"></td>`}<td>${(u.groups || []).join(', ')}</td>
       <td><span class="usrcs">${rawHtml(sourceChips(u))}</span></td>
       <td class="n"><a class="link" data-devs="${i}">${devicesOfUser(u.name)}</a></td>
@@ -213,7 +213,7 @@ export function renderSetUsers(){
     ${rows.length ? '' : html`<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>`}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
-    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div></div>`;
+    <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div><p class="fieldnote warn" id="nuPwNote" aria-live="polite"></p></div>`;
   /* The search and filters first, then the edits in the table. */
   const root = $('#setUsers');
   const ud = $('#userDir'); if (ud) ud.onchange = () => { st.userDir = ud.value; renderSetUsers(); };
@@ -284,6 +284,12 @@ export function renderSetUsers(){
     if (u.role === 'admin' && u.active !== false && activeAdmins() <= 1){ toast('At least one active admin is needed.'); return; }
     USERS.splice(+b.dataset.del, 1); queueServerSave(); toast(u.name + ' removed'); renderSetUsers();
   });
+  /* The password's length is said under the row while it is typed, not only after Add user. */
+  const pwNote = (always = false) => {
+    const pw = $('#nuPw').value, left = PW_MIN - pw.length, on = !!$('#nuLogin').value.trim() && left > 0 && (always || pw.length > 0);
+    $('#nuPwNote').textContent = on ? `The password needs at least ${PW_MIN} characters: ${left} more.` : '';
+  };
+  $('#nuPw').oninput = () => pwNote(); $('#nuLogin').oninput = () => pwNote();
   $('#nuAdd').onclick = async () => {
     const first = $('#nuFirst').value.trim(), last = $('#nuLast').value.trim();
     const name = [first, last].filter(Boolean).join(' ');
@@ -291,7 +297,7 @@ export function renderSetUsers(){
     if (!name){ toast('Give the user a first or last name.'); return; }
     if (USERS.some(u => u.name.toLowerCase() === name.toLowerCase())){ toast(name + ' is already a user.'); return; }
     if (login && USERS.some(u => (u.login || '').toLowerCase() === login.toLowerCase())){ toast('That login is already used.'); return; }
-    if (login && pw.length < PW_MIN){ toast(`The password needs at least ${PW_MIN} characters.`); return; }
+    if (login && pw.length < PW_MIN){ pwNote(true); $('#nuPw').focus(); return; }
     const u = {id:userId(), login, first, last, name, dept:$('#nuDept').value.trim(), role:$('#nuRole').value, groups:[], source:'manual', active:true};
     USERS.push(u); queueServerSave();
     if (login){
