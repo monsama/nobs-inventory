@@ -754,8 +754,15 @@ export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.rev
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
 /* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in To review). */
 export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
+/* To review lists the devices a source saw last first: those are the ones to act on; never seen and Old ones last. */
+const seenDays = o => { const s = lastSeenOf(o); return s ? s.days : Infinity; };
+const byRecentlySeen = list => list.map(o => [seenDays(o), o]).sort((a, b) => a[0] - b[0] || String(a[1].name || '').localeCompare(String(b[1].name || ''))).map(x => x[1]);
 export function filtered(){
   const q = st.q.trim().toLowerCase();
+  const list = filteredAsIs(q);
+  return st.scope === 'review' || st.scope === 'ignored' ? byRecentlySeen(list) : list;
+}
+function filteredAsIs(q){
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
   return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
