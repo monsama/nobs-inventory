@@ -1,7 +1,7 @@
 /* Cards: the device cards, their lines and chips, and the Cards view (split out of 02-views.js, which re-exports it). */
 import { respText } from './11-contacts.js';
 import { linkKind } from './links.js';
-import { evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
+import { listCount, evEl, twinsOf, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, lastSeenOf, seenChip, GRAPH_TYPES, joinBadges, SYNC, scanOld, relIndex, FIELD_LAYOUT, warrantyState, dayText, graphChip, isAttached, markHtml, handHtml, syncOf, TYPE_FIELDS, hasPorts, $, LOCS, STATUS, TYPES, byId, esc, filtered, objs, relsOf, st, syncChip, tico, used } from './01-core.js';
 import { SERVER, view } from './07-render.js';
 import { newObjModal } from './05-new-object.js';
 import { USERS, isAdmin, showDevicesOf } from './04-settings.js';
@@ -116,7 +116,7 @@ export const SHOW_FIRST = 500;
 export function renderCardsBody(){
   let list = filtered();
   const pool = scopePool();
-  $('#toolbar').innerHTML = html`<span class="muted">${list.length} of ${pool.length} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : 'objects'}</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = html`<span class="muted">${listCount(list.length, pool.length)}</span><span class="tbsep"></span>
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() ? html`<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}

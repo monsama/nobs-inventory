@@ -248,6 +248,7 @@ a.btnlike{text-decoration:none;gap:6px}
 .lrows{display:flex;flex-direction:column}
 .lrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 92px;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--bd2)}
 .lrow.room{grid-template-columns:120px minmax(0,1fr) 64px 92px}
+.lrow.room.site-first:not(:first-child){border-top:1px solid var(--bd)}   /* a new site starts its group */
 /* Column headers look the same in every table: plain bold text on the header shade. Capitals are for title bars. */
 .lrow.head{padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:600;color:var(--fg);background:var(--gridh);border-bottom:2px solid var(--bd)}
 .lrow.vl{grid-template-columns:64px minmax(0,1fr) minmax(0,1.6fr) 64px 92px}

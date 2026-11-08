@@ -77,6 +77,9 @@ export function newObjModal(pre={}){
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.name) $('#nName').value = pre.name;
   if (pre.type && TYPES[pre.type]) $('#nType').value = pre.type;
+  /* Opened on a device's page: a device of its kind (a notebook beside a notebook), unless others plug into it
+     (a switch, a panel, a rack), where the new one is most likely what goes in. */
+  else if (!c && ctx && TYPES[ctx.type] && !hasPorts(ctx) && !['patch', 'rack', 'server'].includes(ctx.type)) $('#nType').value = ctx.type;
   const loc = pre.loc || (!c && ctx && ctx.loc) || '';
   if (loc && LOCS.includes(loc)) $('#nLoc').value = loc;
   /* The form follows the type: its examples, how it is connected, and a rack's height. */

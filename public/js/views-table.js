@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
+import { listCount, scopePool, SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -131,7 +131,7 @@ export function renderTable(){
   const colOpen = !!$('#colMenu .menubox:popover-open');
   st.bulk = pickedInPool();
   const n = st.bulk.size;
-  $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
+  $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCount(list.length, scopePool().length)}</span><span class="tbsep"></span>
     ${rawHtml(columnsMenu())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV', String(html`<button type="button" id="csvShown">The columns shown<span class="muted">, as in the table</span></button><button type="button" id="csvBtn">All fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
@@ -201,7 +201,7 @@ export function renderTable(){
   const sc = tv.sort && colOf(tv.sort.ci);
   if (sc) { const key = new Map(list.map(o => [o, textOf(sc.cell(o, idx))])); list = [...list].sort((a, b) => tv.sort.dir * cmpCells(key.get(a), key.get(b))); }
   /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. */
-  $('#tblCount').textContent = `${list.length} ${list.length === 1 ? 'row' : 'rows'}`;
+  $('#tblCount').textContent = listCount(list.length, scopePool().length);
   const cut = !st.tableAll && list.length > SHOW_FIRST + 100;
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
   $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>

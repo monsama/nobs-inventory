@@ -110,7 +110,7 @@ try {
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount');
   await p.evaluate(() => { document.querySelector('#moreFilters').open = true; });
   await p.click('[data-seen=never]');
-  await until(p, () => document.querySelector('#tblCount').textContent.trim() === '4 rows');
+  await until(p, () => document.querySelector('#tblCount').textContent.trim().startsWith('4 of '));
   assert.match(await p.textContent('#filterBar, .filterbar, body'), /Last seen: never/);
   const rows = await p.evaluate(() => [...document.querySelectorAll('#view tbody tr[data-open]')].map(r => r.dataset.open).sort());
   assert.ok(!rows.includes('v1'), 'a device Intune saw is listed as never seen');
