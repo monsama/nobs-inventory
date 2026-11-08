@@ -191,7 +191,8 @@ export function renderTable(){
       tv.order = tv.order.filter(x => x !== ci); tv.order.splice(tv.order.indexOf(prev) + 1, 0, ci); prev = ci;
     }
   }
-  const textOf = html => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
+  /* A cell's text as data: marks beside the value (Edited, the source badges) are not part of it. */
+  const textOf = html => html.replace(/<span class="mk\b[^"]*"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).trim();
   const colOf = ci => shown[ci - 1];
   for (const [ci, q] of Object.entries(tv.filters || {})) {
     const c = colOf(+ci), want = String(q || '').trim().toLowerCase();

@@ -114,6 +114,7 @@ try {
   const text = fs.readFileSync(await dl.path(), 'utf8').replace(/^\ufeff/, '');
   const head = text.split('\r\n')[0], shownHead = await p.evaluate(() => [...document.querySelectorAll('#view thead th[data-ck]')].map(th => th.textContent.trim()).join(','));
   assert.equal(head, shownHead, 'the export does not have the columns shown');
+  assert.ok(!/Edited|,New/.test(text), 'a mark beside a value is in the data: ' + text.split('\r\n')[1]);
   assert.equal(text.split('\r\n').length, 5, 'the export does not have the rows shown');
   await p.click('#csvMenu .menu-btn');
   const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#csvBtn')]);
