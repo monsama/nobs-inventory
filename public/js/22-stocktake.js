@@ -42,7 +42,7 @@ export function renderStocktake(){
   const t = activeStocktake(), edit = isAdmin();
   /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
   const scanning = document.activeElement && document.activeElement.id === 'stkScan';
-  $('#toolbar').innerHTML = html`<b>Inventory check</b><span class="muted">${t ? `${t.name} · ${placeName(t.scope)}` : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
+  $('#toolbar').innerHTML = html`<b>Inventory check</b>${t ? '' : html`<span class="muted">Confirm on site that the devices are where the inventory says</span>`}<div class="grow"></div>`;
   $('#view').innerHTML = html`<div class="stk">${t ? activeHtml(t, edit) : startHtml(edit)}${historyHtml()}</div>`;
   if (t) wireActive(t, edit); else wireStart(edit);
   if (scanning && $('#stkScan')) $('#stkScan').focus();
@@ -91,7 +91,7 @@ function activeHtml(t, edit){
     return html`<label class="stk-row${ok ? ' ok' : ''}"><input type="checkbox" data-stk="${o.id}" ${ok ? 'checked' : ''} ${edit ? '' : 'disabled'}>
       <span class="stk-name"><b>${o.name}</b> <span class="code">${o.code || ''}</span><small>${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.serial, userName(o)].filter(Boolean).join(' · ')}</small></span>
       <span class="stk-when muted">${ok ? `Confirmed${o.verified.from !== undefined ? ', moved here' : ''}` : d === null ? 'Never confirmed' : `Last ${dateText(o.verified.at)}`}</span></label>`; };
-  return html`<div class="panelbox"><div class="hdr">${t.name} <span class="cnt">${placeName(t.scope)} · started ${dateText(t.started.slice(0, 10))} by ${t.by || ''}</span></div>
+  return html`<div class="panelbox"><div class="hdr">${t.name} <span class="cnt">${[t.name.includes(placeName(t.scope)) ? '' : placeName(t.scope), `started ${dateText(t.started.slice(0, 10))}${t.by ? ' by ' + t.by : ''}`].filter(Boolean).join(' · ')}</span></div>
     <div class="stk-prog stk-pad"><div class="ov-qbar" role="img" aria-label="${done} of ${list.length} confirmed"><span style="width:${pct}%"></span></div><b>${done} of ${list.length}</b>${moved ? html`<span class="muted">${moved} moved here</span>` : ''}${(t.unknown || []).length ? html`<span class="muted">${t.unknown.length} not in the inventory</span>` : ''}</div>
     ${edit ? html`<div class="stk-scanrow stk-pad"><input id="stkScan" type="search" autocomplete="off" enterkeyhint="done" placeholder="Scan or type serial number, code or name" aria-label="Scan or type a serial number, code or name">
       <button id="stkFinish" class="primary">Finish…</button></div><p class="stk-last stk-pad" id="stkLast" role="status" aria-live="polite">${rawHtml(LAST)}</p>` : ''}
