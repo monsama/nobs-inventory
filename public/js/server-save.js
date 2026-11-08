@@ -206,7 +206,7 @@ async function clearAll(){
   /* What stays must not point at what goes: a kept device leaves a deleted rack (or the device it sat on), and the
      contracts no longer list the deleted devices. */
   const puts = d.objs.filter(o => !removed.has(o.id) && (removed.has(o.rack) || removed.has(o.ontop))).map(o => {
-    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) delete v.ontop;
+    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) { delete v.ontop; delete v.rack; delete v.u; delete v.h; }
     return {kind: 'object', id: o.id, value: v, base: base('object', o.id)};
   });
   if (Array.isArray(d.contracts) && d.contracts.some(c => (c.devices || []).some(id => removed.has(id))))

@@ -435,6 +435,7 @@ function checkStateRules(s, size = true) {
     if (o.sfp !== undefined && (!Number.isInteger(o.sfp) || o.sfp < 0 || o.sfp > 1000)) bad(`${o.name}: the SFP port count must be a whole number from 0 to 1000.`);
     if (o.h !== undefined && (!Number.isInteger(o.h) || o.h < 1 || o.h > 200)) bad(`${o.name}: the height in U must be a whole number from 1 to 200.`);
     if (o.u != null && (!Number.isInteger(o.u) || o.u < 1 || o.u > 200)) bad(`${o.name}: the rack position must be a U from 1 to 200.`);
+    if (o.units !== undefined && o.units !== null && (!Number.isInteger(o.units) || o.units < 1 || o.units > 200)) bad(`${o.name}: a rack is a whole number of 1 to 200 U high.`);
     /* A patch panel's wall outlets (public/js/cabling.js). */
     { const p = outletsProblem(o); if (p) bad(`${o.name}: ${p}`); }
   }
@@ -499,15 +500,18 @@ function checkStateRules(s, size = true) {
   for (const o of s.objs) {
     if (o.rack == null) continue;
     if (!racks.has(o.rack)) bad(`${o.name}: its rack does not exist.`);
+    if (o.type === 'rack') bad(`${o.name}: a rack does not go in a rack.`);
     if (o.ontop != null) {
       const below = byId.get(o.ontop);
-      if (!below || below.rack !== o.rack) bad(`${o.name}: the device it sits on is not in the same rack.`);
+      if (o.ontop === o.id || !below || below.rack !== o.rack) bad(`${o.name}: the device it sits on is not in the same rack.`);
       continue;
     }
-    if (o.u == null) continue;
+    /* A retired device is kept for the record and no longer takes up rack units (as the page counts them). */
+    if (o.u == null || o.status === 'retired') continue;
     const h = o.h || 1;
     const rk = byId.get(o.rack);
-    if (rk && rk.units && o.u + h - 1 > rk.units) bad(`${o.name} is above the top of its rack.`);
+    /* A rack without a height is 42 U, as the page draws it. */
+    if (rk && o.u + h - 1 > (rk.units || 42)) bad(`${o.name} is above the top of its rack.`);
     for (let u = o.u; u < o.u + h; u++) {
       const key = o.rack + '|' + u;
       if (used[key]) bad(`${o.name} and ${used[key]} both take U${u} in the same rack.`);

@@ -11,12 +11,12 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { dayText, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { dayText, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
+import { RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -149,7 +149,8 @@ export function deleteObject(id){
   /* Records merged into a deleted device stay ignored, merged into nothing. */
   REVIEW.forEach(x => { if (x.review && x.review.merged === id) { delete x.review.merged; delete x.review.filled; delete x.review.moved; } });
   for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
-  objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
+  /* What sat on top of it leaves the rack too: it had no U of its own. */
+  objs.forEach(x => { if (x.ontop === id) { delete x.ontop; delete x.rack; delete x.u; delete x.h; hist(x, now(), 'Taken out of the rack: the device it sat on was deleted'); } });
   /* A deleted rack leaves its devices unmounted; they stay in the inventory. */
   objs.forEach(x => { if (x.rack === id) { delete x.rack; delete x.u; delete x.h; delete x.ontop; } });
   delete HISTORY[id];
@@ -531,6 +532,15 @@ export function renderObj(o){
         place = {rack: rackId, u, h};
       } else place = {};
     }
+    /* A device that becomes a rack, or a type that does not go in a rack, leaves the rack it is in. */
+    if (typeEl && typeEl.value !== o.type && o.rack && (typeEl.value === 'rack' || !RACKABLE.includes(typeEl.value))) place = {};
+    /* A rack cannot be lower than the devices in it, and is 1 to 60 U high, as a new rack. */
+    const unitsEl = /** @type {HTMLInputElement|null} */ ($('#view').querySelector('[data-k="units"]'));
+    if (unitsEl && o.type === 'rack'){
+      const n = Number(unitsEl.value), top = rackTopUsed(o.id);
+      if (!Number.isInteger(n) || n < 1 || n > 60){ toast('A rack is 1 to 60 U high, in whole units.'); unitsEl.value = String(rackUnits(o)); return false; }
+      if (n < top){ toast(`U${top} is in use: move the devices above U${n} first.`); unitsEl.value = String(rackUnits(o)); return false; }
+    }
     const kept = [], edits = [];
     /* The device as it was, for the Undo in the toast. */
     const before = snapshot([o]);
@@ -554,7 +564,7 @@ export function renderObj(o){
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
       if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); else if (o.price !== undefined) edits.push([k, o.price, undefined]); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
-      if (k === 'units') v = +v || 42;
+      if (k === 'units') v = +v;
       if (k === 'type' && o.type !== v && TYPES[v]){
         hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
         pickHand(o, 'type');   /* set by hand: the type rules leave it alone */
@@ -586,7 +596,11 @@ export function renderObj(o){
       Object.assign(o, place);
       followOnTop(o, prevRack);
       if (place.ontop) delete o.u;
+      if (prevRack && !o.rack) hist(o, now(), `Taken out of the rack by ${who()}`);
+      if (o.rack && o.rack !== prevRack) rackLocFollow(byId(o.rack));
     }
+    /* A rack moved to another place takes its devices with it. */
+    if (o.type === 'rack' && edits.some(e => e[0] === 'loc')) rackLocFollow(o);
     /* Status and user go together: a device taken into stock has nobody (the person goes, with Undo); one given to
        somebody while in stock is in use from now on. */
     if ((o.uid || null) !== uidWas || !!o.hotdesk !== hotWas) edits.push(['user', hotWas ? 'Hot desk' : userWas, o.hotdesk ? 'Hot desk' : o.user]);
