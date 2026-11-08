@@ -113,7 +113,7 @@ export function clearConnections(db) {
     }
     db.exec('DELETE FROM feed_token');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
-    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
+    if (hasTable(db, 'app_secrets')) db.exec("DELETE FROM app_secrets WHERE name <> 'ldapLoginHost'");   /* not which directory sign-ins were set up for */
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');

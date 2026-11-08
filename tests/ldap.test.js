@@ -373,8 +373,16 @@ test('directory sign-in goes only to the directory it was set up with: a changed
     // a local admin still signs in, and saving the service password for the new server sets sign-in up for it
     const admin = await signIn(srv, 'admin', 'adminpass123');
     assert.equal(admin.status, 200, 'a local admin is not held off');
-    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret' }, cookie: admin.cookie })).status, 200);
+    // moving sign-in to the new server needs the admin's own password, not just their session
+    const bare = await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret' }, cookie: admin.cookie });
+    assert.equal(bare.status, 403); assert.equal(bare.json.confirm, true);
+    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret', confirm: 'wrong-pass' }, cookie: admin.cookie })).status, 403);
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 503, 'still paused');
+    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret', confirm: 'adminpass123' }, cookie: admin.cookie })).status, 200);
     assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 200, 'sign-in goes to the server the service password was saved for');
+    // clearing the connections keeps which server sign-ins were set up for
+    assert.equal((await srv.call('POST', '/api/connections/clear', { cookie: admin.cookie })).status, 200);
+    assert.ok(srv.db.prepare("SELECT name FROM app_secrets WHERE name = 'ldapLoginHost'").get(), 'the sign-in pin went with the connections');
   } finally { await srv.close(); dir.close(); }
 });
 
