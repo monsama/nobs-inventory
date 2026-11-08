@@ -20,9 +20,11 @@ const s = loadState(db);
 s.objs = [
   { id: 'w1', code: 'INV-0001', type: 'switch', name: 'SW-1', status: 'active', ports: 24, serial: 'SN-77', feed: null },
   { id: 'r1', code: 'INV-0003', type: 'pc', name: 'PC-OLD', status: 'active', feed: null },
+  { id: 'k1', code: 'INV-0009', type: 'rack', name: 'RACK-A', status: 'active', serial: 'RK-SN-9931', feed: null },
   { id: 'v1', code: 'INV-0002', type: 'pc', name: 'PC-V', status: 'active', feed: null, os: 'Windows 11 Enterprise', src: { os: 'graph' },
     vals: { os: { graph: ['Windows 11 Enterprise', '2026-11-06T08:00:00Z'], ad: ['Windows 11 Pro', '2026-11-05'] } }, pick: { os: 'graph' }, graph: { id: 'g1', managed: 'Intune', lastCheckIn: '2026-11-06T08:00:00Z' }, ad: { logon: '2026-11-05' } }];
 s.fieldOrder = { os: ['ad', 'graph'] };
+s.savedViews = [{ id: 'sv1', name: 'Racks only', filters: { type: 'rack' } }];
 saveState(db, s);
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined, args: ['--no-sandbox'] });
@@ -93,7 +95,7 @@ try {
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount');
   await p.evaluate(() => { document.querySelector('#moreFilters').open = true; });
   await p.click('[data-seen=never]');
-  await until(p, () => document.querySelector('#tblCount').textContent.trim() === '3 rows');
+  await until(p, () => document.querySelector('#tblCount').textContent.trim() === '4 rows');
   assert.match(await p.textContent('#filterBar, .filterbar, body'), /Last seen: never/);
   const rows = await p.evaluate(() => [...document.querySelectorAll('#view tbody tr[data-open]')].map(r => r.dataset.open).sort());
   assert.ok(!rows.includes('v1'), 'a device Intune saw is listed as never seen');
@@ -103,7 +105,7 @@ try {
   const text = fs.readFileSync(await dl.path(), 'utf8').replace(/^\ufeff/, '');
   const head = text.split('\r\n')[0], shownHead = await p.evaluate(() => [...document.querySelectorAll('#view thead th[data-ck]')].map(th => th.textContent.trim()).join(','));
   assert.equal(head, shownHead, 'the export does not have the columns shown');
-  assert.equal(text.split('\r\n').length, 4, 'the export does not have the rows shown');
+  assert.equal(text.split('\r\n').length, 5, 'the export does not have the rows shown');
   await p.click('#csvMenu .menu-btn');
   const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#csvBtn')]);
   assert.match(fs.readFileSync(await dl2.path(), 'utf8'), /^\ufeffcode,name,type,model,serial/);
@@ -119,6 +121,14 @@ try {
   await p.click('#nuAdd');
   await p.waitForSelector('#setUsers td.muted:has-text("No sign-in")');
   await p.keyboard.press('Escape');
+  // the search at the top finds a rack by its serial number and a saved view by its name, which opens it
+  await p.fill('#search', 'rk-sn-9931');
+  await p.waitForSelector('#gsList li[role=option]:has-text("RACK-A")');
+  await p.fill('#search', 'racks only');
+  await p.waitForSelector('#gsList .gs-head:has-text("Views")');
+  await p.click('#gsList li[role=option]:has-text("Racks only")');
+  await until(p, async () => (await import('/js/01-core.js')).st.type === 'rack');
+  await p.fill('#search', ''); await p.keyboard.press('Escape');
   // more changes than the server takes at once go in batches of at most 4000
   const sizes = await p.evaluate(async () => { const { batches } = await import('/js/server-save.js'); const dels = Array.from({ length: 9001 }, (_, i) => ({ kind: 'history', id: 'h' + i })); return batches([], dels).map(b => b.dels.length); });
   assert.deepEqual(sizes, [4000, 4000, 1001]);
