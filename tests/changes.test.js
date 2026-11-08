@@ -119,6 +119,16 @@ test('factory reset removes every record, setting and other account; the admin w
     await put(srv, a.cookie, { puts: [{ kind: 'user', id: v.id, value: v, base: 0 }], dels: [] });
     await srv.call('POST', `/api/users/${v.id}/password`, { cookie: a.cookie, body: { password: 'lantern-harbor-9' } });
     await put(srv, a.cookie, { puts: [{ kind: 'setting', id: 'sites', value: ['Basel'], base: 0 }], dels: [] });
+    const tok = (await srv.call('POST', '/api/tokens', { cookie: a.cookie, body: { name: 'Monitoring', people: true } })).json.token;
+    const bearer = () => fetch(srv.base + '/api/v1/devices', { headers: { authorization: 'Bearer ' + tok } });
+    assert.equal((await bearer()).status, 200);
+    /* A directory admin (no password in this app) is refused: nobody could sign in after it. */
+    const dirAdmin = { id: 'u-dir', login: 'jdoe', name: 'J Doe', role: 'admin', active: true, groups: [], dept: '', source: 'ldap' };
+    await put(srv, a.cookie, { puts: [{ kind: 'user', id: dirAdmin.id, value: dirAdmin, base: 0 }], dels: [] });
+    const { createSession } = await import('../server/auth.js');
+    const dirCookie = 'ni_session=' + createSession(srv.db, dirAdmin.id);
+    const noLocal = await srv.call('POST', '/api/factory-reset', { cookie: dirCookie, body: { confirm: 'FACTORY RESET' } });
+    assert.equal(noLocal.status, 400, 'a directory account ran the reset'); assert.match(noLocal.json.error, /local admin account/);
     const refused = await srv.call('POST', '/api/factory-reset', { cookie: a.cookie, body: { confirm: 'reset' } });
     assert.equal(refused.status, 400, 'the reset ran without the typed word');
     assert.equal((await load(srv, a.cookie)).objs.length, 1);
@@ -130,6 +140,8 @@ test('factory reset removes every record, setting and other account; the admin w
     assert.deepEqual(now.users.map(u => u.login), ['admin'], 'other accounts are still there');
     assert.equal((await signIn(srv, 'viewer', 'lantern-harbor-9')).status, 401, 'a removed account can still sign in');
     assert.equal((await signIn(srv, 'admin', 'adminpass123')).status, 200, 'the admin cannot sign in again');
+    assert.equal((await bearer()).status, 401, 'an API token still reads after the reset');
+    assert.equal(srv.db.prepare('SELECT COUNT(*) AS n FROM api_tokens').get().n, 0);
   } finally { await srv.close(); }
 });
 

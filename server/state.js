@@ -135,6 +135,8 @@ export function factoryReset(db, keepUserId, { backups = false } = {}) {
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
     if (hasTable(db, 'sheets')) db.exec('DELETE FROM sheets');
     if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
+    /* API tokens too: an outside tool must not keep reading what is entered after the reset. */
+    if (hasTable(db, 'api_tokens')) db.exec('DELETE FROM api_tokens');
     if (backups) { db.exec('DELETE FROM backups'); if (hasTable(db, 'backup_parts')) db.exec('DELETE FROM backup_parts'); }
     db.prepare('DELETE FROM credentials WHERE user_id != ?').run(keepUserId);
     db.prepare('DELETE FROM sessions WHERE user_id != ?').run(keepUserId);

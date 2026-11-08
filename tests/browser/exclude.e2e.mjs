@@ -75,6 +75,9 @@ try {
   assert.deepEqual(srv().contracts[0].devices.map(id => srv().objs.find(o => o.id === id).name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the contract lists only the devices still there');
   assert.equal(srv().objs.find(o => o.name === 'SW-ZH-2OG-01').rack, 'R-2OG', 'a kept device stays in its kept rack');
 
+  // From here one change per batch, as a large inventory is sent in several: no batch may leave a relation or a rack
+  // place pointing at a device or rack already gone, or the clear is refused half-way.
+  await p.evaluate(async () => { (await import('/js/server-save.js')).BATCH.items = 1; });
   // With the racks box ticked, the racks go too, and a kept device leaves the deleted rack.
   await p.click('#setBtn'); await openSetTab(p, 'backups'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrRacks'); await p.click('#clrOk');
