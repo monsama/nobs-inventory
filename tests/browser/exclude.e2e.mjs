@@ -40,9 +40,14 @@ try {
   await p.fill('#arPort', '7'); await p.click('#arAdd');
   await waitServer(() => srv().rels.length === 1, 'the relation');
 
-  // Exclude the laptop with its relations: the switch is excluded too; the server is not.
+  // Exclude the laptop with what belongs to it: not the switch it is plugged into (that would take the network out).
   await p.click('.menu > .menu-btn'); await p.click('#exclRelBtn');
-  await waitServer(() => srv().objs.filter(o => o.excluded).length === 2, 'the exclusion');
+  await waitServer(() => srv().objs.filter(o => o.excluded).length === 1, 'the exclusion');
+  assert.deepEqual(srv().objs.filter(o => o.excluded).map(o => o.name), ['ZH-NB-0201']);
+  // The switch is excluded on its own; the server is not.
+  await openByName(p, 'SW-ZH-2OG-01');
+  await p.click('.menu > .menu-btn'); await p.click('#exclBtn');
+  await waitServer(() => srv().objs.filter(o => o.excluded).length === 2, 'the switch excluded');
   const ex = srv().objs.filter(o => o.excluded).map(o => o.name).sort();
   assert.deepEqual(ex, ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the wrong objects were excluded: ' + ex);
 

@@ -18,6 +18,7 @@ import { stocktakesProblem, verifiedProblem } from '../public/js/stocktake.js';
 import { savedViewsProblem } from '../public/js/saved-views.js';
 import { liftOvr } from './fill.js';
 import { cordProblem, outletClash, outletsProblem } from '../public/js/cabling.js';
+import { relationProblem } from '../public/js/relations.js';
 /* The inventory as stored: loading and saving the documents, the settings the page may change and how each is
    checked, the changes a page sends (with revisions against lost updates), and the deltas a page asks for. */
 
@@ -188,15 +189,15 @@ export function plansProblem(plans) {
   }
   return '';
 }
-export function checkState(s, { size = true } = {}) {
+export function checkState(s, { size = true, newRels = null } = {}) {
   for (const o of (s && Array.isArray(s.objs) ? s.objs : [])) if (o && LEGACY_STATUS.includes(o.status)) o.status = 'stock';
-  try { checkStateRules(s, size); }
+  try { checkStateRules(s, size, newRels); }
   catch (e) { if (e instanceof TypeError) throw new HttpError(400, 'Part of the inventory is not in the expected form.'); throw e; }
 }
 /* The checks of checkState: throws an HttpError 400 at the first rule broken (413 when the inventory is too large).
    Kept apart so a TypeError from a malformed record is answered as a 400 there. It also tidies a few values in place:
    the old roles and statuses, a missing role or status, addresses in their stored form, comments in icons. */
-function checkStateRules(s, size = true) {
+function checkStateRules(s, size = true, newRels = null) {
   const bad = msg => { throw new HttpError(400, msg); };
   /* Every list holds records, so a null or a list inside one is refused, not thrown on. */
   for (const [name, list] of [['objects', s.objs], ['relations', s.rels], ['users', s.users]]) if (Array.isArray(list) && !list.every(x => x && typeof x === 'object' && !Array.isArray(x))) bad(`The ${name} must be a list of records.`);
@@ -467,6 +468,10 @@ function checkStateRules(s, size = true) {
       if (inLag) bad(`Port ${r.port} on ${t.name} is part of the LAG ${inLag.name}. Connect the LAG instead.`);
     }
     if (r.from === r.to) bad('A device cannot be related to itself.');
+    /* A relation the page adds or changes follows the same rule as the page (relations.js): the types fit, and a monitor
+       or VM has one host that is not attached itself. Relations already stored are left as they are, so an inventory
+       saved before the rule can still be saved. */
+    if (newRels && newRels.has(String(r.id)) && r.kind !== 'patched') { const p = relationProblem(r.kind, byId.get(r.from), byId.get(r.to), s.rels, r); if (p) bad(p); }
     /* A patch cord runs from a panel port to a switch port; only a cord names the port it starts on. */
     if (r.kind === 'patched') { const p = cordProblem(r, id => byId.get(id)); if (p) bad(p); }
     else if (r.fromPort != null) bad('Only a patch cord starts on a port.');
@@ -722,7 +727,7 @@ export function applyChanges(db, body, guard = () => {}) {
   const sizeOf = db.prepare('SELECT LENGTH(data) AS n FROM docs WHERE kind = ? AND id = ?');
   const delta = okPuts.reduce((t, c) => t + JSON.stringify(c.value).length - ((sizeOf.get(c.kind, c.id) || {}).n || 0), 0);
   if (storedBytes + delta > MAX_BYTES) throw new HttpError(413, 'The inventory is too large.');
-  try { checkState(s, { size: false }); }
+  try { checkState(s, { size: false, newRels: new Set(okPuts.filter(c => c.kind === 'rel').map(c => String(c.id))) }); }
   catch (e) {
     if (!conflicts.length) throw e;
     return { revs: {}, codes: {}, conflicts: [...puts, ...dels].map(c => docKey(c.kind, c.id)) };
