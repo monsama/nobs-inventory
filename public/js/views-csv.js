@@ -13,11 +13,14 @@ import { html } from './html.js';
 export { parseCsv };
 /* A cell that starts with = + - @ or a tab or return would run as a formula in a spreadsheet, so it gets a leading apostrophe. */
 export const csvCell = v => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[",;\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-export function exportCsv(list){
-  const head = ['code','name','type','model','serial','ip','mac','location','user','status','purchased','warranty','price','supplier','invoice'];
-  const lines = [head.join(',')].concat(list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice].map(csvCell).join(',')));
+/* The listed devices as a CSV file. Without shown: every field the import reads, under its import name. With shown
+   ({ head, rows }): the columns as the Table shows them, their texts as they are seen. name: the file's name. */
+export function exportCsv(list, shown = null, name = 'inventory.csv'){
+  const head = shown ? shown.head : ['code','name','type','model','serial','ip','mac','location','user','status','purchased','warranty','price','supplier','invoice'];
+  const rows = shown ? shown.rows : list.map(o => [o.code, o.name, TYPES[o.type].label, o.model, o.serial, o.ip, o.mac, o.loc, o.user, STATUS[o.status].label, o.purchased, o.warranty, o.price, o.supplier, o.invoice]);
+  const lines = [head.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));
   const blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'});
-  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: 'inventory.csv'});
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: name});
   document.body.appendChild(a); a.click(); a.remove();
   toast(`Exported ${list.length} ${list.length === 1 ? 'row' : 'rows'}`);
 }

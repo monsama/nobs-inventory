@@ -1,6 +1,7 @@
 /* Browser test of fixes from the November sweep: Enter signs in; Retired in the Status field goes through the Retire dialog; picking the value in use on a number field (a switch's ports) keeps
    it a number, so later saves still go through; "Back to automatic" follows the order set in Settings → Data sources;
    New device asks before what was typed is dropped and says when another device has the serial number;
+   Last seen filters the list (never seen); Export CSV gives the columns shown, named after the filter, or all fields;
    a save of more changes than the server takes at once is sent in batches. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -87,6 +88,25 @@ try {
   assert.match(await p.textContent('#nSerialNote'), /INV-0001 SW-1 has this serial number/);
   await p.click('#nOk');
   await storedBy(() => loadState(db), t => t.objs.some(o => o.name === 'PC-TWIN'));
+  // Last seen → never: only the devices no source has seen; the export of the shown columns is named after it
+  await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount');
+  await p.evaluate(() => { document.querySelector('#moreFilters').open = true; });
+  await p.click('[data-seen=never]');
+  await until(p, () => document.querySelector('#tblCount').textContent.trim() === '3 rows');
+  assert.match(await p.textContent('#filterBar, .filterbar, body'), /Last seen: never/);
+  const rows = await p.evaluate(() => [...document.querySelectorAll('#view tbody tr[data-open]')].map(r => r.dataset.open).sort());
+  assert.ok(!rows.includes('v1'), 'a device Intune saw is listed as never seen');
+  await p.click('#csvMenu .menu-btn');
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#csvShown')]);
+  assert.match(dl.suggestedFilename(), /^inventory-never-seen-by-a-source-\d{4}-\d{2}-\d{2}\.csv$/);
+  const text = fs.readFileSync(await dl.path(), 'utf8').replace(/^\ufeff/, '');
+  const head = text.split('\r\n')[0], shownHead = await p.evaluate(() => [...document.querySelectorAll('#view thead th[data-ck]')].map(th => th.textContent.trim()).join(','));
+  assert.equal(head, shownHead, 'the export does not have the columns shown');
+  assert.equal(text.split('\r\n').length, 4, 'the export does not have the rows shown');
+  await p.click('#csvMenu .menu-btn');
+  const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#csvBtn')]);
+  assert.match(fs.readFileSync(await dl2.path(), 'utf8'), /^\ufeffcode,name,type,model,serial/);
+  await p.click('[data-fx=seen]');
   // more changes than the server takes at once go in batches of at most 4000
   const sizes = await p.evaluate(async () => { const { batches } = await import('/js/server-save.js'); const dels = Array.from({ length: 9001 }, (_, i) => ({ kind: 'history', id: 'h' + i })); return batches([], dels).map(b => b.dels.length); });
   assert.deepEqual(sizes, [4000, 4000, 1001]);
