@@ -63,8 +63,19 @@ if [ "$WITH_SECRETS" = yes ]; then cp -a secrets "$WORK/secrets"; fi
 # Without secrets/sheet_key the app keeps its key in the data volume: without it, the entry sheets, the Graph keys
 # and the saved LDAP password in the database cannot be opened.
 if [ "$WITH_SECRETS" = no ]; then rm -f "$WORK/data-sheet.key"
-  echo "[WARN]  No BACKUP_PASSPHRASE_FILE: the archive is not encrypted, so secrets/ and the sheet key are left out."
-  echo "        Keep a copy of secrets/ somewhere safe, or set BACKUP_PASSPHRASE_FILE in .env (or BACKUP_INCLUDE_SECRETS=yes)."
+  # Not encrypted: the passwords, tokens and keys in .env (SMTP, the backup copy's S3 key or Azure address) and the
+  # certificates' private keys stay out too. A restore keeps the .env and the certificates the server has.
+  if [ -f "$WORK/config/.env" ]; then
+    grep -Ev '^[[:space:]]*(export[[:space:]]+)?[A-Za-z0-9_]*(PASSWORD|PASSPHRASE|SECRET|TOKEN|_KEY|AZURE_URL|SAS)[A-Za-z0-9_]*=' "$WORK/config/.env" > "$WORK/config/.env.tmp" || true
+    mv "$WORK/config/.env.tmp" "$WORK/config/.env"
+  fi
+  for d in "$WORK/proxy" "$WORK/certificates"; do
+    if [ -d "$d" ]; then find "$d" -type f \( -name '*.key' -o -name '*.pem' -o -name '*.p12' -o -name '*.pfx' \) -delete; fi
+  done
+  echo "[WARN]  No BACKUP_PASSPHRASE_FILE: the archive is not encrypted, so secrets/, the sheet key, the passwords and"
+  echo "        tokens in .env and the certificates' private keys are left out. Keep a copy of them somewhere safe,"
+  echo "        or set BACKUP_PASSPHRASE_FILE in .env (or BACKUP_INCLUDE_SECRETS=yes). The database itself holds the"
+  echo "        local accounts' password hashes: keep the backups private either way."
 elif [ "$RUNNING" = yes ] && docker exec "$APP" test -f /data/sheet.key; then docker cp "$APP:/data/sheet.key" "$WORK/data-sheet.key"; fi
 
 ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"

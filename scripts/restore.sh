@@ -20,9 +20,13 @@ if [[ "$ARCHIVE" == *.enc ]]; then
   else read -r -s -p "Backup passphrase: " BACKUP_PASS; echo; export BACKUP_PASS; PASS="env:BACKUP_PASS"; fi
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "$PASS" -in "$ARCHIVE" -out "$WORK/backup.tar.gz" || { echo "[ERROR] The passphrase does not open this backup." >&2; exit 1; }
   unset BACKUP_PASS
-  tar -xzf "$WORK/backup.tar.gz" -C "$WORK" && rm -f "$WORK/backup.tar.gz"
+  tar --no-same-owner --no-same-permissions -xzf "$WORK/backup.tar.gz" -C "$WORK" && rm -f "$WORK/backup.tar.gz"
 else
-  tar -xzf "$ARCHIVE" -C "$WORK"
+  tar --no-same-owner --no-same-permissions -xzf "$ARCHIVE" -C "$WORK"
+fi
+# A backup holds files and folders only: a link in it could point the copies below at another place on this server.
+if [ -n "$(find "$WORK" \( -type l -o -type b -o -type c -o -type p -o -type s \) -print -quit)" ]; then
+  echo "[ERROR] The backup holds links or special files; it was not made by backup.sh. Nothing was changed." >&2; exit 1
 fi
 [ -s "$WORK/inventory.db" ] || { echo "[ERROR] The backup has no database." >&2; exit 1; }
 
