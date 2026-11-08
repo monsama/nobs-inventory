@@ -218,6 +218,9 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-bar #plSideBtn.on{background:var(--sub);color:var(--linktext);border-color:var(--bd);font-weight:600}
 /* The plan bar's Show: as wide as its text, so the bar stays on one line. */
 .pl-bar #plShow{width:auto;min-width:0;max-width:180px}
+/* One line on a wide screen: entering Draw area (its hint, Done, Discard) never wraps the bar or moves the plan. */
+@media (min-width:761px){.pl-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.pl-bar>*{flex-shrink:0}.pl-bar>.muted:last-child,.pl-bar .pl-drawhint{flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.pl-drawhint{font-size:12.5px}@media (min-width:761px){.pl-bar .pl-drawhint{min-width:140px;flex-shrink:1}}
 /* Panning: Space held shows the hand, dragging shows it closed. */
 .pl-stage.can-pan,.pl-stage.can-pan *{cursor:grab!important}
 .pl-stage.panning,.pl-stage.panning *{cursor:grabbing!important;user-select:none}
@@ -235,7 +238,7 @@ body.pl-dragging,body.pl-dragging *{cursor:copy!important;user-select:none}
 .pl-pin:active{cursor:grabbing}
 .pl-preview{position:absolute;border:2px solid var(--accent);background:rgba(37,99,235,.18);pointer-events:none;z-index:1}
 .pl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:320px;color:var(--muted);text-align:center;padding:24px}
-@media (max-width:760px){.plans{position:static}.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
+@media (max-width:760px){.pl-stage{order:-1}.pl-area-tag{font-size:10.5px;padding:1px 5px;max-width:45%}.pl-area-tag .pl-x{display:none}.plans{position:static}.pl-body{grid-template-columns:1fr;height:auto}.pl-side{max-height:200px}.pl-stage{min-height:260px;padding:10px}.pl-bar{padding:8px 10px;gap:6px}.pl-bar select{min-width:0;flex:1 1 100%}.pl-bar .grow{display:none}.pl-zoom{margin-left:auto}.pl-sep{display:none}.pl-pin{font-size:11px;max-width:140px}.pl-empty{min-height:240px}}
 .btnlike{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r-s);background:var(--btn);color:var(--fg);cursor:pointer;white-space:nowrap}
 .btnlike:hover{filter:brightness(1.08)}
 .btnlike:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -372,6 +375,9 @@ table.grid td .chip.usrc{display:inline-flex;align-items:center;width:100%;min-w
 
 #content{flex:1;display:flex;flex-direction:column;min-width:0}
 #tabsbar>*{flex:none}
+#tabsbar.more-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+#tabsbar.more-l{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
+#tabsbar.more-l.more-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
 #tabsbar>.grow{flex:1 1 auto}
 /* On a phone the bar scrolls sideways: Sync and To review come first, so they are never out of sight. */
 @media (max-width:760px){#tabsbar>.tab-review{order:-1}#tabsbar>.grow{display:none}}
@@ -1178,7 +1184,7 @@ table.grid a.rowopen:hover{text-decoration:underline}
 .bell-t small{color:var(--muted);overflow-wrap:anywhere}
 .bell-x{flex:none;margin:4px;border-color:transparent;background:transparent;color:var(--muted);font-size:16px}
 .bell-none{margin:0;padding:12px}
-.bell-foot{padding:6px 12px;border-top:1px solid var(--bd)}
+.bell-foot{padding:6px 12px;border-top:1px solid var(--bd);display:flex;gap:8px;align-items:center}
 @media (max-width:760px){
  #bar{flex-wrap:nowrap;position:relative;anchor-name:--bar}
  #bar>.grow{display:none}

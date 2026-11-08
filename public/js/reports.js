@@ -59,7 +59,7 @@ export function buildReport(s, opts, today = new Date()) {
     const rows = live.slice().sort((a, b) => byName(a.name, b.name))
       .map(d => [keyOf(d), [d.code || '', d.name || '', typeLabel(d.type), d.model || '', d.serial || '', person(d), dept(d), d.loc || '', STATUS_LABEL[d.status] || d.status || '', dateText(day(d.warranty))]]);
     return {
-      title: 'Inventory', subtitle: `${live.length} devices${o.group === 'none' ? '' : `, by ${GROUPS[o.group].toLowerCase()}`} · ${made}`, count: live.length,
+      title: 'Inventory', subtitle: `${live.length} ${live.length === 1 ? 'device' : 'devices'}${o.group === 'none' ? '' : `, by ${GROUPS[o.group].toLowerCase()}`} · ${made}`, count: live.length,
       columns: [{ label: 'Code', w: 1 }, { label: 'Name', w: 1.6 }, { label: 'Type', w: 1.1 }, { label: 'Model', w: 1.6 }, { label: 'Serial number', w: 1.2 },
         { label: 'User', w: 1.4 }, { label: 'Department', w: 1.1 }, { label: 'Location', w: 1.4 }, { label: 'Status', w: 0.8 }, { label: 'Warranty ends', w: 1.1 }],
       groups: o.group === 'none' ? [{ name: '', rows: rows.map(r => r[1]) }] : grouped(rows, keyOf, { site: 'No site', loc: 'No location', dept: 'No department', type: 'No type' }[o.group]),

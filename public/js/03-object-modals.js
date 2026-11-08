@@ -515,6 +515,10 @@ export function renderObj(o){
       const total = (+pEl.value || 0) + (+sEl.value || 0);
       if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
     }
+    /* Retired picked in the Status field: the Retire dialog decides, as from More → Retire (the user, ports, plan and
+       contracts it frees, and Undo). The field shows the status as it is until then. */
+    const stEl = /** @type {HTMLSelectElement|null} */ ($('#view').querySelector('[data-k="status"]'));
+    if (stEl && stEl.value === 'retired' && o.status !== 'retired'){ stEl.value = o.status; retireModal(o); return false; }
     checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
     let place = null;
@@ -528,6 +532,8 @@ export function renderObj(o){
       } else place = {};
     }
     const kept = [], edits = [];
+    /* The device as it was, for the Undo in the toast. */
+    const before = snapshot([o]);
     const statusWas = o.status, uidWas = o.uid || null, hotWas = !!o.hotdesk, userWas = o.user;
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = dateValue(el);
@@ -564,11 +570,15 @@ export function renderObj(o){
          from Graph; it is noted as set by hand, and cleared, it stays empty: no sync fills it again. */
       if (setByHand(o, k, v)) kept.push(FIELD_LABEL[k]);
       /* Each changed field gets its own line in the history, with both values, so it can be set back from there. */
-      if (k !== 'type' && String(o[k] ?? '') !== String(v ?? '')) edits.push([k, o[k], v]);
+      if (k !== 'type' && (['ports','sfp'].includes(k) ? (+o[k] || 0) !== v : String(o[k] ?? '') !== String(v ?? ''))) edits.push([k, o[k], v]);
       o[k] = v;
       /* The mark beside the field follows at once: the page is not drawn again for one field. */
       const fld = document.getElementById(`f_${o.id}_${k}`), mk = fld && fld.closest('.ctlrow') && fld.closest('.ctlrow').querySelector(':scope > .fsrc, :scope > .fsrc-slot');
-      if (mk) mk.outerHTML = sourceMark(o, k);
+      /* Updated in place, not swapped: the field is saved while Tab is moving the focus to this very mark, and a new
+         element there would leave the keyboard nowhere (the page). */
+      if (mk){ const t = document.createElement('template'); t.innerHTML = sourceMark(o, k); const nk = t.content.firstElementChild;
+        if (nk && nk.tagName === mk.tagName){ for (const a of [...mk.attributes]) if (!nk.hasAttribute(a.name)) mk.removeAttribute(a.name); for (const a of [...nk.attributes]) mk.setAttribute(a.name, a.value); mk.innerHTML = nk.innerHTML; }
+        else if (nk) mk.replaceWith(nk); }
     });
     if (place){
       const prevRack = o.rack;
@@ -592,6 +602,8 @@ export function renderObj(o){
       followUp = () => toast(`${o.name} is in use now, by ${o.user}`);
       rerender = true;
     }
+    /* A new status shows in the header, the sidebar counts and the actions (Take back, Hand out) at once. */
+    if (o.status !== statusWas) rerender = true;
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '\u2014' && !MODELS.includes(o.model)) MODELS.push(o.model);
@@ -610,7 +622,11 @@ export function renderObj(o){
     if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
     /* Said plainly: what was typed over a synced value stays, and the sync leaves it alone from now on. */
     const keptMsg = kept.length ? `. ${kept.join(', ')}: your value stays; ${feedLinked(o) ? 'Lansweeper' : 'Microsoft Graph'} no longer changes ${kept.length === 1 ? 'it' : 'them'}` : '';
-    toast('Saved ' + o.name + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : ''));
+    /* What changed, with Undo: one field by its values, several by their count. */
+    const what = edits.length === 1 ? ` · ${labelOf(edits[0][0])}: ${shownValue(edits[0][0], edits[0][1]) || 'empty'} → ${shownValue(edits[0][0], edits[0][2]) || 'empty'}` : edits.length > 1 ? ` · ${edits.length} fields changed` : '';
+    const msg = 'Saved ' + o.name + what + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
+    if (edits.length) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
+    else toast(msg);
     queueServerSave();
     /* A new person: the page is drawn again, so More offers the entry sheet for them. */
     if ((o.uid || null) !== uidWas) rerender = true;

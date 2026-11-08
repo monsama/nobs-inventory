@@ -67,12 +67,19 @@ export function takeBackModal(list){
   modal(html`<div class="mh">Take back ${live.length === 1 ? live[0].name : `${live.length} devices`}</div><div class="mb">
     <label for="tbLoc" class="ho-l">Where</label><select id="tbLoc"><option value="">${stay}</option>${stores.length
       ? html`<optgroup label="Store rooms">${stores.map(opt)}</optgroup><optgroup label="Other rooms">${others.map(opt)}</optgroup>` : LOCS.map(opt)}</select>
+    ${site && !store && isAdmin() ? html`<label class="pchk tb-store" id="tbStoreRow" hidden><input type="checkbox" id="tbStore" checked> Make it the store room of ${site}: proposed here from now on</label>
+      <p class="note muted" id="tbNoStore">${site} has no store room yet: pick the room where devices in stock are kept.</p>` : ''}
     <p class="note">${live.length === 1 ? 'It is' : 'They are'} in stock from now on, with nobody.</p></div>
     <div class="mf"><button id="tbNo">Cancel</button><button id="tbOk" class="primary">Take back</button></div>`, 'sm');
   if (last && LOCS.includes(last)) $('#tbLoc').value = last;
+  /* A site without a store room: a room of that site picked here can become its store room (Settings → Locations). */
+  const fitStore = () => { const row = $('#tbStoreRow'); if (!row) return; const l = $('#tbLoc').value, ok = !!l && l.startsWith(site + ' / '); row.hidden = !ok; $('#tbNoStore').hidden = ok; };
+  $('#tbLoc').addEventListener('change', fitStore); fitStore();
   $('#tbNo').onclick = closeModal;
   $('#tbOk').onclick = () => {
     const loc = locPicked('tbLoc');
+    const row = $('#tbStoreRow');
+    if (row && !row.hidden && $('#tbStore').checked && loc){ st.stockRooms = { ...(st.stockRooms || {}), [site]: loc }; queueServerSave(); }
     try { if (loc) localStorage.setItem(STOCK_ROOM, loc); } catch { /* not kept: proposed again next time */ }
     closeModal(); takeBack(live, loc);
   };

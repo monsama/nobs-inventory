@@ -157,7 +157,7 @@ const typeName = v => String(v || '').replace(/[<>]/g, '').trim().slice(0, 60);
 export function renderSetTypes(){
   const rows = Object.entries(TYPES).map(([k,t]) => {
     const n = objs.filter(o => o.type === k).length;
-    const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} devices` : '';
+    const lock = BUILTIN.includes(k) ? 'Built in' : n ? `In use by ${n} ${n === 1 ? 'device' : 'devices'}` : '';
     return html`<tr>
       <td style="width:1%"><input type="color" value="${tcol(k)}" data-tc="${k}" aria-label="Colour for ${t.label}" style="width:40px;height:28px;padding:2px"></td>
       <td><input data-tl="${k}" value="${t.label}" style="width:100%" aria-label="Name"></td>

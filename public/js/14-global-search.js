@@ -1,11 +1,12 @@
 /* The search at the top: always through everything, whatever the filters on the left or the tab say.
-   It finds devices, people, contacts, contracts and rooms and lists them under the field, grouped; a hit opens where it
+   It finds devices (racks too), people, contacts, contracts, rooms and saved views and lists them under the field, grouped; a hit opens where it
    lives. On a list (Cards, Table, Relationships) it filters that list too as one types. Ctrl+K (Cmd+K) puts the cursor here from anywhere. */
 import { $, COSTS, CONTACTS, LOCS, REVIEW, REVIEW_SRC, STATUS, TYPES, matchesQ, objs, st, tico } from './01-core.js';
 import { USERS, SET_TABS, isAdmin, openSettings } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { render } from './07-render.js';
 import { showDevicesOf } from './settings-users.js';
+import { restoreView } from './views-saved.js';
 import { html, rawHtml } from './html.js';
 
 const MAX = { dev: 8, other: 4 };
@@ -17,7 +18,7 @@ let items = [], active = -1;
 /* Small line icons in the style of the type icons. */
 const ico = d => html`<span class="tico sm gs-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="${d}"/></svg></span>`;
 const ICON = { person: ico('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'), contact: ico('M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'),
-  contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
+  contract: ico('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6'), view: ico('M4 5h16M7 12h10M10 19h4'), room: ico('M3 11l9-7 9 7v10H3zM9 21v-6h6v6'),
   setting: ico('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12h2M3 12h2M12 3v2M12 19v2M17 7l1.4-1.4M5.6 18.4 7 17M17 17l1.4 1.4M5.6 5.6 7 7') };
 /* The pages of Settings an admin looks for by another word: Backups by restore, E-mail by SMTP or digest … */
 const SET_WORDS = { maintenance: 'system health certificate https photos clear reset', backups: 'backup restore copy export azure s3 snapshot', mail: 'email e-mail smtp digest notification',
@@ -31,7 +32,7 @@ const row = (i, icon, main, sub) => html`<li role="option" id="gs${i}" data-i="$
 function results(q){
   const out = [];
   /* Devices first, those in use before retired ones; the code, name, addresses, serial, user and IDs are searched. */
-  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code)).filter(o => matchesQ(o, q))
+  const devs = objs.filter(o => o.type !== 'rack' || has(q, o.name, o.code, o.serial, o.model, o.asset)).filter(o => matchesQ(o, q))
     .sort((a, b) => +(a.status === 'retired') - +(b.status === 'retired') || a.name.localeCompare(b.name));
   if (devs.length) out.push(['Devices', devs.length, devs.slice(0, MAX.dev).map(o => ({
     icon: rawHtml(tico(o.type, 'tico sm')), main: o.name,
@@ -59,8 +60,13 @@ function results(q){
   const rooms = LOCS.filter(l => has(q, l));
   const inRoom = new Map(); for (const o of objs) if (o.loc && o.status !== 'retired') inRoom.set(o.loc, (inRoom.get(o.loc) || 0) + 1);
   if (rooms.length) out.push(['Rooms', rooms.length, rooms.slice(0, MAX.other).map(l => ({
-    icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} devices`,
+    icon: ICON.room, main: l.replace(' / ', ' · '), sub: `${inRoom.get(l) || 0} ${inRoom.get(l) === 1 ? 'device' : 'devices'}`,
     go: () => { st.loc = l; st.q = ''; st.person = null; if (!['cards', 'table', 'map', 'plans'].includes(st.tab)) st.tab = 'cards'; render(); } }))]);
+  /* Saved views, by name: a hit shows the list as saved. */
+  const savedViews = (Array.isArray(st.savedViews) ? st.savedViews : []).filter(v => has(q, v.name));
+  if (savedViews.length) out.push(['Views', savedViews.length, savedViews.slice(0, MAX.other).map(v => ({
+    icon: ICON.view, main: v.name, sub: 'Saved view',
+    go: () => restoreView(v) }))]);
   /* Settings pages, for an admin: found by their name or a word for what they hold. */
   const pages = isAdmin() ? SET_TABS.filter(([k, l]) => has(q, l, SET_PATH[k], SET_WORDS[k])) : [];
   if (pages.length) out.push(['Settings', pages.length, pages.slice(0, MAX.other).map(([k, l]) => ({

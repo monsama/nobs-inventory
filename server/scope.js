@@ -8,6 +8,8 @@ export function scopeOf(u) {
   return Array.isArray(u.sites) && u.sites.length ? { sites: u.sites } : null;
 }
 export const inScope = (o, sc) => !sc || (sc.own ? !!o && o.uid === sc.own && !o.review : sc.sites.includes(siteOf(o)));
+/* Whether a plan (by its site) is one the scope sc lets a viewer see. */
+export const planInScope = (plan, sc) => !sc || (!sc.own && !!plan && sc.sites.includes(plan.site));
 export const scopeKey = sc => (!sc ? '' : sc.own ? 'own' : 'sites:' + sc.sites.join('|'));
 /* Cuts an inventory down to what the scope sc (from scopeOf) lets a viewer see: changes s in place and returns it; no
    scope leaves it whole. Someone who sees only their own devices also gets no contracts or licences, and of the people
@@ -18,6 +20,8 @@ export function scopeState(s, sc) {
   const ids = new Set(s.objs.map(o => o.id));
   s.rels = (s.rels || []).filter(r => ids.has(r.from) && ids.has(r.to));
   s.history = Object.fromEntries(Object.entries(s.history || {}).filter(([k]) => ids.has(k)));
+  /* Floor plans: those of the sites they see (a plan names its site); none for someone who sees only their own devices. */
+  if (Array.isArray(s.plans)) s.plans = sc.own ? [] : s.plans.filter(p => p && sc.sites.includes(p.site));
   s.stocktakes = sc.own ? [] : (s.stocktakes || []).filter(t => !t.scope || sc.sites.includes(String(t.scope).split(' / ')[0]));
   if (sc.own) { s.contracts = []; s.licences = []; s.users = (s.users || []).filter(u => u.id === sc.own || u.role === 'admin'); }
   /* The devices a sync found twice, and what each sync changed: only about the devices they see (names and serial

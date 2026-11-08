@@ -1,12 +1,13 @@
 /* The source picker: a click on a field's source mark shows what each source says of the field (Lansweeper, Entra and
    Intune, Active Directory, and a value set by hand), each with the time it is from, the newest marked, and lets an admin
    fix the field to one: a picked source is the only one that writes it from then on (o.pick), a value kept as typed
-   ('hand') is left alone by every sync. Automatic goes back to the usual order: Lansweeper, Intune, AD. */
-import { FIELD_LABEL, SRC_ICON, byId, dayText, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf } from './01-core.js';
+   ('hand') is left alone by every sync. Automatic goes back to the order set in Settings → Data sources. */
+import { FIELD_LABEL, SRC_ICON, byId, dayText, feedOwns, fieldFixed, hist, now, setSrcPicker, sourceOf, st } from './01-core.js';
 import { stamp } from './dates.js';
 import { isAdmin, who } from './04-settings.js';
 import { render } from './07-render.js';
 import { html, rawHtml } from './html.js';
+import { ORDER_FIELDS, fieldOrder } from './sync-map.js';
 
 const NAMES = { ls: 'Lansweeper', graph: 'Entra & Intune', ad: 'Active Directory', hand: 'By hand', unknown: 'Source not noted' };
 const WHEN = { ls: 'last scan', graph: 'last check-in', ad: 'last logon', hand: 'edited', unknown: '' };
@@ -31,7 +32,12 @@ function choicesOf(o, k){
   }
   return list.sort((a, b) => ORDER.indexOf(a.src) - ORDER.indexOf(b.src));
 }
-const AUTO_TEXT = 'Lansweeper, then Entra & Intune, then Active Directory';
+/* The sources that fill field k, first one first: the order set in Settings → Data sources for the fields it lists,
+   else the usual one (Lansweeper where it owns the field, then Entra & Intune, then Active Directory). */
+const autoOrder = (o, k) => ORDER_FIELDS.includes(k) ? fieldOrder(st, k) : ['ls', 'graph', 'ad'].filter(s => s !== 'ls' || feedOwns(o, k));
+const autoText = (o, k) => { const l = autoOrder(o, k).map(s => NAMES[s]); return l.length ? l.join(', then ') : 'no source, by hand only'; };
+/* A value written back is of the field's kind: a number field (ports, price) stays a number, as the server checks. */
+const asKind = (was, v) => typeof was === 'number' && v !== '' && Number.isFinite(+v) ? +v : v;
 const LOCK = '<svg class="sp-lock" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.5" width="8" height="5.5" rx="1.2"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>';
 
 /* Builds the source picker for the clicked source mark: each source's value and time, the newest and the one in use
@@ -57,9 +63,9 @@ function pickerOf(mark, close){
         <span class="sp-at">${c.at && WHEN[c.src] ? `${WHEN[c.src]} ${shown(c.at)}` : ''}</span></span>
         <span class="sp-tick" aria-hidden="true">${cur ? '✓' : ''}</span></button>`;
     })}</div>` : html`<p class="sp-none muted">No source has a value for it.</p>`}
-    <div class="sp-foot">${!edit ? html`<span class="muted">${fixed ? fixedText : `Filled automatically: ${AUTO_TEXT}.`}</span>`
+    <div class="sp-foot">${!edit ? html`<span class="muted">${fixed ? fixedText : `Filled automatically: ${autoText(o, k)}.`}</span>`
       : fixed ? html`<span class="muted">${fixedText}</span><button type="button" class="link" data-pick="">Back to automatic</button>`
-      : html`<span class="muted">Automatic: ${AUTO_TEXT}. Pick a value to fix the field to it.</span>`}</div>`);
+      : html`<span class="muted">Automatic: ${autoText(o, k)}. Pick a value to fix the field to it.</span>`}</div>`);
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
     const src = b.dataset.pick === 'unknown' ? 'hand' : b.dataset.pick, c = list.find(x => x.src === b.dataset.pick);
     /* The value in the field stays on offer when another one takes its place, so it can be picked back: a value set by hand
@@ -74,12 +80,12 @@ function pickerOf(mark, close){
     if (!src){
       /* Automatic: no source picked and no value kept as typed; the usual order decides at once, as the next syncs would. */
       if (o.pick){ const rest = { ...o.pick }; delete rest[k]; if (Object.keys(rest).length) o.pick = rest; else delete o.pick; }
-      const auto = ['ls', 'graph', 'ad'].filter(s => s !== 'ls' || feedOwns(o, k)).map(s => list.find(x => x.src === s)).find(Boolean);
-      if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = auto.value; o.src = { ...(o.src || {}), [k]: auto.src }; }
+      const auto = autoOrder(o, k).map(s => list.find(x => x.src === s)).find(Boolean);
+      if (auto){ if (auto.value !== String(was ?? '')) keepCurrent(); o[k] = asKind(was, auto.value); o.src = { ...(o.src || {}), [k]: auto.src }; }
       hist(o, now(), `${label}: back to the automatic order of the sources${auto && was !== auto.value ? ` (${was || 'empty'} → ${auto.value})` : ''}, by ${who()}`);
     } else {
       if (c.value !== String(was ?? '')) keepCurrent();
-      o[k] = c.value;
+      o[k] = asKind(was, c.value);
       o.src = { ...(o.src || {}), [k]: src };
       o.pick = { ...(o.pick || {}), [k]: src };
       hist(o, now(), `${label}: fixed to ${src === 'hand' ? 'the value set by hand' : `${NAMES[src]}'s value`}${was !== c.value ? ` (${was || 'empty'} → ${c.value})` : ''}, by ${who()}`);

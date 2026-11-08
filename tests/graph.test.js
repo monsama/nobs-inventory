@@ -353,3 +353,26 @@ test('the maker is not doubled when the model already starts with it', () => {
   assert.equal(makerModel('', 'Surface Pro'), 'Surface Pro');
   assert.equal(makerModel('Apple', ''), 'Apple');
 });
+
+test('last seen: a Graph date is named for the source it comes from', async () => {
+  const { graphSeen } = await import('../public/js/intune.js');
+  // a device only in Entra: its sign-in, as Entra's, never as Intune's (the sync keeps it as lastSync too)
+  assert.deepEqual(graphSeen({ managed: '', lastSync: '2026-11-01T08:00:00Z', lastCheckIn: '', lastSignIn: '2026-11-01T08:00:00Z' }), [['Entra', '2026-11-01T08:00:00Z']]);
+  // one added from Graph before a full sync: only lastSync, Entra's when Intune does not manage it
+  assert.deepEqual(graphSeen({ managed: '', lastSync: '2026-11-01T08:00:00Z' }), [['Entra', '2026-11-01T08:00:00Z']]);
+  // managed by Intune: its check-in as Intune's, its sign-in as Entra's
+  assert.deepEqual(graphSeen({ managed: 'Intune', lastSync: '2026-11-02T09:00:00Z', lastCheckIn: '2026-11-02T09:00:00Z', lastSignIn: '2026-10-30T07:00:00Z' }),
+    [['Intune', '2026-11-02T09:00:00Z'], ['Entra', '2026-10-30T07:00:00Z']]);
+  // managed by Intune, only lastSync kept (older records): Intune's
+  assert.deepEqual(graphSeen({ managed: 'Intune', lastSync: '2026-11-02T09:00:00Z' }), [['Intune', '2026-11-02T09:00:00Z']]);
+  // in Intune's list but managed by Configuration Manager: its check-in is not Intune's
+  assert.deepEqual(graphSeen({ managed: 'Configuration Manager only', lastCheckIn: '2026-11-03T10:00:00Z', lastSignIn: '' }), [['Configuration Manager', '2026-11-03T10:00:00Z']]);
+  // gone from Graph, or none: nothing
+  assert.deepEqual(graphSeen({ gone: true, managed: 'Intune', lastCheckIn: '2026-11-02T09:00:00Z' }), []);
+  assert.deepEqual(graphSeen(null), []);
+});
+
+test('a placeholder serial from Intune is dropped, so it does not tie devices together', () => {
+  const recs = toRecords([], [{ id: 'm1', deviceName: 'PC-A', serialNumber: 'To be filled by O.E.M.', managementAgent: 'mdm' }, { id: 'm2', deviceName: 'PC-B', serialNumber: 'Default string', managementAgent: 'mdm' }, { id: 'm3', deviceName: 'PC-C', serialNumber: 'CZC1234', managementAgent: 'mdm' }]);
+  assert.deepEqual(recs.map(r => r.serial), ['', '', 'CZC1234']);
+});

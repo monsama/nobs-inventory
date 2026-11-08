@@ -189,7 +189,9 @@ export function locateOnPlan(plan, o, x, y){
 /* The list of devices not on the plan: beside the plan for those who place devices, folded away for the others (the
    plan gets the room); either way a button shows or hides it, remembered in this browser. */
 const SIDE_KEY = 'ni-pl-side';
-const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? isAdmin() : v === '1'; } catch { return isAdmin(); } };
+/* Open by default for admins on a wide screen; on a phone the plan comes first and the list waits behind Device list. */
+const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width:760px)').matches;
+const sideOpen = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? isAdmin() && !narrow() : v === '1'; } catch { return isAdmin() && !narrow(); } };
 const setSideOpen = on => { try { localStorage.setItem(SIDE_KEY, on ? '1' : '0'); } catch { /* not kept */ } };
 /* Draws the Plans tab: the bar (pick a plan, zoom, and for an admin new plan, draw area and the Plan… menu), the list
    of devices not on the plan and the plan itself, then wires them all. Viewers can look, search and open devices;
@@ -206,7 +208,7 @@ export function renderPlans(){
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
         ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${editArea.name}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
-        ${planMode === 'area' && planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : ''}
+        ${planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan, then Done. Esc stops.</span>` : ''}
         ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
         <button type="button" id="plSideBtn" class="${sideOpen() ? 'on' : ''}" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">Device list</button>
@@ -221,7 +223,7 @@ export function renderPlans(){
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planMode === 'area' ? 'Drag one or more rectangles on the plan, then click Done to name the area. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
@@ -807,14 +809,28 @@ export function areaModal(plan, rects){
   const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
   modal(html`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
       <label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60">
-      <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="">A new room, named like the area</option>${rooms.map(l => html`<option value="${l}">${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
+      <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="" id="arNew">A new room, named like the area</option>${rooms.map(l => html`<option value="${l}">${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
       ${colorPicker('blue')}
     </div>
-    <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. Choose a room that already exists, or leave it to create one.</p></div>
+    <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. <span id="arRoomNote">Choose a room that already exists, or a new one is added to the locations.</span></p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
   $('#arCancel').onclick = () => { closeModal(); renderPlans(); };
   /* Picking an existing room names the area after it, unless a name is typed. */
-  $('#arRoom').onchange = e => { if (e.target.value && !$('#arName').value.trim()) $('#arName').value = e.target.value.split(' / ').slice(1).join(' / '); };
+  /* The new room is named in the list and the note, so adding a location is never a surprise; a typed name that is a
+     room of the site already picks that room. */
+  const roomName = l => l.split(' / ').slice(1).join(' / ');
+  const sayRoom = () => {
+    const n = $('#arName').value.trim(), picked = $('#arRoom').value;
+    $('#arNew').textContent = n ? `A new room: ${n}` : 'A new room, named like the area';
+    $('#arRoomNote').textContent = picked ? `Devices placed in it get the room ${roomName(picked)}.` : n ? `Adds the room ${plan.site ? plan.site + ' / ' : ''}${n} to the locations.` : 'Choose a room that already exists, or a new one is added to the locations.';
+  };
+  $('#arRoom').onchange = e => { if (e.target.value && !$('#arName').value.trim()) $('#arName').value = roomName(e.target.value); sayRoom(); };
+  let picked = false;   /* a room picked in the list is kept, whatever name is typed */
+  $('#arRoom').addEventListener('change', () => { picked = !!$('#arRoom').value; });
+  $('#arName').oninput = () => {
+    if (!picked){ const n = $('#arName').value.trim().toLowerCase(); $('#arRoom').value = rooms.find(l => roomName(l).toLowerCase() === n) || ''; }
+    sayRoom();
+  };
   $('#arOk').onclick = () => {
     const room = $('#arRoom').value || null;
     const name = $('#arName').value.trim() || (room ? room.split(' / ').slice(1).join(' / ') : '');

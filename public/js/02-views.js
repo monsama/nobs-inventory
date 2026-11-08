@@ -1,7 +1,7 @@
 /* The device lists: the sidebar, the filter bar, the tabs and the empty states. Cards, Table, bulk actions, CSV, the map and
    the ports are in views-*.js, re-exported at the end. */
 import { syncButtonHtml } from './16-sync.js';
-import { evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
+import { SEEN_FILTERS, evEl, $$, QUALITY, scopePool, REVIEW_SRC, REVIEW_STALE_DAYS, twinOf, REVIEW, contactOf, osFamily, JOIN_INFO, SYNC, GRAPH_FILTERS, scanOld, LS_ON, LS_USED, WARRANTY_SOON_DAYS, warrantyState, hasPorts, $, LOCS, SITES, STATUS, TYPES, byId, filtered, hist, leftFilters, now, objs, restoreSnapshot, searchAll, snapshot, toastUndo, st, tcol, tico, toast } from './01-core.js';
 import { SERVER, reloadFromServer, render, view } from './07-render.js';
 import { TBL, saveTBL } from './06-topbar.js';
 import { flushSearch } from './14-global-search.js';
@@ -61,6 +61,7 @@ export function renderSide(){
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => html`<button class="item sub ${st.loc===l?'sel':''}" data-loc="${l}"><span class="lbl">${l.split(' / ')[1]}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`)}`)}`;
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
   $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
+  $('#seenList').innerHTML = html`${Object.entries(SEEN_FILTERS).map(([k, [l, f]]) => html`<button class="item ${st.seen===k?'sel':''}" data-seen="${k}"><span class="dot ${k === 'd30' ? 'warn' : 'bad'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}`;
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;
   $('#chkHdr').hidden = $('#chkList').hidden = !LS_USED();
@@ -125,6 +126,7 @@ $('#side').addEventListener('click', e => {
   if ('live' in b.dataset) st.live = false;
   if ('status' in b.dataset) st.status = st.status === b.dataset.status ? null : b.dataset.status;
   if ('warranty' in b.dataset) st.warranty = st.warranty === b.dataset.warranty ? null : b.dataset.warranty;
+  if ('seen' in b.dataset) st.seen = st.seen === b.dataset.seen ? null : b.dataset.seen;
   if ('scanold' in b.dataset) st.scanOld = !st.scanOld;
   if ('twins' in b.dataset) st.twins = !st.twins;
   if ('scope' in b.dataset || 'rvknown' in b.dataset || 'rvold' in b.dataset){
@@ -148,7 +150,7 @@ $('#side').addEventListener('click', e => {
 });
 /* Every filter back to none: the sidebar's, the search and the table's column filters. Shared with the Overview. */
 export function resetFilters(){
-  st.type = st.loc = st.status = st.warranty = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = false; st.q = '';
+  st.type = st.loc = st.status = st.warranty = st.seen = st.adGroup = st.intune = st.osFam = st.resp = st.person = st.quality = st.ids = st.handField = null; st.scanOld = st.twins = st.live = false; st.q = '';
   Object.values(TBL).forEach(t => { t.filters = {}; }); saveTBL();
 }
 $('#clearF').onclick = () => { resetFilters(); view(); };
@@ -169,6 +171,7 @@ export function renderFilterBar(){
     st.status && STATUS[st.status] && ['status', 'Status', STATUS[st.status].label],
     st.live && ['live', '', 'Not retired'],
     st.warranty && ['warranty', 'Warranty', st.warranty === 'soon' ? `ends within ${WARRANTY_SOON_DAYS} days` : 'ended'],
+    st.seen && SEEN_FILTERS[st.seen] && ['seen', 'Last seen', SEEN_FILTERS[st.seen][0].replace(/^Not seen/, 'not').replace(/^Never seen by a source/, 'never')],
     st.scanOld && ['scanOld', '', 'Not scanned for 3 months'],
     st.twins && ['twins', 'Duplicates', 'by DNS name'],
     st.scope === 'review' && st.rvKnown && ['rvKnown', '', 'In AD or Entra'],
@@ -313,6 +316,12 @@ export function renderTabs(){
     const o = byId(id);
     return html`<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${o.name}">${o.name}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
   }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
+  /* On a narrow screen the bar scrolls: a fade on the side where more tabs are says so, and the tab shown is scrolled
+     into view. */
+  const tb = $('#tabsbar'), edges = () => { tb.classList.toggle('more-r', tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2); tb.classList.toggle('more-l', tb.scrollLeft > 2); };
+  const act = /** @type {HTMLElement|null} */ (tb.querySelector('.tab.active'));
+  if (act && tb.scrollWidth > tb.clientWidth) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  edges(); tb.onscroll = edges;
   $$('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
     el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); });

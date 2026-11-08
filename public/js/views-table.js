@@ -4,7 +4,7 @@ import { dueOf, lifeOf } from './lifecycle.js';
 import { nextTask } from './maintenance.js';
 import { respText } from './11-contacts.js';
 import { linkHref, linkKind } from './links.js';
-import { menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
+import { SEEN_FILTERS, QUALITY, menuHtml, REVIEW_SRC, FIELD_LABEL, sourceText, lastSeenOf, GRAPH_STALE_DAYS, scanOld, scanChip, LS_USED, relIndex, warrantyState, dayText, markHtml, $, STATUS, TYPES, byId, filtered, leftFilters, objs, portLabel, rels, st, syncChip, tcol } from './01-core.js';
 import { SERVER } from './07-render.js';
 import { TBL, cmpCells, saveTBL } from './06-topbar.js';
 import { reportsModal } from './21-reports.js';
@@ -113,6 +113,14 @@ export const QUALITY_FIX = {
   conflict: [null, null, 'open each and pick the value to keep'],
   reported: [null, null, 'open each, look at the problem and mark it as done'],
 };
+/* The export's file name says what was listed: inventory-notebook-zurich-hq-not-seen-for-90-days-2026-11-08.csv. */
+function fileName(){
+  const parts = [st.type && TYPES[st.type] && TYPES[st.type].label, st.loc, st.status && STATUS[st.status] && STATUS[st.status].label,
+    st.warranty && 'warranty ' + st.warranty, st.seen && SEEN_FILTERS[st.seen] && SEEN_FILTERS[st.seen][0], st.quality && QUALITY[st.quality] && QUALITY[st.quality][0], st.q.trim()];
+  const slug = ['inventory', ...parts].filter(Boolean).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80).replace(/-$/, '');
+  const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${slug}-${day}.csv`;
+}
 /* The bar of a data-quality check over the Table (drawn with the filters, like a person's bar): set by renderTable. */
 let QFIX = null;
 export const qfix = () => QFIX;
@@ -124,7 +132,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${list.length} ${list.length === 1 ? 'row' : 'rows'}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}<button id="csvBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV</button>${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV', String(html`<button type="button" id="csvShown">The columns shown<span class="muted">, as in the table</span></button><button type="button" id="csvBtn">All fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -139,7 +147,14 @@ export function renderTable(){
     setHiddenCols(c.checked ? hidden.filter(x => x !== k) : [...hidden, k]);
     renderTable();
   });
-  $('#csvBtn').onclick = () => exportCsv(list);
+  $('#csvBtn').onclick = () => { $('#csvMenu .menubox').hidePopover(); exportCsv(list, null, fileName()); };
+  /* The columns in the order they are shown (moved by their heading too), each cell's text as it is seen. */
+  $('#csvShown').onclick = () => {
+    $('#csvMenu .menubox').hidePopover();
+    const ks = [...$('#view').querySelectorAll('table.grid thead th[data-ck]')].map(th => /** @type {HTMLElement} */ (th).dataset.ck);
+    const cols = ks.map(k => shown.find(c => c.k === k)).filter(Boolean);
+    exportCsv(list, { head: cols.map(c => c.label), rows: list.map(o => cols.map(c => textOf(c.cell(o, idx)))) }, fileName());
+  };
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
   const pimp = $('#patchImp'); if (pimp) pimp.onclick = () => patchImportModal();
   bindSaveView();
@@ -190,7 +205,7 @@ export function renderTable(){
   const rowsOf = cut ? list.slice(0, SHOW_FIRST) : list;
   $('#view').innerHTML = html`<div class="gridwrap"><table class="grid" data-data="1"><thead><tr>
     <th data-w="40" data-pin="1" class="selcol"><input type="checkbox" id="selAll" aria-label="Select all shown rows" style="height:auto"></th>
-    ${shown.map(c => html`<th data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? html` data-pin="1"` : ''}>${c.label}</th>`)}</tr></thead><tbody>
+    ${shown.map(c => html`<th data-ck="${c.k}" data-w="${c.w || 140}"${c.k === 'code' || c.k === 'name' ? html` data-pin="1"` : ''}>${c.label}</th>`)}</tr></thead><tbody>
     ${rowsOf.map(o => html`<tr data-open="${o.id}"><td><input type="checkbox" data-sel="${o.id}" ${st.bulk.has(o.id) ? 'checked' : ''} aria-label="Select ${o.name}" style="height:auto"></td>${shown.map(c => rawHtml(withSource(o, c, c.cell(o, idx))))}</tr>`)}
     </tbody></table>${list.length ? '' : rawHtml(hiddenHits())}${cut ? html`<div class="more-rows"><span class="muted">Showing the first ${SHOW_FIRST} of ${list.length} rows. Search or filter a column to narrow them down.</span><button id="tableAll">Show all ${list.length}</button></div>` : ''}</div>`;
   const ta = $('#tableAll'); if (ta) ta.onclick = () => { st.tableAll = true; renderTable(); };

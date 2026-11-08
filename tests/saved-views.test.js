@@ -16,7 +16,7 @@ test('a view keeps the filters, search, columns, column filters and sort, and pu
   /* Put back on a page with other filters: those not in the view are taken off, a data-quality list is not touched. */
   const page = { tab: 'cards', q: 'x', type: 'pc', loc: 'HQ / 1', warranty: 'soon', scanOld: true, quality: 'noloc' };
   applyViewFilters(v, page);
-  assert.deepEqual(page, { tab: 'table', q: 'latitude', type: 'notebook', loc: null, status: 'active', warranty: null, intune: null, osFam: null, resp: null, person: null, adGroup: null, scanOld: false, twins: false, live: true, quality: 'noloc' });
+  assert.deepEqual(page, { tab: 'table', q: 'latitude', type: 'notebook', loc: null, status: 'active', warranty: null, seen: null, intune: null, osFam: null, resp: null, person: null, adGroup: null, scanOld: false, twins: false, live: true, quality: 'noloc' });
   assert.deepEqual(hiddenFor(v, ['code', 'type', 'model', 'ip', 'user']), ['type', 'ip']);
 
   /* The table now shows other columns: the column filter and the sort go to their columns there, widths move along. */

@@ -29,6 +29,11 @@ try {
   assert.equal(await p.evaluate(() => document.activeElement.id), 'nName', 'the first field has the focus, not a window button');
   assert.equal(await p.evaluate(() => document.querySelector('#mdl').matches('dialog:modal')), true, 'a native modal dialog');
   await p.fill('#nName', 'ZH-PC-0999');
+  // Tab goes round inside the dialog: from Create to its first control, and Shift + Tab back
+  await p.focus('#nOk'); await p.keyboard.press('Tab');
+  assert.equal(await p.evaluate(() => !!document.activeElement.closest('#mdl')), true, 'Tab left the dialog');
+  await p.keyboard.press('Shift+Tab');
+  assert.equal(await p.evaluate(() => document.activeElement.id), 'nOk', 'Shift + Tab did not go back to Create');
 
   // maximize and back
   const w0 = await p.$eval('#mdl .box', b => b.getBoundingClientRect().width);
@@ -52,7 +57,10 @@ try {
   assert.equal(await p.locator('#mdlTray').count(), 0, 'the chip is gone once restored');
 
   // the × of the chip closes it; the × of the dialog too
+  // with a name typed, it first comes back and says so; closed again, it goes
   await p.click('.wc-min'); await p.click('#mdlTray .tray-x');
+  assert.equal(await p.isVisible('#mdl .leave-warn'), true, 'what was typed is dropped without a word');
+  await p.click('.wc-close');
   assert.equal(await p.locator('#mdl').count(), 0);
   await p.click('#setBtn'); await p.waitForSelector('#setPane');
   await p.click('.wc-close');

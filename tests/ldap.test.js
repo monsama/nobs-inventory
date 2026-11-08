@@ -355,3 +355,23 @@ test('the service account password can be saved in Settings: it is used, never s
     assert.equal((await srv2.call('GET', '/api/ldap/password', { cookie: a.cookie })).json.source, 'server');
   } finally { await srv2.close(); }
 });
+
+test('directory sign-in goes only to the directory it was set up with: a changed address pauses it until the service password is saved for it', async () => {
+  const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory', 'Inventory-Users'], 'annas-secret') };
+  const dir = await startDirectory(people), port = dir.address().port;
+  let current = { ...cfg(`ldap://127.0.0.1:${port}`), servicePassword: '' };
+  const srv = await startServer({ ldapConfig: () => current });
+  try {
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 200, 'the first directory sign-in sets it up');
+    // the address changed in Settings (here the same directory under another name): users' passwords do not go there
+    current = { ...current, url: `ldap://localhost:${port}` };
+    const paused = await signIn(srv, 'anna', 'annas-secret');
+    assert.equal(paused.status, 503);
+    assert.match(paused.error || '', /Directory sign-in is paused[\s\S]*127\.0\.0\.1[\s\S]*localhost/);
+    // a local admin still signs in, and saving the service password for the new server sets sign-in up for it
+    const admin = await signIn(srv, 'admin', 'adminpass123');
+    assert.equal(admin.status, 200, 'a local admin is not held off');
+    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret' }, cookie: admin.cookie })).status, 200);
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 200, 'sign-in goes to the server the service password was saved for');
+  } finally { await srv.close(); dir.close(); }
+});

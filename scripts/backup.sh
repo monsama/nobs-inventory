@@ -6,6 +6,11 @@ cd "$(dirname "$0")/.."
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 # The passphrase file for encrypted backups, from the environment or .env (BACKUP_PASSPHRASE_FILE=/path).
 [ -z "${BACKUP_PASSPHRASE_FILE:-}" ] && [ -f .env ] && BACKUP_PASSPHRASE_FILE="$(sed -n 's/^BACKUP_PASSPHRASE_FILE=//p' .env | tail -1)"
+# Without a passphrase the archive is not encrypted, so the secrets and the key that opens the saved passwords stay
+# out of it (keep secrets/ safe on its own). BACKUP_INCLUDE_SECRETS=yes puts them in all the same.
+[ -z "${BACKUP_INCLUDE_SECRETS:-}" ] && [ -f .env ] && BACKUP_INCLUDE_SECRETS="$(sed -n 's/^BACKUP_INCLUDE_SECRETS=//p' .env | tail -1)"
+WITH_SECRETS=no
+if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ] || [ "${BACKUP_INCLUDE_SECRETS:-}" = yes ]; then WITH_SECRETS=yes; fi
 VOLUME=nobs-inventory-data
 APP=nobs-inventory
 mkdir -p backup && chmod 700 backup
@@ -54,10 +59,13 @@ cp docker-compose.yml "$WORK/config/"
 # The shared proxy: its Caddyfile, every service's site file and the certificate.
 cp -a proxy "$WORK/proxy" 2>/dev/null || true
 cp -a certificates "$WORK/certificates" 2>/dev/null || true   # installs before 0.9.26
-cp -a secrets "$WORK/secrets"
+if [ "$WITH_SECRETS" = yes ]; then cp -a secrets "$WORK/secrets"; fi
 # Without secrets/sheet_key the app keeps its key in the data volume: without it, the entry sheets, the Graph keys
 # and the saved LDAP password in the database cannot be opened.
-if [ "$RUNNING" = yes ] && docker exec "$APP" test -f /data/sheet.key; then docker cp "$APP:/data/sheet.key" "$WORK/data-sheet.key"; fi
+if [ "$WITH_SECRETS" = no ]; then rm -f "$WORK/data-sheet.key"
+  echo "[WARN]  No BACKUP_PASSPHRASE_FILE: the archive is not encrypted, so secrets/ and the sheet key are left out."
+  echo "        Keep a copy of secrets/ somewhere safe, or set BACKUP_PASSPHRASE_FILE in .env (or BACKUP_INCLUDE_SECRETS=yes)."
+elif [ "$RUNNING" = yes ] && docker exec "$APP" test -f /data/sheet.key; then docker cp "$APP:/data/sheet.key" "$WORK/data-sheet.key"; fi
 
 ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"
 ( umask 077; tar -czf "$ARCHIVE" -C "$WORK" . )

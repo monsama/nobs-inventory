@@ -115,6 +115,15 @@ try {
   await p.click('#toast .t-undo');
   await until(p, () => !/2\.OG-R12-03b/.test(document.querySelector('#ppBox').textContent));
 
+  // The Ports tab lists the panel and shows its ports; its cords offer the panel's own site first.
+  const swSite = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const sw = c.objs.find(o => o.type === 'switch' && o.loc); const pp = c.byName('PP-T1'); pp.loc = 'Elsewhere / Room 1'; c.st.portsDevice = pp.id; c.st.tab = 'net'; (await import('/js/07-render.js')).view(); return sw ? sw.loc.split(' / ')[0] : ''; });
+  await p.waitForSelector('#portsDevice'); await p.waitForSelector('#view #ppBox');
+  assert.ok(await p.locator('#portsDevice option', { hasText: 'PP-T1' }).count(), 'the panel is not in the Ports device list');
+  await p.click('#ppPatch'); await p.waitForSelector('#ppSw');
+  if (swSite) assert.match(await p.evaluate(() => [...document.querySelectorAll('#ppSw optgroup option')].map(o => o.textContent).join('|')), new RegExp(swSite), 'switches of other sites are not set apart');
+  await p.keyboard.press('Escape');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byName('PP-T1').loc = ''; });
+
   // A viewer sees it all, and nothing to change.
   const v = await signIn('viewer', 'viewerpass123');
   await open(v, 'PP-T1');

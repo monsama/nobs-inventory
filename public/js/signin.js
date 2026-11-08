@@ -85,7 +85,7 @@ export function loginModal(err = '', login = ''){
       <label for="lgPw">Password</label><input id="lgPw" type="password" autocomplete="current-password" required>
     </form><p class="note" id="lgErr" style="color:var(--danger)">${err}</p>
     ${SERVER.sso && html`<div class="lg-or"><span>or</span></div><a class="btnlike lg-ms" href="api/sso/start"><svg viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>Sign in with Microsoft</a>`}</div>
-    <div class="mf"><button id="lgOk" class="primary">Sign in</button></div>`, 'sm free locked');
+    <div class="mf"><button id="lgOk" class="primary" type="submit" form="loginForm">Sign in</button></div>`, 'sm free locked');
   /* Microsoft's sign-in leaves the page: changes not saved yet would be lost. Said first; a second click goes anyway. */
   const ms = $('.lg-ms');
   if (ms) ms.addEventListener('click', e => {
@@ -106,7 +106,8 @@ export function loginModal(err = '', login = ''){
     if (SERVER.base && String(j.user.id) !== String(st.meId)) SERVER.base = null;
     await loadFromServer(j.user);
   };
-  $('#lgOk').onclick = go;
+  /* The button is the form's submit button (form="loginForm", outside it in the dialog's footer): Enter in either field
+     signs in as a click does. */
   $('#loginForm').addEventListener('submit', e => { e.preventDefault(); go(); });
   (login ? $('#lgPw') : $('#lgUser')).focus();
 }

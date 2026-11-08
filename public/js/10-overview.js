@@ -25,7 +25,7 @@ const compact = n => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
    attr: the name of the data attribute, written here. */
 const bars = (rows, attr) => {
   const max = Math.max(1, ...rows.map(r => r.n));
-  return html`<div class="ov-bars">${rows.map(r => html`<button class="ov-bar" ${rawHtml(attr)}="${r.key}" title="${r.label}: ${r.n} devices${r.bad ? ` (${r.bad})` : ''}${r.hint ? `\n${r.hint}` : ''}">
+  return html`<div class="ov-bars">${rows.map(r => html`<button class="ov-bar" ${rawHtml(attr)}="${r.key}" title="${r.label}: ${r.n} ${r.n === 1 ? 'device' : 'devices'}${r.bad ? ` (${r.bad})` : ''}${r.hint ? `\n${r.hint}` : ''}">
     <span class="ov-lbl">${r.icon || ''}<span>${r.label}</span></span><span class="ov-track"><span ${r.bad ? html`class="bad" ` : ''}style="width:${Math.max(2, Math.round(r.n / max * 100))}%"></span></span><span class="ov-n">${compact(r.n)}</span></button>`)}</div>`;
 };
 
@@ -148,7 +148,7 @@ export function renderOverview(){
       ${priced ? tile('Value of devices in use', rawHtml(money(value)), `price known for ${compact(priced)} of ${compact(inUse.length)}`) : ''}
     </div>
     <div class="ov-cols">
-      <div class="panelbox"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
+      <div class="panelbox" id="ovAttention"><div class="hdr">Needs attention <span class="cnt">${attention.length || 'none'}</span></div>
         ${attention.length ? html`<div class="ov-att">${attention.map(([n, cls, label, sub, attr]) => html`<button class="ov-row" ${rawHtml(attr)}><span class="chip ${cls}">${compact(n)}</span><span><b>${label}</b><small>${sub}</small></span></button>`)}</div>`
           : html`<div class="chain"><span class="muted">Nothing needs attention: no ended warranties, notices due or licences over-used.</span></div>`}
       </div>

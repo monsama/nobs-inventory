@@ -36,6 +36,8 @@ export function registerSyncRoutes(app, ctx) {
       /* Tied to the directory server it is saved for. */
       const host = ldapPinOf((ldapConfig ? ldapConfig() : ldap) || {});
       if (host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host); else dropAppSecret(db, 'ldapServicePasswordHost');
+      /* Saving it for a server is an admin's word that this is the directory: directory sign-in goes to it from now on. */
+      if (host) setAppSecret(db, SECRET_KEY, 'ldapLoginHost', host);
       audit(db, req.user.id, 'directory service account password saved');
       res.json({ ok: true, setAt: appSecretSetAt(db, 'ldapServicePassword') });
     } catch (e) { next(e); }

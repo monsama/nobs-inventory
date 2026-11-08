@@ -1,6 +1,6 @@
 import { pad2, stamp, stampTime } from './dates.js';
 import { html } from './html.js';
-import { isIntune, otherManager } from './intune.js';
+import { graphSeen, isIntune, otherManager } from './intune.js';
 import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
@@ -431,9 +431,9 @@ export function defenderState(o){
 export const reviewStale = o => { const s = lastSeenOf(o); return !s || s.days > REVIEW_STALE_DAYS; };
 /* The latest a source saw the device: {src, day, at, days}, days counted to today. null when no source has a date. */
 export function lastSeenOf(o){
-  const g = o.graph && !o.graph.gone ? o.graph : null;
-  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ['Intune', g && (g.lastCheckIn || g.lastSync)],
-    ['Entra', g && g.lastSignIn], ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
+  /* Intune's date only for a device Intune manages, Entra's for its sign-in (intune.js graphSeen). */
+  const all = [['Lansweeper', o.feed && !o.excluded && !o.detached && o.feed.scanned], ['AD', o.ad && o.ad.logon], ...graphSeen(o.graph),
+    ['Defender', o.defender && o.defender.lastSeen], ['Autopilot', o.autopilot && o.autopilot.lastContact]]
     .map(([src, v]) => [src, String(v || '').slice(0, 10), String(v || '')]).filter(([, d]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d > '2000');
   if (!all.length) return null;
   const when = (/** @type {string[]} */ [, d, raw]) => /T\d{2}:\d{2}/.test(raw) && Date.parse(raw) ? Date.parse(raw) : Date.parse(d + 'T00:00:00Z');
@@ -442,6 +442,13 @@ export function lastSeenOf(o){
   const timed = /T\d{2}:\d{2}/.test(raw) && Date.parse(raw);
   return { src, day, at: timed ? stamp(new Date(timed)) : dayText(day), days: Math.max(0, Math.round((today - Date.parse(day + 'T00:00:00Z')) / 864e5)) };
 }
+/* Last seen, under More filters: no source has ever seen it, or none for over 30 or 90 days. [label, test]. */
+/** @type {Record<string, [string, (o: any) => boolean]>} */
+export const SEEN_FILTERS = {
+  never: ['Never seen by a source', o => !lastSeenOf(o)],
+  d30: ['Not seen for 30 days', o => { const s = lastSeenOf(o); return !!s && s.days > 30; }],
+  d90: ['Not seen for 90 days', o => { const s = lastSeenOf(o); return !!s && s.days > 90; }],
+};
 /* Data quality: what a device of the inventory lacks, or where its sources disagree. The Overview counts each, and a
    click lists them (st.quality). [name, what it means, test]. A responsible is asked for once there are internal contacts. */
 export const PERSONAL = ['pc', 'notebook', 'mobile', 'android', 'ios'];
@@ -511,7 +518,8 @@ export function sourceText(o, k, src = sourceOf(o, k)){
   const keep = ' Typing a value here keeps yours.';
   if (src === 'hand') return 'Set by hand' + (o.handAt ? ` · last edited here ${stamp(new Date(o.handAt))}` : '');
   if (src === 'ls') return 'From Lansweeper' + (o.feed && o.feed.scanned ? ` · last scan ${dayText(o.feed.scanned)}` : '');
-  if (src === 'graph') return 'From Microsoft Entra & Intune' + (o.graph && (o.graph.lastCheckIn || o.graph.lastSync) ? ` · last check-in ${stamp(new Date(o.graph.lastCheckIn || o.graph.lastSync))}` : o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep;
+  /* Its newest date, named for what it is: a check-in of its manager, or an Entra sign-in (intune.js graphSeen). */
+  if (src === 'graph'){ const [w, at] = graphSeen(o.graph)[0] || []; return 'From Microsoft Entra & Intune' + (at && Date.parse(at) ? ` · ${w === 'Entra' ? 'last sign-in' : 'last check-in'} ${stamp(new Date(at))}` : o.graph && o.graph.seen ? ` · read ${o.graph.seen}` : '') + '.' + keep; }
   if (src === 'ad') return 'From the computer account in Active Directory' + (o.ad && o.ad.logon ? ` · last logon ${dayText(o.ad.logon)}` : '') + '.' + keep;
   if (src === 'unknown') return 'Where this value came from is not known: it was set before the sources were noted';
   return '';
@@ -734,7 +742,7 @@ const outletWords = o => {
 };
 export const matchesQ = (o, q) => !q || outletWords(o).some(v => v && String(v).toLowerCase().includes(q)) || [o.code,o.name,o.notes,o.ip,o.ip6,o.mac,o.serial,o.user,o.model,o.ext,...(o.nics || []).flatMap(n => [n.ip, n.mac]),...(o.accessories || []).flatMap(a => [a.name, a.serial, a.mac, a.seenAs]),...(o.adGroups || []),(contactOf(o.respIn) || {}).name,(contactOf(o.respEx) || {}).name,...(o.urls || []).flatMap(l => [l.label, l.url]),...(o.graph ? [o.graph.aadId, o.graph.entraId, o.graph.intuneId] : [])].some(v => v && String(v).toLowerCase().includes(q));
 /* The filters picked on the left (type, place, status and the others), in words, for a message: "PC", "PC in Bern". */
-export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
+export const leftFilters = () => !!(st.type || st.loc || st.status || st.warranty || st.seen || st.scanOld || st.twins || st.intune || st.osFam || st.live || st.resp || st.person || st.adGroup || st.quality || st.ids || st.handField);
 /* What Cards, Table and the sidebar show: the inventory, or (st.scope) the devices a sync found that wait in To review,
    one source of them (st.rvSrc), or the ones ignored there. */
 export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.review && o.review.ignored)
@@ -745,7 +753,7 @@ export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q &
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */
-  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
+  return scopePool().filter(o => (((!st.type || o.type === st.type) && (!st.loc || (st.loc.includes(' / ') ? o.loc === st.loc : String(o.loc || '').split(' / ')[0] === st.loc)) && (!st.status || o.status === st.status) && (!st.warranty || warrantyState(o) === st.warranty) && (!st.seen || !SEEN_FILTERS[st.seen] || SEEN_FILTERS[st.seen][1](o)) && (!st.scanOld || scanOld(o)) && (!st.twins || !!twinOf(o)) && (!st.intune || !GRAPH_FILTERS[st.intune] || (!SYNC.graph && GRAPH_FILTERS[st.intune][1] !== 'join') || GRAPH_FILTERS[st.intune][2](o)) && (!st.osFam || osFamily(o) === st.osFam) && (!st.live || o.status !== 'retired') && (!st.resp || o.respIn === st.resp || o.respEx === st.resp) && (!st.person || !personOf(st.person) || o.uid === st.person) && (!st.ids || st.ids.ids.includes(o.id)) && (!st.handField || (o.pick && o.pick[st.handField] === 'hand') || (o.src && o.src[st.handField] === 'hand')) && (!st.adGroup || (o.adGroups || []).some(g => g.toLowerCase() === st.adGroup.toLowerCase())) && (!st.quality || !QUALITY[st.quality] || QUALITY[st.quality][2](o))))
     && matchesQ(o, q));
 }
 

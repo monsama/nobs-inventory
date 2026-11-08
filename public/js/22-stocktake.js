@@ -2,7 +2,7 @@
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
-import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
+import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -26,7 +26,7 @@ function confirm(o, t, from){
 }
 function unconfirm(o){
   if (!o.verified) return;
-  if (o.verified.from !== undefined) { o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
+  if (o.verified.from !== undefined) { setByHand(o, 'loc', o.verified.from); o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
   o.verified = o.verified.prev ? { ...o.verified.prev } : undefined;
   if (!o.verified) delete o.verified;
 }
@@ -54,7 +54,7 @@ function startHtml(edit){
   const recent = live.filter(o => { const d = daysSinceVerified(o); return d !== null && d <= STOCKTAKE_DAYS; }).length;
   const places = [...SITES.map(s => [s, `${s} (site)`]), ...LOCS.map(l => [l, l])];
   return html`<div class="panelbox"><div class="hdr">New inventory check</div>
-    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} devices were confirmed on site in the last 12 months.` : 'No devices yet.'} An inventory check lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
+    <p class="note stk-pad">${live.length ? `${recent} of ${live.length} ${live.length === 1 ? 'device was' : 'devices were'} confirmed on site in the last 12 months.` : 'No devices yet.'} An inventory check lists the devices of one place; confirm each one you find, by ticking it or by scanning its serial number, code or name. What is not found is listed as missing when you finish.</p>
     ${edit ? html`<div class="form stk-pad"><label for="stkPlace">Place</label><select id="stkPlace"><option value="">Everywhere</option>${places.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select>
       <label for="stkName">Name</label><input id="stkName" maxlength="120" placeholder="Inventory check ${dateText(today())}"></div>
       <div class="addrel stk-pad"><button id="stkStart" class="primary">Start the inventory check</button><span class="muted" id="stkCount"></span></div>` : html`<p class="note stk-pad">An admin starts an inventory check.</p>`}</div>`;
@@ -63,7 +63,7 @@ function startHtml(edit){
    inventory check, saves it and puts the focus in the scan field. */
 function wireStart(edit){
   if (!edit) return;
-  const count = () => { $('#stkCount').textContent = `${stocktakeDevices(objs, $('#stkPlace').value).length} devices`; };
+  const count = () => { const n = stocktakeDevices(objs, $('#stkPlace').value).length; $('#stkCount').textContent = `${n} ${n === 1 ? 'device' : 'devices'}`; };
   $('#stkPlace').onchange = count; count();
   $('#stkStart').onclick = () => {
     const scope = $('#stkPlace').value, name = $('#stkName').value.trim() || `Inventory check ${placeName(scope)} ${dateText(today())}`;
@@ -147,7 +147,8 @@ function found(t, v){
   $('#stmKeep').onclick = () => { closeModal(); confirm(o, t); queueServerSave(); say(html`✓ <b>${o.name}</b> confirmed, left in ${o.loc || 'no location'}.`, 'ok'); };
   const mv = $('#stmMove'); if (mv) mv.onclick = () => {
     const to = $('#stmTo').value, from = o.loc || '';
-    closeModal(); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
+    /* As an edit by hand (setByHand), so the next sync does not put back the room its source had. */
+    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
     say(html`✓ <b>${o.name}</b> moved to ${to} and confirmed.`, 'ok');
   };
 }
