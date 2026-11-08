@@ -815,8 +815,13 @@ const within = (r, q) => r.x >= q.x - 0.05 && r.y >= q.y - 0.05 && r.x + r.w <= 
 /* The areas the rectangles drawn overlap. Drawn wholly inside an area it is a new area of its own (a corner of an office). */
 export const overlappedAreas = (plan, drawn) => drawn.some(r => (plan.areas || []).some(a => areaRects(a).some(q => within(r, q)))) ? []
   : (plan.areas || []).filter(a => areaRects(a).some(q => drawn.some(r => overlapOf(q, r) > 0.01)));
-/* The one area that drawing over it grows; none when it overlaps none or several. */
-const mergeTarget = (plan, drawn) => { const o = overlappedAreas(plan, drawn); return o.length === 1 ? o[0] : null; };
+/* The one area that drawing over it grows: none when it overlaps none or several, or when some of the rectangles drawn
+   lie apart from it (they would be a part of their own): then the dialog asks. */
+const mergeTarget = (plan, drawn) => {
+  const o = overlappedAreas(plan, drawn); if (o.length !== 1) return null;
+  const own = areaRects(o[0]);
+  return areaPartCorners([...own, ...drawn]).length === areaPartCorners(own).length ? o[0] : null;
+};
 export function addPartsToArea(plan, merged = false){
   const area = (plan.areas || []).find(a => a.id === planEditArea), drawn = planParts;
   planParts = []; planEditArea = null; planMode = 'view';

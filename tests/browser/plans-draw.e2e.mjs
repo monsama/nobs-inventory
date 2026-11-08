@@ -94,6 +94,18 @@ try {
   assert.equal(await p.locator('#arTo').count(), 0, 'no dialog for a drawing over one area');
   await p.click('#toast .t-undo');
   await until(p, async () => (await import('/js/20-plans.js')).planById('pl1').areas[0].rects.length === 2);
+  // one drawn over the area and one far from it, in one go: not silently joined, the dialog asks (the area offered)
+  await p.click('#plArea');
+  await p.mouse.move(bo.x + bo.width * 0.3, bo.y + bo.height * 0.4); await p.mouse.down();
+  await p.mouse.move(bo.x + bo.width * 0.45, bo.y + bo.height * 0.66, { steps: 4 }); await p.mouse.up();
+  await p.mouse.move(bo.x + bo.width * 0.05, bo.y + bo.height * 0.8); await p.mouse.down();
+  await p.mouse.move(bo.x + bo.width * 0.15, bo.y + bo.height * 0.95, { steps: 4 }); await p.mouse.up();
+  assert.equal((await p.textContent('#plAreaDone')).trim(), 'Done with 2 rectangles');
+  await p.click('#plAreaDone'); await p.waitForSelector('#arTo');
+  assert.equal(await p.inputValue('#arTo'), firstId, 'the area drawn over is offered');
+  await p.click('#arCancel');
+  assert.equal(await p.evaluate(async () => (await import('/js/20-plans.js')).planById('pl1').areas[0].rects.length), 2);
+  await p.click('#plAreaDiscard'); await p.click('#plArea');   /* drawing stops */
   // a new area is still one choice away
   await p.click('#plArea');
   const b3 = await p.locator('#plCanvas').boundingBox();
