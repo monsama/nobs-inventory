@@ -47,6 +47,10 @@ try {
   // Tab after the edit keeps the keyboard's place: the focus is not dropped to the page when the field is saved
   await p.waitForTimeout(200);
   assert.notEqual(await p.evaluate(() => document.activeElement && document.activeElement.tagName), 'BODY', 'the focus fell to the page after saving a field');
+  // the toast says what changed, with Undo, and Undo puts the old name back
+  assert.match(await p.textContent('#toast'), /Saved SW-1A · Name: SW-1 → SW-1A/);
+  await p.click('#toast .t-undo');
+  await storedBy(() => obj('w1'), o => o.name === 'SW-1' && typeof o.ports === 'number');
 
   // automatic follows the order set for the field: AD first, so AD's value
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('v1'));

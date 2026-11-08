@@ -532,6 +532,8 @@ export function renderObj(o){
       } else place = {};
     }
     const kept = [], edits = [];
+    /* The device as it was, for the Undo in the toast. */
+    const before = snapshot([o]);
     const statusWas = o.status, uidWas = o.uid || null, hotWas = !!o.hotdesk, userWas = o.user;
     $('#view').querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k; let v = dateValue(el);
@@ -568,7 +570,7 @@ export function renderObj(o){
          from Graph; it is noted as set by hand, and cleared, it stays empty: no sync fills it again. */
       if (setByHand(o, k, v)) kept.push(FIELD_LABEL[k]);
       /* Each changed field gets its own line in the history, with both values, so it can be set back from there. */
-      if (k !== 'type' && String(o[k] ?? '') !== String(v ?? '')) edits.push([k, o[k], v]);
+      if (k !== 'type' && (['ports','sfp'].includes(k) ? (+o[k] || 0) !== v : String(o[k] ?? '') !== String(v ?? ''))) edits.push([k, o[k], v]);
       o[k] = v;
       /* The mark beside the field follows at once: the page is not drawn again for one field. */
       const fld = document.getElementById(`f_${o.id}_${k}`), mk = fld && fld.closest('.ctlrow') && fld.closest('.ctlrow').querySelector(':scope > .fsrc, :scope > .fsrc-slot');
@@ -620,7 +622,11 @@ export function renderObj(o){
     if (span && o.ip && ipn !== null && (ipn < span.first || ipn > span.last)) warns.push(`${o.ip} is outside ${sn.cidr}`);
     /* Said plainly: what was typed over a synced value stays, and the sync leaves it alone from now on. */
     const keptMsg = kept.length ? `. ${kept.join(', ')}: your value stays; ${feedLinked(o) ? 'Lansweeper' : 'Microsoft Graph'} no longer changes ${kept.length === 1 ? 'it' : 'them'}` : '';
-    toast('Saved ' + o.name + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : ''));
+    /* What changed, with Undo: one field by its values, several by their count. */
+    const what = edits.length === 1 ? ` · ${labelOf(edits[0][0])}: ${shownValue(edits[0][0], edits[0][1]) || 'empty'} → ${shownValue(edits[0][0], edits[0][2]) || 'empty'}` : edits.length > 1 ? ` · ${edits.length} fields changed` : '';
+    const msg = 'Saved ' + o.name + what + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
+    if (edits.length) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
+    else toast(msg);
     queueServerSave();
     /* A new person: the page is drawn again, so More offers the entry sheet for them. */
     if ((o.uid || null) !== uidWas) rerender = true;
