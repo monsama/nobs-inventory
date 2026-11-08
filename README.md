@@ -69,7 +69,7 @@ Secrets live in `secrets/` and are mounted into the app container as files. They
 | Update to the latest release | `sudo ./scripts/update.sh` (backs up first; rolls back automatically if unhealthy) |
 | Update to a release | `sudo ./scripts/update.sh 0.3.0` |
 | Current version | `cat VERSION` and `grep NI_IMAGE .env` |
-| Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days). Without a passphrase it leaves `secrets/` and the sheet key out (keep a copy of `secrets/` elsewhere). Set `BACKUP_PASSPHRASE_FILE=/path/to/passphrase` in `.env` (a file kept elsewhere too) and it is encrypted (`.tar.gz.enc`) with the secrets in it; `restore.sh` reads the same file or asks for the passphrase. `BACKUP_INCLUDE_SECRETS=yes` keeps them in an unencrypted archive |
+| Back up | `sudo ./scripts/backup.sh` → `backup/nobs-inventory-<time>.tar.gz` (checksummed, kept 14 days). Without a passphrase it leaves `secrets/` and the sheet key out (keep a copy of `secrets/` elsewhere). Set `BACKUP_PASSPHRASE_FILE=/path/to/passphrase` in `.env` (a file kept elsewhere too) and it is encrypted (`.tar.gz.enc`) with the secrets in it; `restore.sh` reads the same file or asks for the passphrase. It also carries a check made from the passphrase: `restore.sh` opens nothing that was changed after it was made (older backups without it are opened only with `BACKUP_ALLOW_UNCHECKED=yes`). `BACKUP_INCLUDE_SECRETS=yes` keeps them in an unencrypted archive |
 | Restore | `sudo ./scripts/restore.sh backup/<file>.tar.gz` (type RESTORE to confirm) |
 | Daily backup | installed by `deploy-nobs.sh` at 03:15 (set `INSTALL_BACKUP_CRON=false` to skip) |
 | Logs | `docker compose logs -f` (the app), `docker logs nobs-proxy` (the proxy) |

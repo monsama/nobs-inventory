@@ -18,7 +18,23 @@ WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 if [[ "$ARCHIVE" == *.enc ]]; then
   if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ]; then PASS="file:$BACKUP_PASSPHRASE_FILE"
   else read -r -s -p "Backup passphrase: " BACKUP_PASS; echo; export BACKUP_PASS; PASS="env:BACKUP_PASS"; fi
-  openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "$PASS" -in "$ARCHIVE" -out "$WORK/backup.tar.gz" || { echo "[ERROR] The passphrase does not open this backup." >&2; exit 1; }
+  # The check in front (backup-mac.sh) comes first: a file changed after it was made is not opened at all.
+  # shellcheck source=backup-mac.sh
+  . scripts/backup-mac.sh
+  SEALED=0; mac_open "$PASS" "$ARCHIVE" "$WORK/archive.enc" || SEALED=$?
+  if [ "$SEALED" = 1 ]; then
+    echo "[ERROR] The passphrase does not open this backup, or the file was changed after it was made. Nothing was changed." >&2; exit 1
+  elif [ "$SEALED" = 2 ]; then
+    # Made before backups had the check: openssl alone cannot tell a changed file, so it is opened only on request.
+    if [ "${BACKUP_ALLOW_UNCHECKED:-}" != yes ]; then
+      echo "[ERROR] This backup was made before backups were checked for changes, so a changed file would not be noticed." >&2
+      echo "        If it comes from a place you trust, run again with BACKUP_ALLOW_UNCHECKED=yes. Nothing was changed." >&2; exit 1
+    fi
+    echo "[WARN]  Opened without the check for changes (BACKUP_ALLOW_UNCHECKED=yes)."
+    cp "$ARCHIVE" "$WORK/archive.enc"
+  fi
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "$PASS" -in "$WORK/archive.enc" -out "$WORK/backup.tar.gz" || { echo "[ERROR] The passphrase does not open this backup." >&2; exit 1; }
+  rm -f "$WORK/archive.enc"
   unset BACKUP_PASS
   tar --no-same-owner --no-same-permissions -xzf "$WORK/backup.tar.gz" -C "$WORK" && rm -f "$WORK/backup.tar.gz"
 else

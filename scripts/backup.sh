@@ -82,11 +82,15 @@ ARCHIVE="backup/nobs-inventory-$STAMP.tar.gz"
 ( umask 077; tar -czf "$ARCHIVE" -C "$WORK" . )
 # The archive holds the secrets and the key that opens the saved passwords. With BACKUP_PASSPHRASE_FILE (a file kept
 # away from this server's backups, e.g. on the backup host or a password safe's export) it is encrypted with that
-# passphrase: a copy of the archive alone then opens nothing. restore.sh asks for it, or reads the same file.
+# passphrase: a copy of the archive alone then opens nothing. restore.sh asks for it, or reads the same file. A check
+# made from the same passphrase (backup-mac.sh) goes in front, so restore.sh notices a file changed after it was made.
 if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ]; then
+  # shellcheck source=backup-mac.sh
+  . scripts/backup-mac.sh
   [ -s "$BACKUP_PASSPHRASE_FILE" ] || { echo "[ERROR] BACKUP_PASSPHRASE_FILE is set but $BACKUP_PASSPHRASE_FILE is missing or empty." >&2; rm -f "$ARCHIVE"; exit 1; }
-  ( umask 077; openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:$BACKUP_PASSPHRASE_FILE" -in "$ARCHIVE" -out "$ARCHIVE.enc" )
-  rm -f "$ARCHIVE"; ARCHIVE="$ARCHIVE.enc"
+  ( umask 077; openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:$BACKUP_PASSPHRASE_FILE" -in "$ARCHIVE" -out "$WORK/archive.enc"
+    mac_seal "file:$BACKUP_PASSPHRASE_FILE" "$WORK/archive.enc" "$ARCHIVE.enc" ) || { rm -f "$ARCHIVE" "$ARCHIVE.enc"; exit 1; }
+  rm -f "$ARCHIVE" "$WORK/archive.enc"; ARCHIVE="$ARCHIVE.enc"
   echo "[INFO]  Encrypted with the passphrase in $BACKUP_PASSPHRASE_FILE"
 fi
 ( cd backup && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256" )
