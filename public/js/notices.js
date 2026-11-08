@@ -58,7 +58,7 @@ export function notices(s, { admin = false, sites = null, sources = [], today = 
   const devices = (list, table) => list.length === 1 ? { device: list[0].id } : { table };
   if (a.wEnded.length) out.push({ id: 'warranty-ended', sev: 'bad', title: 'Warranty ended', text: `${plural(a.wEnded.length, 'device', 'devices')} in use: ${names(a.wEnded)}`,
     fp: fingerprint(a.wEnded.map(o => o.id)), go: devices(a.wEnded, { warranty: 'ended', status: 'active' }) });
-  if (a.wSoon.length) out.push({ id: 'warranty-soon', sev: 'warn', title: 'Warranty ends soon', text: `${plural(a.wSoon.length, 'device', 'devices')} within ${WARRANTY_SOON_DAYS} days: ${names(a.wSoon)}`,
+  if (a.wSoon.length) out.push({ id: 'warranty-soon', sev: 'warn', title: 'Warranty ends soon', text: `${plural(a.wSoon.length, 'device', 'devices')} in use, within ${WARRANTY_SOON_DAYS} days: ${names(a.wSoon)}`,
     fp: fingerprint(a.wSoon.map(o => o.id)), go: devices(a.wSoon, { warranty: 'soon', status: 'active' }) });
   const late = a.maint.filter(x => x.days < 0), due = a.maint.filter(x => x.days >= 0);
   const task = x => `${x.o.name}: ${x.m.what}`, taskKey = x => `${x.o.id}/${x.m.id}/${x.m.due}`;

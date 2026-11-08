@@ -165,7 +165,7 @@ export function renderTable(){
   /* A data-quality check's column, or the columns a list from the Overview asks for (the replacement plan: purchase,
      due year, price), go right after Name while it is listed. */
   const fix = !st.scope && st.quality && QUALITY_FIX[st.quality];
-  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : [];
+  const after = fix && fix[0] ? [fix[0]] : !st.scope && st.ids && Array.isArray(st.ids.cols) ? st.ids.cols : !st.scope && st.seen ? ['seen'] : [];
   const laid = !!fix || after.length > 0;
   if (after.length){
     const cs = after.map(k => tableCols().find(x => x.k === k)).filter(Boolean), at = shown.findIndex(x => x.k === 'name') + 1;

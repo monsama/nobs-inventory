@@ -5,7 +5,7 @@ import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
-import { openObj } from './02-views.js';
+import { openObj, renderSide } from './02-views.js';
 import { queueServerSave, render } from './07-render.js';
 import { html, rawHtml } from './html.js';
 
@@ -184,6 +184,8 @@ export function locateOnPlan(plan, o, x, y){
   const a = areaAt(plan, x, y);
   if (!a || !plan.site) return null;
   o.loc = areaLoc(plan, a); markHand(o, 'loc');
+  /* The sidebar counts (rooms, a new room) follow at once, not at the next full redraw. */
+  queueMicrotask(() => { if ($('#locList')) renderSide(); });
   return a.name;
 }
 /* The list of devices not on the plan: beside the plan for those who place devices, folded away for the others (the
