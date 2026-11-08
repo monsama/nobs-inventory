@@ -91,6 +91,14 @@ try {
   assert.equal(await p.inputValue('#tbLoc'), 'Bern / Lager', 'the store room used last is proposed'); await p.click('#tbOk');
   await eventually(() => ['n1', 'n3'].every(id => stored(id).status === 'stock' && !stored(id).uid));
   assert.equal(stored('n2').status, 'active', 'Max keeps his');
+  /* A site without a store room: Take back says so, and a room of that site picked there becomes its store room. */
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.st.stockRooms = {}; try { localStorage.removeItem('ni-stock-room'); } catch { /* none */ } });
+  await p.evaluate(async () => (await import('/js/27-handout.js')).takeBackModal([(await import('/js/01-core.js')).byId('n2')]));
+  await p.waitForSelector('#tbNoStore:not([hidden])');
+  await p.selectOption('#tbLoc', 'Bern / Büro');
+  await p.waitForSelector('#tbStoreRow:not([hidden])');
+  await p.click('#tbOk');
+  await eventually(() => loadState(db).stockRooms.Bern === 'Bern / Büro' && stored('n2').status === 'stock');
   assert.deepEqual(errors, []);
   console.log('hand out: all checks passed');
 } finally { await browser.close(); server.close(); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
