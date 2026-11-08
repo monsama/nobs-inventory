@@ -74,7 +74,23 @@ try {
   assert.ok(Math.abs(drawn.x - (first.x + first.w)) < 0.01, `the left edge did not snap to the first area's right edge: ${drawn.x} vs ${first.x + first.w}`);
   assert.ok(Math.abs(drawn.y - first.y) < 0.01, `the top edge did not snap to the first area's top: ${drawn.y} vs ${first.y}`);
   assert.ok(Math.abs(drawn.y + drawn.h - (first.y + first.h)) < 0.01, 'the bottom edge did not snap to the first area\'s bottom');
-  await p.keyboard.press('Escape');
+  // drawn against an area, Done offers to add it there (an L-shaped room in two goes)
+  await p.click('#plAreaDone'); await p.waitForSelector('#arTo');
+  const firstId = await p.evaluate(async () => (await import('/js/20-plans.js')).planById('pl1').areas[0].id);
+  assert.equal(await p.inputValue('#arTo'), firstId, 'the touching area is not offered first');
+  assert.equal(await p.isVisible('#arName'), false, 'no name to give when adding to an area');
+  assert.match(await p.textContent('#arOk'), /^Add to Büro 2\.OG$/);
+  await p.click('#arOk');
+  await until(p, async () => { const pl = (await import('/js/20-plans.js')).planById('pl1'); return pl.areas.length === 1 && pl.areas[0].rects.length === 2; });
+  // a new area is still one choice away
+  await p.click('#plArea');
+  const b3 = await p.locator('#plCanvas').boundingBox();
+  await p.mouse.move(b3.x + b3.width * 0.82, b3.y + b3.height * 0.7); await p.mouse.down();
+  await p.mouse.move(b3.x + b3.width * 0.95, b3.y + b3.height * 0.9, { steps: 4 }); await p.mouse.up();
+  await p.click('#plAreaDone'); await p.waitForSelector('#arTo');
+  assert.equal(await p.inputValue('#arTo'), '', 'an area away from the others starts as a new one');
+  assert.equal(await p.isVisible('#arName'), true);
+  await p.click('#arCancel');
   assert.deepEqual(errors, [], 'page errors');
   console.log('plans: drawing an area works without a picture: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir,{recursive:true,force:true}); }

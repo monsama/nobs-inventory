@@ -815,12 +815,21 @@ export function areaRemoveModal(plan, area){
 export function areaModal(plan, rects){
   /* The rooms that already exist on this plan's site. */
   const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
-  modal(html`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
+  /* The rectangles can also go to an area already on the plan (an L-shaped room drawn in two goes). One that the drawing
+     touches from outside is offered first; drawn inside an area, it is a new area (a corner of an office). */
+  const areas = plan.areas || [], box0 = boxOf(rects);
+  const outer = areaAt(plan, box0.x + box0.w / 2, box0.y + box0.h / 2), outerRoom = outer && areaLocName(plan, outer);
+  const near = (a, b) => a.x <= b.x + b.w + 0.6 && b.x <= a.x + a.w + 0.6 && a.y <= b.y + b.h + 0.6 && b.y <= a.y + a.h + 0.6;
+  const touching = outer ? [] : areas.filter(a => areaRects(a).some(q => rects.some(r => near(q, r))));
+  modal(html`<div class="mh" id="arHead">New area</div><div class="mb"><div class="form" style="padding:0">
+      ${areas.length ? html`<label for="arTo">Add to</label><select id="arTo"><option value="">A new area</option>${areas.map(a => html`<option value="${a.id}">${a.name}</option>`)}</select>` : ''}
+      <div id="arNewFields" style="display:contents">
       <label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60">
       <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="" id="arNew">A new room, named like the area</option>${rooms.map(l => html`<option value="${l}">${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
       ${colorPicker('blue')}
+      </div>
     </div>
-    <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. <span id="arRoomNote">Choose a room that already exists, or a new one is added to the locations.</span></p></div>
+    <p class="note" id="arNote">An area is a named place on this plan. Devices placed inside it are in its room. <span id="arRoomNote">Choose a room that already exists, or a new one is added to the locations.</span></p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
   $('#arCancel').onclick = () => { closeModal(); renderPlans(); };
   /* Picking an existing room names the area after it, unless a name is typed. */
@@ -836,14 +845,24 @@ export function areaModal(plan, rects){
   let picked = false;   /* a room picked in the list is kept, whatever name is typed */
   /* Drawn inside an area that has a room (a corner of an office): that room first, so devices placed in the new area
      stay in the room they are in. */
-  const box0 = boxOf(rects), outer = areaAt(plan, box0.x + box0.w / 2, box0.y + box0.h / 2), outerRoom = outer && areaLocName(plan, outer);
   if (outerRoom && rooms.includes(outerRoom)){ $('#arRoom').value = outerRoom; picked = true; sayRoom(); }
   $('#arRoom').addEventListener('change', () => { picked = !!$('#arRoom').value; });
   $('#arName').oninput = () => {
     if (!picked){ const n = $('#arName').value.trim().toLowerCase(); $('#arRoom').value = rooms.find(l => roomName(l).toLowerCase() === n) || ''; }
     sayRoom();
   };
+  /* Adding to an area: no name, room or colour to give, the area keeps its own. */
+  const to = /** @type {HTMLSelectElement|null} */ ($('#arTo'));
+  const sayTo = () => {
+    const a = to && areas.find(x => x.id === to.value);
+    $('#arNewFields').style.display = a ? 'none' : 'contents';
+    $('#arNote').hidden = !!a;
+    $('#arOk').textContent = a ? `Add to ${a.name}` : 'Add area';
+    $('#arHead').textContent = a ? 'Add to an area' : 'New area';
+  };
+  if (to){ if (touching.length === 1) to.value = touching[0].id; to.onchange = sayTo; sayTo(); }
   $('#arOk').onclick = () => {
+    if (to && to.value && areas.some(a => a.id === to.value)){ planEditArea = to.value; planParts = rects; closeModal(); addPartsToArea(plan); return; }
     const room = $('#arRoom').value || null;
     const name = $('#arName').value.trim() || (room ? room.split(' / ').slice(1).join(' / ') : '');
     if (!name){ toast('Give the area a name.'); return; }
@@ -855,7 +874,7 @@ export function areaModal(plan, rects){
     if (plan.site) areaLoc(plan, area);
     planMode = 'view'; planParts = []; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
   };
-  $('#arName').focus();
+  (to && to.value ? to : $('#arName')).focus();
 }
 export function loadPlanImage(file){
   return new Promise((resolve, reject) => {
