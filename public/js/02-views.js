@@ -316,6 +316,12 @@ export function renderTabs(){
     const o = byId(id);
     return html`<span class="tab objtab ${st.tab===id?'active':''}" draggable="true" data-tab="${id}" role="button" tabindex="0"><span class="tsw" style="background:${tcol(o.type)}"></span><span class="mono" title="${o.name}">${o.name}</span><span class="x" data-close="${id}" title="Close (middle-click also closes)">×</span></span>`;
   }).join('') + (objs.length > 1 ? '<span class="grow"></span><button class="objbar-close" id="closeAllTabs" title="Close all open devices">Close all</button>' : '');
+  /* On a narrow screen the bar scrolls: a fade on the side where more tabs are says so, and the tab shown is scrolled
+     into view. */
+  const tb = $('#tabsbar'), edges = () => { tb.classList.toggle('more-r', tb.scrollLeft + tb.clientWidth < tb.scrollWidth - 2); tb.classList.toggle('more-l', tb.scrollLeft > 2); };
+  const act = /** @type {HTMLElement|null} */ (tb.querySelector('.tab.active'));
+  if (act && tb.scrollWidth > tb.clientWidth) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  edges(); tb.onscroll = edges;
   $$('#tabsbar [data-tab], #objbar [data-tab]').forEach(el => {
     const id = el.dataset.tab;
     el.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); });
