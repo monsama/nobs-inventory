@@ -45,6 +45,9 @@ fi
 trap - ERR
 docker compose start app >/dev/null
 echo "[INFO]  Database restored."
+if [ "$RESTORE_SECRETS" = yes ] && [ ! -d "$WORK/secrets" ]; then
+  echo "[WARN]  This backup has no secrets (made without BACKUP_PASSPHRASE_FILE): the secrets here were kept as they are."
+fi
 if [ "$RESTORE_SECRETS" != yes ]; then
   echo "[INFO]  Settings and secrets were NOT changed."
   # Another key than the backup's (a new server, or a new key) cannot open what the backup has sealed.
