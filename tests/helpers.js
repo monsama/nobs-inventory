@@ -13,7 +13,10 @@ export function tempDataDir() {
 /* Starts the app on a random port with its own database file. */
 /* The tests' server sees a disk with room, whatever the disk of the machine they run on. */
 export const ROOMY = () => ({ free: 200 * 2 ** 30, total: 500 * 2 ** 30 });
-export async function startServer({ dir = tempDataDir(), ldap = null, ldapConfig = undefined, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined, certProbe = undefined, loginFailMs = 0, diskSpace = ROOMY } = {}) {
+/* A data folder made here is removed again on close; one passed in (to start a second server on it) is the test's own. */
+export async function startServer(opts = {}) {
+  const own = opts.dir === undefined;
+  const { dir = tempDataDir(), ldap = null, ldapConfig = undefined, feedToken = null, graphConfig = null, sheetKey = null, graphFetch = undefined, certProbe = undefined, loginFailMs = 0, diskSpace = ROOMY } = opts;
   const db = openDb(path.join(dir, 'inventory.db'));
   bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
   const app = createApp({ db, ldap, ldapConfig, feedToken, graphConfig, sheetKey, graphFetch, certProbe, loginFailMs, diskSpace });
@@ -21,7 +24,7 @@ export async function startServer({ dir = tempDataDir(), ldap = null, ldapConfig
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
     base, dir, db,
-    close: () => new Promise(resolve => { server.close(() => { db.close(); resolve(); }); }),
+    close: () => new Promise(resolve => { server.close(() => { db.close(); if (own) fs.rmSync(dir, { recursive: true, force: true }); resolve(); }); }),
     async call(method, url, { body, cookie, type = 'json' } = {}) {
       const headers = {};
       if (cookie) headers.Cookie = cookie;
