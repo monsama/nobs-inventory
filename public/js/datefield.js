@@ -41,12 +41,24 @@ export function timeFieldHtml(attrs, value, { hidden = false, disabled = false }
 export const dateBad = el => !!el && 'date' in el.dataset && parseDay(el.value) === null;
 export const dateValue = el => !el ? '' : 'date' in el.dataset ? (parseDay(el.value) ?? el.dataset.date) : el.value;
 
+/* What is wrong with a date field, said under it (where its other notes go) until it is right; a note about the day it
+   held (e.g. the warranty ends soon) is hidden meanwhile, as it is about a day no longer there. */
+function sayBad(el, msg){
+  const row = /** @type {HTMLElement} */ (el.closest('.form > *') || el.closest('.datefield') || el);
+  let n = row.nextElementSibling && row.nextElementSibling.nextElementSibling && row.nextElementSibling.nextElementSibling.classList.contains('df-err') ? /** @type {HTMLElement} */ (row.nextElementSibling.nextElementSibling) : null;
+  const other = !n && row.nextElementSibling && row.nextElementSibling.nextElementSibling && row.nextElementSibling.nextElementSibling.matches('p.fieldnote') ? /** @type {HTMLElement} */ (row.nextElementSibling.nextElementSibling) : null;
+  if (!msg){ if (n){ n.previousElementSibling.remove(); n.remove(); } row.parentElement && row.parentElement.querySelectorAll('.df-hidden').forEach(x => { x.classList.remove('df-hidden'); /** @type {HTMLElement} */ (x).hidden = false; }); el.removeAttribute('aria-describedby'); return; }
+  if (other) for (const x of [other, other.previousElementSibling]) if (x){ /** @type {HTMLElement} */ (x).hidden = true; x.classList.add('df-hidden'); }
+  if (!n){ n = document.createElement('p'); n.className = 'fieldnote bad df-err'; n.setAttribute('role', 'alert'); n.id = (el.id || 'df' + Math.random().toString(36).slice(2)) + '_bad'; row.after(document.createElement('span'), n); }
+  n.textContent = msg; el.setAttribute('aria-describedby', n.id);
+}
 /* Typed text is checked when the field is left: a day it can read is written as 31.12.2026, anything else is marked
    and kept out (the field's value stays the last good day). Runs before the page's own change handlers. */
 function settle(el){
   const iso = parseDay(el.value);
   el.classList.toggle('bad', iso === null);
   el.setCustomValidity(iso === null ? 'Write the day as dd.mm.yyyy' : '');
+  sayBad(el, iso === null ? `${el.value.trim()} is not a day: write it as dd.mm.yyyy, e.g. 31.12.2027.` : '');
   if (iso === null){ toast(`${el.value.trim()} is not a day: write it as dd.mm.yyyy`, 'err'); return false; }
   el.dataset.date = iso; el.value = dayShown(iso);
   const nat = el.parentElement && el.parentElement.querySelector('.df-native'); if (nat) nat.value = iso;

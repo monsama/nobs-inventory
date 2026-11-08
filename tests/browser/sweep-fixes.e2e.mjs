@@ -77,6 +77,12 @@ try {
   await storedBy(() => obj('v1'), o => o.status === 'stock' && !o.uid);
   await p.click('#toast .t-undo');
   await storedBy(() => obj('v1'), o => o.status === 'active' && o.uid === meId);
+  // a day that is not one is said under its field, and goes when it is right
+  await p.fill('#view [data-k=warranty]', '2027-13-45'); await p.press('#view [data-k=warranty]', 'Tab');
+  await p.waitForSelector('#view .df-err:has-text("is not a day")');
+  await p.fill('#view [data-k=warranty]', '31.12.2027'); await p.press('#view [data-k=warranty]', 'Tab');
+  await until(p, () => !document.querySelector('#view .df-err'));
+  await storedBy(() => obj('v1'), o => o.warranty === '2027-12-31');
   // Retired picked in the Status field opens the Retire dialog; the field keeps the status until then
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('r1'));
   await p.waitForSelector('#f_r1_status');

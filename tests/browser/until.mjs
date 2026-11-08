@@ -42,5 +42,6 @@ export async function openSetTab(p, tab) {
   if (tab === 'about') return p.click('#setAboutBtn');
   const group = { users: 'users', access: 'users', company: 'users', sources: 'sources', feed: 'sources', directory: 'sources', entra: 'sources', maintenance: 'maintenance', backups: 'maintenance', mail: 'maintenance', log: 'maintenance', vlans: 'vlans', subnets: 'vlans', domains: 'vlans' }[tab];
   if (group) await p.click(`#setTabs [data-sg=${group}]`);
-  if (!group || tab !== group) await p.click(`#setTabs [data-st=${tab}]`);
+  /* The sub-tab too, even when it is the group's own: a group may open on another one (Data sources with none set up). */
+  if (!group || tab !== group || group === 'sources') await p.click(`#setTabs [data-st=${tab}]`);
 }
