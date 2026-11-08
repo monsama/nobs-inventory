@@ -79,6 +79,14 @@ try {
   await p.click('#grList [data-intune="missing"]');
   assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['c', 'e']);
   await p.click('#grList [data-intune="missing"]');
+  // in Entra but not enrolled in Intune yet: always listed, here none until one is
+  assert.equal(await count('nointune'), '0');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('a').graph.managed = ''; (await import('/js/02-views.js')).renderSide(); });
+  assert.equal(await count('nointune'), '1');
+  await p.click('#grList [data-intune="nointune"]');
+  assert.deepEqual(await p.evaluate(async () => (await import('/js/01-core.js')).filtered().map(o => o.id)), ['a']);
+  await p.click('#grList [data-intune="nointune"]');
+  await p.evaluate(async () => { const c = await import('/js/01-core.js'); c.byId('a').graph.managed = 'mdm'; (await import('/js/02-views.js')).renderSide(); });
   // how each device is joined: Entra, hybrid (Graph's ServerAd, once called Domain joined), AD only (from the LDAP sync)
   assert.deepEqual([await count('entra'), await count('hybrid'), await count('adonly')], ['2', '1', '1'], 'a device gone from Entra is not Entra joined');
   // duplicates in Entra, a device gone from it, and a record that fits two devices here, on the device

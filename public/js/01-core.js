@@ -315,6 +315,8 @@ export const GRAPH_FILTERS = {
   secureboot: ['Secure Boot off', 'warn', o => inGraph(o) && o.graph.secureBoot === 'off', true],
   stale: [`No contact for ${GRAPH_STALE_DAYS} days`, 'warn', o => inGraph(o) && graphStale(o)],
   missing: ['Not in Entra or Intune', 'off', o => (!o.graph || !!o.graph.gone) && GRAPH_TYPES.includes(o.type) && o.status !== 'retired'],
+  /* In Entra already, but not enrolled in Intune yet: of the types expected there. */
+  nointune: ['Not in Intune', 'off', o => inGraph(o) && GRAPH_TYPES.includes(o.type) && !isIntune(o.graph.managed)],
   /* Records disabled in Entra are not duplicates to clean up: Entra keeps them switched off before they are deleted. */
   duplicates: ['Duplicates in Entra', 'warn', o => inGraph(o) && (o.graph.others || []).some(x => !x.disabled), true],
   ambiguous: ['Name or serial used twice', 'warn', o => o.status !== 'retired' && !!graphAmbiguousOf(o), true],
