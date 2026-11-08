@@ -1,4 +1,4 @@
-import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
@@ -130,7 +130,7 @@ export function newObjModal(pre={}){
     const upId = $('#nUp').value;
     if (upId && !$('#nPort').hidden && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();
-      const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
+      const val = portValue(t, pp);
       /* As in Link…: a numbered port must be one the device has, or it would be counted but never shown. */
       if (portRangeError(t, val)){ portNote('nPort', portRangeError(t, val)); return; }
       /* A port held only by retired devices counts as free: it is taken over when the device is made (below), not before,
@@ -157,15 +157,16 @@ export function newObjModal(pre={}){
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who() + (o.uid ? `, for ${o.user}` : ''));
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
-    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (p && t.type === 'patch') p = patchPort(p); else if (/^\d+$/.test(p) && hasPorts(t)) p = +p;
+    if (up){ const t = byId(up); let p = portValue(t, $('#nPort').value);
       if (p) releaseRetiredPort(t, p);
       const link = LINK_OF(o.type) || {kind: 'connected', port: true};
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind, port: link.port ? p || null : null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && (o[k] === undefined || ['ports','sfp','pfx'].includes(k))) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
-      /* A LAG belongs to one device, so a LAG link is not copied; a single port is not copied to a port that is taken. */
-      rels.filter(r => r.from === c.id && r.lag == null && r.fromLag == null).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: (hasPorts(byId(r.to)) || byId(r.to).type === 'patch') ? null : r.port}));
+      /* A LAG belongs to one device, so a LAG link is not copied; a single port is not copied to a port that is taken. A
+         patch cord is not copied: it starts on a port of the panel copied, and the new panel's ports are all free. */
+      rels.filter(r => r.from === c.id && r.lag == null && r.fromLag == null && r.kind !== 'patched').forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: (hasPorts(byId(r.to)) || byId(r.to).type === 'patch') ? null : r.port}));
       if (c.rack && rackOf(c.rack) && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){
@@ -230,7 +231,7 @@ export function linkObjModal(pre = {}){
     const e = byId($('#lkObj').value), link = linkOf(e), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
     if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
-    const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
+    const val = pp ? portValue(t, pp) : null;
     if (portRangeError(t, val)){ portNote('lkPort', portRangeError(t, val)); return; }
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }

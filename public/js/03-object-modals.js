@@ -13,7 +13,7 @@ import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
 import { dayText, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
+import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
 import { RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
@@ -25,7 +25,8 @@ import { bindHistory, historyPanel, refreshHistory } from './28-restore.js';
 import { timelinePanel, bindTimeline } from './29-timeline.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets, bindPatchPanel, patchPanel } from './24-patch.js';
-import { findOutlet, outletLabel, outletOf, panelPortNo } from './cabling.js';
+import { cordTarget, findOutlet, outletLabel, outletOf, panelPortNo } from './cabling.js';
+import { portSetupError } from './views-ports.js';
 /* The device page: its fields, the panels beside them (links, maintenance, photos, software, responsibles, contracts,
    relations, path to the network, history, timeline), and retiring or deleting a device. */
 /* ---------- object page ---------- */
@@ -422,7 +423,7 @@ export function renderObj(o){
       hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" (LAG ${lagTo}) added by ${who()}`);
       toast('LAG link added'); render(); return;
     }
-    let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && hasPorts(to)) port = +port;
+    let port = portValue(to, $('#arPort').value);
     const inLag = (to.portGroups || []).find(g => g.lag && typeof port === 'number' && port >= g.from && port <= g.to);
     if (inLag){ toast(`Port ${port} is part of the LAG ${inLag.name}. Choose the LAG instead.`); return; }
     if (portRangeError(to, port)){ toast(portRangeError(to, port)); return; }
@@ -440,13 +441,15 @@ export function renderObj(o){
   $('#view').querySelectorAll('[data-delrel]').forEach(b => b.onclick = () => { const i = rels.findIndex(r => r.id === b.dataset.delrel); rels.splice(i, 1); toast('Relation removed'); render(); });
   $('#view').querySelectorAll('[data-rport]').forEach(i => i.onchange = () => {
     const r = rels.find(x => x.id === i.dataset.rport); if (!r) return;
-    const to = byId(r.to); let p = i.value.trim();
-    if (!p){ toast('A connection to this device needs a port.'); render(); return; }
-    if (hasPorts(to) && /^\d+$/.test(p)) p = +p;
-    if (to.type === 'patch') p = patchPort(p);
-    if (hasPorts(to) && typeof p === 'number' && to.ports && p > to.ports){ toast(`${p} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); render(); return; }
+    const to = byId(r.to);
+    if (!i.value.trim()){ toast('A connection to this device needs a port.'); render(); return; }
+    const p = portValue(to, i.value);
+    /* The same checks as adding the relation: a port the device has, not inside a LAG, and free. */
+    if (portRangeError(to, p)){ toast(portRangeError(to, p)); render(); return; }
+    const inLag = (to.portGroups || []).find(g => g.lag && typeof p === 'number' && p >= g.from && p <= g.to);
+    if (inLag){ toast(`Port ${p} is part of the LAG ${inLag.name}. Link the LAG instead.`); render(); return; }
+    if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p) && !(byId(x.from) && byId(x.from).status === 'retired'))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
     releaseRetiredPort(to, p);
-    if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
     r.port = p;
     hist(byId(r.from), now(), `Port on ${to.name} set to ${p} by ${who()}`);
     toast('Port set'); render();
@@ -512,9 +515,21 @@ export function renderObj(o){
     const typeEl = $('#view').querySelector('[data-k="type"]');
     if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return false; }
     const pEl = $('#view').querySelector('[data-k="ports"]'), sEl = $('#view').querySelector('[data-k="sfp"]');
-    if (pEl && sEl){
-      const total = (+pEl.value || 0) + (+sEl.value || 0);
-      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
+    /* As in the Ports tab: connections and port groups (LAGs) above the new count block it. */
+    if (pEl && sEl && hasPorts(o)){
+      const err = portSetupError(o, +pEl.value || 0, +sEl.value || 0);
+      if (err){ toast(err); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
+    }
+    /* A new type must fit the cabling: outlets and cords start on a patch panel, cords end on a switch, router or firewall
+       port, and ports numbered on one kind of device mean nothing on the other (P05 on a panel, 5 on a switch). */
+    if (typeEl && typeEl.value !== o.type){
+      const nt = {...o, type: typeEl.value};
+      const panelNow = o.type === 'patch', panelNext = nt.type === 'patch';
+      const why = panelNow && !panelNext && (Object.keys(o.outlets || {}).length || rels.some(r => r.from === o.id && r.kind === 'patched')) ? 'its wall outlets and patch cords'
+        : rels.some(r => r.to === o.id && r.kind === 'patched') && !cordTarget(nt) ? 'the patch cords that end on it'
+        : panelNow !== panelNext && rels.some(r => r.to === o.id && r.port != null && r.kind !== 'patched') ? 'the devices plugged into its ports'
+        : '';
+      if (why){ toast(`${o.name} cannot become a ${(TYPES[nt.type] || {}).label || nt.type} with ${why}. Remove them first.`); typeEl.value = o.type; return false; }
     }
     /* Retired picked in the Status field: the Retire dialog decides, as from More → Retire (the user, ports, plan and
        contracts it frees, and Undo). The field shows the status as it is until then. */

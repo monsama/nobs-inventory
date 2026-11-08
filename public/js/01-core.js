@@ -81,11 +81,31 @@ export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.typ
 /* Why a numbered port cannot be used on a device with ports: it has none set up yet, or the number is not one of them.
    '' when it can. Nothing is plugged into a port before the port exists. */
 export const portRangeError = (t, p) => {
-  if (!hasPorts(t) || typeof p !== 'number') return '';
+  /* A patch panel's ports are P01 up to its port count (24 when none is set), as its table draws them. */
+  if (t && t.type === 'patch'){
+    if (p == null || p === '') return '';
+    const m = /^P(\d+)$/.exec(String(p)), n = t.ports || 24;
+    return m && +m[1] >= 1 && +m[1] <= n ? '' : `${t.name} has ports P01 to P${String(n).padStart(2, '0')}.`;
+  }
+  if (!hasPorts(t) || p == null || p === '') return '';
   const n = (t.ports || 0) + (t.sfp || 0);
   if (!n) return `${t.name} has no ports yet. Set its port count first (Ports, or its details).`;
-  return Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
+  /* A device with ports counts them by number: a name that is not one would be a port of its own, never shown. */
+  return typeof p === 'number' && Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
 };
+/* A port as typed, as it is stored: on a device with ports its number, also when typed as its label (1/5 for port 5
+   with the naming 1/); on a patch panel P01; text on anything else. */
+export const portValue = (t, raw) => {
+  const s = String(raw ?? '').trim();
+  if (!s || !t) return s;
+  if (t.type === 'patch') return patchPortOf(s);
+  if (hasPorts(t)){
+    const pf = String(t.pfx ?? '').toLowerCase(), body = pf && s.toLowerCase().startsWith(pf) ? s.slice(pf.length) : s;
+    if (/^\d+$/.test(body)) return +body;
+  }
+  return s;
+};
+const patchPortOf = v => { const m = /^p?(\d+)$/i.exec(v); return m ? 'P' + m[1].padStart(2, '0') : v.toUpperCase(); };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept

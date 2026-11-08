@@ -26,7 +26,17 @@ export * from './signin.js';
 const NO_SIDE = ['mine', 'overview', 'contracts', 'contacts', 'stocktake', 'sw'];
 let lastSbw = -1;
 /* save: false only redraws, without looking for unsaved changes. The tab picks the view; any other tab is a device. */
-export function render({ save = true } = {}){
+/* A redraw asked for while one runs (a field left as the page is drawn again fires its own save and redraw) waits for it
+   to end: drawing into the page while it is being replaced fails, and the second redraw would show nothing new. */
+let drawing = false, drawAgain = null;
+export function render(opts = {}){
+  if (drawing){ drawAgain = { save: (drawAgain ? drawAgain.save : false) || opts.save !== false }; return; }
+  drawing = true;
+  try { renderNow(opts); }
+  finally { drawing = false; }
+  if (drawAgain){ const again = drawAgain; drawAgain = null; render(again); }
+}
+function renderNow({ save = true } = {}){
   /* To review is no view of its own: it shows the waiting devices in Cards (or the Table) instead of the inventory. */
   /* A view this person does not get (My devices, or the others for someone who sees only their own devices). */
   if (!tabAllowed(st.tab)) st.tab = ownOnly() ? 'mine' : 'cards';
