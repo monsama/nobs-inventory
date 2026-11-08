@@ -73,13 +73,14 @@ export function queueServerSave(){
   clearTimeout(SERVER.timer);
   SERVER.timer = setTimeout(sendChanges, 400);
 }
-/* Changes are sent in batches of about BATCH.bytes, so a large edit is not refused as too big. Each batch is saved on its own. */
-export const BATCH = { bytes: 2000000 };
-function batches(puts, dels){
+/* Changes are sent in batches of about BATCH.bytes and at most BATCH.items (the server takes 5000 at once), so a large
+   edit is not refused as too big. Each batch is saved on its own. */
+export const BATCH = { bytes: 2000000, items: 4000 };
+export function batches(puts, dels){
   const out = []; let cur = {puts: [], dels: []}, size = 0;
   const add = (kind, c) => {
     const n = (c.json || '').length + String(c.id || '').length + 100;
-    if (size + n > BATCH.bytes && (cur.puts.length || cur.dels.length)){ out.push(cur); cur = {puts: [], dels: []}; size = 0; }
+    if ((size + n > BATCH.bytes || cur.puts.length + cur.dels.length >= BATCH.items) && (cur.puts.length || cur.dels.length)){ out.push(cur); cur = {puts: [], dels: []}; size = 0; }
     cur[kind].push(c); size += n;
   };
   puts.forEach(c => add('puts', c)); dels.forEach(c => add('dels', c));
@@ -218,9 +219,14 @@ async function clearAll(){
   /* A backup first, kept until someone deletes it: without one nothing is cleared. */
   const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});
   if (!bk.ok){ toast('Not cleared: the backup before it could not be taken.'); return; }
-  const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({puts, dels})});
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok){ toast('Not cleared: ' + (j.error || res.status)); return; }
+  /* In batches, as a large inventory has more records than the server takes at once. */
+  const j = { conflicts: [] };
+  for (const b of batches(puts, dels)){
+    const res = await fetch('api/changes', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(b)});
+    const r1 = await res.json().catch(() => ({}));
+    if (!res.ok){ toast('Not cleared: ' + (r1.error || res.status)); await reloadFromServer(); return; }
+    j.conflicts.push(...(r1.conflicts || []));
+  }
   /* The connections go after the devices, so the save above cannot write their settings back. */
   let connMsg = '';
   if ($('#clrConn') && $('#clrConn').checked){

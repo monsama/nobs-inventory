@@ -19,7 +19,7 @@ saveState(db, { ...loadState(db), useLansweeper: false, sites: ['Bern', 'Zürich
     { id: 'a', code: 'INV-0001', type: 'notebook', name: 'NB-A', serial: 'SA1', status: 'active', loc: 'Bern / EG', feed: null },
     { id: 'b', code: 'INV-0002', type: 'pc', name: 'PC-B', serial: 'SB2', status: 'active', loc: 'Bern / 1. OG', feed: null },
     { id: 'c', code: 'INV-0003', type: 'monitor', name: 'MON-C', serial: 'SC3', status: 'stock', loc: 'Bern / EG', feed: null },
-    { id: 'z', code: 'INV-0009', type: 'pc', name: 'PC-Z', serial: 'SZ9', status: 'active', loc: 'Zürich / Lager', feed: null },
+    { id: 'z', code: 'INV-0009', type: 'pc', name: 'PC-Z', serial: 'SZ9', status: 'active', loc: 'Zürich / Lager', src: { loc: 'ad' }, feed: null },
     { id: 'r', code: 'INV-0010', type: 'pc', name: 'PC-OLD', serial: 'SR0', status: 'retired', loc: 'Bern / EG', feed: null },
   ] });
 const server = await new Promise(r => { const x = createApp({ db }).listen(0, '127.0.0.1', () => r(x)); });
@@ -59,6 +59,8 @@ try {
   await p.fill('#stkScan', 'XYZ-404'); await p.press('#stkScan', 'Enter');
   await p.waitForFunction(() => /not in the inventory/.test(document.querySelector('#stkLast').textContent));
   await wait(() => obj('z').loc === 'Bern / EG' && obj('z').verified && obj('z').verified.from === 'Zürich / Lager' && obj('b').verified && obj('a').verified.by === 'Administrator');
+  // moved by hand: AD, which filled its room before, does not put the old one back at its next sync
+  assert.equal(obj('z').src.loc, 'hand', 'a room moved in the inventory check is still AD\'s');
   assert.match(await p.textContent('.stk-prog'), /3 of 4\s*1 moved here\s*1 not in the inventory/);
   assert.equal(await p.locator('.stk-row').count(), 1, 'only the open one is listed');
   // unticked: taken back

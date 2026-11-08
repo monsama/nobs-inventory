@@ -371,3 +371,8 @@ test('last seen: a Graph date is named for the source it comes from', async () =
   assert.deepEqual(graphSeen({ gone: true, managed: 'Intune', lastCheckIn: '2026-11-02T09:00:00Z' }), []);
   assert.deepEqual(graphSeen(null), []);
 });
+
+test('a placeholder serial from Intune is dropped, so it does not tie devices together', () => {
+  const recs = toRecords([], [{ id: 'm1', deviceName: 'PC-A', serialNumber: 'To be filled by O.E.M.', managementAgent: 'mdm' }, { id: 'm2', deviceName: 'PC-B', serialNumber: 'Default string', managementAgent: 'mdm' }, { id: 'm3', deviceName: 'PC-C', serialNumber: 'CZC1234', managementAgent: 'mdm' }]);
+  assert.deepEqual(recs.map(r => r.serial), ['', '', 'CZC1234']);
+});

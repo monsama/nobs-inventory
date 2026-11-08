@@ -806,3 +806,15 @@ test('people deactivated before their leaving was recorded get today, marked as 
   assert.equal(s.users[2].leftAt, '2026-01-01T00:00:00Z'); assert.equal(s.users[2].leftBy, undefined);
   assert.equal(migrateState(s), false, 'once');
 });
+
+test('a push that only brings a newer scan day is saved (counts.scans)', async () => {
+  const { mergeRecords, recordsFromJson, feedChanged } = await import('../server/feed.js');
+  const s = { objs: [], rels: [], policy: {}, feedOn: true, locs: [], seq: 100, codeN: 0, rseq: 0 };
+  mergeRecords(s, recordsFromJson([{ name: 'PC-1', serial: 'S1', assetType: 'Windows', ref: 'p1', scanned: '2026-05-01' }]));
+  const again = mergeRecords(s, recordsFromJson([{ name: 'PC-1', serial: 'S1', assetType: 'Windows', ref: 'p1', scanned: '2026-05-01' }]));
+  assert.equal(feedChanged(again), false, 'the same push again changes nothing');
+  const newer = mergeRecords(s, recordsFromJson([{ name: 'PC-1', serial: 'S1', assetType: 'Windows', ref: 'p1', scanned: '2026-11-07' }]));
+  assert.equal(newer.scans, 1);
+  assert.equal(feedChanged(newer), true, 'a newer scan day is not saved');
+  assert.equal(s.objs[0].feed.scanned, '2026-11-07');
+});

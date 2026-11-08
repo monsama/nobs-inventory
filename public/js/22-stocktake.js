@@ -2,7 +2,7 @@
    typing) a serial number, code or name. A device found in another place can be moved here; something not in the
    inventory is noted. Finish says what is missing and keeps the result, with a PDF and an Excel list. A confirmed
    device shows on its page when and by whom it was last seen on site; one can also be confirmed there on its own. */
-import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, st, tico, toast, toastUndo } from './01-core.js';
+import { evEl, $$, $, LOCS, SITES, TYPES, hist, now, objs, setByHand, st, tico, toast, toastUndo } from './01-core.js';
 import { USERS, isAdmin, who } from './04-settings.js';
 import { resetFilters } from './02-views.js';
 import { closeModal, modal } from './19-modal.js';
@@ -26,7 +26,7 @@ function confirm(o, t, from){
 }
 function unconfirm(o){
   if (!o.verified) return;
-  if (o.verified.from !== undefined) { o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
+  if (o.verified.from !== undefined) { setByHand(o, 'loc', o.verified.from); o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
   o.verified = o.verified.prev ? { ...o.verified.prev } : undefined;
   if (!o.verified) delete o.verified;
 }
@@ -147,7 +147,8 @@ function found(t, v){
   $('#stmKeep').onclick = () => { closeModal(); confirm(o, t); queueServerSave(); say(html`✓ <b>${o.name}</b> confirmed, left in ${o.loc || 'no location'}.`, 'ok'); };
   const mv = $('#stmMove'); if (mv) mv.onclick = () => {
     const to = $('#stmTo').value, from = o.loc || '';
-    closeModal(); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
+    /* As an edit by hand (setByHand), so the next sync does not put back the room its source had. */
+    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
     say(html`✓ <b>${o.name}</b> moved to ${to} and confirmed.`, 'ok');
   };
 }

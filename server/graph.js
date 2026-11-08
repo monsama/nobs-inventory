@@ -11,6 +11,7 @@ import { stamp, typeFor, modelFor } from './feed.js';
 import { checkAddress } from './validate.js';
 import { fillField, officeLocations, profileFields, noteValue, pickOf } from './fill.js';
 import { managedBy } from '../public/js/intune.js';
+import { isPlaceholderSerial } from '../public/js/serials.js';
 import { loginCore, mergeSamePeople } from '../public/js/people-match.js';
 /* A Graph request that hangs gives up after a minute, so it does not hold up the other syncs and the sheet clean-up. */
 const GRAPH_TIMEOUT_MS = 60000;
@@ -164,7 +165,9 @@ export function toRecords(devices, managed) {
     seen.add(m.azureADDeviceId);
     return {
       /* Intune only when its agent says so: the list also holds devices Defender or Configuration Manager alone knows. */
-      graphId: m.id, aadId: m.azureADDeviceId, entraId: clean(d.id), intuneId: clean(m.id), intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName), serial: clean(m.serialNumber),
+      graphId: m.id, aadId: m.azureADDeviceId, entraId: clean(d.id), intuneId: clean(m.id), intune: managedBy(m.managementAgent) === 'Intune', name: clean(m.deviceName || d.displayName),
+      /* A placeholder serial ("To be filled by O.E.M.") names no device: kept, it would tie unrelated devices together. */
+      serial: isPlaceholderSerial(clean(m.serialNumber)) ? '' : clean(m.serialNumber),
       join: JOIN[d.trustType] || clean(d.trustType), managed: managedBy(m.managementAgent), ...(d.accountEnabled === false ? { disabled: true } : {}),
       enrolled: clean(m.enrolledDateTime), lastSync: clean(m.lastSyncDateTime || d.approximateLastSignInDateTime),
       compliance: clean(m.complianceState), encrypted: m.isEncrypted === true ? 'yes' : m.isEncrypted === false ? 'no' : '',

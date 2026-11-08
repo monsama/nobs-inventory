@@ -268,7 +268,8 @@ export function typeFor(s, name, model, role, devName = '', chassis = '') {
 }
 
 /* A feed run that created, updated, linked or added something. A run that changes nothing saves nothing and takes no backup. */
-export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'people', 'networks'].some(k => counts[k] > 0);
+/* scans: a newer scan day, or a dock's links seen again (they are kept for DOCK_LINKS_DAYS from then): saved too. */
+export const feedChanged = counts => ['created', 'updated', 'linked', 'links', 'software', 'people', 'networks', 'scans'].some(k => counts[k] > 0);
 
 /* ipLocations: Lansweeper's named address ranges, when the push sent them; the ones kept from the last push otherwise. */
 /* byHand: an export an admin uploaded: its new devices go straight in (IP-only ones still wait), as the person chose the file. */
@@ -340,7 +341,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
        plugged into): those links are the device's. */
     if (found && found.excluded) {
       const t = found.review && found.review.merged && s.objs.find(o => o.id === found.review.merged && o.status !== 'retired' && !o.excluded && !o.detached);
-      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links), linksAt: seen }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); }
+      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links), linksAt: seen }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); counts.scans = (counts.scans || 0) + 1; }
       counts.excluded = (counts.excluded || 0) + 1; continue;
     }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }
@@ -359,7 +360,7 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
         ((s.history ??= {})[into.id] ??= []).unshift({ t: seen, msg: had ? `Lansweeper: docking station ${r.name} has the MAC address ${r.mac}` : `Lansweeper: ${r.name} merged in as a docking station${r.mac ? ` (MAC ${r.mac})` : ''}` });
       }
       const acc = Array.isArray(r.links) && (into.accessories || []).find(a => lc(a.seenAs) === lc(r.name));
-      if (acc) { acc.links = linksOf(r.links); acc.linksAt = seen; pairs.push({ r: { links: r.links }, obj: into, linksOnly: true }); }
+      if (acc) { acc.links = linksOf(r.links); acc.linksAt = seen; pairs.push({ r: { links: r.links }, obj: into, linksOnly: true }); counts.scans = (counts.scans || 0) + 1; }
       counts.merged = (counts.merged || 0) + 1;
       continue;
     }
@@ -405,8 +406,9 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     if (found.feed && r.role) found.feed.role = r.role;
     if (found.feed && r.chassis) found.feed.chassis = r.chassis;
     /* The day Lansweeper last scanned it: a device not scanned for months is flagged for a check by hand. It is not a
-       change of the device, so it does not count as an update. */
-    if (found.feed) Object.assign(found.feed, scanDays(r));
+       change of the device, so it does not count as an update; but it is saved (counts.scans), or a device whose data
+       stays the same would look unscanned after a while. */
+    if (found.feed){ const days = scanDays(r); if (Object.entries(days).some(([k, v]) => found.feed[k] !== v)){ Object.assign(found.feed, days); counts.scans = (counts.scans || 0) + 1; } }
     let changed = false;
     /* A device still filed as Other gets the type the rules now find (new rules, a better model name), unless a person
        chose its type; a device that has a type keeps it (Settings → Feed → Apply to existing devices changes those). */
