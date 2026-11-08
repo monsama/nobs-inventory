@@ -134,6 +134,7 @@ try {
   assert.match(await p.getAttribute(pold, 'class'), /stale/);
   assert.match(await p.textContent(pold), /Old/);
   assert.match(await p.textContent('#rvAcceptAll'), /Accept 1 recently seen/);
+  assert.deepEqual(await p.$$eval('#view .card[data-open]', cs => cs.map(c => c.dataset.open)), ['n20', 'pold'], 'the recently seen one first');
   // the old ones on their own in the sidebar, and Accept all takes them only when ticked
   await p.click('#scopeList [data-rvold]');
   await p.waitForSelector('#view .card[data-open="n20"]', { state: 'detached' });

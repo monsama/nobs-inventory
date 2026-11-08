@@ -18,6 +18,7 @@ import { html, rawHtml } from './html.js';
 /* What the problem filters mean, on hover. */
 const GRAPH_TIPS = {
   missing: 'Devices that Entra and Intune do not have, or no longer have since a sync',
+  nointune: 'Computers and phones that are in Entra but not enrolled in Intune yet (or managed by another tool)',
   duplicates: 'Devices Entra has more than one record of (reinstalled, or hybrid joined and also registered): the old records can be deleted in Entra',
   notjoined: 'Computers and phones that are neither in Entra nor have a computer account in AD',
   secureboot: 'Windows devices whose health attestation in Intune says Secure Boot is off (read when Settings → Entra & Intune turns it on)',

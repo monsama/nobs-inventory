@@ -210,7 +210,7 @@ export function renderPlans(){
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
         ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${esc(editArea.name)}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
-        ${planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan, then Done. Esc discards them.</span>` : ''}
+        ${planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">${!planEditArea && mergeTarget(plan, planParts) ? `Done: add to ${mergeTarget(plan, planParts).name}` : `Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}`}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan, then Done. Esc discards them.</span>` : ''}
         ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
         <button type="button" id="plSideBtn" class="${sideOpen() ? 'on' : ''}" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">Device list</button>
@@ -236,7 +236,13 @@ export function renderPlans(){
   const sel = $('#plSel'); if (sel) sel.onchange = () => { planSel = sel.value; planPlace = null; planMode = 'view'; planParts = []; planZoom = 1; renderPlans(); };
   on('#plArea', () => { planMode = planMode === 'area' ? 'view' : 'area'; planPlace = null; planParts = []; planEditArea = null; renderPlans(); });
   on('#plAreaAdd', () => { planMode = 'area'; planPlace = null; planParts = []; renderPlans(); });
-  on('#plAreaDone', () => planEditArea ? addPartsToArea(plan) : areaModal(plan, planParts));
+  on('#plAreaDone', () => {
+    if (planEditArea){ addPartsToArea(plan); return; }
+    /* Drawn over one area (not inside it): it grows that area, as rectangles drawn over each other make one shape. */
+    const into = mergeTarget(plan, planParts);
+    if (into){ planEditArea = into.id; addPartsToArea(plan, true); return; }
+    areaModal(plan, planParts);
+  });
   on('#plAreaDiscard', () => { planParts = []; renderPlans(); });
   on('#plReplace', () => planModal(plan));
   on('#plEdit', () => planEditModal(plan));
@@ -404,10 +410,16 @@ function resizeHandles(plan){
 /* While a rectangle of an area is resized or moved: its shape, name tag, and the handles, grip and × of rectangle i drawn
    from the rectangles as they are now. */
 function previewRects(c, area, rects, i){
-  const box = boxOf(rects), r = rects[i];
+  const r = rects[i];
   const svg = c.querySelector(`svg[data-area-drag="${area.id}"]`);
   if (svg){ const t = document.createElement('template'); t.innerHTML = areaShape(rects, svg.getAttribute('class').replace(/^pl-area/, ''), String(html`data-area-drag="${area.id}"`)); svg.replaceWith(t.content.firstElementChild); }
-  const tag = /** @type {HTMLElement|null} */ (c.querySelector(`[data-area-tag="${area.id}"]`)); if (tag){ tag.style.left = box.x + '%'; tag.style.top = box.y + '%'; }
+  /* The name tags again, one on each part as the rectangles are now; the count and × of the area kept as they were. */
+  const tags = [...c.querySelectorAll(`[data-area-tag="${area.id}"]`)], main = tags.find(t => !t.classList.contains('pl-area-more'));
+  if (main){
+    const t = document.createElement('template');
+    t.innerHTML = areaTag({...area, rects}, !!main.querySelector('.pl-x'), +(main.querySelector('.pl-acount')?.textContent || 0));
+    main.after(t.content); tags.forEach(x => x.remove());
+  }
   c.querySelectorAll(`[data-rh^="${i}:"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h), p = handleAt(r, el.dataset.rh.split(':')[1]); el.style.left = p.x + '%'; el.style.top = p.y + '%'; });
   c.querySelectorAll(`[data-rm="${i}"],[data-rx="${i}"]`).forEach(h => { const el = /** @type {HTMLElement} */ (h); el.style.left = r.x + r.w + '%'; el.style.top = r.y + '%'; });
 }
@@ -450,10 +462,21 @@ export function areaShape(rects, cls = '', attrs = ''){
   }
   return String(html`<svg class="pl-area${cls}" ${rawHtml(attrs)} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="pl-area-fill" d="${fill}"/><path class="pl-area-edge" d="${edge}"/></svg>`);
 }
-/* The name of an area and its ×, placed at the top left of the area. */
+/* The rectangles of an area in the parts they make: rectangles that touch or overlap are one part, one apart from the
+   others (a store room in two places) is a part of its own. Returns the index of the rectangle at the top left of each
+   part, the area's first rectangle first. */
+export function areaPartCorners(rects){
+  const near = (a, b) => a.x <= b.x + b.w + 0.05 && b.x <= a.x + a.w + 0.05 && a.y <= b.y + b.h + 0.05 && b.y <= a.y + a.h + 0.05;
+  const part = rects.map((_, i) => i), top = i => part[i] === i ? i : (part[i] = top(part[i]));
+  rects.forEach((a, i) => rects.forEach((b, j) => { if (j > i && near(a, b)) part[top(j)] = top(i); }));
+  const groups = new Map();
+  rects.forEach((_, i) => { const g = top(i); groups.set(g, [...(groups.get(g) || []), i]); });
+  return [...groups.values()].map(list => list.includes(0) ? 0 : list.reduce((b, i) => rects[i].y < rects[b].y || (rects[i].y === rects[b].y && rects[i].x < rects[b].x) ? i : b));
+}
+/* The name of an area and its ×, placed at the top left of the area; on every further part of it, the name again. */
 export function areaTag(a, removable, count = 0){
-  const r = areaRects(a)[0];
-  return String(html`<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
+  const rects = areaRects(a), [first, ...more] = areaPartCorners(rects), r = rects[first];
+  return String(html`${more.map(i => html`<div class="pl-area-tag pl-area-more ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${rects[i].x}%;top:${rects[i].y}%" aria-hidden="true"><span>${a.name}</span></div>`)}<div class="pl-area-tag ac-${areaColor(a)}" data-area-tag="${a.id}" style="left:${r.x}%;top:${r.y}%"><span>${a.name}</span>${count ? html`<span class="pl-acount" title="${count} ${count === 1 ? 'device' : 'devices'} in this area">${count}</span>` : ''}${removable ? html`<button class="pl-x" data-area="${a.id}" aria-label="Remove area ${a.name}" title="Remove area">×</button>` : ''}</div>`);
 }
 /* The devices that go with a pin, in its card: "In this rack" for a rack, "Attached" for anything else. */
 function ridersHtml(o){
@@ -786,14 +809,29 @@ function printPlan(plan){
   if (img && !img.complete){ img.onload = go; img.onerror = go; } else setTimeout(go, 300);
 }
 /* Adds the rectangles drawn to the area that was clicked, and widens its box to take them. */
-export function addPartsToArea(plan){
+/* How much two rectangles overlap (in square percent of the plan); flush ones, sharing an edge, do not. */
+const overlapOf = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+const within = (r, q) => r.x >= q.x - 0.05 && r.y >= q.y - 0.05 && r.x + r.w <= q.x + q.w + 0.05 && r.y + r.h <= q.y + q.h + 0.05;
+/* The areas the rectangles drawn overlap. Drawn wholly inside an area it is a new area of its own (a corner of an office). */
+export const overlappedAreas = (plan, drawn) => drawn.some(r => (plan.areas || []).some(a => areaRects(a).some(q => within(r, q)))) ? []
+  : (plan.areas || []).filter(a => areaRects(a).some(q => drawn.some(r => overlapOf(q, r) > 0.01)));
+/* The one area that drawing over it grows: none when it overlaps none or several, or when some of the rectangles drawn
+   lie apart from it (they would be a part of their own): then the dialog asks. */
+const mergeTarget = (plan, drawn) => {
+  const o = overlappedAreas(plan, drawn); if (o.length !== 1) return null;
+  const own = areaRects(o[0]);
+  return areaPartCorners([...own, ...drawn]).length === areaPartCorners(own).length ? o[0] : null;
+};
+export function addPartsToArea(plan, merged = false){
   const area = (plan.areas || []).find(a => a.id === planEditArea), drawn = planParts;
   planParts = []; planEditArea = null; planMode = 'view';
   if (!area){ renderPlans(); return; }
+  const before = areaGeom(area);
   const rects = [...areaRects(area), ...drawn].map(q => ({x: round1(q.x), y: round1(q.y), w: round1(q.w), h: round1(q.h)}));
   const box = boxOf(rects);
   Object.assign(area, {rects, x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)});
-  queueServerSave(); toast('Area changed'); renderPlans();
+  queueServerSave(); renderPlans();
+  toastUndo(merged ? `Drawn over ${area.name}: added to it` : `Added to ${area.name}`, () => { setAreaGeom(area, before); queueServerSave(); renderPlans(); });
 }
 /* Asks before removing an area from the plan. Devices placed inside it lose their place on the plan; their locations
    and history stay. */
@@ -815,12 +853,20 @@ export function areaRemoveModal(plan, area){
 export function areaModal(plan, rects){
   /* The rooms that already exist on this plan's site. */
   const rooms = LOCS.filter(l => siteOf(l) === plan.site && l.includes(' / '));
-  modal(html`<div class="mh">New area</div><div class="mb"><div class="form" style="padding:0">
+  /* The rectangles can also go to an area already on the plan (an L-shaped room drawn in two goes, or a part apart).
+     Drawn over several areas, the first of them is offered; flush against one, or inside one, it is a new area. */
+  const areas = plan.areas || [], box0 = boxOf(rects);
+  const outer = areaAt(plan, box0.x + box0.w / 2, box0.y + box0.h / 2), outerRoom = outer && areaLocName(plan, outer);
+  const touching = overlappedAreas(plan, rects);
+  modal(html`<div class="mh" id="arHead">New area</div><div class="mb"><div class="form" style="padding:0">
+      ${areas.length ? html`<label for="arTo">Add to</label><select id="arTo"><option value="">A new area</option>${areas.map(a => html`<option value="${a.id}">${a.name}</option>`)}</select>` : ''}
+      <div id="arNewFields" style="display:contents">
       <label for="arName">Name</label><input id="arName" placeholder="e.g. Open office, Server room" maxlength="60">
       <label for="arRoom">Room</label><select id="arRoom" aria-label="Room of this area"><option value="" id="arNew">A new room, named like the area</option>${rooms.map(l => html`<option value="${l}">${l.split(' / ').slice(1).join(' / ')}</option>`)}</select>
       ${colorPicker('blue')}
+      </div>
     </div>
-    <p class="note">An area is a named place on this plan. Devices placed inside it are in its room. <span id="arRoomNote">Choose a room that already exists, or a new one is added to the locations.</span></p></div>
+    <p class="note" id="arNote">An area is a named place on this plan. Devices placed inside it are in its room. <span id="arRoomNote">Choose a room that already exists, or a new one is added to the locations.</span></p></div>
     <div class="mf"><button id="arCancel">Cancel</button><button id="arOk" class="primary">Add area</button></div>`, 'sm');
   $('#arCancel').onclick = () => { closeModal(); renderPlans(); };
   /* Picking an existing room names the area after it, unless a name is typed. */
@@ -836,14 +882,24 @@ export function areaModal(plan, rects){
   let picked = false;   /* a room picked in the list is kept, whatever name is typed */
   /* Drawn inside an area that has a room (a corner of an office): that room first, so devices placed in the new area
      stay in the room they are in. */
-  const box0 = boxOf(rects), outer = areaAt(plan, box0.x + box0.w / 2, box0.y + box0.h / 2), outerRoom = outer && areaLocName(plan, outer);
   if (outerRoom && rooms.includes(outerRoom)){ $('#arRoom').value = outerRoom; picked = true; sayRoom(); }
   $('#arRoom').addEventListener('change', () => { picked = !!$('#arRoom').value; });
   $('#arName').oninput = () => {
     if (!picked){ const n = $('#arName').value.trim().toLowerCase(); $('#arRoom').value = rooms.find(l => roomName(l).toLowerCase() === n) || ''; }
     sayRoom();
   };
+  /* Adding to an area: no name, room or colour to give, the area keeps its own. */
+  const to = /** @type {HTMLSelectElement|null} */ ($('#arTo'));
+  const sayTo = () => {
+    const a = to && areas.find(x => x.id === to.value);
+    $('#arNewFields').style.display = a ? 'none' : 'contents';
+    $('#arNote').hidden = !!a;
+    $('#arOk').textContent = a ? `Add to ${a.name}` : 'Add area';
+    $('#arHead').textContent = a ? 'Add to an area' : 'New area';
+  };
+  if (to){ if (touching.length) to.value = touching[0].id; to.onchange = sayTo; sayTo(); }
   $('#arOk').onclick = () => {
+    if (to && to.value && areas.some(a => a.id === to.value)){ planEditArea = to.value; planParts = rects; closeModal(); addPartsToArea(plan); return; }
     const room = $('#arRoom').value || null;
     const name = $('#arName').value.trim() || (room ? room.split(' / ').slice(1).join(' / ') : '');
     if (!name){ toast('Give the area a name.'); return; }
@@ -855,7 +911,7 @@ export function areaModal(plan, rects){
     if (plan.site) areaLoc(plan, area);
     planMode = 'view'; planParts = []; queueServerSave(); closeModal(); toast('Area added'); renderPlans();
   };
-  $('#arName').focus();
+  (to && to.value ? to : $('#arName')).focus();
 }
 export function loadPlanImage(file){
   return new Promise((resolve, reject) => {
