@@ -78,6 +78,10 @@ try {
   await p.click('#handOutBtn'); await p.waitForSelector('#hoQ');
   await p.fill('#hoQ', 'Max Neu'); await p.waitForSelector('[data-honew]');
   await p.press('#hoQ', 'Enter'); await p.press('#hoQ', 'Enter');
+  // it is in the store room and no room is picked: where it goes is asked for once; Hand out again leaves it there
+  await p.waitForSelector('#hoSays .ho-warn');
+  assert.equal(stored('n2').uid, undefined, 'handed out before saying it stays listed in the store room');
+  await p.click('#hoOk');
   await eventually(() => { const st = loadState(db), u = st.users.find(x => x.name === 'Max Neu'); return u && stored('n2').uid === u.id && stored('n2').status === 'active'; });
 
   // from her view: a device from the stock, then everything back

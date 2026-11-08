@@ -147,6 +147,20 @@ export function handOutModal(ids){
     toastUndo(`${list.length === 1 ? list[0].name : `${list.length} devices`} handed out to ${u.name}`, () => { restoreSnapshot(snap, 'Handing out undone'); queueServerSave(); render(); });
     if (sheet) sheetModal(u, null, list.length === 1 ? { only: list[0].id } : {});
   };
+  /* In a store room: "where it is now" would list it there while someone uses it, so where it goes is asked for. */
+  const stores = new Set(Object.values(st.stockRooms || {}));
+  const inStore = list.every(o => o.loc && stores.has(o.loc)) ? list[0].loc : '';
+  if (inStore){ const o0 = $('#hoLoc').options[0]; o0.textContent = `Leave it in the store room (${inStore})`; }
+  let storeOk = false;
+  const ok0 = $('#hoOk').onclick;
+  $('#hoOk').onclick = e => {
+    if (inStore && picked && !locPicked() && !storeOk){
+      storeOk = true; $('#hoLoc').focus();
+      $('#hoSays').innerHTML = String(html`<span class="ho-warn">${list.length === 1 ? 'It is' : 'They are'} in the store room ${inStore}: pick where ${list.length === 1 ? 'it goes' : 'they go'}, or Hand out again to leave ${list.length === 1 ? 'it' : 'them'} listed there.</span>`);
+      return;
+    }
+    ok0.call($('#hoOk'), e);
+  };
   draw(); $('#hoQ').focus();
 }
 

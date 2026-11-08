@@ -1971,3 +1971,4 @@ table.colours td{vertical-align:middle;white-space:normal;overflow:visible}table
 }
 /* "Group by" and its list stay together when the toolbar wraps. */
 .tb-grp{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.ho-warn{color:var(--warntext)}
