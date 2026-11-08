@@ -8,6 +8,7 @@ import { unplace } from './03-object-modals.js';
 import { isAdmin, me } from './04-settings.js';
 import { flushSave, reloadFromServer, render, queueServerSave } from './07-render.js';
 import { movePhotos } from './23-photos.js';
+import { graphSeen } from './intune.js';
 
 export { reviewStale } from './01-core.js';
 const who = () => (me() && (me().name || me().login)) || 'an admin';
@@ -229,8 +230,7 @@ function resolve(kind, list){
 }
 /* Where each source last saw a device, for the comparison. */
 const seenBy = o => {
-  const g = o.graph && !o.graph.gone ? o.graph : null;
-  return [['Lansweeper', o.feed && (o.feed.scanned || o.feed.seen)], ['AD', o.ad && o.ad.logon], ['Entra', g && (g.lastSignIn || g.lastSync)], ['Defender', o.defender && o.defender.lastSeen]]
+  return [['Lansweeper', o.feed && (o.feed.scanned || o.feed.seen)], ['AD', o.ad && o.ad.logon], ...graphSeen(o.graph), ['Defender', o.defender && o.defender.lastSeen]]
     .filter(([, v]) => v).map(([k, v]) => `${k} ${dayText(String(v).slice(0, 10))}`).join(' · ');
 };
 /* The Resolve dialog for probable duplicates (admin only): one record beside its device with the differing fields
