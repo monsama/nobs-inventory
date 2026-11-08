@@ -515,6 +515,10 @@ export function renderObj(o){
       const total = (+pEl.value || 0) + (+sEl.value || 0);
       if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
     }
+    /* Retired picked in the Status field: the Retire dialog decides, as from More → Retire (the user, ports, plan and
+       contracts it frees, and Undo). The field shows the status as it is until then. */
+    const stEl = /** @type {HTMLSelectElement|null} */ ($('#view').querySelector('[data-k="status"]'));
+    if (stEl && stEl.value === 'retired' && o.status !== 'retired'){ stEl.value = o.status; retireModal(o); return false; }
     checked.forEach(x => { x.el.value = x.c.value; });
     const rkEl = k => { const e = $('#view').querySelector(`[data-rk="${k}"]`); return e ? e.value : null; };
     let place = null;
@@ -568,7 +572,11 @@ export function renderObj(o){
       o[k] = v;
       /* The mark beside the field follows at once: the page is not drawn again for one field. */
       const fld = document.getElementById(`f_${o.id}_${k}`), mk = fld && fld.closest('.ctlrow') && fld.closest('.ctlrow').querySelector(':scope > .fsrc, :scope > .fsrc-slot');
-      if (mk) mk.outerHTML = sourceMark(o, k);
+      /* Updated in place, not swapped: the field is saved while Tab is moving the focus to this very mark, and a new
+         element there would leave the keyboard nowhere (the page). */
+      if (mk){ const t = document.createElement('template'); t.innerHTML = sourceMark(o, k); const nk = t.content.firstElementChild;
+        if (nk && nk.tagName === mk.tagName){ for (const a of [...mk.attributes]) if (!nk.hasAttribute(a.name)) mk.removeAttribute(a.name); for (const a of [...nk.attributes]) mk.setAttribute(a.name, a.value); mk.innerHTML = nk.innerHTML; }
+        else if (nk) mk.replaceWith(nk); }
     });
     if (place){
       const prevRack = o.rack;
@@ -592,6 +600,8 @@ export function renderObj(o){
       followUp = () => toast(`${o.name} is in use now, by ${o.user}`);
       rerender = true;
     }
+    /* A new status shows in the header, the sidebar counts and the actions (Take back, Hand out) at once. */
+    if (o.status !== statusWas) rerender = true;
     if (o.type === 'server' && o.kind === 'vm') delete o.rack, delete o.u, delete o.h, delete o.ontop;
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '\u2014' && !MODELS.includes(o.model)) MODELS.push(o.model);
