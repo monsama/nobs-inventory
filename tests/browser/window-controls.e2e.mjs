@@ -52,7 +52,10 @@ try {
   assert.equal(await p.locator('#mdlTray').count(), 0, 'the chip is gone once restored');
 
   // the × of the chip closes it; the × of the dialog too
+  // with a name typed, it first comes back and says so; closed again, it goes
   await p.click('.wc-min'); await p.click('#mdlTray .tray-x');
+  assert.equal(await p.isVisible('#mdl .leave-warn'), true, 'what was typed is dropped without a word');
+  await p.click('.wc-close');
   assert.equal(await p.locator('#mdl').count(), 0);
   await p.click('#setBtn'); await p.waitForSelector('#setPane');
   await p.click('.wc-close');
