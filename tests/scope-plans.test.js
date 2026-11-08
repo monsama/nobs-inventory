@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, signIn } from './helpers.js';
-import { loadState, saveState } from '../server/state.js';
+import { loadState, saveState, plansProblem } from '../server/state.js';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -53,4 +53,14 @@ test('a site-limited viewer gets a whole-inventory check cut to their devices, a
     assert.deepEqual(got.stocktakes[0].result.missing.map(m => m.id), ['h1']);
     assert.ok(!Object.keys(got.revs || {}).some(k => k.endsWith('|b1')), 'the revisions name another site\'s device');
   } finally { await srv.close(); }
+});
+
+test('floor plans are checked before they are kept: sizes, numbers and lengths', () => {
+  const ok = [{ id: 'p1', name: 'EG', site: 'HQ', areas: [{ id: 'a1', name: 'Office', room: 'HQ / 1', x: 1, y: 2, w: 3, h: 4, rects: [{ x: 1, y: 2, w: 3, h: 4 }] }], labels: [{ id: 'l1', text: 'Entrance', x: 5, y: 6 }] }];
+  assert.equal(plansProblem(ok), '');
+  assert.equal(plansProblem(undefined), '');
+  assert.notEqual(plansProblem([{ ...ok[0], areas: [{ ...ok[0].areas[0], name: 'x'.repeat(500) }] }]), '', 'a very long area name');
+  assert.notEqual(plansProblem([{ ...ok[0], areas: [{ ...ok[0].areas[0], x: 'left' }] }]), '', 'a coordinate that is not a number');
+  assert.notEqual(plansProblem([{ ...ok[0], labels: [{ id: 'l1', text: 'x', x: 1 }] }]), '', 'a text without its place');
+  assert.notEqual(plansProblem('plans'), '');
 });
