@@ -85,7 +85,10 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     /* The server naming the host vouches for the host only: encryption it has cannot be turned off from Settings. */
     const named = !!process.env.NI_LDAP_URL && ldapHostOf(process.env.NI_LDAP_URL) === ldapHostOf(c.url || '')
       && (!ldapEncrypted(configFromEnv(process.env)) || ldapEncrypted(c));
-    const problem = !named && ldapPinProblem(pinned, c);
+    /* The server names an encrypted directory: a setting without encryption is refused, even before the first sign-in pins one. */
+    const plainDowngrade = !!process.env.NI_LDAP_URL && ldapEncrypted(configFromEnv(process.env)) && !ldapEncrypted(c)
+      && 'were set up for an encrypted directory (NI_LDAP_URL); the settings now reach it without encryption';
+    const problem = plainDowngrade || (!named && ldapPinProblem(pinned, c));
     if (problem) return { problem: `Directory sign-in is paused: sign-ins ${problem.replace(/^was saved for/, 'were set up for')}. An admin signs in with a local account and saves the service password again for the new server (Settings → Active Directory), or the server names it in NI_LDAP_URL.`,
       /* What the sign-in page says: nothing about the servers to someone who is not signed in. */
       say: 'Directory sign-in is paused until an admin confirms the directory server. Ask your IT team, or sign in with a local account.' };

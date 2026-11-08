@@ -22,7 +22,16 @@ export function scopeState(s, sc) {
   s.history = Object.fromEntries(Object.entries(s.history || {}).filter(([k]) => ids.has(k)));
   /* Floor plans: those of the sites they see (a plan names its site); none for someone who sees only their own devices. */
   if (Array.isArray(s.plans)) s.plans = sc.own ? [] : s.plans.filter(p => p && sc.sites.includes(p.site));
-  s.stocktakes = sc.own ? [] : (s.stocktakes || []).filter(t => !t.scope || sc.sites.includes(String(t.scope).split(' / ')[0]));
+  /* Inventory checks of their sites, and those of the whole inventory with what they found cut to the devices they
+     see: no names of other sites' devices, and none of the scanned texts no device matched (serial numbers). */
+  const cut = t => {
+    if (!t || t.scope) return t;
+    const c = { ...t };
+    if (Array.isArray(c.unknown)) c.unknown = [];
+    if (c.result) c.result = { ...c.result, missing: (c.result.missing || []).filter(m => m && ids.has(m.id)), moved: (c.result.moved || []).filter(m => m && ids.has(m.id)), unknown: [] };
+    return c;
+  };
+  s.stocktakes = sc.own ? [] : (s.stocktakes || []).filter(t => !t.scope || sc.sites.includes(String(t.scope).split(' / ')[0])).map(cut);
   if (sc.own) { s.contracts = []; s.licences = []; s.users = (s.users || []).filter(u => u.id === sc.own || u.role === 'admin'); }
   /* The devices a sync found twice, and what each sync changed: only about the devices they see (names and serial
      numbers of other sites' devices are in them). */
@@ -33,6 +42,14 @@ export function scopeState(s, sc) {
       const run = keep(c); run.n = run.ids.length;
       if (Array.isArray(c.earlier)) run.earlier = c.earlier.map(keep).map(e => ({ ...e, n: e.ids.length }));
       return [k, run];
+    }));
+  }
+  /* The revisions of what was sent only: the ids of other sites' devices, links and histories say how many there are. */
+  if (s.revs && typeof s.revs === 'object') {
+    const relIds = new Set(s.rels.map(r => String(r.id)));
+    s.revs = Object.fromEntries(Object.entries(s.revs).filter(([k]) => {
+      const i = k.indexOf('|'), kind = k.slice(0, i), id = k.slice(i + 1);
+      return kind === 'object' ? ids.has(id) : kind === 'history' ? ids.has(id) : kind === 'rel' ? relIds.has(id) : true;
     }));
   }
   return s;

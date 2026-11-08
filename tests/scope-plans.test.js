@@ -33,3 +33,24 @@ test('floor plans: a site-limited viewer gets only their sites\' plans and pictu
     assert.deepEqual(codes, [200, 200, 200, 200, 200, 429, 429]);
   } finally { await srv.close(); }
 });
+
+test('a site-limited viewer gets a whole-inventory check cut to their devices, and no revisions of other sites\' records', async () => {
+  const srv = await startServer();
+  try {
+    const a = await signIn(srv, 'admin', 'adminpass123');
+    const s = loadState(srv.db);
+    s.sites = ['HQ', 'Bern']; s.locs = ['HQ / 1', 'Bern / EG'];
+    s.objs = [{ id: 'h1', code: 'INV-1', type: 'pc', name: 'HQ-PC', status: 'active', loc: 'HQ / 1' }, { id: 'b1', code: 'INV-2', type: 'pc', name: 'BERN-SECRET', status: 'active', loc: 'Bern / EG' }];
+    s.stocktakes = [{ id: 'st1', name: 'All', scope: '', started: '2026-11-01', by: 'Administrator', finished: '2026-11-02',
+      unknown: [{ text: 'SERIAL-RUN-7', at: '2026-11-01' }], result: { total: 2, confirmed: 0, missing: [{ id: 'h1', name: 'HQ-PC', code: 'INV-1', loc: 'HQ / 1' }, { id: 'b1', name: 'BERN-SECRET', code: 'INV-2', loc: 'Bern / EG' }], moved: [], unknown: ['SERIAL-BERN-9'] } }];
+    s.users.push({ id: 'v2', name: 'Sam Site', login: 'sam', role: 'viewer', source: 'manual', sites: ['HQ'] });
+    saveState(srv.db, s);
+    await srv.call('POST', '/api/users/v2/password', { cookie: a.cookie, body: { password: 'viewerpass123' } });
+    const sam = await signIn(srv, 'sam', 'viewerpass123');
+    const got = (await srv.call('GET', '/api/state', { cookie: sam.cookie })).json;
+    const text = JSON.stringify(got);
+    assert.ok(!text.includes('BERN-SECRET') && !text.includes('SERIAL-BERN-9') && !text.includes('SERIAL-RUN-7'), 'another site\'s device or a scanned serial reached the viewer');
+    assert.deepEqual(got.stocktakes[0].result.missing.map(m => m.id), ['h1']);
+    assert.ok(!Object.keys(got.revs || {}).some(k => k.endsWith('|b1')), 'the revisions name another site\'s device');
+  } finally { await srv.close(); }
+});
