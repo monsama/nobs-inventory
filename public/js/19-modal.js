@@ -13,6 +13,9 @@ let settingsOpener = null, backToSettings = false;
 export const setSettingsOpener = fn => { settingsOpener = fn; };
 /* A dialog whose result is to be seen in the inventory (Clear inventory) leaves Settings closed. */
 export const leaveSettings = () => { backToSettings = false; };
+/* The controls of a dialog the Tab key goes to, in order. */
+const focusables = d => /** @type {HTMLElement[]} */ ([...d.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')])
+  .filter(el => !(/** @type {any} */ (el).disabled) && el.tabIndex >= 0 && el.getClientRects().length && !el.closest('[hidden], [inert]') && !el.closest('details:not([open]) > :not(summary)'));
 /* body: html`` or a string of markup made by the app. */
 /* A dialog whose form can be filled (New device) says so with askBeforeClosing: closed with something typed in it
    (Cancel, Esc, ×, a click beside it), it first says that and stays; closed again, it goes. The check is taken away
@@ -46,12 +49,31 @@ export function modal(body, cls=''){
   /* The browser may close it without asking (repeated Escape): it is closed properly then, or opened again if locked. */
   d.addEventListener('close', () => { if (d.isConnected && !d.classList.contains('minimized')) { if (locked) d.showModal(); else closeModal(); } });
   if (!locked) d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); });
+  /* A field saved as it is left (Settings) may draw its part of the dialog again during the Tab that leaves it: the
+     Tab is then lost (the focus falls to the page, or comes back to the new copy of the field). It is done again on
+     the new controls, so typing goes on in the next field. */
+  const keyOf = el => el.id ? '#' + CSS.escape(el.id) : el.getAttribute('aria-label') ? `[aria-label="${CSS.escape(el.getAttribute('aria-label'))}"]` : '';
+  d.addEventListener('keydown', e => {
+    if (e.key !== 'Tab' || e.defaultPrevented) return;
+    const from = /** @type {HTMLElement} */ (document.activeElement), sel = from && d.contains(from) ? keyOf(from) : '';
+    if (!sel) return;
+    const back = e.shiftKey, t0 = Date.now();
+    const redo = () => {
+      const a = document.activeElement;
+      if (Date.now() - t0 > 600 || (a && a !== document.body && a !== from && !(a.matches(sel) && a !== from) && a.isConnected)) return;
+      if (a === from && from.isConnected) return;   /* nothing was drawn again */
+      const now = /** @type {HTMLElement|null} */ (d.querySelector(sel)); if (!now) return;
+      const list = focusables(d), i = list.indexOf(now);
+      const to = list[(i + (back ? -1 : 1) + list.length) % list.length];
+      if (to) to.focus();
+    };
+    for (const ms of [0, 80, 300]) setTimeout(redo, ms);
+  });
   /* Tab goes round inside the dialog: from its last control to its first (Shift + Tab the other way), never out to the
      page or the browser's bar. */
   d.addEventListener('keydown', e => {
     if (e.key !== 'Tab' || d.classList.contains('minimized')) return;
-    const f = /** @type {HTMLElement[]} */ ([...d.querySelectorAll('button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')])
-      .filter(el => !(/** @type {any} */ (el).disabled) && el.getClientRects().length && !el.closest('[hidden], [inert]') && !el.closest('details:not([open]) > :not(summary)'));
+    const f = focusables(d);
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1], at = document.activeElement;
     if (!e.shiftKey && (at === last || !d.contains(at))){ e.preventDefault(); first.focus(); }

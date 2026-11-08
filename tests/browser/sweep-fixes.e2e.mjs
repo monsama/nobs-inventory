@@ -129,6 +129,10 @@ try {
   await until(p, () => document.querySelector('#nuPwNote').textContent === '');
   await p.click('#nuAdd');
   await p.waitForSelector('#setUsers td.muted:has-text("No sign-in")');
+  // a Settings field saved as it is left (it draws its form again): Tab still goes on to the next field
+  await openSetTab(p, 'directory'); await p.waitForSelector('#lk_url');
+  await p.focus('#lk_url'); await p.keyboard.type('ldaps://dc1.corp.example'); await p.keyboard.press('Tab');
+  await until(p, () => document.activeElement && document.activeElement.id === 'lk_security');
   await p.keyboard.press('Escape');
   // the search at the top finds a rack by its serial number and a saved view by its name, which opens it
   await p.fill('#search', 'rk-sn-9931');
