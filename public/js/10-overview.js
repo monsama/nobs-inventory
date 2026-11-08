@@ -8,7 +8,7 @@ import { MAINT_SOON_DAYS, dueTasks, everyText, todayDay } from './maintenance.js
 import { dueChip, maintDoneModal } from './26-maintenance.js';
 import { closeModal, modal } from './19-modal.js';
 import { dateText } from './dates.js';
-import { contractsDue, licencesOver, money } from './09-costs.js';
+import { licencesOver, money } from './09-costs.js';
 import { SERVER, queueServerSave, view } from './07-render.js';
 import { openObjs, resetFilters } from './02-views.js';
 import { CERT, certAttention, loadCert } from './certificate.js';
@@ -60,7 +60,10 @@ export function renderOverview(){
   /* The same lists as the bell and the weekly e-mail (public/js/notices.js). */
   const att = attentionLists({ objs: [...objs, ...REVIEW], contracts: COSTS.contracts });
   const wEnded = att.wEnded.length, wSoon = att.wSoon.length;
-  const due = contractsDue(), over = licencesOver();
+  const over = licencesOver();
+  /* Contracts whose notice is due soon or has passed: the bell's list, so both count the same. */
+  const ctLate = att.contracts.filter(x => x.st.state === 'late').map(x => x.c), ctSoon = att.contracts.filter(x => x.st.state !== 'late').map(x => x.c);
+  const few = l => l.slice(0, 3).map(c => c.name).join(', ') + (l.length > 3 ? '…' : '');
   /* Running only: a contract or licence that has ended, or not started yet, costs nothing now. */
   const year = COSTS.contracts.filter(c => runningNow(c)).reduce((t, c) => t + yearlyCost(c), 0) + COSTS.licences.filter(l => runningNow(l)).reduce((t, l) => t + yearlyCost(l), 0);
   const value = inUse.reduce((t, o) => t + (typeof o.price === 'number' ? o.price : 0), 0), priced = inUse.filter(o => typeof o.price === 'number').length;
@@ -115,8 +118,9 @@ export function renderOverview(){
     [waiting, 'warn', 'Waiting in To review', `found by a sync, not in the inventory yet: accept or ignore ${waiting === 1 ? 'it' : 'them'}`, 'data-ovrv="1"'],
     [mtLate.length, 'bad', 'Maintenance overdue', mtLate.slice(0, 3).map(x => `${x.o.name}: ${x.m.what}`).join(', ') + (mtLate.length > 3 ? '…' : ''), 'data-ovmt="late"'],
     [wEnded, 'bad', 'Warranty ended', `${wEnded === 1 ? 'device' : 'devices'} in use`, 'data-ovw="ended"'],
-    [wSoon, 'warn', 'Warranty ends soon', `within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
-    [due.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${due.slice(0, 3).map(c => c.name).join(', ')}${due.length > 3 ? '…' : ''}`, 'data-ovtab="contracts"'],
+    [wSoon, 'warn', 'Warranty ends soon', `devices in use, within ${WARRANTY_SOON_DAYS} days`, 'data-ovw="soon"'],
+    [ctLate.length, 'bad', 'Contract notice date passed', few(ctLate), 'data-ovtab="contracts"'],
+    [ctSoon.length, 'warn', 'Contract notice due', `within ${NOTICE_SOON_DAYS} days: ${few(ctSoon)}`, 'data-ovtab="contracts"'],
     [over.length, 'bad', 'Licences over-used', over.slice(0, 3).map(l => l.name).join(', ') + (over.length > 3 ? '…' : ''), 'data-ovtab="sw"'],
     [nOld, 'warn', 'Check by hand', 'not scanned by Lansweeper for over 3 months', 'data-ovscan="1"'],
     ...(SYNC.graph ? ['noncompliant', 'unencrypted', 'secureboot'].map(k => [live.filter(GRAPH_FILTERS[k][2]).length, GRAPH_FILTERS[k][1], GRAPH_FILTERS[k][0], 'in Microsoft Intune', `data-ovintune="${k}"`]) : []),

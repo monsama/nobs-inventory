@@ -53,6 +53,15 @@ try {
   // a rack keeps the height given
   await open(); await p.selectOption('#nType', 'rack'); await p.fill('#nName', 'RACK-TEST'); await p.fill('#nUnits', '24'); await p.click('#nOk');
   await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'RACK-TEST' && o.units === 24));
+  // opened from a notebook's page, a new device is a notebook too
+  await open(); await p.selectOption('#nType', 'notebook'); await p.fill('#nName', 'NB-TEST'); await p.click('#nOk');
+  await until(p, async () => (await import('/js/01-core.js')).objs.some(o => o.name === 'NB-TEST'));
+  const nb = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.objs.find(x => x.name === 'NB-TEST'); if (o) c.st.tab = o.id; return o && o.id; });
+  if (nb) {
+    await p.evaluate(async () => (await import('/js/05-new-object.js')).newObjModal()); await p.waitForSelector('#nType');
+    assert.equal(await p.inputValue('#nType'), 'notebook');
+    await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'overview'; });
+  } else assert.fail('the notebook was made');
   assert.deepEqual(errors, [], 'page errors');
   console.log('new object follows its type: all checks passed');
 } finally { await browser.close(); await new Promise(r => server.close(r)); db.close(); fs.rmSync(dir, { recursive: true, force: true }); }

@@ -367,11 +367,33 @@ test('directory sign-in goes only to the directory it was set up with: a changed
     current = { ...current, url: `ldap://localhost:${port}` };
     const paused = await signIn(srv, 'anna', 'annas-secret');
     assert.equal(paused.status, 503);
-    assert.match(paused.error || '', /Directory sign-in is paused[\s\S]*127\.0\.0\.1[\s\S]*localhost/);
+    assert.match(paused.error || '', /Directory sign-in is paused/);
+    assert.ok(!/127\.0\.0\.1|localhost/.test(paused.error || ''), 'the sign-in page names the directory servers');
+    assert.match(JSON.stringify(srv.db.prepare('SELECT * FROM audit').all()), /127\.0\.0\.1[\s\S]*localhost/, 'the log has the detail');
     // a local admin still signs in, and saving the service password for the new server sets sign-in up for it
     const admin = await signIn(srv, 'admin', 'adminpass123');
     assert.equal(admin.status, 200, 'a local admin is not held off');
-    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret' }, cookie: admin.cookie })).status, 200);
+    // moving sign-in to the new server needs the admin's own password, not just their session
+    const bare = await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret' }, cookie: admin.cookie });
+    assert.equal(bare.status, 403); assert.equal(bare.json.confirm, true);
+    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret', confirm: 'wrong-pass' }, cookie: admin.cookie })).status, 403);
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 503, 'still paused');
+    assert.equal((await srv.call('POST', '/api/ldap/password', { body: { password: 'svc-secret', confirm: 'adminpass123' }, cookie: admin.cookie })).status, 200);
     assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 200, 'sign-in goes to the server the service password was saved for');
+    // clearing the connections keeps which server sign-ins were set up for
+    assert.equal((await srv.call('POST', '/api/connections/clear', { cookie: admin.cookie })).status, 200);
+    assert.ok(srv.db.prepare("SELECT name FROM app_secrets WHERE name = 'ldapLoginHost'").get(), 'the sign-in pin went with the connections');
+  } finally { await srv.close(); dir.close(); }
+});
+
+test('wrong passwords for one directory login stop being sent to the directory after four, so its account there is not locked', async () => {
+  const people = { 'cn=anna,ou=people,dc=test': person('anna', 'Anna Test', 'IT', ['IT-Inventory', 'Inventory-Users'], 'annas-secret') };
+  const dir = await startDirectory(people), port = dir.address().port;
+  const srv = await startServer({ ldapConfig: () => ({ ...cfg(`ldap://127.0.0.1:${port}`), servicePassword: '' }) });
+  try {
+    const codes = [];
+    for (let i = 0; i < 5; i++) codes.push((await signIn(srv, 'anna', 'wrong-' + i)).status);
+    assert.deepEqual(codes, [401, 401, 401, 401, 429], 'the fifth wrong password still went to the directory');
+    assert.equal((await signIn(srv, 'anna', 'annas-secret')).status, 429, 'held back for this login for a while');
   } finally { await srv.close(); dir.close(); }
 });

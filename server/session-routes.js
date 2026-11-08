@@ -40,7 +40,8 @@ export function registerSessionRoutes(app, ctx) {
     const back = (code, cookies = []) => { res.setHeader('Set-Cookie', [ssoCookie('', 0), ...cookies]); res.redirect(302, `../../${code ? `?sso=${code}` : ''}`); };
     try {
       if (!ssoOn()) return back('off');
-      if (req.query.error) { audit(db, null, `sign in with Microsoft refused by Microsoft: ${String(req.query.error_description || req.query.error).split(/[\r\n]/)[0].slice(0, 200)}`); return back('denied'); }
+      /* Anyone can call this address: only Microsoft's error code is logged (not text a caller made up), and a flood once a minute. */
+      if (req.query.error) { const code = /^[a-z_]{1,40}$/.test(String(req.query.error)) ? String(req.query.error) : 'unknown'; auditQuiet('sso-refused:' + req.ip, `sign in with Microsoft refused by Microsoft (${code})`); return back('denied'); }
       const claims = await finishSso(cfgGraph(), { state: req.query.state, code: req.query.code, bind: readCookie(req.headers.cookie, SSO_COOKIE) }, graphFetch);
       let user = userForClaims(loadState(db).users, claims);
       const who = String(claims.preferred_username || claims.upn || claims.email || claims.oid || '').slice(0, 200);
@@ -82,7 +83,7 @@ export function registerSessionRoutes(app, ctx) {
       audit(db, user.id, `sign in with Microsoft (${who})`);
       back('', [cookie(token, 43200)]);
     } catch (e) {
-      audit(db, null, `sign in with Microsoft failed: ${String(e.message || e).slice(0, 200)}`);
+      auditQuiet('sso-failed:' + req.ip, `sign in with Microsoft failed: ${String(e.message || e).split(/[\r\n]/)[0].slice(0, 200)}`);
       back('failed');
     }
   });
@@ -124,9 +125,11 @@ export function registerSessionRoutes(app, ctx) {
       if (!ok && ldapEnabled(lc) && (!user || ['ldap', 'lansweeper', 'entra'].includes(user.source))) {
         /* Only to the directory sign-ins are set up for (app.js ldapSignIn): a changed address pauses it. */
         const si = ldapSignIn();
-        if (si.problem) { auditQuiet('ldap-paused', si.problem); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, si.problem); }
+        if (si.problem) { auditQuiet('ldap-paused', si.problem); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, si.say || si.problem); }
         /* At most two sign-ins of one address wait on the directory at once, so a burst cannot outrun the failure count. */
-        const ipKey = keys[1];
+        const ipKey = keys[1], dirKey = 'dir:' + login.toLowerCase();
+        /* Too many wrong passwords for this login at the directory: no more are sent, so its account there is not locked. */
+        if (throttle.blocked([keys[0], ipKey, dirKey])) { auditQuiet('dir-throttled:' + (req.ip || ''), 'directory sign-in held back for ' + login + ': too many wrong passwords'); await failFloor(); throw new HttpError(429, 'Too many failed sign-ins. Try again in 15 minutes.'); }
         if (!throttle.enter(ipKey)) { await failFloor(); throw new HttpError(429, 'Too many sign-ins at once. Try again in a moment.'); }
         let d;
         try { d = await ldapLogin(si.c, login, password); }
@@ -134,6 +137,8 @@ export function registerSessionRoutes(app, ctx) {
         catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, 'The directory cannot be reached right now.'); }
         finally { throttle.leave(ipKey); }
         if (d && d.allowed) si.keep();
+        /* A wrong password at the directory counts towards its own, lower limit for this login. */
+        if (!d) throttle.recordFailure([dirKey]);
         if (d && d.allowed) {
           /* Read again after waiting on the directory: a second sign-in of the same login may have created the account
              meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
@@ -172,7 +177,7 @@ export function registerSessionRoutes(app, ctx) {
         else auditQuiet('unknown:' + (req.ip || ''), 'failed sign in for an unknown login');
         throw new HttpError(401, FAILED);
       }
-      throttle.clearFailures(keys.slice(0, 1)); throttle.rememberSuccess(keys);   /* only this login: a success must not clear the address count */
+      throttle.clearFailures([keys[0], 'dir:' + login.toLowerCase()]); throttle.rememberSuccess(keys);   /* only this login: a success must not clear the address count */
       /* The right password, but no access given yet: said plainly, so the person knows whom to ask. */
       if (user.role === 'none') {
         audit(db, user.id, 'sign in refused: no role');

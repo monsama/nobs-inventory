@@ -68,6 +68,21 @@ try {
   await mark(p, 'f_v1_os').click(); await p.waitForSelector('#fsrcPop.pick');
   assert.match(await p.textContent('#fsrcPop .sp-foot'), /Active Directory, then Entra & Intune/, 'the picker does not tell the order set');
 
+  // In stock picked for a device someone has: one message says both, and its Undo puts the person and the status back
+  const meId = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('v1'); o.uid = c.st.meId; o.status = 'active'; (await import('/js/04-settings.js')).bindUser(o); (await import('/js/07-render.js')).queueServerSave(); return c.st.meId; });
+  await storedBy(() => obj('v1'), o => o.uid === meId);
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('v1'));
+  await p.waitForSelector('#f_v1_status'); await p.selectOption('#f_v1_status', 'stock');
+  await until(p, () => /Saved PC-V · Status: In use → In stock\. In stock: .+ no longer has it/.test(document.querySelector('#toast').textContent));
+  await storedBy(() => obj('v1'), o => o.status === 'stock' && !o.uid);
+  await p.click('#toast .t-undo');
+  await storedBy(() => obj('v1'), o => o.status === 'active' && o.uid === meId);
+  // a day that is not one is said under its field, and goes when it is right
+  await p.fill('#view [data-k=warranty]', '2027-13-45'); await p.press('#view [data-k=warranty]', 'Tab');
+  await p.waitForSelector('#view .df-err:has-text("is not a day")');
+  await p.fill('#view [data-k=warranty]', '31.12.2027'); await p.press('#view [data-k=warranty]', 'Tab');
+  await until(p, () => !document.querySelector('#view .df-err'));
+  await storedBy(() => obj('v1'), o => o.warranty === '2027-12-31');
   // Retired picked in the Status field opens the Retire dialog; the field keeps the status until then
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('r1'));
   await p.waitForSelector('#f_r1_status');
@@ -95,7 +110,7 @@ try {
   await p.evaluate(async () => { (await import('/js/01-core.js')).st.tab = 'table'; (await import('/js/07-render.js')).render(); }); await p.waitForSelector('#tblCount');
   await p.evaluate(() => { document.querySelector('#moreFilters').open = true; });
   await p.click('[data-seen=never]');
-  await until(p, () => document.querySelector('#tblCount').textContent.trim() === '4 rows');
+  await until(p, () => document.querySelector('#tblCount').textContent.trim().startsWith('4 of '));
   assert.match(await p.textContent('#filterBar, .filterbar, body'), /Last seen: never/);
   const rows = await p.evaluate(() => [...document.querySelectorAll('#view tbody tr[data-open]')].map(r => r.dataset.open).sort());
   assert.ok(!rows.includes('v1'), 'a device Intune saw is listed as never seen');
@@ -105,6 +120,7 @@ try {
   const text = fs.readFileSync(await dl.path(), 'utf8').replace(/^\ufeff/, '');
   const head = text.split('\r\n')[0], shownHead = await p.evaluate(() => [...document.querySelectorAll('#view thead th[data-ck]')].map(th => th.textContent.trim()).join(','));
   assert.equal(head, shownHead, 'the export does not have the columns shown');
+  assert.ok(!/Edited|,New/.test(text), 'a mark beside a value is in the data: ' + text.split('\r\n')[1]);
   assert.equal(text.split('\r\n').length, 5, 'the export does not have the rows shown');
   await p.click('#csvMenu .menu-btn');
   const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#csvBtn')]);
@@ -120,6 +136,10 @@ try {
   await until(p, () => document.querySelector('#nuPwNote').textContent === '');
   await p.click('#nuAdd');
   await p.waitForSelector('#setUsers td.muted:has-text("No sign-in")');
+  // a Settings field saved as it is left (it draws its form again): Tab still goes on to the next field
+  await openSetTab(p, 'directory'); await p.waitForSelector('#lk_url');
+  await p.focus('#lk_url'); await p.keyboard.type('ldaps://dc1.corp.example'); await p.keyboard.press('Tab');
+  await until(p, () => document.activeElement && document.activeElement.id === 'lk_security');
   await p.keyboard.press('Escape');
   // the search at the top finds a rack by its serial number and a saved view by its name, which opens it
   await p.fill('#search', 'rk-sn-9931');

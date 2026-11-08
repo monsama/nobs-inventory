@@ -5,7 +5,7 @@ import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
-import { openObj } from './02-views.js';
+import { openObj, renderSide } from './02-views.js';
 import { queueServerSave, render } from './07-render.js';
 import { html, rawHtml } from './html.js';
 
@@ -184,6 +184,8 @@ export function locateOnPlan(plan, o, x, y){
   const a = areaAt(plan, x, y);
   if (!a || !plan.site) return null;
   o.loc = areaLoc(plan, a); markHand(o, 'loc');
+  /* The sidebar counts (rooms, a new room) follow at once, not at the next full redraw. */
+  queueMicrotask(() => { if ($('#locList')) renderSide(); });
   return a.name;
 }
 /* The list of devices not on the plan: beside the plan for those who place devices, folded away for the others (the
@@ -207,8 +209,8 @@ export function renderPlans(){
       ${plan ? html`${isAdmin() ? html`<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
-        ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${editArea.name}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
-        ${planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan, then Done. Esc stops.</span>` : ''}
+        ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${esc(editArea.name)}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area">Add rectangle</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
+        ${planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan, then Done. Esc discards them.</span>` : ''}
         ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
         <button id="plDel" class="danger-text">Delete plan</button>`, { id: 'plMenu' }))}` : ''}
         <button type="button" id="plSideBtn" class="${sideOpen() ? 'on' : ''}" aria-pressed="${String(sideOpen())}" title="Show or hide the list of devices not on this plan">Device list</button>
@@ -223,7 +225,7 @@ export function renderPlans(){
           <div class="pl-filters"><select id="plType" aria-label="Type of device"><option value="">All types</option>${Object.entries(TYPES).filter(([k]) => objs.some(o => o.type === k)).map(([k, v]) => html`<option value="${k}" ${st.plType === k ? 'selected' : ''}>${v.label}</option>`)}</select>
           <select id="plWhere" aria-label="Where the device is"><option value="">Anywhere</option>${plan && plan.site ? html`<option value="site" ${st.plWhere === 'site' ? 'selected' : ''}>At ${plan.site}</option>` : ''}<option value="none" ${st.plWhere === 'none' ? 'selected' : ''}>No location</option></select></div></div>
         <div class="pl-list" id="plList"></div>
-        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planMode === 'area' ? 'Drag one or more rectangles on the plan, then click Done to name the area. Press Esc to stop.' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
+        <p class="note pl-tip">${planPlace ? `Click the plan to place ${planPlace.name}. Press Esc to cancel.` : planMode === 'text' ? 'Click the plan where the text goes. Press Esc to stop.' : planMode === 'area' ? 'Drag one or more rectangles on the plan, then click Done to name the area. Esc discards them (with Undo).' : planEditArea && isAdmin() ? 'Drag the area or use the arrow keys to move it; drag a square on its edge, or Shift + arrow keys, to change its size. ✥ moves one rectangle of several. Alt turns off snapping.' : 'Drag a device into an area, or choose it and click the plan. Drag a placed device to move it.'}</p></aside>
       <div class="pl-stage" id="plStage">${rawHtml(planCanvas(plan))}</div></div>`
     : html`<div class="pl-empty"><p>Add a floor plan: upload an image of a floor or room, mark areas on it, and place the devices.</p>${isAdmin() ? html`<button class="primary" id="plNew2">New plan</button>` : ''}</div>`;
   $('#view').innerHTML = html`<div class="plans">${bar}${body}</div>`;
@@ -669,7 +671,13 @@ document.addEventListener('pointerup', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode !== 'view' || planEditArea)){ planPlace = null; planMode = 'view'; planParts = []; planEditArea = null; renderPlans(); return; }
+  if (e.key === 'Escape' && st.tab === 'plans' && (planPlace || planMode !== 'view' || planEditArea)){
+    /* Rectangles drawn and not made an area yet go, with Undo: Esc is easy to press by mistake. */
+    const drawn = planMode === 'area' && planParts.length ? planParts.slice() : null, editing = planEditArea;
+    planPlace = null; planMode = 'view'; planParts = []; planEditArea = null; renderPlans();
+    if (drawn) toastUndo(`${drawn.length} ${drawn.length === 1 ? 'rectangle' : 'rectangles'} discarded`, () => { planMode = 'area'; planParts = drawn; planEditArea = editing; renderPlans(); });
+    return;
+  }
   const t = evEl(e);
   if (st.tab !== 'plans' || $('#mdl') || (t.closest && t.closest('input,select,textarea,[contenteditable]'))) return;
   /* Space held: a drag moves the plan in its frame (as in a picture editor), and the page does not scroll. */
@@ -826,6 +834,10 @@ export function areaModal(plan, rects){
   };
   $('#arRoom').onchange = e => { if (e.target.value && !$('#arName').value.trim()) $('#arName').value = roomName(e.target.value); sayRoom(); };
   let picked = false;   /* a room picked in the list is kept, whatever name is typed */
+  /* Drawn inside an area that has a room (a corner of an office): that room first, so devices placed in the new area
+     stay in the room they are in. */
+  const box0 = boxOf(rects), outer = areaAt(plan, box0.x + box0.w / 2, box0.y + box0.h / 2), outerRoom = outer && areaLocName(plan, outer);
+  if (outerRoom && rooms.includes(outerRoom)){ $('#arRoom').value = outerRoom; picked = true; sayRoom(); }
   $('#arRoom').addEventListener('change', () => { picked = !!$('#arRoom').value; });
   $('#arName').oninput = () => {
     if (!picked){ const n = $('#arName').value.trim().toLowerCase(); $('#arRoom').value = rooms.find(l => roomName(l).toLowerCase() === n) || ''; }

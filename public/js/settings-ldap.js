@@ -178,9 +178,21 @@ async function loadLdapPassword(replace = false){
   const save = async () => {
     const pw = q('#lk_pw').value;
     if (!pw){ q('#lk_pw').focus(); return; }
-    const x = await fetch('api/ldap/password', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})});
+    const me = /** @type {HTMLInputElement} */ (document.getElementById('lk_me')) ? /** @type {HTMLInputElement} */ (document.getElementById('lk_me')).value : '';
+    const x = await fetch('api/ldap/password', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(me ? {password: pw, confirm: me} : {password: pw})});
     const e = await x.json().catch(() => ({}));
+    /* Directory sign-in would move to another server: the admin's own password confirms it, asked for right here. */
+    if (x.status === 403 && e.confirm){
+      if (!/** @type {HTMLInputElement} */ (document.getElementById('lk_me'))){
+        const row = document.createElement('div'); row.className = 'lp-confirm';
+        row.innerHTML = String(html`<p class="fieldnote warn" role="alert">Users' passwords would go to <b>${e.to}</b> instead of <b>${e.from}</b> from now on. Confirm with your own password.</p><input id="lk_me" type="password" autocomplete="current-password" placeholder="Your password" aria-label="Your password">`);
+        box.after(row);
+        /** @type {HTMLInputElement} */ (document.getElementById('lk_me')).onkeydown = ev => { if (ev.key === 'Enter'){ ev.preventDefault(); save(); } };
+      } else toast(e.error || 'Not saved.');
+      /** @type {HTMLInputElement} */ (document.getElementById('lk_me')).focus(); return;
+    }
     if (!x.ok){ toast(e.error || 'Not saved.'); return; }
+    const c = document.querySelector('.lp-confirm'); if (c) c.remove();
     toast('Password saved. Test connection checks it.'); loadLdapPassword();
   };
   q('#lpSave').onclick = save;

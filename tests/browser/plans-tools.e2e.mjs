@@ -79,6 +79,21 @@ try {
   await p.click('#toast .t-undo');
   await storedBy(plan, pl => pl.areas.length === 2);
 
+  // drawn inside an area with a room: the new area proposes that room; Esc discards drawn rectangles with Undo
+  await p.keyboard.press('Escape');
+  await p.click('#plArea');
+  await p.mouse.move(...at(12, 12)); await p.mouse.down(); await p.mouse.move(...at(18, 18), { steps: 4 }); await p.mouse.up();
+  await p.waitForSelector('#plAreaDone');
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#toast:has-text("1 rectangle discarded")');
+  await until(p, () => !document.querySelector('#plAreaDone'));
+  await p.click('#toast .t-undo');
+  await p.waitForSelector('#plAreaDone'); await p.click('#plAreaDone');
+  await p.waitForSelector('#arRoom');
+  assert.equal(await p.inputValue('#arRoom'), room, 'the room of the area it was drawn in is not proposed');
+  await p.click('#arCancel');
+  await p.keyboard.press('Escape');
+
   // 7. a text: added where clicked, dragged, changed, removed
   await p.keyboard.press('Escape');
   await p.click('#plText'); await p.mouse.click(...at(40, 5));

@@ -11,7 +11,7 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { dayText, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
 import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
@@ -291,7 +291,7 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${extras(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && x.r.kind !== 'patched' && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">No relations yet. Add one below.</p>`}</div>
+        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && x.r.kind !== 'patched' && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet. Add one below.' : 'No relations.'}</p>`}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => html`<option value="${v.vid}">${v.vid} · ${v.name}</option>`)}</select><button id="arAdd">Add</button></div>${edit && anyOutlets() ? html`<div class="addrel" id="arOutletRow"><label class="muted" for="arOutlet">Or a wall outlet</label>${rawHtml(comboHtml('<input id="arOutlet" data-combo="outlet" placeholder="Outlet name, room or panel" style="flex:1">', 'arOutlet'))}</div>` : ''}<p class="note" id="arHint" role="status"></p>
@@ -594,12 +594,12 @@ export function renderObj(o){
     if (o.status === 'stock' && statusWas !== 'stock' && (uidWas || hotWas) && (o.uid || null) === uidWas && !!o.hotdesk === hotWas){
       o.uid = null; delete o.hotdesk;
       hist(o, now(), `${userWas || 'Hot desk'} no longer has it: taken into stock by ${who()}`);
-      followUp = () => toastUndo(`${o.name} is in stock: ${userWas || 'Hot desk'} no longer has it`, () => { o.uid = uidWas; if (hotWas) o.hotdesk = true; hist(o, now(), `User back (undone) by ${who()}`); queueServerSave(); render(); });
+      followUp = `In stock: ${userWas || 'Hot desk'} no longer has it`;
       rerender = true;
     } else if (statusWas === 'stock' && o.status === 'stock' && (o.uid || o.hotdesk) && !(uidWas || hotWas)){
       o.status = 'active';
       hist(o, now(), `In use from now on: given to ${o.user} by ${who()}`);
-      followUp = () => toast(`${o.name} is in use now, by ${o.user}`);
+      followUp = `In use now, by ${o.user}`;
       rerender = true;
     }
     /* A new status shows in the header, the sidebar counts and the actions (Take back, Hand out) at once. */
@@ -608,7 +608,8 @@ export function renderObj(o){
     /* A model typed here is kept in the list, so the other devices can choose it. */
     if (o.model && o.model !== '\u2014' && !MODELS.includes(o.model)) MODELS.push(o.model);
     o.handAt = new Date().toISOString();
-    const shownValue = (k, v) => k === 'status' && STATUS[v] ? STATUS[v].label : v;
+    /* As the fields show them: a status by its name, a day as dd.mm.yyyy. */
+    const shownValue = (k, v) => k === 'status' && STATUS[v] ? STATUS[v].label : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? dayText(v) : v;
     const labelOf = k => (fields.find(f => f[0] === k) || [])[1] || FIELD_LABEL[k] || k;
     for (const [k, a, b] of edits) hist(o, now(), editText(labelOf(k), shownValue(k, a), shownValue(k, b)) + ' by ' + who() + (kept.includes(FIELD_LABEL[k]) ? ' · kept from the syncs' : ''), fieldNote(k, a, b));
     if (!edits.length) hist(o, now(), 'Saved by ' + who() + (kept.length ? ' · kept from feed: ' + kept.join(', ') : ''));
@@ -624,13 +625,13 @@ export function renderObj(o){
     const keptMsg = kept.length ? `. ${kept.join(', ')}: your value stays; ${feedLinked(o) ? 'Lansweeper' : 'Microsoft Graph'} no longer changes ${kept.length === 1 ? 'it' : 'them'}` : '';
     /* What changed, with Undo: one field by its values, several by their count. */
     const what = edits.length === 1 ? ` · ${labelOf(edits[0][0])}: ${shownValue(edits[0][0], edits[0][1]) || 'empty'} → ${shownValue(edits[0][0], edits[0][2]) || 'empty'}` : edits.length > 1 ? ` · ${edits.length} fields changed` : '';
-    const msg = 'Saved ' + o.name + what + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
-    if (edits.length) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
+    /* What else changed with it (the user taken off, or the status) is said in the same message: its Undo puts all of it back. */
+    const msg = 'Saved ' + o.name + what + (followUp ? '. ' + followUp : '') + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
+    if (edits.length || followUp) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
     else toast(msg);
     queueServerSave();
     /* A new person: the page is drawn again, so More offers the entry sheet for them. */
     if ((o.uid || null) !== uidWas) rerender = true;
-    if (followUp) setTimeout(followUp, 0);
     if (rerender) render(); else {
       refreshHistory(o);
       $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();

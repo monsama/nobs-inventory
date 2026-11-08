@@ -750,6 +750,8 @@ export const scopePool = () => st.scope === 'ignored' ? REVIEW.filter(o => o.rev
 /* The objects a search finds when the filters on the left are left out: shown when those filters hide every hit, so a
    search for something that is there never ends in "nothing matches". */
 export const searchAll = () => { const q = st.q.trim().toLowerCase(); return q && leftFilters() ? scopePool().filter(o => matchesQ(o, q)) : []; };
+/* The count over a device list, said the same in Cards and Table: "7 of 48 devices" (or waiting, ignored in To review). */
+export const listCount = (n, total) => `${n} of ${total} ${st.scope === 'review' ? 'waiting' : st.scope ? 'ignored' : total === 1 ? 'device' : 'devices'}`;
 export function filtered(){
   const q = st.q.trim().toLowerCase();
   /* A search looks within the type, place and status picked on the left; with All objects it looks through every object. */

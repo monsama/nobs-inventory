@@ -13,6 +13,7 @@ import { setSettingsOpener, closeModal, modal } from './19-modal.js';
 import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 import { html } from './html.js';
+import { SERVER } from './server-save.js';
 /* Settings is one module per tab (settings-*.js); what they offer is also offered here, where the rest of the page has
    always found it. */
 export * from './settings-feed.js';
@@ -41,7 +42,12 @@ export function openSettings(){
       ${Object.entries(SET_GROUPS).map(([g, list]) => html`<div class="settabs setsub" data-sub="${g}" hidden>${list.map(([k, l]) => html`<button class="tab" data-st="${k}">${l}</button>`)}</div>`)}</div>
     <div class="mb" id="setPane"></div>
     <div class="mf"><button type="button" class="link" id="setAboutBtn" data-st="about">About NOBS Inventory</button><span style="margin-right:auto"></span><button id="setClose" class="primary">Done</button></div>`, 'settings');
-  const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? g.dataset.sg : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
+  /* Data sources with none set up yet: it opens on the first one to set up (Active Directory), not on All fields. */
+  const firstSource = () => {
+    const setUp = { directory: !!(SERVER.ldap || (st.ldap && st.ldap.url)), entra: !!SERVER.graph, feed: !!SERVER.lansweeper || objs.some(o => o.feed) };
+    return Object.values(setUp).some(Boolean) ? 'sources' : 'directory';
+  };
+  const go = e => { const g = e.target.closest('[data-sg]'), t = e.target.closest('[data-st]'); if (!g && !t) return; st.setTab = g ? (g.dataset.sg === 'sources' ? firstSource() : g.dataset.sg) : t.dataset.st; renderSetPane(); $('#setPane').scrollTop = 0; };
   $('#setTabs').addEventListener('click', go); $('#setAboutBtn').addEventListener('click', go);
   collapsibleSections($('#setPane'), 'set:');
   $('#setClose').onclick = closeModal;

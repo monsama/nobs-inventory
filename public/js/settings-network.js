@@ -225,11 +225,14 @@ export function renderSetLocs(){
     return html`<div class="lrow"><input data-si="${i}" value="${x}" aria-label="Site name"><span class="n">${n}</span>
       <button data-sd="${i}" ${why && html`disabled title="It still has ${why}"`}>Delete</button></div>`;
   };
-  const roomRow = (l, i) => {
+  const roomRow = (l, i, first = true) => {
     const n = objs.filter(o => o.loc === l).length;
-    return html`<div class="lrow room"><span class="site" title="${siteOf(l)}">${siteOf(l)}</span><input data-lo="${i}" value="${l.split(' / ').slice(1).join(' / ')}" aria-label="Room in ${siteOf(l)}">
+    return html`<div class="lrow room${first ? ' site-first' : ''}"><span class="site" title="${siteOf(l)}">${first ? siteOf(l) : ''}</span><input data-lo="${i}" value="${l.split(' / ').slice(1).join(' / ')}" aria-label="Room in ${siteOf(l)}">
       <span class="n">${n}</span><button data-ld="${i}" ${n > 0 && html`disabled title="It still has ${n} ${n === 1 ? 'device' : 'devices'}"`}>Delete</button></div>`;
   };
+  /* Rooms by site (in the order of the sites), then by name; each keeps its place in the list it is saved in. */
+  const siteRank = l => { const k = SITES.indexOf(siteOf(l)); return k < 0 ? SITES.length : k; };
+  const byRoomSite = LOCS.map((l, i) => /** @type {[string, number]} */ ([l, i])).sort((a, b) => siteRank(a[0]) - siteRank(b[0]) || siteOf(a[0]).localeCompare(siteOf(b[0])) || a[0].localeCompare(b[0]));
   $('#setLocs').innerHTML = html`<div class="locgrid">
     <section class="panelbox locpanel"><div class="hdr">Sites <span class="cnt">${SITES.length}</span></div>
       <div class="lrows"><div class="lrow head"><span>Site</span><span class="n">Devices</span><span></span></div>
@@ -238,7 +241,7 @@ export function renderSetLocs(){
       <p class="note lnote" id="nsMsg">A site is a town or a building.</p></section>
     <section class="panelbox locpanel"><div class="hdr">Rooms <span class="cnt">${LOCS.length}</span></div>
       <div class="lrows"><div class="lrow room head"><span>Site</span><span>Room</span><span class="n">Devices</span><span></span></div>
-        ${LOCS.length ? LOCS.map((l, i) => roomRow(l, i)) : html`<p class="note lempty">No rooms yet.</p>`}</div>
+        ${LOCS.length ? byRoomSite.map(([l, i], k) => roomRow(l, i, k === 0 || siteOf(byRoomSite[k - 1][0]) !== siteOf(l))) : html`<p class="note lempty">No rooms yet.</p>`}</div>
       <div class="lpanel-add"><select id="nlSite" aria-label="Site for the new room">${SITES.map(x => html`<option>${x}</option>`)}</select><input id="nlRoom" placeholder="New room, e.g. Lager" aria-label="New room"><button id="nlAdd" ${SITES.length ? '' : 'disabled'}>Add room</button></div>
       <p class="note lnote" id="nlMsg">${SITES.length ? 'Each room belongs to one site.' : 'Add a site first.'}</p></section>
   </div>${stockRoomsHtml()}${adLocsHtml()}`;

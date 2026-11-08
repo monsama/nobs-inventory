@@ -18,15 +18,20 @@ const placeName = scope => scope || 'Everywhere';
 const userName = o => { const u = o.uid && USERS.find(x => x.id === o.uid); return (u && u.name) || o.user || ''; };
 
 /* Confirms a device on site (in inventory check t, if any), keeping the confirmation before it for Undo; from: where it was
-   recorded before it was moved here. */
-function confirm(o, t, from){
+   recorded before it was moved here, marks: where its location came from then (src and pick), put back by Undo. */
+function confirm(o, t, from, marks){
   const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
-  o.verified = { at: today(), by: who(), ...(t ? { st: t.id } : {}), ...(from !== undefined ? { from } : {}), ...(prev ? { prev } : {}) };
+  o.verified = { at: today(), by: who(), ...(t ? { st: t.id } : {}), ...(from !== undefined ? { from } : {}), ...(marks && marks.src ? { fromSrc: marks.src } : {}), ...(marks && marks.pick ? { fromPick: marks.pick } : {}), ...(prev ? { prev } : {}) };
   hist(o, now(), `Confirmed on site by ${who()}${t ? ` (${t.name})` : ''}`);
 }
 function unconfirm(o){
   if (!o.verified) return;
-  if (o.verified.from !== undefined) { setByHand(o, 'loc', o.verified.from); o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
+  /* Moved back as it was: the room, and where it came from (a sync's room stays the sync's, so it keeps it up to date). */
+  if (o.verified.from !== undefined) {
+    const v = o.verified, put = (key, val) => { if (val) o[key] = { ...(o[key] || {}), loc: val }; else if (o[key]) { delete o[key].loc; if (!Object.keys(o[key]).length) delete o[key]; } };
+    o.loc = v.from; put('src', v.fromSrc); put('pick', v.fromPick);
+    hist(o, now(), `Moved back to ${v.from || 'no location'}: the confirmation on site was taken back`);
+  }
   o.verified = o.verified.prev ? { ...o.verified.prev } : undefined;
   if (!o.verified) delete o.verified;
 }
@@ -37,7 +42,7 @@ export function renderStocktake(){
   const t = activeStocktake(), edit = isAdmin();
   /* Drawn again (a save, a change from someone else): the scan field keeps the focus, so scanning goes on. */
   const scanning = document.activeElement && document.activeElement.id === 'stkScan';
-  $('#toolbar').innerHTML = html`<b>Inventory check</b><span class="muted">${t ? `${t.name} · ${placeName(t.scope)}` : 'Confirm on site that the devices are where the inventory says'}</span><div class="grow"></div>`;
+  $('#toolbar').innerHTML = html`<b>Inventory check</b>${t ? '' : html`<span class="muted">Confirm on site that the devices are where the inventory says</span>`}<div class="grow"></div>`;
   $('#view').innerHTML = html`<div class="stk">${t ? activeHtml(t, edit) : startHtml(edit)}${historyHtml()}</div>`;
   if (t) wireActive(t, edit); else wireStart(edit);
   if (scanning && $('#stkScan')) $('#stkScan').focus();
@@ -86,7 +91,7 @@ function activeHtml(t, edit){
     return html`<label class="stk-row${ok ? ' ok' : ''}"><input type="checkbox" data-stk="${o.id}" ${ok ? 'checked' : ''} ${edit ? '' : 'disabled'}>
       <span class="stk-name"><b>${o.name}</b> <span class="code">${o.code || ''}</span><small>${[TYPES[o.type] ? TYPES[o.type].label : o.type, o.serial, userName(o)].filter(Boolean).join(' · ')}</small></span>
       <span class="stk-when muted">${ok ? `Confirmed${o.verified.from !== undefined ? ', moved here' : ''}` : d === null ? 'Never confirmed' : `Last ${dateText(o.verified.at)}`}</span></label>`; };
-  return html`<div class="panelbox"><div class="hdr">${t.name} <span class="cnt">${placeName(t.scope)} · started ${dateText(t.started.slice(0, 10))} by ${t.by || ''}</span></div>
+  return html`<div class="panelbox"><div class="hdr">${t.name} <span class="cnt">${[t.name.includes(placeName(t.scope)) ? '' : placeName(t.scope), `started ${dateText(t.started.slice(0, 10))}${t.by ? ' by ' + t.by : ''}`].filter(Boolean).join(' · ')}</span></div>
     <div class="stk-prog stk-pad"><div class="ov-qbar" role="img" aria-label="${done} of ${list.length} confirmed"><span style="width:${pct}%"></span></div><b>${done} of ${list.length}</b>${moved ? html`<span class="muted">${moved} moved here</span>` : ''}${(t.unknown || []).length ? html`<span class="muted">${t.unknown.length} not in the inventory</span>` : ''}</div>
     ${edit ? html`<div class="stk-scanrow stk-pad"><input id="stkScan" type="search" autocomplete="off" enterkeyhint="done" placeholder="Scan or type serial number, code or name" aria-label="Scan or type a serial number, code or name">
       <button id="stkFinish" class="primary">Finish…</button></div><p class="stk-last stk-pad" id="stkLast" role="status" aria-live="polite">${rawHtml(LAST)}</p>` : ''}
@@ -128,11 +133,16 @@ function found(t, v){
     .concat(live.filter(o => o.mac && norm(o.mac) === norm(v) && norm(v).length === 12));
   /* LAST is kept as markup: what is said here goes through html``. */
   const say = (msg, cls = '') => { LAST = String(html`<span class="${cls}">${msg}</span>`); if (st.tab === 'stocktake') renderStocktake(); if ($('#stkScan')) $('#stkScan').focus(); };
-  const uniq = [...new Set(hits)];
-  if (uniq.length > 1) return say(`${v} names ${uniq.length} devices: scan the serial number or the code instead.`, 'warn');
+  let uniq = [...new Set(hits)];
+  /* Two devices with one serial number (a typo in one of them): the one this check expects here, not yet confirmed. */
+  if (uniq.length > 1) { const here = uniq.filter(o => inScope(o, t.scope) && !confirmedIn(o, t.id)); if (here.length === 1) uniq = here; }
+  if (uniq.length > 1) return say(`${v} names ${uniq.length} devices (${uniq.slice(0, 4).map(o => `${o.name} ${o.code}`).join(', ')}): scan the code instead.`, 'warn');
   if (!uniq.length) {
-    t.unknown = [...(t.unknown || []), { text: v.slice(0, 200), at: new Date().toISOString() }].slice(-1000);
+    const entry = { text: v.slice(0, 200), at: new Date().toISOString() };
+    t.unknown = [...(t.unknown || []), entry].slice(-1000);
     queueServerSave();
+    /* A typo (part of a name) is easy to take back. */
+    toastUndo(`${v.slice(0, 60)} noted as not in the inventory`, () => { t.unknown = (t.unknown || []).filter(x => x !== entry); queueServerSave(); LAST = ''; if (st.tab === 'stocktake') renderStocktake(); });
     return say(html`<b>${v}</b> is not in the inventory: noted for the result.`, 'warn');
   }
   const o = uniq[0];
@@ -148,7 +158,8 @@ function found(t, v){
   const mv = $('#stmMove'); if (mv) mv.onclick = () => {
     const to = $('#stmTo').value, from = o.loc || '';
     /* As an edit by hand (setByHand), so the next sync does not put back the room its source had. */
-    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
+    const marks = { src: (o.src && o.src.loc) || '', pick: (o.pick && o.pick.loc) || '' };
+    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from, marks); queueServerSave();
     say(html`✓ <b>${o.name}</b> moved to ${to} and confirmed.`, 'ok');
   };
 }

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { audit } from './db.js';
+import { checkLocalPassword } from './auth.js';
 import { KNOWN_TYPES, loadState, saveState } from './state.js';
 import { ldapEnabled, ldapHint, ldapListUsers, ldapCertReport, isCertError, isUnreachable } from './ldap.js';
 import { parseCaCerts, ldapPinOf } from './ldap-config.js';
@@ -14,7 +15,7 @@ import { syncLansweeper } from './lansweeper.js';
 import { probeCert } from './proxy-cert.js';
 import { syncLdapUsers } from './ldap-sync.js';
 import { recordSync, runRecorded } from './sync-runs.js';
-import { setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
+import { getAppSecret, setAppSecret, appSecretSetAt, dropAppSecret } from './app-secrets.js';
 import { HttpError } from './errors.js';
 
 /* Adds the directory and Lansweeper routes, all for admins but the push: the service account password and CA
@@ -32,9 +33,20 @@ export function registerSyncRoutes(app, ctx) {
       const pw = req.body && typeof req.body.password === 'string' ? req.body.password : '';
       if (!pw) throw new HttpError(400, 'Enter the password.');
       if (pw.length > 256) throw new HttpError(400, 'The password is longer than 256 characters.');
-      setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
       /* Tied to the directory server it is saved for. */
       const host = ldapPinOf((ldapConfig ? ldapConfig() : ldap) || {});
+      /* Moving directory sign-in to another server (or off encryption) sends everyone's password there from then on:
+         the admin confirms it with their own password, so a stolen session alone cannot. Setting it up the first time,
+         or saving it again for the same server, needs no more. */
+      const pinned = getAppSecret(db, SECRET_KEY, 'ldapLoginHost');
+      if (host && pinned && pinned !== host) {
+        const mine = typeof req.body.confirm === 'string' ? req.body.confirm : '';
+        if (!mine || mine.length > 256 || !checkLocalPassword(db, req.user.id, mine)) {
+          audit(db, req.user.id, `directory sign-in move to ${host.split('|')[0]} not confirmed`);
+          return res.status(403).json({ error: mine ? 'That is not your password.' : 'Directory sign-in moves to another server: confirm with your own password.', confirm: true, from: pinned.split('|')[0], to: host.split('|')[0] });
+        }
+      }
+      setAppSecret(db, SECRET_KEY, 'ldapServicePassword', pw);
       if (host) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', host); else dropAppSecret(db, 'ldapServicePasswordHost');
       /* Saving it for a server is an admin's word that this is the directory: directory sign-in goes to it from now on. */
       if (host) setAppSecret(db, SECRET_KEY, 'ldapLoginHost', host);

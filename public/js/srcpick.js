@@ -34,7 +34,7 @@ function choicesOf(o, k){
 }
 /* The sources that fill field k, first one first: the order set in Settings → Data sources for the fields it lists,
    else the usual one (Lansweeper where it owns the field, then Entra & Intune, then Active Directory). */
-const autoOrder = (o, k) => ORDER_FIELDS.includes(k) ? fieldOrder(st, k) : ['ls', 'graph', 'ad'].filter(s => s !== 'ls' || feedOwns(o, k));
+const autoOrder = (o, k) => (ORDER_FIELDS.includes(k) ? fieldOrder(st, k) : ['ls', 'graph', 'ad']).filter(s => s !== 'ls' || feedOwns(o, k));
 const autoText = (o, k) => { const l = autoOrder(o, k).map(s => NAMES[s]); return l.length ? l.join(', then ') : 'no source, by hand only'; };
 /* A value written back is of the field's kind: a number field (ports, price) stays a number, as the server checks. */
 const asKind = (was, v) => typeof was === 'number' && v !== '' && Number.isFinite(+v) ? +v : v;

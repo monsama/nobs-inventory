@@ -113,7 +113,7 @@ export function clearConnections(db) {
     }
     db.exec('DELETE FROM feed_token');
     if (hasTable(db, 'graph_keys')) db.exec('DELETE FROM graph_keys');
-    if (hasTable(db, 'app_secrets')) db.exec('DELETE FROM app_secrets');
+    if (hasTable(db, 'app_secrets')) db.exec("DELETE FROM app_secrets WHERE name <> 'ldapLoginHost'");   /* not which directory sign-ins were set up for */
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
@@ -172,6 +172,22 @@ export const freeUserId = (users, id) => { let n = 1, out = id; while (users.som
 /* The rules a whole inventory must follow before it is stored. Something not in the expected form (a null where a
    record belongs) is refused like any other wrong value, not answered with a server error. */
 /* size: false skips measuring the whole inventory (a page save measures what it adds instead, see applyChanges). */
+/* Floor plans as the page keeps them: names, sites, rooms and texts of a sane length, coordinates as numbers, and not
+   more of anything than a plan can hold. What else a plan carries is left as it is. */
+export function plansProblem(plans) {
+  if (plans === undefined) return '';
+  const str = (v, n) => v === undefined || v === null || (typeof v === 'string' && v.length <= n);
+  const num = v => v === undefined || (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e6);
+  const box = r => !!r && typeof r === 'object' && ['x', 'y', 'w', 'h'].every(k => num(r[k]));
+  if (!Array.isArray(plans) || plans.length > 200) return 'Floor plans are a list of up to 200.';
+  for (const p of plans) {
+    if (!p || typeof p !== 'object' || !str(p.id, 40) || !str(p.name, 120) || !str(p.site, 200)) return 'A floor plan has an id, a name and a site.';
+    if (p.areas !== undefined && (!Array.isArray(p.areas) || p.areas.length > 500 || !p.areas.every(a => a && typeof a === 'object' && str(a.id, 40) && str(a.name, 120) && str(a.room, 200) && str(a.color, 20) && box(a)
+      && (a.rects === undefined || (Array.isArray(a.rects) && a.rects.length <= 50 && a.rects.every(box)))))) return `The areas of the floor plan ${String(p.name).slice(0, 60)} are not as a plan keeps them.`;
+    if (p.labels !== undefined && (!Array.isArray(p.labels) || p.labels.length > 500 || !p.labels.every(l => l && typeof l === 'object' && str(l.id, 40) && str(l.text, 200) && l.x !== undefined && l.y !== undefined && num(l.x) && num(l.y)))) return `The texts on the floor plan ${String(p.name).slice(0, 60)} are not as a plan keeps them.`;
+  }
+  return '';
+}
 export function checkState(s, { size = true } = {}) {
   for (const o of (s && Array.isArray(s.objs) ? s.objs : [])) if (o && LEGACY_STATUS.includes(o.status)) o.status = 'stock';
   try { checkStateRules(s, size); }
@@ -234,6 +250,7 @@ function checkStateRules(s, size = true) {
   { const p = lifecycleProblem(s.lifecycle); if (p) bad(p); }
   /* Inventory checks (the Inventory check view): started, finished, what they found. */
   { const p = stocktakesProblem(s.stocktakes); if (p) bad(p); }
+  { const p = plansProblem(s.plans); if (p) bad(p); }
   if (s.peopleNotSame !== undefined && (!Array.isArray(s.peopleNotSame) || s.peopleNotSame.length > 5000 || s.peopleNotSame.some(x => typeof x !== 'string' || x.length > 200))) bad('The people marked as not the same are a list of pairs.');
   for (const k of ['fillGraph', 'fillAd', 'mergeTwins', 'locFromOffice', 'useAd', 'useGraph']) if (s[k] !== undefined && typeof s[k] !== 'boolean') bad(`${k} is on or off.`);
   /* Where each source's new devices go: To review (the default) or straight into the inventory. */
