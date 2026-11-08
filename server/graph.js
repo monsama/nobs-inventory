@@ -264,6 +264,8 @@ export async function fetchSecureBoot(token, managed, fetchImpl = fetch) {
       const id = part[Number(x.id)];
       if (!id) continue;
       if (x.status === 401 || x.status === 403) { refused++; continue; }
+      /* Throttled or failed for this one device: what it had is kept, not taken away. */
+      if (x.status === 429 || x.status >= 500) { out.set(id, { keep: true }); continue; }
       const h = x.status === 200 && x.body && x.body.deviceHealthAttestationState;
       const v = h ? secureBootOf(h.secureBoot) : '';
       if (v) out.set(id, { secureBoot: v, at: /^\d{4}-\d{2}-\d{2}/.test(clean(h.lastUpdateDateTime)) && !/^0001/.test(clean(h.lastUpdateDateTime)) ? clean(h.lastUpdateDateTime).slice(0, 10) : '' });
@@ -273,7 +275,7 @@ export async function fetchSecureBoot(token, managed, fetchImpl = fetch) {
   return out;
 }
 export function addSecureBoot(records, found) {
-  for (const r of records) { const x = r.intuneId && found.get(r.intuneId); if (x) { r.secureBoot = x.secureBoot; if (x.at) r.secureBootAt = x.at; } }
+  for (const r of records) { const x = r.intuneId && found.get(r.intuneId); if (x && x.keep) r.secureBootKeep = true; else if (x) { r.secureBoot = x.secureBoot; if (x.at) r.secureBootAt = x.at; } }
 }
 
 /* ---------- people from Entra ----------
@@ -306,14 +308,18 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
       /* Title, phones, office, manager and e-mail: Entra's, unless the directory gave them (it is where Entra got them). */
       if (!p.profile || p.profile.from === 'entra') { const pr = profileOfEntra(u); if (pr) p.profile = pr; else delete p.profile; }
       const name = clean(u.displayName).slice(0, 120), dept = clean(u.department).slice(0, 120);
-      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) { p.leftAt = new Date().toISOString(); delete p.leftBy; } else if (on) { delete p.leftAt; delete p.leftBy; } p.active = on; }
+      if (p.source === 'entra') { if (name) p.name = name; if (dept) p.dept = dept; else delete p.dept; const on = u.accountEnabled !== false; if (p.active !== false && !on) { p.leftAt = now.toISOString(); delete p.leftBy; } else if (on) { delete p.leftAt; delete p.leftBy; } p.active = on; }
       else {
         if (p.source === 'lansweeper' && name && low(p.name) === low(p.login)) p.name = name;
         /* Anyone else without a department (from the directory, Lansweeper or typed) gets Entra's, noted as Entra's, so it
            follows Entra until another source or a person sets one. */
         if (dept && (!p.dept || p.deptFrom === 'entra') && p.dept !== dept) { p.dept = dept; p.deptFrom = 'entra'; }
       }
-    } else if (p.entra && !p.entra.gone) { p.entra = { ...p.entra, gone: at }; counts.gone++; }
+    } else if (p.entra && !p.entra.gone) {
+      p.entra = { ...p.entra, gone: at }; counts.gone++;
+      /* Someone added from Entra and deleted there has left, as one disabled there has. */
+      if (p.source === 'entra' && p.active !== false) { p.active = false; p.leftAt = now.toISOString(); delete p.leftBy; }
+    }
   }
   if (mode === 'add') {
     const owners = new Set(s.objs.filter(o => o.status !== 'retired' && o.graph && !o.graph.gone && o.graph.owner).map(o => low(o.graph.owner)));
@@ -331,7 +337,8 @@ export function applyGraphPeople(s, users, mode = 'match', now = new Date()) {
      the device sync filled it in), is bound to them, so it moves with a rename. */
   const byOwner = new Map(s.users.filter(p => p.entra && !p.entra.gone && p.entra.upn).map(p => [low(p.entra.upn), p]));
   for (const o of s.objs) {
-    if (o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || pickOf(o, 'user') === 'hand') continue;
+    /* Only a device in use: one taken back into stock, or retired, keeps nobody, whatever Intune still says. */
+    if (o.status !== 'active' || o.uid || o.hotdesk || !o.graph || o.graph.gone || !o.graph.owner || pickOf(o, 'user') === 'hand') continue;
     const p = byOwner.get(low(o.graph.owner));
     if (p && (!o.user || low(o.user) === low(p.name) || low(o.user) === low(o.graph.ownerName))) { o.uid = p.id; o.user = p.name; counts.bound++; }
   }
@@ -382,15 +389,26 @@ export function applyGraph(s, records, now = new Date()) {
   const counts = { records: records.length, devices: 0, matched: 0, unmatched: 0, filled: 0, duplicates: 0, ambiguous: 0, gone: 0 };
   /* A model renamed in Settings is that name here too, as it is for Lansweeper: Graph does not put the old one back. */
   for (const r of records) if (r.model) r.model = modelFor(s, r.model);
-  const live = s.objs.filter(o => o.status !== 'retired');
+  /* A record merged into a device (kept, ignored, with the same serial number or name) is not a second device. */
+  const live = s.objs.filter(o => o.status !== 'retired' && !(o.excluded && o.review && o.review.merged));
   const retired = s.objs.filter(o => o.status === 'retired');
   const bySerial = groupBy(live, o => low(o.serial)), byName = groupBy(live, o => low(o.name));
-  const retiredKeys = new Set(retired.flatMap(o => [low(o.serial) && 's:' + low(o.serial), low(o.name) && 'n:' + low(o.name)]).filter(Boolean));
+  /* Entra's device id finds the device whatever its name says today, also one with no serial number (hybrid joined). */
+  /* Not the empty id Intune gives a device that is not in Entra (all zeros), and only one device per id. */
+  const realAad = v => !!v && !/^[0-]+$/.test(String(v));
+  const aadCount = groupBy(live.filter(o => o.graph && realAad(o.graph.aadId)), o => low(o.graph.aadId));
+  const byAad = new Map([...aadCount].filter(([, l]) => l.length === 1).map(([k, l]) => [k, l[0]]));
+  /* A retired device is known by its serial number, or by its name when the record has no other serial number: a new
+     machine that took the name of a retired one is offered, not dropped. */
+  const retiredHas = r => retired.some(o => (r.serial && o.serial && low(o.serial) === low(r.serial)) || (r.name && low(o.name) === low(r.name) && !(r.serial && o.serial && low(o.serial) !== low(r.serial))));
   const onDevice = new Map(), unmatched = [], ambiguous = new Map(), held = new Set();
   for (const r of records) {
     /* By serial number first; by name only when the serial number does not find the device. */
     /* By name only a device with no serial number or the same one: another serial number is another machine, as in the Lansweeper sync. */
-    const found = (r.serial && bySerial.get(low(r.serial)))
+    /* Another serial number is another machine, whatever id it reports. */
+    const aad0 = realAad(r.aadId) && byAad.get(low(r.aadId));
+    const aad = aad0 && !(r.serial && aad0.serial && low(aad0.serial) !== low(r.serial)) ? aad0 : null;
+    const found = (aad && [aad]) || (r.serial && bySerial.get(low(r.serial)))
       || (r.name && (byName.get(low(r.name)) || []).filter(o => !(o.serial && r.serial && low(o.serial) !== low(r.serial)))) || [];
     if (found.length > 1) {
       const k = found.map(o => o.id).join('|');
@@ -401,7 +419,7 @@ export function applyGraph(s, records, now = new Date()) {
     }
     if (found.length) { onDevice.set(found[0], [...(onDevice.get(found[0]) || []), r]); continue; }
     /* A device the inventory has as retired is known: it is not offered to be added again. */
-    if ((r.serial && retiredKeys.has('s:' + low(r.serial))) || (r.name && retiredKeys.has('n:' + low(r.name)))) { counts.retired = (counts.retired || 0) + 1; continue; }
+    if (retiredHas(r)) { counts.retired = (counts.retired || 0) + 1; continue; }
     unmatched.push(r);
   }
   for (const [o, list] of onDevice) {
@@ -414,6 +432,7 @@ export function applyGraph(s, records, now = new Date()) {
     }
     /* Graph keeps a device it added up to date, until Lansweeper takes it over; then Graph only fills gaps, like everywhere. */
     const owns = !!before.added && !o.feed;
+    if (r.secureBootKeep && o.graph && o.graph.secureBoot) { r.secureBoot = o.graph.secureBoot; if (o.graph.secureBootAt) r.secureBootAt = o.graph.secureBootAt; }
     o.graph = graphOf(r, at, owns);
     if (list.length > 1) o.graph.others = othersOf(list, r);
     /* What Intune says of each field, as of its last check-in, beside the field (o.vals), to pick from on the page. */
@@ -441,7 +460,7 @@ export function applyGraph(s, records, now = new Date()) {
     if (!o.serial && r.serial && pickOf(o, 'serial') !== 'hand') { o.serial = r.serial; counts.filled++; }
     /* The primary user, on a device that has nobody yet; a person chosen by hand is never replaced. Graph gives the
        display name (Lansweeper gives a login): the page binds either to the person, by login first, then by name. */
-    if (r.ownerName && !o.uid && !o.user && !o.hotdesk && pickOf(o, 'user') !== 'hand') { o.user = r.ownerName; counts.filled++; }
+    if (r.ownerName && o.status === 'active' && !o.uid && !o.user && !o.hotdesk && pickOf(o, 'user') !== 'hand') { o.user = r.ownerName; counts.filled++; }
   }
   /* Graph had the device and has it no more (deleted in Entra, or renamed): what it said is kept, marked as gone, so the
      device no longer counts as joined. A device that fits a record twice keeps what it had. */

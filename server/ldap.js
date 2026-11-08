@@ -13,7 +13,7 @@ export const ldapEnabled = config => !!config?.url;
 /* All user attributes: asking for a named list made some directory stand-ins drop values, and the page reads only what it needs. */
 /* What is read of a person, by name: never everything, so a user filter that also matches computer accounts never
    asks for their LAPS password or BitLocker keys. The login attribute (set in Settings) is added to it. */
-const USER_ATTRS = ['displayname', 'department', 'mail', 'samaccountname', 'userprincipalname', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager'];
+const USER_ATTRS = ['displayname', 'department', 'mail', 'samaccountname', 'userprincipalname', 'memberof', 'title', 'telephonenumber', 'mobile', 'physicaldeliveryofficename', 'manager', 'useraccountcontrol'];
 const userAttrs = config => [...new Set([...USER_ATTRS, String(config.loginAttr || 'sAMAccountName').toLowerCase()])].filter(a => !SECRET_ATTR.test(a));
 /* The LAPS password and the BitLocker recovery data are never asked for: not as the login attribute, not in a filter. The
    settings are an admin's, but a stolen session must not turn them into a way to read those secrets. */
@@ -111,6 +111,8 @@ export function profileOf(attrs, config) {
     login,
     /* AD's two logins, whatever the sign-in uses: Lansweeper names a device's user by the first, Entra by the second. */
     sam: first('sAMAccountName'), upn: first('userPrincipalName'),
+    /* An account disabled in Active Directory (userAccountControl bit 2): a leaver, even while still in the group. */
+    ...((Number(first('userAccountControl')) & 2) ? { disabled: true } : {}),
     name: first('displayName') || login,
     dept: first('department'),
     mail: first('mail'),
@@ -165,7 +167,7 @@ export async function ldapLogin(config, login, password) {
     await bind(client, config.bindTemplate.replace('{login}', login), password);
     const [entry] = await ldapSearch(client, config.searchBase, `(${config.loginAttr}=${escapeFilter(login)})`, userAttrs(config));
     if (!entry) return null;
-    const profile = profileOf(entry.attrs, config);
+    const profile = /** @type {any} */ (profileOf(entry.attrs, config));
     profile.allowed = await isMember(client, config, login, profile, config.group);
     profile.admin = !!config.adminGroup && await isMember(client, config, login, profile, config.adminGroup);
     return profile;
@@ -356,6 +358,7 @@ export async function ldapListUsers(config) {
     const isAdmin = !config.adminGroup ? () => false
       : isDn(config.adminGroup) ? sameLogin(null, await members(config.adminGroup))
       : p => inGroup(p, config.adminGroup);
-    return people.map(p => ({ ...p, admin: isAdmin(p) }));
+    /* A disabled account is not one of them: the sync switches the person off, as one who left the group. */
+    return people.filter(p => !p.disabled).map(p => ({ ...p, admin: isAdmin(p) }));
   } finally { close(client); }
 }
