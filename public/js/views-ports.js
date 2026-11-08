@@ -152,10 +152,10 @@ export function renderPorts(){
     if (!Number.isInteger(from) || from < 1 || !Number.isInteger(to) || to < from || to > total){ toast(`The ports are numbered 1 to ${total}. Give a range within them.`); return; }
     if (others.some(g => from <= g.to && to >= g.from)){ toast('Those ports are already in a group. Pick ports outside it.'); return; }
     if (others.some(g => g.name.toLowerCase() === name.toLowerCase())){ toast(`There is already a group named ${name}. Give it another name.`); return; }
-    /* A device on a port the group did not have yet must move first; one already in the group stays. */
-    const wasIn = p => editing && p >= editing.from && p <= editing.to;
-    if (rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to && !wasIn(r.port))){ toast('A device is on one of these ports. Move it first.'); return; }
+    /* A plain group only names ports, so devices on them stay. A LAG is linked as a whole: a device on one of its ports
+       must move first, also when an existing group becomes a LAG. */
     const lag = $('#pgLag').checked;
+    if (lag && rels.some(r => r.to === sw.id && typeof r.port === 'number' && r.port >= from && r.port <= to)){ toast('A device is on one of these ports, and a LAG is linked as a whole. Move it first.'); return; }
     const next = {name, from, to, ...(kind ? {kind} : {}), ...(lag ? {lag: true} : {})};
     if (!editing){ sw.portGroups = [...groups0, next]; queueServerSave(); toast('Port group added'); render(); return; }
     /* A linked LAG stays a LAG of the same size, so it still matches the LAG on the other end; a new name moves with its link. */

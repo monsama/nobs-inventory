@@ -11,12 +11,12 @@ import { bindMaint, maintPanel } from './26-maintenance.js';
 import { handOutModal, takeBackModal } from './27-handout.js';
 import { bindPhotos, photoCount, photosPanel } from './23-photos.js';
 import { num, bindDeviceContracts, contractsOf, deviceContractsPanel } from './09-costs.js';
-import { dayText, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
+import { dayText, rackUnits, $$, menuHtml, sourceMark, COSTS, PLANS, contactOf, restoreSnapshot, snapshot, toastUndo, FEED_EXTRA, FEED_EXTRA_HINT, SUBNETS, REVIEW } from './01-core.js';
 import { ipInt, subnetSpan } from './net.js';
-import { twinsOf, portRangeError, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, KIND_TARGETS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
+import { twinsOf, portRangeError, portValue, pickHand, twinOf, setByHand, joinBadges, GRAPH_TYPES, hiddenOf, lsLive, SCAN_ONLY, isAttached, MODELS, FIELD_LAYOUT, KIND_HINTS, patchPort, TYPE_FIELDS, VLANS, releaseRetiredPort, feedLinked, vlanLabel, hasPorts, $, FIELD_LABEL, HISTORY, KINDS, LS_ON, STATUS, TYPES, byId, hist, now, objs, pathUp, pfxOf, portLabel, rels, relsOf, rid, st, tico, toast } from './01-core.js';
 import { SERVER, coloursModal, queueServerSave, render, renderStatus, view } from './07-render.js';
 import { showOnPlan } from './20-plans.js';
-import { ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, who } from './04-settings.js';
+import { RACKABLE, ensureUser, isAdmin, personById, checkAddress, rackCheck, rackFields, rackLocFollow, rackTopUsed, who } from './04-settings.js';
 import { newObjModal } from './05-new-object.js';
 import { joinCardsAvailable, openObj } from './02-views.js';
 import { sheetModal } from './08-sheets.js';
@@ -25,7 +25,9 @@ import { bindHistory, historyPanel, refreshHistory } from './28-restore.js';
 import { timelinePanel, bindTimeline } from './29-timeline.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets, bindPatchPanel, patchPanel } from './24-patch.js';
-import { findOutlet, outletLabel, outletOf, panelPortNo } from './cabling.js';
+import { cordTarget, findOutlet, outletLabel, outletOf, panelPortNo } from './cabling.js';
+import { portSetupError } from './views-ports.js';
+import { HOST_KINDS, PORT_KINDS, kindProblem, linkKind, relationProblem } from './relations.js';
 /* The device page: its fields, the panels beside them (links, maintenance, photos, software, responsibles, contracts,
    relations, path to the network, history, timeline), and retiring or deleting a device. */
 /* ---------- object page ---------- */
@@ -60,19 +62,39 @@ function newPersonModal(o){
    place is always given up. Only what applies is listed. */
 /** @returns {[string, import('./html.js').Html, () => void][]} */
 function retireTies(o){
-  const plugs = rels.filter(r => r.from === o.id && r.kind === 'connected' && byId(r.to));
-  const attached = rels.filter(r => r.to === o.id && r.kind === 'attached' && byId(r.from));
+  const { plugs, host, attached, vms } = linksOf(o);
   const plan = o.planPos && PLANS.find(p => p.id === o.planPos.plan);
   const cts = contractsOf(o);
   const resp = [o.respIn, o.respEx].filter(Boolean).map(contactOf).filter(Boolean);
   return [
     (o.uid || o.hotdesk) && ['user', html`Take it from ${o.user}`, () => { o.uid = null; o.hotdesk = false; pickHand(o, 'user'); }],
     plugs.length && ['plug', html`Unplug it from ${plugs.map(r => `${byId(r.to).name}${r.port != null ? ' port ' + portLabel(byId(r.to), r.port) : ''}`).join(', ')}, so the port is free`, () => plugs.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    host.length && ['host', html`Take it off ${host.map(r => byId(r.to).name).join(', ')}`, () => host.forEach(r => rels.splice(rels.indexOf(r), 1))],
     attached.length && ['attached', html`Detach ${attached.map(r => byId(r.from).name).join(', ')} (${attached.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => attached.forEach(r => rels.splice(rels.indexOf(r), 1))],
+    vms.length && ['vms', html`${vms.map(r => byId(r.from).name).join(', ')} no longer ${vms.length === 1 ? 'runs' : 'run'} on it (${vms.length === 1 ? 'it stays' : 'they stay'} in the inventory)`, () => vms.forEach(r => rels.splice(rels.indexOf(r), 1))],
     plan && ['plan', html`Take it off the floor plan ${plan.name}`, () => { delete o.planPos; }],
     cts.length && isAdmin() && ['contracts', html`Remove it from ${cts.map(c => c.name).join(', ')}`, () => cts.forEach(c => { c.devices = (c.devices || []).filter(id => id !== o.id); })],
     resp.length && ['resp', html`Remove ${resp.map(c => c.name).join(' and ')} as responsible`, () => { delete o.respIn; delete o.respEx; }],
   ].filter(Boolean).map(t => /** @type {[string, import('./html.js').Html, () => void]} */ (t));
+}
+/* The links a retired device gives up: the ports it is plugged into (and its uplinks), the device it is attached to or
+   runs on, the devices attached to it and the VMs on it. */
+function linksOf(o){
+  const at = (r, end) => byId(r[end]);
+  return {
+    plugs: rels.filter(r => r.from === o.id && PORT_KINDS.includes(r.kind) && at(r, 'to')),
+    host: rels.filter(r => r.from === o.id && HOST_KINDS.includes(r.kind) && at(r, 'to')),
+    attached: rels.filter(r => r.to === o.id && r.kind === 'attached' && at(r, 'from')),
+    vms: rels.filter(r => r.to === o.id && r.kind === 'hosted' && at(r, 'from')),
+  };
+}
+/* Retiring without the dialog (bulk, Retire and exclude): out of its rack, and every link above given up. Returns the
+   relations taken away, for an Undo. */
+export function retireLinks(o){
+  if (o.rack){ hist(o, now(), 'Taken out of the rack ' + (byId(o.rack) ? byId(o.rack).name : '') + ' for retirement by ' + who()); unplace(o); }
+  const l = linksOf(o), gone = [...l.plugs, ...l.host, ...l.attached, ...l.vms];
+  for (const r of gone){ rels.splice(rels.indexOf(r), 1); }
+  return gone;
 }
 /* The Retire dialog: what the device still holds (retireTies) to clear, ticked, and an optional reason. Retiring takes it
    out of its rack, sets it retired and notes it in the history, with one Undo for all of it. */
@@ -132,7 +154,7 @@ export function purgeModal(o){
   $('#pgCancel').onclick = closeModal;
   const ex = $('#pgExcl');
   if (ex) ex.onclick = () => {
-    if (o.rack) unplace(o);
+    retireLinks(o);
     o.status = 'retired'; o.excluded = true;
     hist(o, now(), 'Retired and excluded from Lansweeper sync by ' + who());
     closeModal(); toast(`${o.name} is retired and excluded: Lansweeper will not add it again`); render();
@@ -149,7 +171,8 @@ export function deleteObject(id){
   /* Records merged into a deleted device stay ignored, merged into nothing. */
   REVIEW.forEach(x => { if (x.review && x.review.merged === id) { delete x.review.merged; delete x.review.filled; delete x.review.moved; } });
   for (let k = rels.length - 1; k >= 0; k--) if (rels[k].from === id || rels[k].to === id) rels.splice(k, 1);
-  objs.forEach(x => { if (x.ontop === id) delete x.ontop; });
+  /* What sat on top of it leaves the rack too: it had no U of its own. */
+  objs.forEach(x => { if (x.ontop === id) { delete x.ontop; delete x.rack; delete x.u; delete x.h; hist(x, now(), 'Taken out of the rack: the device it sat on was deleted'); } });
   /* A deleted rack leaves its devices unmounted; they stay in the inventory. */
   objs.forEach(x => { if (x.rack === id) { delete x.rack; delete x.u; delete x.h; delete x.ontop; } });
   delete HISTORY[id];
@@ -272,7 +295,7 @@ export function renderObj(o){
   const targets = objs.filter(x => x.id !== o.id && x.status !== 'retired');
   /* The toolbar (name, status, the More menu) and the page itself. Name, code, type and status share one text line
      (.obj-id), so their letters sit on one baseline whatever the fonts, and that line is centred in the bar. */
-  const more = html`<button id="relMapBtn">Relations map</button>${edit ? html`<button id="dupBtn">Duplicate</button>` : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? html`<button id="addPortsBtn">Add network ports…</button>` : ''}${o.uid && SERVER.on && isAdmin() ? html`<button id="sheetBtn">Entry sheet for ${o.user}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? html`<hr class="msep">${o.excluded ? html`<button id="exclBtn">Include in sync</button>` : html`<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn">Exclude with its relations</button>`}` : ''}${edit ? html`<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>` : ''}`;
+  const more = html`<button id="relMapBtn">Relations map</button>${edit ? html`<button id="dupBtn">Duplicate</button>` : ''}${canAddPorts(o.type) && !extraPorts && isAdmin() ? html`<button id="addPortsBtn">Add network ports…</button>` : ''}${o.uid && SERVER.on && isAdmin() ? html`<button id="sheetBtn">Entry sheet for ${o.user}…</button>` : ''}${isAdmin() && (o.excluded || o.feed || o.graph || o.inAd || o.ad || LS_ON() || SERVER.graph || SERVER.ldap) ? html`<hr class="msep">${o.excluded ? html`<button id="exclBtn">Include in sync</button>` : html`<button id="exclBtn">Exclude from sync</button><button id="exclRelBtn" title="Also the devices attached to it and the virtual machines on it">Exclude with what belongs to it</button>`}` : ''}${edit ? html`<hr class="msep"><button id="delBtn">Retire…</button><button id="purgeBtn" class="danger-text">Delete permanently…</button>` : ''}`;
   $('#toolbar').innerHTML = html`${rawHtml(tico(o.type))}<span class="obj-id"><b class="mono" id="objTitle" tabindex="-1">${o.name}</b><span class="code">${o.code}</span><span class="muted hide-n">${TYPES[o.type].label}</span>
     ${o.review ? html`<span class="chip">${o.review.merged ? 'Merged' : o.review.ignored ? 'Ignored' : 'Waiting'}</span>` : html`<span class="chip ${STATUS[o.status].cls}">${STATUS[o.status].label}</span>`}</span>${o.planPos && PLANS.some(p => p.id === o.planPos.plan) ? html`<button type="button" class="link hide-n" id="onPlanBtn" title="Open its floor plan, with the device marked">On floor plan ${PLANS.find(p => p.id === o.planPos.plan).name}</button>` : ''}<div class="grow"></div><span class="obj-save"><span class="obj-saved" id="objSaved" role="status">${o.handAt ? 'Saved ' + savedAt(o.handAt) : ''}</span><button id="saveBtn" class="primary" hidden>Save</button></span>${handBtn(o)}
     ${rawHtml(menuHtml('More', more))}`;
@@ -291,7 +314,7 @@ export function renderObj(o){
       ${o.type === 'patch' ? patchPanel(o) : ''}
       ${extras(o)}
       <div class="panelbox"><div class="hdr">Relations <span class="cnt">${rs.length || 'none'}</span></div>
-        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && x.r.kind !== 'patched' && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet. Add one below.' : 'No relations.'}</p>`}</div>
+        <div class="relist" data-edit>${rs.length ? byGroup.map((x, i) => html`${groupHead(i)}<div class="relrow"><span class="k">${x.label}</span><span class="t">${rawHtml(tico(x.other.type,'tico sm'))}<a class="link" data-open="${x.other.id}">${x.other.name}</a>${x.r.kind === 'connected' && outletOf(byId(x.r.to), x.r.port) ? html`<span class="chip" title="${outletLabel({...outletOf(byId(x.r.to), x.r.port), panel: byId(x.r.to), port: x.r.port})}">Outlet ${outletOf(byId(x.r.to), x.r.port).name}</span>` : ''}${x.r.lag == null && PORT_KINDS.includes(x.r.kind) && (hasPorts(byId(x.r.to)) || byId(x.r.to).type === 'patch') ? html`<input class="rport" data-rport="${x.r.id}" value="${x.r.port ?? ''}" placeholder="Port" aria-label="Port on ${x.other.name}" style="width:80px"><span class="rvlan">${x.r.vlan ? html`<span class="chip" title="VLAN ${vlanLabel(x.r.vlan)}">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}</span>` : html`${x.port ? html`<span class="p">${x.out ? '' : 'on '}${x.port}</span>` : ''}${x.r.vlan ? html`<span class="chip">VLAN ${vlanLabel(x.r.vlan)}</span>` : ''}`}</span><button class="icon ghost" data-delrel="${x.r.id}" title="Remove relation" aria-label="Remove relation">×</button></div>`) : html`<p class="note lempty">${isAdmin() ? 'No relations yet. Add one below.' : 'No relations.'}</p>`}</div>
         <div class="addrel"><select id="arKind" aria-label="Relation"></select>
           <select id="arTo" aria-label="Target" style="flex:1"></select>
           <input id="arPort" placeholder="Port" style="width:90px" aria-label="Port"><select id="arLag" aria-label="LAG on the target" hidden></select><select id="arFromLag" aria-label="LAG on this device" hidden></select><select id="arVlan" aria-label="VLAN" style="width:150px"><option value="">No VLAN</option>${VLANS.map(v => html`<option value="${v.vid}">${v.vid} · ${v.name}</option>`)}</select><button id="arAdd">Add</button></div>${edit && anyOutlets() ? html`<div class="addrel" id="arOutletRow"><label class="muted" for="arOutlet">Or a wall outlet</label>${rawHtml(comboHtml('<input id="arOutlet" data-combo="outlet" placeholder="Outlet name, room or panel" style="flex:1">', 'arOutlet'))}</div>` : ''}<p class="note" id="arHint" role="status"></p>
@@ -367,15 +390,19 @@ export function renderObj(o){
   /* The relation kind decides which objects are offered as targets: a monitor attaches to a PC, a device connects to a switch or a patch panel. */
   const fitTargets = () => {
     const k = $('#arKind').value;
-    $('#arTo').innerHTML = html`<option value="">Choose a device…</option>${targets.filter(t => KIND_TARGETS[k].includes(t.type) && (k !== 'hosted' || t.kind !== 'vm')).map(t => html`<option value="${t.id}">${t.name} (${TYPES[t.type].short})</option>`)}`;
+    $('#arTo').innerHTML = html`<option value="">Choose a device…</option>${targets.filter(t => !kindProblem(k, o, t)).map(t => html`<option value="${t.id}">${t.name} (${TYPES[t.type].short})</option>`)}`;
     /* The field is narrow: the placeholder is short, and the patch panel hint is in its tooltip. */
     $('#arPort').placeholder = k === 'connected' || k === 'uplink' ? 'Port' : 'Port (opt.)';
     $('#arPort').title = k === 'connected' ? 'Port number, or P04 for a port on a patch panel' : '';
   };
-  $('#arKind').innerHTML = html`${Object.entries(KINDS).filter(([k]) => k !== 'patched').map(([k,v]) => html`<option value="${k}" title="${KIND_HINTS[k]}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`)}`;
+  /* Only the kinds that fit this device (relations.js): a printer is not offered "runs on", a VM not "connected to". */
+  const kinds = Object.entries(KINDS).filter(([k]) => k !== 'patched' && targets.some(t => !kindProblem(k, o, t)));
+  $('#arKind').innerHTML = html`${kinds.map(([k,v]) => html`<option value="${k}" title="${KIND_HINTS[k]}">${v.fwd[0].toUpperCase() + v.fwd.slice(1)}</option>`)}`;
   /* The dropdown shows what the chosen kind means, so the hint follows the choice. */
   const kindHint = () => { $('#arKind').title = KIND_HINTS[$('#arKind').value] || ''; };
-  $('#arKind').value = o.type === 'monitor' ? 'attached' : 'connected'; fitTargets(); kindHint();
+  const kind0 = linkKind(o, null);
+  if (kinds.length) $('#arKind').value = kinds.some(([k]) => k === kind0) ? kind0 : kinds[0][0];
+  fitTargets(); kindHint();
   $('#arKind').onchange = () => { fitTargets(); kindHint(); portHint(); lagRow(); const row = $('#arOutletRow'); if (row) row.hidden = $('#arKind').value !== 'connected'; };
   /* An outlet picked by name plugs into the panel port behind it. */
   const outIn = $('#arOutlet');
@@ -421,7 +448,7 @@ export function renderObj(o){
       hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" (LAG ${lagTo}) added by ${who()}`);
       toast('LAG link added'); render(); return;
     }
-    let port = $('#arPort').value.trim(); if (/^\d+$/.test(port) && hasPorts(to)) port = +port;
+    let port = portValue(to, $('#arPort').value);
     const inLag = (to.portGroups || []).find(g => g.lag && typeof port === 'number' && port >= g.from && port <= g.to);
     if (inLag){ toast(`Port ${port} is part of the LAG ${inLag.name}. Choose the LAG instead.`); return; }
     if (portRangeError(to, port)){ toast(portRangeError(to, port)); return; }
@@ -429,7 +456,9 @@ export function renderObj(o){
     if (hasPorts(to) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
     if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
-    const finalPort = port === '' ? null : (to.type === 'patch' ? patchPort(port) : port);
+    /* The same rule as everywhere: the types fit, and a monitor or VM has one host that is not attached itself. */
+    { const why = relationProblem(k, o, to, rels); if (why){ toast(why); return; } }
+    const finalPort = port === '' || !PORT_KINDS.includes(k) ? null : (to.type === 'patch' ? patchPort(port) : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (hasPorts(to) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
@@ -439,13 +468,15 @@ export function renderObj(o){
   $('#view').querySelectorAll('[data-delrel]').forEach(b => b.onclick = () => { const i = rels.findIndex(r => r.id === b.dataset.delrel); rels.splice(i, 1); toast('Relation removed'); render(); });
   $('#view').querySelectorAll('[data-rport]').forEach(i => i.onchange = () => {
     const r = rels.find(x => x.id === i.dataset.rport); if (!r) return;
-    const to = byId(r.to); let p = i.value.trim();
-    if (!p){ toast('A connection to this device needs a port.'); render(); return; }
-    if (hasPorts(to) && /^\d+$/.test(p)) p = +p;
-    if (to.type === 'patch') p = patchPort(p);
-    if (hasPorts(to) && typeof p === 'number' && to.ports && p > to.ports){ toast(`${p} is above the ${to.ports} ports of ${to.name}. Raise its port count first.`); render(); return; }
+    const to = byId(r.to);
+    if (!i.value.trim()){ toast('A connection to this device needs a port.'); render(); return; }
+    const p = portValue(to, i.value);
+    /* The same checks as adding the relation: a port the device has, not inside a LAG, and free. */
+    if (portRangeError(to, p)){ toast(portRangeError(to, p)); render(); return; }
+    const inLag = (to.portGroups || []).find(g => g.lag && typeof p === 'number' && p >= g.from && p <= g.to);
+    if (inLag){ toast(`Port ${p} is part of the LAG ${inLag.name}. Link the LAG instead.`); render(); return; }
+    if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p) && !(byId(x.from) && byId(x.from).status === 'retired'))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
     releaseRetiredPort(to, p);
-    if (rels.some(x => x !== r && x.to === to.id && String(x.port) === String(p))){ toast(`${p} on ${to.name} is already taken.`); render(); return; }
     r.port = p;
     hist(byId(r.from), now(), `Port on ${to.name} set to ${p} by ${who()}`);
     toast('Port set'); render();
@@ -511,9 +542,25 @@ export function renderObj(o){
     const typeEl = $('#view').querySelector('[data-k="type"]');
     if (typeEl && o.type === 'rack' && typeEl.value !== 'rack' && objs.some(x => x.rack === o.id)){ toast('Move the devices out of this rack first.'); typeEl.value = o.type; return false; }
     const pEl = $('#view').querySelector('[data-k="ports"]'), sEl = $('#view').querySelector('[data-k="sfp"]');
-    if (pEl && sEl){
-      const total = (+pEl.value || 0) + (+sEl.value || 0);
-      if (rels.some(r => r.to === o.id && typeof r.port === 'number' && r.port > total)){ toast(`Ports in use above ${total} block this change. Move or remove those connections first.`); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
+    /* As in the Ports tab: connections and port groups (LAGs) above the new count block it. */
+    if (pEl && sEl && hasPorts(o)){
+      const err = portSetupError(o, +pEl.value || 0, +sEl.value || 0);
+      if (err){ toast(err); pEl.value = o.ports || 0; sEl.value = o.sfp || 0; return false; }
+    }
+    /* A new type must fit the cabling: outlets and cords start on a patch panel, cords end on a switch, router or firewall
+       port, and ports numbered on one kind of device mean nothing on the other (P05 on a panel, 5 on a switch). */
+    if (typeEl && typeEl.value !== o.type){
+      const nt = {...o, type: typeEl.value};
+      const panelNow = o.type === 'patch', panelNext = nt.type === 'patch';
+      const why = panelNow && !panelNext && (Object.keys(o.outlets || {}).length || rels.some(r => r.from === o.id && r.kind === 'patched')) ? 'its wall outlets and patch cords'
+        : rels.some(r => r.to === o.id && r.kind === 'patched') && !cordTarget(nt) ? 'the patch cords that end on it'
+        : panelNow !== panelNext && rels.some(r => r.to === o.id && r.port != null && r.kind !== 'patched') ? 'the devices plugged into its ports'
+        : '';
+      if (why){ toast(`${o.name} cannot become a ${(TYPES[nt.type] || {}).label || nt.type} with ${why}. Remove them first.`); typeEl.value = o.type; return false; }
+      /* Its attachments, VMs and connections must still make sense: a server with VMs stays a server, a monitor on a PC
+         does not become a PC on a PC. */
+      const misfit = rels.find(r => r.kind !== 'patched' && (r.from === o.id ? kindProblem(r.kind, nt, byId(r.to) || {}) : r.to === o.id && byId(r.from) ? kindProblem(r.kind, byId(r.from), nt) : ''));
+      if (misfit){ const other = byId(misfit.from === o.id ? misfit.to : misfit.from); toast(`${o.name} cannot become a ${(TYPES[nt.type] || {}).label || nt.type}: it ${misfit.from === o.id ? KINDS[misfit.kind].fwd : KINDS[misfit.kind].rev} ${other ? other.name : 'another device'}. Remove that relation first.`); typeEl.value = o.type; return false; }
     }
     /* Retired picked in the Status field: the Retire dialog decides, as from More → Retire (the user, ports, plan and
        contracts it frees, and Undo). The field shows the status as it is until then. */
@@ -530,6 +577,15 @@ export function renderObj(o){
         if (err){ toast(err); return false; }
         place = {rack: rackId, u, h};
       } else place = {};
+    }
+    /* A device that becomes a rack, or a type that does not go in a rack, leaves the rack it is in. */
+    if (typeEl && typeEl.value !== o.type && o.rack && (typeEl.value === 'rack' || !RACKABLE.includes(typeEl.value))) place = {};
+    /* A rack cannot be lower than the devices in it, and is 1 to 60 U high, as a new rack. */
+    const unitsEl = /** @type {HTMLInputElement|null} */ ($('#view').querySelector('[data-k="units"]'));
+    if (unitsEl && o.type === 'rack'){
+      const n = Number(unitsEl.value), top = rackTopUsed(o.id);
+      if (!Number.isInteger(n) || n < 1 || n > 60){ toast('A rack is 1 to 60 U high, in whole units.'); unitsEl.value = String(rackUnits(o)); return false; }
+      if (n < top){ toast(`U${top} is in use: move the devices above U${n} first.`); unitsEl.value = String(rackUnits(o)); return false; }
     }
     const kept = [], edits = [];
     /* The device as it was, for the Undo in the toast. */
@@ -554,7 +610,7 @@ export function renderObj(o){
       /* Read as a contract's amount is (num): 1290, 1'290.50 and 1,290 mean the same everywhere. */
       if (k === 'price'){ const t = num(v); if (t === undefined){ if (v.trim() !== '') toast('The price is a number up to 1 000 000 000, e.g. 1290 or 99.50.'); else if (o.price !== undefined) edits.push([k, o.price, undefined]); delete o.price; return; } v = t; }
       if (k === 'ports') st.addPorts = null;   /* from now on the saved count decides whether the port fields show */
-      if (k === 'units') v = +v || 42;
+      if (k === 'units') v = +v;
       if (k === 'type' && o.type !== v && TYPES[v]){
         hist(o, now(), `Type changed from ${TYPES[o.type] ? TYPES[o.type].label : o.type} to ${TYPES[v].label} by ${who()}`);
         pickHand(o, 'type');   /* set by hand: the type rules leave it alone */
@@ -586,7 +642,11 @@ export function renderObj(o){
       Object.assign(o, place);
       followOnTop(o, prevRack);
       if (place.ontop) delete o.u;
+      if (prevRack && !o.rack) hist(o, now(), `Taken out of the rack by ${who()}`);
+      if (o.rack && o.rack !== prevRack) rackLocFollow(byId(o.rack));
     }
+    /* A rack moved to another place takes its devices with it. */
+    if (o.type === 'rack' && edits.some(e => e[0] === 'loc')) rackLocFollow(o);
     /* Status and user go together: a device taken into stock has nobody (the person goes, with Undo); one given to
        somebody while in stock is in use from now on. */
     if ((o.uid || null) !== uidWas || !!o.hotdesk !== hotWas) edits.push(['user', hotWas ? 'Hot desk' : userWas, o.hotdesk ? 'Hot desk' : o.user]);
@@ -732,11 +792,13 @@ export function renderObj(o){
   if (er) er.onclick = () => {
     o.excluded = true; hist(o, now(), 'Excluded from Lansweeper sync with its relations by ' + who());
     let n = 0;
+    /* What belongs to it: the devices attached to it and the VMs on it. Not the switch it is plugged into or the server
+       it runs on: excluding one PC must not take the network or the host out of the sync. */
     rels.forEach(r => {
-      const other = r.from === o.id ? byId(r.to) : r.to === o.id ? byId(r.from) : null;
+      const other = r.to === o.id && HOST_KINDS.includes(r.kind) ? byId(r.from) : null;
       if (other && !other.excluded){ other.excluded = true; hist(other, now(), 'Excluded from Lansweeper sync with ' + o.name + ' by ' + who()); n++; }
     });
-    toast(o.name + ' and ' + n + ' related device' + (n === 1 ? '' : 's') + ' are excluded from the sync'); render();
+    toast(o.name + (n ? ' and ' + n + ' device' + (n === 1 ? '' : 's') + ' attached to it or running on it' : '') + (n ? ' are' : ' is') + ' excluded from the sync'); render();
   };
 
   const df = $('#detachFeed'); if (df) df.onclick = () => { o.feed = null; o.detached = true; hist(o, now(), 'Detached from Lansweeper by ' + who()); toast(o.name + ' is detached. Its fields are yours now'); render(); };

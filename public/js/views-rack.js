@@ -47,7 +47,8 @@ export function renderRack(){
     return;
   }
   st.rackId = R_.id;   /* the rack on screen is the one Mount uses */
-  const inRack = objs.filter(o => o.rack === R_.id);
+  /* A retired device is kept for the record and no longer takes up rack units. */
+  const inRack = objs.filter(o => o.rack === R_.id && o.status !== 'retired');
   const slotted = inRack.filter(o => o.u != null && !o.ontop);
   $('#toolbar').innerHTML = html`<label class="muted" for="rkSel">Rack</label><select id="rkSel">${racks.map(r => html`<option value="${r.id}" ${r.id===R_.id?'selected':''}>${r.name}</option>`)}</select>
     ${isAdmin() ? html`<button id="rkNew">New rack</button>` : ''}<button id="rkOpen" title="The rack's own page: location, model, warranty, history">Open rack</button>
@@ -61,7 +62,7 @@ export function renderRack(){
   for (let n = rackUnits(R_); n >= 1; n--){
     const top = inRack.find(o => o.u + (o.h || 1) - 1 === n);
     if (top){
-      const h = top.h || 1, sitting = objs.filter(x => x.ontop === top.id);
+      const h = top.h || 1, sitting = inRack.filter(x => x.ontop === top.id);
       const sub = top.type === 'patch' ? (top.ports || 24) + ' ports · ' + used(top) + ' used' : top.type === 'switch' ? (top.ports || 0) + '+' + (top.sfp || 0) + ' ports · ' + used(top) + ' used' : top.type === 'storage' ? [top.cap, top.proto].filter(Boolean).join(' · ') : top.model;
       cells.push(html`<div class="unit${h === 1 ? ' one' : ''}" data-open="${top.id}" style="grid-row:${rackUnits(R_) - n + 1} / span ${h};--c:${tcol(top.type)}" title="${top.name}">
         <span class="nm">${top.name}</span><span class="sub">${[top.code, sub].filter(Boolean).join(' · ')}${sitting.length ? ' · on top: ' + sitting.map(x => x.name).join(', ') : ''}</span></div>`);

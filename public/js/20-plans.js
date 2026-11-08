@@ -1,7 +1,7 @@
 /* Floor plans: an image per site or room, areas drawn on it, devices placed on it, racks dropped on it; the dialogs
    to add, edit and clear plans and areas. */
 import { $$, $, evEl, menuHtml, LOCS, PLANS, SITES, TYPES, byId, esc, hist, isAttached, markHand, now, objs, rackUnits, rels, restoreSnapshot, rid, setByHand, setPlans, snapshot, st, tcol, tico, toast, toastUndo } from './01-core.js';
-import { RACKABLE, TYPE_U, isAdmin, rackCheck, siteOf, who } from './04-settings.js';
+import { RACKABLE, TYPE_U, isAdmin, rackCheck, rackLocFollow, siteOf, who } from './04-settings.js';
 import { closeGroup, groupPins } from './13-plan-groups.js';
 import { closeModal, modal } from './19-modal.js';
 import { followOnTop } from './03-object-modals.js';
@@ -43,8 +43,8 @@ export function rackDropModal(o, rack){
     if (err){ $('#rdErr').textContent = err; return; }
     const prevRack = o.rack;
     Object.assign(o, {rack: rack.id, u, h}); delete o.ontop; delete o.planPos;
-    if (rack.loc){ o.loc = rack.loc; markHand(o, 'loc'); }
     followOnTop(o, prevRack);
+    rackLocFollow(rack);
     hist(o, now(), `Mounted in ${rack.name} at U${u}, ${h} U high, by ${who()}`);
     queueServerSave(); closeModal(); toast(`${o.name} mounted in ${rack.name} at U${u}`); renderPlans();
   };
@@ -184,6 +184,7 @@ export function locateOnPlan(plan, o, x, y){
   const a = areaAt(plan, x, y);
   if (!a || !plan.site) return null;
   o.loc = areaLoc(plan, a); markHand(o, 'loc');
+  if (o.type === 'rack') rackLocFollow(o);
   /* The sidebar counts (rooms, a new room) follow at once, not at the next full redraw. */
   queueMicrotask(() => { if ($('#locList')) renderSide(); });
   return a.name;

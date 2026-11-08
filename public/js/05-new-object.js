@@ -1,10 +1,11 @@
-import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
+import { pfxOf, portRangeError, portValue, lagOfPort, hasPorts, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
 import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
 import { isPlaceholderSerial } from './serials.js';
 import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
+import { HOST_KINDS, NET_GEAR, kindProblem, linkKind, relationProblem } from './relations.js';
 import { html, rawHtml } from './html.js';
 import { anyOutlets } from './24-patch.js';
 import { findOutlet, outletLabel } from './cabling.js';
@@ -28,10 +29,11 @@ const EXAMPLES = {
 };
 /* How a new object of a type is connected: a monitor is attached to a computer, a virtual machine runs on a server, a rack
    or patch panel is not plugged into anything; everything else is plugged into a switch, patch panel, phone or computer. */
-export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'Attached to', port: false, ok: o => ['pc', 'notebook', 'server'].includes(o.type)}
-  : type === 'vm' ? {kind: 'hosted', label: 'Runs on', port: false, ok: o => o.type === 'server' && o.kind !== 'vm'}
+/* What fits is relations.js's rule, the same the Relations panel and the server use. */
+export const LINK_OF = type => type === 'monitor' ? {kind: 'attached', label: 'Attached to', port: false, ok: o => !kindProblem('attached', {type}, o)}
+  : type === 'vm' ? {kind: 'hosted', label: 'Runs on', port: false, ok: o => !kindProblem('hosted', {type}, o)}
   : ['rack', 'patch'].includes(type) ? null
-  : {kind: 'connected', label: 'Plug into', port: true, ok: o => hasPorts(o) || ['sip', 'pc', 'notebook', 'patch'].includes(o.type)};
+  : {kind: 'connected', label: 'Plug into', port: true, ok: o => !kindProblem('connected', {type}, o)};
 /* The port field: typed, or picked from the free ports of the device chosen in the select named by of (see freePorts).
    A problem with the port is said under the field, not in a message elsewhere. */
 const portField = (id, of) => html`<label for="${id}">Port</label>${rawHtml(comboHtml(String(html`<input id="${id}" class="mono" data-combo="port" data-port-of="${of}" placeholder="Type or pick a free port" aria-describedby="${id}Note">`), id))}
@@ -130,7 +132,7 @@ export function newObjModal(pre={}){
     const upId = $('#nUp').value;
     if (upId && !$('#nPort').hidden && $('#nPort').value.trim()){
       const t = byId(upId), pp = $('#nPort').value.trim();
-      const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
+      const val = portValue(t, pp);
       /* As in Link…: a numbered port must be one the device has, or it would be counted but never shown. */
       if (portRangeError(t, val)){ portNote('nPort', portRangeError(t, val)); return; }
       /* A port held only by retired devices counts as free: it is taken over when the device is made (below), not before,
@@ -157,15 +159,17 @@ export function newObjModal(pre={}){
     objs.push(o); bindUser(o); hist(o, now(), 'Created manually by ' + who() + (o.uid ? `, for ${o.user}` : ''));
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
-    if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (p && t.type === 'patch') p = patchPort(p); else if (/^\d+$/.test(p) && hasPorts(t)) p = +p;
+    if (up){ const t = byId(up); let p = portValue(t, $('#nPort').value);
       if (p) releaseRetiredPort(t, p);
       const link = LINK_OF(o.type) || {kind: 'connected', port: true};
-      rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind, port: link.port ? p || null : null, vlan:null}); }
+      /* Network gear put on network gear is its uplink. */
+      rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind === 'connected' ? linkKind(o, t) : link.kind, port: link.port ? p || null : null, vlan:null}); }
     if (c){
       ['kind','os','cpu','ram','fw','ports','sfp','pfx','cap','proto'].forEach(k => { if (c[k] !== undefined && (o[k] === undefined || ['ports','sfp','pfx'].includes(k))) o[k] = c[k]; });
       if (c.software) o.software = c.software.map(x => ({...x}));
-      /* A LAG belongs to one device, so a LAG link is not copied; a single port is not copied to a port that is taken. */
-      rels.filter(r => r.from === c.id && r.lag == null && r.fromLag == null).forEach(r => rels.push({...r, id:'r'+rid(), from:o.id, port: (hasPorts(byId(r.to)) || byId(r.to).type === 'patch') ? null : r.port}));
+      /* Where the copy is plugged in, attached or runs is what the dialog says (its field), not the original's links: a
+         monitor copied onto another PC would else be on both, and a port or LAG belongs to one device. A patch cord
+         starts on a port of the panel copied, so it is not copied either. */
       if (c.rack && rackOf(c.rack) && RACKABLE.includes(o.type)){
         const h = c.h || TYPE_U[o.type] || 1; let placed = false;
         for (let top = rackUnits(rackOf(c.rack)); top >= h && !placed; top--){
@@ -230,14 +234,23 @@ export function linkObjModal(pre = {}){
     const e = byId($('#lkObj').value), link = linkOf(e), t = byId($('#lkTo').value), pp = link.port ? $('#lkPort').value.trim() : '';
     if (!t){ toast('There is nothing it can be linked to yet.'); return; }
     if (rels.some(r => r.from === e.id && r.to === t.id)){ toast(`${e.name} is already linked to ${t.name}.`); return; }
-    const val = pp ? (t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp)) : null;
+    /* Linking moves the device: a monitor or VM has one host, and a device plugged in once (not network gear or a server
+       with several cables) leaves its old port. */
+    const kind = link.kind === 'connected' ? linkKind(e, t) : link.kind;
+    const moving = rels.filter(r => r.from === e.id && (HOST_KINDS.includes(link.kind) ? HOST_KINDS.includes(r.kind) : r.kind === kind && r.lag == null && !NET_GEAR.includes(e.type) && e.type !== 'server'));
+    const leave = moving.length === 1 || HOST_KINDS.includes(link.kind) ? moving : [];
+    const why = relationProblem(kind, e, t, rels.filter(r => !leave.includes(r)));
+    if (why){ toast(why); return; }
+    const val = pp ? portValue(t, pp) : null;
     if (portRangeError(t, val)){ portNote('lkPort', portRangeError(t, val)); return; }
     if (val != null) releaseRetiredPort(t, val);
     if (val != null && rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('lkPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
     if (val != null && lagOfPort(t, val)){ portNote('lkPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
-    rels.push({id: 'r' + rid(), from: e.id, to: t.id, kind: link.kind, port: val, vlan: null});
-    const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into'}[link.kind];
-    hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''} by ${who()}`);
+    for (const r of leave){ rels.splice(rels.indexOf(r), 1); const was = byId(r.to); if (was) hist(was, now(), `${e.name} moved from here to ${t.name} by ${who()}`); }
+    rels.push({id: 'r' + rid(), from: e.id, to: t.id, kind, port: val, vlan: null});
+    const verb = {attached: 'Attached to', hosted: 'Runs on', connected: 'Plugged into', uplink: 'Uplink to'}[kind];
+    const from = leave.length ? byId(leave[0].to) : null;
+    hist(e, now(), `${verb} ${t.name}${val != null ? ' port ' + val : ''}${from ? ' (before: ' + from.name + ')' : ''} by ${who()}`);
     closeModal(); toast(`${e.name}: ${verb.toLowerCase()} ${t.name}`); render();
   };
 }

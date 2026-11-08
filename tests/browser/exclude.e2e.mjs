@@ -40,9 +40,14 @@ try {
   await p.fill('#arPort', '7'); await p.click('#arAdd');
   await waitServer(() => srv().rels.length === 1, 'the relation');
 
-  // Exclude the laptop with its relations: the switch is excluded too; the server is not.
+  // Exclude the laptop with what belongs to it: not the switch it is plugged into (that would take the network out).
   await p.click('.menu > .menu-btn'); await p.click('#exclRelBtn');
-  await waitServer(() => srv().objs.filter(o => o.excluded).length === 2, 'the exclusion');
+  await waitServer(() => srv().objs.filter(o => o.excluded).length === 1, 'the exclusion');
+  assert.deepEqual(srv().objs.filter(o => o.excluded).map(o => o.name), ['ZH-NB-0201']);
+  // The switch is excluded on its own; the server is not.
+  await openByName(p, 'SW-ZH-2OG-01');
+  await p.click('.menu > .menu-btn'); await p.click('#exclBtn');
+  await waitServer(() => srv().objs.filter(o => o.excluded).length === 2, 'the switch excluded');
   const ex = srv().objs.filter(o => o.excluded).map(o => o.name).sort();
   assert.deepEqual(ex, ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the wrong objects were excluded: ' + ex);
 
@@ -70,6 +75,9 @@ try {
   assert.deepEqual(srv().contracts[0].devices.map(id => srv().objs.find(o => o.id === id).name).sort(), ['SW-ZH-2OG-01', 'ZH-NB-0201'], 'the contract lists only the devices still there');
   assert.equal(srv().objs.find(o => o.name === 'SW-ZH-2OG-01').rack, 'R-2OG', 'a kept device stays in its kept rack');
 
+  // From here one change per batch, as a large inventory is sent in several: no batch may leave a relation or a rack
+  // place pointing at a device or rack already gone, or the clear is refused half-way.
+  await p.evaluate(async () => { (await import('/js/server-save.js')).BATCH.items = 1; });
   // With the racks box ticked, the racks go too, and a kept device leaves the deleted rack.
   await p.click('#setBtn'); await openSetTab(p, 'backups'); await p.click('#setReset'); await p.waitForSelector('#clrOk');
   await p.fill('#clrWord', 'CLEAR'); await p.check('#clrRacks'); await p.click('#clrOk');

@@ -206,15 +206,20 @@ async function clearAll(){
   /* What stays must not point at what goes: a kept device leaves a deleted rack (or the device it sat on), and the
      contracts no longer list the deleted devices. */
   const puts = d.objs.filter(o => !removed.has(o.id) && (removed.has(o.rack) || removed.has(o.ontop))).map(o => {
-    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) delete v.ontop;
+    const v = {...o}; if (removed.has(v.rack)) { delete v.rack; delete v.u; delete v.h; } if (removed.has(v.ontop)) { delete v.ontop; delete v.rack; delete v.u; delete v.h; }
     return {kind: 'object', id: o.id, value: v, base: base('object', o.id)};
   });
   if (Array.isArray(d.contracts) && d.contracts.some(c => (c.devices || []).some(id => removed.has(id))))
     puts.push({kind: 'setting', id: 'contracts', value: d.contracts.map(c => c.devices ? {...c, devices: c.devices.filter(id => !removed.has(id))} : c), base: base('setting', 'contracts')});
+  /* Sent in batches, each checked as a whole: the relations go before the devices they join, and the racks last, after
+     the devices kept have left them (puts go first). So no batch leaves a relation or a rack place pointing at nothing,
+     and a large inventory is not refused, or cleared only half-way. */
+  const gone = d.objs.filter(o => removed.has(o.id));
   const dels = [
-    ...d.objs.filter(o => removed.has(o.id)).map(o => ({kind:'object', id:o.id})),
     ...d.rels.filter(x => removed.has(x.from) || removed.has(x.to)).map(x => ({kind:'rel', id:String(x.id)})),
     ...Object.keys(d.history).filter(id => removed.has(id)).map(id => ({kind:'history', id})),
+    ...gone.filter(o => o.type !== 'rack').map(o => ({kind:'object', id:o.id})),
+    ...gone.filter(o => o.type === 'rack').map(o => ({kind:'object', id:o.id})),
   ].map(c => ({...c, base: base(c.kind, c.id)}));
   /* A backup first, kept until someone deletes it: without one nothing is cleared. */
   const bk = await fetch('api/backups', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({reason: 'before clearing the inventory'})});

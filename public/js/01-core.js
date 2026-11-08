@@ -81,11 +81,31 @@ export const hasPorts = o => !!o && o.type !== 'patch' && (PORTED.includes(o.typ
 /* Why a numbered port cannot be used on a device with ports: it has none set up yet, or the number is not one of them.
    '' when it can. Nothing is plugged into a port before the port exists. */
 export const portRangeError = (t, p) => {
-  if (!hasPorts(t) || typeof p !== 'number') return '';
+  /* A patch panel's ports are P01 up to its port count (24 when none is set), as its table draws them. */
+  if (t && t.type === 'patch'){
+    if (p == null || p === '') return '';
+    const m = /^P(\d+)$/.exec(String(p)), n = t.ports || 24;
+    return m && +m[1] >= 1 && +m[1] <= n ? '' : `${t.name} has ports P01 to P${String(n).padStart(2, '0')}.`;
+  }
+  if (!hasPorts(t) || p == null || p === '') return '';
   const n = (t.ports || 0) + (t.sfp || 0);
   if (!n) return `${t.name} has no ports yet. Set its port count first (Ports, or its details).`;
-  return Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
+  /* A device with ports counts them by number: a name that is not one would be a port of its own, never shown. */
+  return typeof p === 'number' && Number.isInteger(p) && p >= 1 && p <= n ? '' : `${t.name} has ports 1 to ${n}.`;
 };
+/* A port as typed, as it is stored: on a device with ports its number, also when typed as its label (1/5 for port 5
+   with the naming 1/); on a patch panel P01; text on anything else. */
+export const portValue = (t, raw) => {
+  const s = String(raw ?? '').trim();
+  if (!s || !t) return s;
+  if (t.type === 'patch') return patchPortOf(s);
+  if (hasPorts(t)){
+    const pf = String(t.pfx ?? '').toLowerCase(), body = pf && s.toLowerCase().startsWith(pf) ? s.slice(pf.length) : s;
+    if (/^\d+$/.test(body)) return +body;
+  }
+  return s;
+};
+const patchPortOf = v => { const m = /^p?(\d+)$/i.exec(v); return m ? 'P' + m[1].padStart(2, '0') : v.toUpperCase(); };
 /* Built-in types the rest of the app relies on: they can be renamed and recoloured, not deleted. */
 export const BUILTIN = ['pc','notebook','camera','bmc','server','vm','accesspoint','sip','mobile','monitor','switch','printer','patch','other','rack','pbx','plc'];
 /* Three states: in use (handed out or running), in stock (in the IT store, with nobody) and retired (disposed of, kept
@@ -156,10 +176,10 @@ export const scanChip = o => !scanOld(o) ? '' : neverScanned(o)
 export const dayText = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : (d || '');
 /* A relation always reads from -> to: "MON-0412 attached to ZH-PC-0142". The port belongs to the "to" end. */
 /* Five kinds: connected (a device on a switch, router or patch port), uplink (a switch to its upstream switch, router or firewall),
-   attached (a monitor or accessory on a PC or docking station), hosted (a virtual machine on its host, shown as "runs on")
+   attached (a monitor or accessory on a computer, server or phone), hosted (a virtual machine on its host, shown as "runs on")
    and patched (a patch cord from a panel port, fromPort, to a switch port; public/js/cabling.js). */
 export const KINDS = {
-  connected:{fwd:'connected to', rev:'connects'},
+  connected:{fwd:'plugged into', rev:'has plugged in'},
   uplink:{fwd:'uplink to', rev:'uplink from'},
   attached:{fwd:'attached to', rev:'has attached'},
   hosted:{fwd:'runs on', rev:'hosts'},
@@ -187,13 +207,10 @@ export function bindFullTextOnHover(){
 export const KIND_HINTS = {
   connected:'A device on a port of a switch, router, firewall or patch panel. Give its port number.',
   uplink:'A switch, router or firewall connected to the upstream device above it. Give the port on that upstream device.',
-  attached:'A monitor or accessory attached to a PC, docking station or server.',
+  attached:'A monitor or accessory attached to a computer, a physical server, a phone or a docking station (type Other).',
   hosted:'A virtual machine that runs on this physical server.',
   patched:'A patch cord from a port of this patch panel to a switch port. Set them on the panel\'s Ports table.'
 };
-/* The devices a relation of each kind can go to, in the Relations panel. Keep in step with LINK_OF in 05-new-object.js:
-   a phone can be plugged into a PC or notebook (its pass-through port) as well as into a switch. */
-export const KIND_TARGETS = {attached:['pc','notebook','android','ios','mobile','server','monitor'], connected:['switch','sip','patch','router','firewall','server','pbx','pc','notebook'], uplink:['switch','firewall','router'], hosted:['server'], patched:[]};
 
 /* ---------- ids ----------
    Every object has its own code (INV-0001). A feed reference (the Lansweeper asset ID) is only a link to the feed. */

@@ -10,7 +10,7 @@ import { renderLsToggle, renderSetFeed, renderTypeMap, renderTypeRules, renderSe
 import { renderSetLocs, renderSetVlans, renderSetSubnets, renderSetDomains, resetSubnetEdit } from './settings-network.js';
 import { collapsedPanels, rememberPanel, bindPolicy, followOnTop } from './03-object-modals.js';
 import { setSettingsOpener, closeModal, modal } from './19-modal.js';
-import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
+import { $$, $, LS_ON, TYPES, fullTextTooltips, byId, hist, markHand, now, objs, rackUnits, racksList, setPeople, st, toast } from './01-core.js';
 import { loadVersion, queueServerSave, render } from './07-render.js';
 import { html } from './html.js';
 import { SERVER } from './server-save.js';
@@ -224,11 +224,24 @@ export const rackOf = id => racksList().find(r => r.id === id);
 export function rackCheck(rackId, u, h, exceptId){
   const R_ = rackOf(rackId);
   if (!R_) return 'Pick a rack first.';
+  if (!Number.isInteger(u) || !Number.isInteger(h)) return 'The start U and the height are whole numbers.';
   if (!(u >= 1 && h >= 1 && u + h - 1 <= rackUnits(R_))) return `U${u}-${u + h - 1} is outside ${R_.name} (U1-U${rackUnits(R_)}).`;
   /* A retired device is kept for the record and no longer takes up rack units. */
   const hit = objs.find(x => x.id !== exceptId && x.status !== 'retired' && x.rack === rackId && x.u != null && !x.ontop && x.u <= u + h - 1 && u <= x.u + (x.h || 1) - 1);
   return hit ? `U${hit.u}${(hit.h || 1) > 1 ? '-U' + (hit.u + hit.h - 1) : ''} is taken by ${hit.name}.` : '';
 }
+/* A device in a rack is where its rack is: its location follows the rack's. Returns true when it changed. */
+export function locWithRack(o){
+  const r = rackOf(o.rack);
+  if (!r || !r.loc || o.loc === r.loc || o.status === 'retired') return false;
+  const was = o.loc; o.loc = r.loc; markHand(o, 'loc');
+  hist(o, now(), `Location ${was || '(none)'} → ${r.loc}, with its rack ${r.name}`);
+  return true;
+}
+/* The devices in a rack (and on top of them) after the rack got a new location. Returns how many moved. */
+export const rackLocFollow = rack => objs.filter(x => x.rack === rack.id && locWithRack(x)).length;
+/* The highest U taken in a rack by a device that is not retired: a rack cannot be made lower than that. */
+export const rackTopUsed = rackId => Math.max(0, ...objs.filter(x => x.rack === rackId && x.u != null && !x.ontop && x.status !== 'retired').map(x => x.u + (x.h || 1) - 1));
 export function rackFields(o){
   if (!RACKABLE.includes(o.type)) return '';
   /* Same row layout as every other field: the control fills the column and the source mark and menu columns stay free. */
@@ -239,7 +252,7 @@ export function rackFields(o){
 }
 /* Mount device…: pick a rack device that has no rack yet, a start U and a height. */
 export function mountModal(){
-  const free = objs.filter(o => RACKABLE.includes(o.type) && !o.rack && !(o.type === 'server' && o.kind === 'vm'));
+  const free = objs.filter(o => RACKABLE.includes(o.type) && !o.rack && o.status !== 'retired' && !(o.type === 'server' && o.kind === 'vm'));
   if (!free.length){ toast('Every rackable device is already in a rack.'); return; }
   modal(html`<div class="mh">Mount device in ${rackOf(st.rackId).name}</div>
     <div class="mb"><div class="form" style="padding:0">
@@ -259,6 +272,7 @@ export function mountModal(){
     Object.assign(o, {rack: st.rackId, u, h}); delete o.ontop;
     followOnTop(o, prevRack);
     hist(o, now(), `Mounted in ${rackOf(st.rackId).name} at U${u}, ${h} U high`);
+    rackLocFollow(rackOf(st.rackId));
     closeModal(); toast(o.name + ' mounted at U' + u); render();
   };
 }

@@ -117,8 +117,11 @@ export function registerStateRoutes(app, ctx) {
     try {
       if (!req.body || req.body.confirm !== 'FACTORY RESET') throw new HttpError(400, 'Type FACTORY RESET to confirm.');
       const backups = req.body.backups === true;
-      audit(db, req.user.id, 'factory reset' + (backups ? ', backups deleted' : ''));
+      /* Only the account asking stays, and the directory settings go: an account that signs in through the directory
+         (no password in this app) could not sign in afterwards, and nobody else could either. */
+      if (!db.prepare('SELECT 1 FROM credentials WHERE user_id = ?').get(String(req.user.id))) throw new HttpError(400, 'Sign in with a local admin account (one with a password in this app) to reset: a directory account could not sign in afterwards.');
       factoryReset(db, req.user.id, { backups });
+      audit(db, req.user.id, 'factory reset' + (backups ? ', backups deleted' : ''));
       res.json({ ok: true });
     } catch (e) { next(e); }
   });

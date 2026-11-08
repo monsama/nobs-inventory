@@ -99,7 +99,8 @@ try {
   assert.match(await p.getAttribute('#arKind', 'title'), /port of a switch, router, firewall or patch panel/, 'the connected tooltip');
   await p.selectOption('#arKind', 'uplink');
   assert.match(await p.getAttribute('#arKind', 'title'), /upstream device/, 'the uplink tooltip follows the choice');
-  assert.ok(await p.$eval('#arKind option[value=hosted]', o => o.title.length > 0), 'every kind has its tooltip');
+  assert.ok(await p.$$eval('#arKind option', os => os.every(o => o.title.length > 0)), 'every kind has its tooltip');
+  assert.equal(await p.locator('#arKind option[value=hosted]').count(), 0, 'a router is not offered "runs on"');
   // A field saves when it is left, without the Save button.
   await p.evaluate(async () => { const views = await import('/js/02-views.js'); views.openObj('rt1'); });
   await p.waitForSelector('[data-k=model]');
