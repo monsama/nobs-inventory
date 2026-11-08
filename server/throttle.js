@@ -6,7 +6,7 @@ const LIMIT_LOGIN = 20;  /* failures on one login: higher, so an attacker cannot
 const LOCK_MS = 15 * 60e3;
 /* One throttle per server, so separate servers (and tests) do not share their counts. */
 export function createThrottle() {
-  const buckets = new Map(), known = new Map();
+  const buckets = new Map(), known = new Map(), inflight = new Map();
   const bucket = key => { let b = buckets.get(key); if (!b) { b = { fails: [], lockedUntil: 0 }; buckets.set(key, b); } return b; };
   return {
     /* An address that signed in to a login before is not held off by that login's lock (only by its own), so failures
@@ -36,6 +36,10 @@ export function createThrottle() {
       }
     },
     clearFailures(keys) { for (const k of keys) buckets.delete(k); },
+    /* Sign-ins waiting on the directory, per key: a failure is counted only once the directory answers, so many tried at
+       once would all get past the limit. At most max may wait at a time; enter() says whether this one may. */
+    enter(key, max = 2) { const n = inflight.get(key) || 0; if (n >= max) return false; inflight.set(key, n + 1); return true; },
+    leave(key) { const n = (inflight.get(key) || 1) - 1; if (n > 0) inflight.set(key, n); else inflight.delete(key); },
     size: () => buckets.size
   };
 }

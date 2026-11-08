@@ -48,11 +48,18 @@ export function registerPeopleRoutes(app, { db, requireUser, requireAdmin, mailT
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
+  /* At most REPORT_MAX reports per person in REPORT_WINDOW_MS: each one saves the inventory and may mail every admin, so
+     a loop cannot flood them, while someone can still add a second problem. In memory: a restart clears it. */
+  const REPORT_MAX = 5, REPORT_WINDOW_MS = 10 * 60e3, reportTimes = new Map();
   app.post('/api/my/devices/:id/report', requireUser, (req, res, next) => {
     try {
       const text = String((req.body || {}).text || '').trim().slice(0, 500);
       if (!text) throw new HttpError(400, 'Say what is wrong.');
+      const t0 = Date.now(), times = (reportTimes.get(req.user.id) || []).filter(t => t0 - t < REPORT_WINDOW_MS);
+      if (times.length >= REPORT_MAX) throw new HttpError(429, 'You have reported several problems just now. IT has them; report more in a few minutes.');
       const { s, o } = myDevice(req), by = req.user.name || req.user.login;
+      reportTimes.set(req.user.id, [...times, t0]);
+      if (reportTimes.size > 5000) reportTimes.delete(reportTimes.keys().next().value);
       o.reported = { at: new Date().toISOString(), by: String(by).slice(0, 120), text };
       (s.history[o.id] ??= []).unshift({ t: stamp(new Date()), msg: `Problem reported by ${by}: ${text}` });
       saveState(db, s); audit(db, req.user.id, `problem reported on ${o.name}`);

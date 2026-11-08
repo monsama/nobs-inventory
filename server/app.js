@@ -11,7 +11,7 @@ import { registerApiRoutes } from './api-routes.js';
 import { registerPeopleRoutes } from './people-routes.js';
 import { settingOf, loadState } from './state.js';
 import { sessionUserId, readCookie } from './auth.js';
-import { ldapPinOf, ldapPinProblem } from './ldap-config.js';
+import { ldapHostOf, ldapPinOf, ldapPinProblem } from './ldap-config.js';
 import { feedTokenValid } from './feed-token.js';
 import { setBackupSheetKey } from './backup.js';
 import { graphKeyPair, initGraphKeys } from './graph-keys.js';
@@ -72,6 +72,20 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
     /* Pinned at first use; a pin from before (the host only) gets the encryption now in use, and turning it on tightens it. */
     if (pin && pinned !== pin && (!pinned || !pinned.includes('|') || pin.endsWith('|tls'))) setAppSecret(db, SECRET_KEY, 'ldapServicePasswordHost', pin);
     return { ...c, servicePassword: saved };
+  };
+  /* Directory sign-in: users' own passwords go to the directory, so only to the server sign-ins were set up with: its
+     host and whether it is reached encrypted, pinned at the first directory sign-in, like the service password. An
+     address changed in Settings (by an admin, or with a stolen session), or encryption turned off, pauses directory
+     sign-in until the service password is saved again for that server, or the server names it (NI_LDAP_URL). Gives
+     the settings for a user's bind and a pin to keep after a sign-in that worked, or the reason it is paused. */
+  const ldapSignIn = () => {
+    const c = cfgLdap();
+    if (!c) return { c };
+    const pin = ldapPinOf(c), pinned = getAppSecret(db, SECRET_KEY, 'ldapLoginHost');
+    const named = !!process.env.NI_LDAP_URL && ldapHostOf(process.env.NI_LDAP_URL) === ldapHostOf(c.url || '');
+    const problem = !named && ldapPinProblem(pinned, c);
+    if (problem) return { problem: `Directory sign-in is paused: sign-ins ${problem.replace(/^was saved for/, 'were set up for')}. An admin signs in with a local account and saves the service password again for the new server (Settings → Active Directory), or the server names it in NI_LDAP_URL.` };
+    return { c, keep: () => { if (pin && pinned !== pin && (!pinned || !pinned.includes('|') || pin.endsWith('|tls'))) setAppSecret(db, SECRET_KEY, 'ldapLoginHost', pin); } };
   };
   const ldapPasswordFromServer = () => { const c = ldapConfig ? ldapConfig() : ldap; return !!(c && c.servicePassword); };
   const app = express();
@@ -193,7 +207,7 @@ export function createApp({ db, ldap = null, ldapConfig = null, lansweeper = nul
 
   /* The route groups, each in its own file, with what they share. */
   const ctx = { db, throttle, auditQuiet, requireUser, requireAdmin, currentUser, me, userDoc, saveUserDoc, bumpUser, COOKIE, cookie, secureCookie, loginFailMs,
-    cfgLs, cfgLdap, ldap, ldapConfig, ldapPasswordFromServer, cfgGraph, graphSettings, graphSource, SECRET_KEY, SHEET_KEY, feedToken, graphFetch,
+    cfgLs, cfgLdap, ldapSignIn, ldap, ldapConfig, ldapPasswordFromServer, cfgGraph, graphSettings, graphSource, SECRET_KEY, SHEET_KEY, feedToken, graphFetch,
     mailTransport, certProbe, diskSpace, smtpNow, APP_VERSION, publicDir };
   /* Live updates (server/live-events.js): first, so a check follows every change made through the routes below. */
   registerLiveEvents(app, ctx);

@@ -1,8 +1,8 @@
 /* The inventory itself: read (whole or what changed since), saved, reset, and the floor-plan images. Split out of app.js. */
 import { audit } from './db.js';
 import { settingDiff } from './audit-diff.js';
-import { inScope, scopeKey, scopeOf, scopeState } from './scope.js';
-import { stateTag, stateSeq, changesSince, ADMIN_SETTINGS, CONNECTION_SETTINGS, SETTING_KEYS, PAGE_SETTINGS, SETTING_NAMES, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
+import { inScope, planInScope, scopeKey, scopeOf, scopeState } from './scope.js';
+import { stateTag, stateSeq, changesSince, ADMIN_SETTINGS, CONNECTION_SETTINGS, SETTING_KEYS, PAGE_SETTINGS, SETTING_NAMES, settingOf, loadState, saveState, applyChanges, describeChanges, factoryReset, clearConnections } from './state.js';
 import { autoBackup } from './backup.js';
 import crypto from 'node:crypto';
 import { HttpError } from './errors.js';
@@ -61,7 +61,7 @@ export function registerStateRoutes(app, ctx) {
               send('rel', r.id, r.data && inScope(objOf(r.data.from), sc) && inScope(objOf(r.data.to), sc) ? r.data : null);
             } else if (r.kind === 'history') {
               if (inScope(objOf(r.id), sc)) send('history', r.id, r.data);
-            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges'].includes(r.id) && r.data) {
+            } else if (r.kind === 'setting' && ['stocktakes', 'graphAmbiguous', 'syncChanges', 'plans'].includes(r.id) && r.data) {
               /* Only what is about the devices they see: the device list is read for it. */
               const seen = scopeState({ objs: db.prepare("SELECT data FROM docs WHERE kind = 'object'").all().map(x => JSON.parse(x.data)), [r.id]: r.data }, sc);
               send('setting', r.id, seen[r.id]);
@@ -180,6 +180,9 @@ export function registerStateRoutes(app, ctx) {
   });
   app.get('/api/plans/:id/image', requireUser, (req, res, next) => {
     try {
+      /* Only a plan of a site the viewer sees (scope.js): a site-limited viewer does not get other buildings. */
+      const sc = scopeOf(req.user);
+      if (sc && !planInScope(((settingOf(db, 'plans') || []).find(p => p && p.id === planId(req))), sc)) throw new HttpError(404, 'No image for this plan.');
       const row = db.prepare('SELECT data FROM plan_images WHERE id = ?').get(planId(req));
       if (!row) throw new HttpError(404, 'No image for this plan.');
       const m = /^data:(image\/[a-z]+);base64,(.*)$/.exec(row.data);

@@ -13,7 +13,7 @@ import { HttpError } from './errors.js';
    (/api/sso/start and /api/sso/callback), POST /api/login and /api/logout, your own details, sessions and password
    (/api/me...), and an admin setting a local user's password (POST /api/users/:id/password). */
 export function registerSessionRoutes(app, ctx) {
-  const { db, throttle, auditQuiet, requireUser, requireAdmin, currentUser, me, userDoc, saveUserDoc, bumpUser, COOKIE, cookie, secureCookie, loginFailMs, cfgLs, cfgLdap, cfgGraph, graphSettings, feedToken, graphFetch } = ctx;
+  const { db, throttle, auditQuiet, requireUser, requireAdmin, currentUser, me, userDoc, saveUserDoc, bumpUser, COOKIE, cookie, secureCookie, loginFailMs, cfgLs, cfgLdap, ldapSignIn, cfgGraph, graphSettings, feedToken, graphFetch } = ctx;
   app.get('/api/me', (req, res) => {
     const u = currentUser(req);
     res.json({ user: u ? me(u) : null, ldap: ldapEnabled(cfgLdap()), lansweeper: !!cfgLs(), graph: !!cfgGraph(), sso: ssoOn(),
@@ -122,10 +122,18 @@ export function registerSessionRoutes(app, ctx) {
          become its users). A local account with the same login is never taken over by it: that would let a directory user sign in
          as, and demote, the local admin. */
       if (!ok && ldapEnabled(lc) && (!user || ['ldap', 'lansweeper', 'entra'].includes(user.source))) {
+        /* Only to the directory sign-ins are set up for (app.js ldapSignIn): a changed address pauses it. */
+        const si = ldapSignIn();
+        if (si.problem) { auditQuiet('ldap-paused', si.problem); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, si.problem); }
+        /* At most two sign-ins of one address wait on the directory at once, so a burst cannot outrun the failure count. */
+        const ipKey = keys[1];
+        if (!throttle.enter(ipKey)) { await failFloor(); throw new HttpError(429, 'Too many sign-ins at once. Try again in a moment.'); }
         let d;
-        try { d = await ldapLogin(lc, login, password); }
+        try { d = await ldapLogin(si.c, login, password); }
         /* Counted as a failed try too: an outage must not give unlimited guesses at the local passwords. */
         catch (e) { console.error('directory:', e.message); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, 'The directory cannot be reached right now.'); }
+        finally { throttle.leave(ipKey); }
+        if (d && d.allowed) si.keep();
         if (d && d.allowed) {
           /* Read again after waiting on the directory: a second sign-in of the same login may have created the account
              meanwhile (two would share one login and stop every save), or an admin may have deactivated it or changed
