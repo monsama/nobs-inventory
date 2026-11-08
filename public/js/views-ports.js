@@ -6,6 +6,7 @@ import { isAdmin } from './04-settings.js';
 import { openObj } from './02-views.js';
 import { html, rawHtml } from './html.js';
 import { viaOf } from './cabling.js';
+import { bindPatchPanel, patchPanel } from './24-patch.js';
 /* A switch port with a patch cord: "via PP-01 P04 → 2.OG-R12-04 → PC-0142 (Anna Muster)", or "… (free)". */
 export const viaText = v => `via ${v.panel ? v.panel.name : '?'} ${v.port}${v.outlet ? ' → ' + v.outlet.name : ''}${v.device ? ` → ${v.device.name}${v.device.user ? ` (${v.device.user})` : ''}` : ' (free)'}`;
 const viaHtml = v => html`<span class="via">via <a class="link" data-open="${v.panel.id}">${v.panel.name}</a> <span class="mono">${v.port}</span>${v.outlet ? html` → <b class="mono">${v.outlet.name}</b>` : ''}${v.device ? html` → <a class="link" data-open="${v.device.id}">${v.device.name}</a>${v.device.user ? html` <span class="muted">(${v.device.user})</span>` : ''}` : html` <span class="muted">(free)</span>`}</span>`;
@@ -23,7 +24,8 @@ export function portSetupError(sw, ports, sfp){
 /* Draws the Ports tab for one device with ports (picked, or the one used last in this browser): port setup, the front
    panel, the picked port, port groups and LAGs, and the port map. Changes are saved at once. */
 export function renderPorts(){
-  const devs = objs.filter(o => hasPorts(o));
+  /* Patch panels too: picked, the Ports tab shows the panel's ports, outlets and cords. */
+  const devs = objs.filter(o => hasPorts(o) || o.type === 'patch');
   if (!devs.length){
     $('#toolbar').innerHTML = '';
     $('#view').innerHTML = html`<div class="empty">No devices with ports yet. Add a switch, router, firewall or physical server to see its ports.${isAdmin() ? html` <button class="primary" id="portsNew">New switch</button>` : ''}</div>`;
@@ -37,13 +39,18 @@ export function renderPorts(){
   const sw = byId(st.portsDevice) || devs.find(o => o.id === last) || first || devs[0];
   try { localStorage.setItem('ni-ports-device', sw.id); } catch { /* not kept */ }
   $('#toolbar').innerHTML = html`<label class="muted" for="portsDevice">Device</label><select id="portsDevice">${devs.map(s => html`<option value="${s.id}">${s.name}${s.loc ? ' · ' + s.loc.split(' / ')[0] : ''}</option>`)}</select>
-    <span class="muted hide-n">${sw.model} · ${sw.ip}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
+    <span class="muted hide-n">${[sw.model, sw.ip].filter(Boolean).join(' · ')}</span><div class="grow"></div><button id="portsOpen">Open device</button>`;
   $('#portsDevice').value = sw.id;
   /* A port picked on another device, or one no longer there after the count was lowered, is not this device's: no port
      is open, so nothing can be plugged in before the port exists. */
   if (st.portNo != null && portRangeError(sw, st.portNo)) st.portNo = null;
   $('#portsDevice').onchange = e => { st.portsDevice = e.target.value; st.portNo = null; view(); };
   $('#portsOpen').onclick = () => openObj(sw.id);
+  if (sw.type === 'patch'){
+    $('#view').innerHTML = String(patchPanel(sw));
+    $('#view').querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', () => openObj(/** @type {HTMLElement} */ (a).dataset.open)));
+    bindPatchPanel(sw); return;
+  }
   const onPort = p => rels.filter(r => r.to === sw.id && r.port === p);
   /* A relation's port belongs to its far end (the device it goes to), so every port here is one a relation comes in on. */
   const groupOf = p => (sw.portGroups || []).find(g => p >= g.from && p <= g.to);

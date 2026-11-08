@@ -73,7 +73,14 @@ export function bindPatchPanel(o){
 }
 
 const roomOptions = sel => html`<option value="">No room</option>${LOCS.map(l => html`<option value="${l}" ${l === sel ? 'selected' : ''}>${l}</option>`)}`;
-const swOptions = sel => html`<option value="">Not patched</option>${objs.filter(x => cordTarget(x) && (x.status !== 'retired' || x.id === sel)).sort((a, b) => a.name.localeCompare(b.name)).map(x => html`<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${x.name} · ${TYPES[x.type] ? TYPES[x.type].short : x.type}</option>`)}`;
+/* The switches a panel's port can be patched to: those at the panel's site first, the others under Other sites. */
+const siteOf = o => String((o && o.loc) || '').split(' / ')[0];
+const swOptions = (sel, panel) => {
+  const all = objs.filter(x => cordTarget(x) && (x.status !== 'retired' || x.id === sel)).sort((a, b) => a.name.localeCompare(b.name));
+  const opt = x => html`<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${x.name} · ${TYPES[x.type] ? TYPES[x.type].short : x.type}${siteOf(panel) && siteOf(x) && siteOf(x) !== siteOf(panel) ? ' · ' + siteOf(x) : ''}</option>`;
+  const site = siteOf(panel), here = all.filter(x => !site || !siteOf(x) || siteOf(x) === site), away = all.filter(x => !here.includes(x));
+  return html`<option value="">Not patched</option>${here.map(opt)}${away.length ? html`<optgroup label="Other sites">${away.map(opt)}</optgroup>` : ''}`;
+};
 
 /* One port: its outlet (name and room), its cord (a switch and one of its free ports) and the device on it. */
 export function portModal(panel, port){
@@ -84,7 +91,7 @@ export function portModal(panel, port){
     <div class="mb"><div class="form" style="padding:0">
       <label for="ppOutName">Outlet</label><input id="ppOutName" class="mono" maxlength="60" value="${out.name || ''}" placeholder="e.g. 2.OG-R12-04" autocomplete="off">
       <label for="ppOutLoc">Room</label><select id="ppOutLoc">${roomOptions(out.loc || '')}</select>
-      <label for="ppSw">Patched to</label><select id="ppSw">${swOptions(cord ? cord.to : '')}</select>
+      <label for="ppSw">Patched to</label><select id="ppSw">${swOptions(cord ? cord.to : '', panel)}</select>
       <label for="ppSwPort">Switch port</label><select id="ppSwPort"></select>
       <label for="ppDev">Device</label><select id="ppDev"><option value="">Nothing</option>${devs.map(d => html`<option value="${d.id}" ${plug && plug.from === d.id ? 'selected' : ''}>${d.name} · ${TYPES[d.type] ? TYPES[d.type].short : d.type}${plugOf(d) && plugOf(d).id !== panel.id ? ' · now on ' + plugOf(d).name : ''}</option>`)}</select>
     </div><p class="fieldnote warn" id="ppMsg" role="alert" hidden></p></div>
@@ -174,7 +181,7 @@ export function patchRangeModal(panel){
   modal(html`<div class="mh">Patch ports of ${panel.name}</div>
     <div class="mb"><div class="form" style="padding:0">
       ${rangeInputs(panel, 1, panel.ports || 1)}
-      <label for="ppSw">Switch</label><select id="ppSw">${swOptions(first ? first.to : '')}</select>
+      <label for="ppSw">Switch</label><select id="ppSw">${swOptions(first ? first.to : '', panel)}</select>
       <label for="ppSwFrom">From switch port</label><input id="ppSwFrom" type="number" min="1" value="1" style="width:80px">
     </div><div id="ppPrevBox"></div></div>
     <div class="mf"><span class="muted" id="ppSum"></span><div class="grow"></div><button id="ppCancel">Cancel</button><button id="ppGo" class="primary" disabled>Patch</button></div>`, 'wide');
