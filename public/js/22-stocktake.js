@@ -133,11 +133,16 @@ function found(t, v){
     .concat(live.filter(o => o.mac && norm(o.mac) === norm(v) && norm(v).length === 12));
   /* LAST is kept as markup: what is said here goes through html``. */
   const say = (msg, cls = '') => { LAST = String(html`<span class="${cls}">${msg}</span>`); if (st.tab === 'stocktake') renderStocktake(); if ($('#stkScan')) $('#stkScan').focus(); };
-  const uniq = [...new Set(hits)];
-  if (uniq.length > 1) return say(`${v} names ${uniq.length} devices: scan the serial number or the code instead.`, 'warn');
+  let uniq = [...new Set(hits)];
+  /* Two devices with one serial number (a typo in one of them): the one this check expects here, not yet confirmed. */
+  if (uniq.length > 1) { const here = uniq.filter(o => inScope(o, t.scope) && !confirmedIn(o, t.id)); if (here.length === 1) uniq = here; }
+  if (uniq.length > 1) return say(`${v} names ${uniq.length} devices (${uniq.slice(0, 4).map(o => `${o.name} ${o.code}`).join(', ')}): scan the code instead.`, 'warn');
   if (!uniq.length) {
-    t.unknown = [...(t.unknown || []), { text: v.slice(0, 200), at: new Date().toISOString() }].slice(-1000);
+    const entry = { text: v.slice(0, 200), at: new Date().toISOString() };
+    t.unknown = [...(t.unknown || []), entry].slice(-1000);
     queueServerSave();
+    /* A typo (part of a name) is easy to take back. */
+    toastUndo(`${v.slice(0, 60)} noted as not in the inventory`, () => { t.unknown = (t.unknown || []).filter(x => x !== entry); queueServerSave(); LAST = ''; if (st.tab === 'stocktake') renderStocktake(); });
     return say(html`<b>${v}</b> is not in the inventory: noted for the result.`, 'warn');
   }
   const o = uniq[0];

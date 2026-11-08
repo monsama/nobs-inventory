@@ -58,6 +58,11 @@ try {
   await p.waitForSelector('#stmMove'); await p.selectOption('#stmTo', 'Bern / EG'); await p.click('#stmMove');
   await p.fill('#stkScan', 'XYZ-404'); await p.press('#stkScan', 'Enter');
   await p.waitForFunction(() => /not in the inventory/.test(document.querySelector('#stkLast').textContent));
+  // a typo noted as unknown is taken back with Undo
+  await p.fill('#stkScan', 'NB-TYP'); await p.press('#stkScan', 'Enter');
+  await p.waitForSelector('#toast:has-text("NB-TYP noted as not in the inventory")');
+  await p.click('#toast .t-undo');
+  await until(p, async () => { const t = (await import('/js/01-core.js')).st.stocktakes[0]; return t.unknown.length === 1 && t.unknown[0].text === 'XYZ-404'; });
   await wait(() => obj('z').loc === 'Bern / EG' && obj('z').verified && obj('z').verified.from === 'Zürich / Lager' && obj('b').verified && obj('a').verified.by === 'Administrator');
   // moved by hand: AD, which filled its room before, does not put the old one back at its next sync
   assert.equal(obj('z').src.loc, 'hand', 'a room moved in the inventory check is still AD\'s');
