@@ -14,8 +14,20 @@ export const setSettingsOpener = fn => { settingsOpener = fn; };
 /* A dialog whose result is to be seen in the inventory (Clear inventory) leaves Settings closed. */
 export const leaveSettings = () => { backToSettings = false; };
 /* body: html`` or a string of markup made by the app. */
+/* A dialog whose form can be filled (New device) says so with askBeforeClosing: closed with something typed in it
+   (Cancel, Esc, ×, a click beside it), it first says that and stays; closed again, it goes. The check is taken away
+   when the dialog does its work or another opens. */
+let leaveCheck = null;
+export const askBeforeClosing = fn => { leaveCheck = fn; };
+/* A check for askBeforeClosing: something in the dialog's fields differs from what they held when this was called. */
+export function changedSince(root = $('#mdl')){
+  const vals = () => [...root.querySelectorAll('input, select, textarea')].filter(el => el.id).map(el => el.id + '=' + (el.type === 'checkbox' ? el.checked : el.value)).join('\n');
+  const was = vals();
+  return () => root.isConnected && vals() !== was;
+}
 export function modal(body, cls=''){
   const markup = String(body);
+  leaveCheck = null;
   /* Only one dialog is open at a time: a minimized one that another takes the place of is closed, and that is said. */
   const gone = $('#mdl.minimized'); if (gone) toast(`The minimized “${gone.getAttribute('aria-label') || 'dialog'}” was closed.`);
   if (/\bsettings\b/.test(cls)) backToSettings = false;
@@ -133,6 +145,15 @@ function renderTray(){
 export let modalOpener = null;
 /* Leaving Settings, however it is closed, draws the view behind it again, so changes made there show at once. */
 export const closeModal = () => {
+  if (leaveCheck && leaveCheck() && $('#mdl') && !$('#mdl .leave-warn')){
+    if ($('#mdl.minimized')) restoreModal();
+    const foot = $('#mdl .mf'), note = document.createElement('p');
+    note.className = 'fieldnote warn leave-warn'; note.setAttribute('role', 'alert');
+    note.textContent = 'What you typed is not saved. Close again to discard it.';
+    if (foot) foot.before(note); else $('#mdl .box').appendChild(note);
+    return;
+  }
+  leaveCheck = null;
   const wasSettings = !!$('#modalHost #setPane');
   keepToastOnTop(true);
   $('#modalHost').innerHTML = ''; const back = modalOpener; modalOpener = null; if (back && document.contains(back)) back.focus();

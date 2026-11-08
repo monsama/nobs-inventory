@@ -1,6 +1,7 @@
 import { pfxOf, portRangeError, lagOfPort, hasPorts, patchPort, releaseRetiredPort, PERSONAL, PORTED, STATUS, $, LOCS, O, TYPES, byId, hist, now, objs, rackUnits, rels, rid, st, toast } from './01-core.js';
 import { comboHtml } from './17-fields.js';
-import { closeModal, modal } from './19-modal.js';
+import { askBeforeClosing, changedSince, closeModal, modal } from './19-modal.js';
+import { isPlaceholderSerial } from './serials.js';
 import { RACKABLE, TYPE_U, USERS, bindUser, rackCheck, rackOf, who } from './04-settings.js';
 import { flushSave, render } from './07-render.js';
 import { openObj } from './02-views.js';
@@ -113,7 +114,12 @@ export function newObjModal(pre={}){
   fitStatus();
   $('#nType').onchange = () => { fitType(); fitStatus(); };
   $('#nName').focus();
+  /* Typed in and closed by mistake (Esc, a click beside it): it asks first. */
+  askBeforeClosing(changedSince());
   $('#nCancel').onclick = closeModal;
+  /* A serial number another device has: said once under the field; Create again makes it all the same. */
+  let serialOk = '';
+  $('#nSerial').addEventListener('input', () => { const n = $('#nSerialNote'); if (n){ n.previousElementSibling.remove(); n.remove(); } });
   $('#nOk').onclick = () => {
     if ($('#nUp').value || $('#nPort').value) $('#nMore').open = true;
     const name = $('#nName').value.trim();
@@ -128,6 +134,15 @@ export function newObjModal(pre={}){
       if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('nPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
       if (lagOfPort(t, val)){ portNote('nPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
     }
+    const serial = $('#nSerial').value.trim(), key = serial.toLowerCase();
+    const twin = serial && !isPlaceholderSerial(serial) && objs.find(x => String(x.serial || '').trim().toLowerCase() === key);
+    if (twin && serialOk !== key){
+      serialOk = key; $('#nMore').open = true;
+      const n = document.createElement('p'); n.id = 'nSerialNote'; n.className = 'fieldnote warn'; n.setAttribute('role', 'alert');
+      n.textContent = `${twin.code} ${twin.name}${twin.status === 'retired' ? ' (retired)' : ''} has this serial number. Create to add it all the same.`;
+      if (!$('#nSerialNote')) $('#nSerial').after(document.createElement('span'), n); $('#nSerial').focus(); return;
+    }
+    askBeforeClosing(null);
     const o = O($('#nType').value, name, {model:$('#nModel').value.trim(), serial:$('#nSerial').value, loc:$('#nLoc').value});
     if (o.type === 'switch') Object.assign(o, {ports:24, sfp:4, pfx:'1/'});
     else if (PORTED.includes(o.type)) o.ports = o.type === 'server' ? 4 : 8;

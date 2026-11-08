@@ -1,5 +1,6 @@
 /* Browser test of fixes from the November sweep: Enter signs in; Retired in the Status field goes through the Retire dialog; picking the value in use on a number field (a switch's ports) keeps
    it a number, so later saves still go through; "Back to automatic" follows the order set in Settings → Data sources;
+   New device asks before what was typed is dropped and says when another device has the serial number;
    a save of more changes than the server takes at once is sent in batches. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -15,7 +16,7 @@ const db = openDb(path.join(dir, 'inventory.db'));
 bootstrap(db, { NI_ADMIN_PASSWORD: 'adminpass123' }, () => {});
 const s = loadState(db);
 s.objs = [
-  { id: 'w1', code: 'INV-0001', type: 'switch', name: 'SW-1', status: 'active', ports: 24, feed: null },
+  { id: 'w1', code: 'INV-0001', type: 'switch', name: 'SW-1', status: 'active', ports: 24, serial: 'SN-77', feed: null },
   { id: 'r1', code: 'INV-0003', type: 'pc', name: 'PC-OLD', status: 'active', feed: null },
   { id: 'v1', code: 'INV-0002', type: 'pc', name: 'PC-V', status: 'active', feed: null, os: 'Windows 11 Enterprise', src: { os: 'graph' },
     vals: { os: { graph: ['Windows 11 Enterprise', '2026-11-06T08:00:00Z'], ad: ['Windows 11 Pro', '2026-11-05'] } }, pick: { os: 'graph' }, graph: { id: 'g1', managed: 'Intune', lastCheckIn: '2026-11-06T08:00:00Z' }, ad: { logon: '2026-11-05' } }];
@@ -73,6 +74,19 @@ try {
   await p.click('#rtOk');
   await storedBy(() => obj('r1'), o => o.status === 'retired');
   await until(p, () => /Retired/.test(document.querySelector('#toolbar').textContent));
+  // New device: closed with a name typed, it says so first and stays; closed again, it goes
+  await p.keyboard.press('Escape'); await p.keyboard.press('n'); await p.waitForSelector('#nName');
+  await p.fill('#nName', 'PC-NEW'); await p.keyboard.press('Escape');
+  await p.waitForSelector('#mdl .leave-warn');
+  assert.equal(await p.inputValue('#nName'), 'PC-NEW', 'the typed name was dropped');
+  await p.click('#nCancel'); await until(p, () => !document.querySelector('#mdl'));
+  // a serial number another device has: said once, Create again adds it
+  await p.keyboard.press('n'); await p.waitForSelector('#nName');
+  await p.fill('#nName', 'PC-TWIN'); await p.click('#nMore summary'); await p.fill('#nSerial', 'sn-77 '); await p.click('#nOk');
+  await p.waitForSelector('#nSerialNote');
+  assert.match(await p.textContent('#nSerialNote'), /INV-0001 SW-1 has this serial number/);
+  await p.click('#nOk');
+  await storedBy(() => loadState(db), t => t.objs.some(o => o.name === 'PC-TWIN'));
   // more changes than the server takes at once go in batches of at most 4000
   const sizes = await p.evaluate(async () => { const { batches } = await import('/js/server-save.js'); const dels = Array.from({ length: 9001 }, (_, i) => ({ kind: 'history', id: 'h' + i })); return batches([], dels).map(b => b.dels.length); });
   assert.deepEqual(sizes, [4000, 4000, 1001]);
