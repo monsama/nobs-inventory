@@ -130,8 +130,9 @@ export function newObjModal(pre={}){
       const val = t.type === 'patch' ? patchPort(pp) : (hasPorts(t) && /^\d+$/.test(pp) ? +pp : pp);
       /* As in Link…: a numbered port must be one the device has, or it would be counted but never shown. */
       if (portRangeError(t, val)){ portNote('nPort', portRangeError(t, val)); return; }
-      releaseRetiredPort(t, val);
-      if (rels.some(r => r.to === t.id && String(r.port) === String(val))){ portNote('nPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
+      /* A port held only by retired devices counts as free: it is taken over when the device is made (below), not before,
+         so a Create that stops at a later check (the serial number) or Cancel changes nothing. */
+      if (rels.some(r => r.to === t.id && String(r.port) === String(val) && !(byId(r.from) && byId(r.from).status === 'retired'))){ portNote('nPort', `Port ${val} on ${t.name} is already taken. Pick a free one from the list.`); return; }
       if (lagOfPort(t, val)){ portNote('nPort', `Port ${val} on ${t.name} is part of the LAG ${lagOfPort(t, val).name}. Link the LAG instead, from the device's Relations.`); return; }
     }
     const serial = $('#nSerial').value.trim(), key = serial.toLowerCase();
@@ -154,6 +155,7 @@ export function newObjModal(pre={}){
     const up = $('#nUp').value;
     /* The port is saved as it was checked above: a patch panel's port as P04, so it shows on the panel and cannot be taken twice. */
     if (up){ const t = byId(up); let p = $('#nPort').value.trim(); if (p && t.type === 'patch') p = patchPort(p); else if (/^\d+$/.test(p) && hasPorts(t)) p = +p;
+      if (p) releaseRetiredPort(t, p);
       const link = LINK_OF(o.type) || {kind: 'connected', port: true};
       rels.push({id:'r'+rid(), from:o.id, to:up, kind: link.kind, port: link.port ? p || null : null, vlan:null}); }
     if (c){

@@ -32,7 +32,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const text = (v, n) => typeof v === 'string' && v.length <= n;
 export function verifiedProblem(v) {
   if (v === undefined) return '';
-  const one = x => !!x && typeof x === 'object' && !Array.isArray(x) && DAY.test(x.at || '') && text(x.by ?? '', 120) && text(x.st ?? '', 40) && text(x.from ?? '', 200);
+  const one = x => !!x && typeof x === 'object' && !Array.isArray(x) && DAY.test(x.at || '') && text(x.by ?? '', 120) && text(x.st ?? '', 40) && text(x.from ?? '', 200) && text(x.fromSrc ?? '', 20) && text(x.fromPick ?? '', 20);
   if (!one(v) || (v.prev !== undefined && (!one(v.prev) || v.prev.prev !== undefined))) return 'The confirmation on site has a day, who confirmed it and, from an inventory check, which one.';
   return '';
 }

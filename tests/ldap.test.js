@@ -367,7 +367,9 @@ test('directory sign-in goes only to the directory it was set up with: a changed
     current = { ...current, url: `ldap://localhost:${port}` };
     const paused = await signIn(srv, 'anna', 'annas-secret');
     assert.equal(paused.status, 503);
-    assert.match(paused.error || '', /Directory sign-in is paused[\s\S]*127\.0\.0\.1[\s\S]*localhost/);
+    assert.match(paused.error || '', /Directory sign-in is paused/);
+    assert.ok(!/127\.0\.0\.1|localhost/.test(paused.error || ''), 'the sign-in page names the directory servers');
+    assert.match(JSON.stringify(srv.db.prepare('SELECT * FROM audit').all()), /127\.0\.0\.1[\s\S]*localhost/, 'the log has the detail');
     // a local admin still signs in, and saving the service password for the new server sets sign-in up for it
     const admin = await signIn(srv, 'admin', 'adminpass123');
     assert.equal(admin.status, 200, 'a local admin is not held off');

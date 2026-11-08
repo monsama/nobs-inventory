@@ -18,15 +18,20 @@ const placeName = scope => scope || 'Everywhere';
 const userName = o => { const u = o.uid && USERS.find(x => x.id === o.uid); return (u && u.name) || o.user || ''; };
 
 /* Confirms a device on site (in inventory check t, if any), keeping the confirmation before it for Undo; from: where it was
-   recorded before it was moved here. */
-function confirm(o, t, from){
+   recorded before it was moved here, marks: where its location came from then (src and pick), put back by Undo. */
+function confirm(o, t, from, marks){
   const prev = o.verified ? { at: o.verified.at, ...(o.verified.by ? { by: o.verified.by } : {}), ...(o.verified.st ? { st: o.verified.st } : {}) } : undefined;
-  o.verified = { at: today(), by: who(), ...(t ? { st: t.id } : {}), ...(from !== undefined ? { from } : {}), ...(prev ? { prev } : {}) };
+  o.verified = { at: today(), by: who(), ...(t ? { st: t.id } : {}), ...(from !== undefined ? { from } : {}), ...(marks && marks.src ? { fromSrc: marks.src } : {}), ...(marks && marks.pick ? { fromPick: marks.pick } : {}), ...(prev ? { prev } : {}) };
   hist(o, now(), `Confirmed on site by ${who()}${t ? ` (${t.name})` : ''}`);
 }
 function unconfirm(o){
   if (!o.verified) return;
-  if (o.verified.from !== undefined) { setByHand(o, 'loc', o.verified.from); o.loc = o.verified.from; hist(o, now(), `Moved back to ${o.verified.from || 'no location'}: the confirmation on site was taken back`); }
+  /* Moved back as it was: the room, and where it came from (a sync's room stays the sync's, so it keeps it up to date). */
+  if (o.verified.from !== undefined) {
+    const v = o.verified, put = (key, val) => { if (val) o[key] = { ...(o[key] || {}), loc: val }; else if (o[key]) { delete o[key].loc; if (!Object.keys(o[key]).length) delete o[key]; } };
+    o.loc = v.from; put('src', v.fromSrc); put('pick', v.fromPick);
+    hist(o, now(), `Moved back to ${v.from || 'no location'}: the confirmation on site was taken back`);
+  }
   o.verified = o.verified.prev ? { ...o.verified.prev } : undefined;
   if (!o.verified) delete o.verified;
 }
@@ -148,7 +153,8 @@ function found(t, v){
   const mv = $('#stmMove'); if (mv) mv.onclick = () => {
     const to = $('#stmTo').value, from = o.loc || '';
     /* As an edit by hand (setByHand), so the next sync does not put back the room its source had. */
-    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from); queueServerSave();
+    const marks = { src: (o.src && o.src.loc) || '', pick: (o.pick && o.pick.loc) || '' };
+    closeModal(); setByHand(o, 'loc', to); o.loc = to; hist(o, now(), `Location changed from ${from || 'none'} to ${to}: found there in ${t.name}`); confirm(o, t, from, marks); queueServerSave();
     say(html`✓ <b>${o.name}</b> moved to ${to} and confirmed.`, 'ok');
   };
 }

@@ -124,7 +124,7 @@ export function registerSessionRoutes(app, ctx) {
       if (!ok && ldapEnabled(lc) && (!user || ['ldap', 'lansweeper', 'entra'].includes(user.source))) {
         /* Only to the directory sign-ins are set up for (app.js ldapSignIn): a changed address pauses it. */
         const si = ldapSignIn();
-        if (si.problem) { auditQuiet('ldap-paused', si.problem); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, si.problem); }
+        if (si.problem) { auditQuiet('ldap-paused', si.problem); throttle.recordFailure(keys); await failFloor(); throw new HttpError(503, si.say || si.problem); }
         /* At most two sign-ins of one address wait on the directory at once, so a burst cannot outrun the failure count. */
         const ipKey = keys[1];
         if (!throttle.enter(ipKey)) { await failFloor(); throw new HttpError(429, 'Too many sign-ins at once. Try again in a moment.'); }

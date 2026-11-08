@@ -61,6 +61,13 @@ try {
   await wait(() => obj('z').loc === 'Bern / EG' && obj('z').verified && obj('z').verified.from === 'Zürich / Lager' && obj('b').verified && obj('a').verified.by === 'Administrator');
   // moved by hand: AD, which filled its room before, does not put the old one back at its next sync
   assert.equal(obj('z').src.loc, 'hand', 'a room moved in the inventory check is still AD\'s');
+  // the move taken back: the old room, and AD's again (its next sync keeps it up to date); then moved here once more
+  await p.click('[data-stkf=done]'); await p.click('[data-stk=z]');
+  await wait(() => obj('z').loc === 'Zürich / Lager' && obj('z').src && obj('z').src.loc === 'ad' && !obj('z').verified);
+  await p.click('[data-stkf=open]');
+  await p.fill('#stkScan', 'INV-0009'); await p.press('#stkScan', 'Enter');
+  await p.waitForSelector('#stmMove'); await p.selectOption('#stmTo', 'Bern / EG'); await p.click('#stmMove');
+  await wait(() => obj('z').loc === 'Bern / EG' && obj('z').src.loc === 'hand');
   assert.match(await p.textContent('.stk-prog'), /3 of 4\s*1 moved here\s*1 not in the inventory/);
   assert.equal(await p.locator('.stk-row').count(), 1, 'only the open one is listed');
   // unticked: taken back

@@ -594,12 +594,12 @@ export function renderObj(o){
     if (o.status === 'stock' && statusWas !== 'stock' && (uidWas || hotWas) && (o.uid || null) === uidWas && !!o.hotdesk === hotWas){
       o.uid = null; delete o.hotdesk;
       hist(o, now(), `${userWas || 'Hot desk'} no longer has it: taken into stock by ${who()}`);
-      followUp = () => toastUndo(`${o.name} is in stock: ${userWas || 'Hot desk'} no longer has it`, () => { o.uid = uidWas; if (hotWas) o.hotdesk = true; hist(o, now(), `User back (undone) by ${who()}`); queueServerSave(); render(); });
+      followUp = `In stock: ${userWas || 'Hot desk'} no longer has it`;
       rerender = true;
     } else if (statusWas === 'stock' && o.status === 'stock' && (o.uid || o.hotdesk) && !(uidWas || hotWas)){
       o.status = 'active';
       hist(o, now(), `In use from now on: given to ${o.user} by ${who()}`);
-      followUp = () => toast(`${o.name} is in use now, by ${o.user}`);
+      followUp = `In use now, by ${o.user}`;
       rerender = true;
     }
     /* A new status shows in the header, the sidebar counts and the actions (Take back, Hand out) at once. */
@@ -624,13 +624,13 @@ export function renderObj(o){
     const keptMsg = kept.length ? `. ${kept.join(', ')}: your value stays; ${feedLinked(o) ? 'Lansweeper' : 'Microsoft Graph'} no longer changes ${kept.length === 1 ? 'it' : 'them'}` : '';
     /* What changed, with Undo: one field by its values, several by their count. */
     const what = edits.length === 1 ? ` · ${labelOf(edits[0][0])}: ${shownValue(edits[0][0], edits[0][1]) || 'empty'} → ${shownValue(edits[0][0], edits[0][2]) || 'empty'}` : edits.length > 1 ? ` · ${edits.length} fields changed` : '';
-    const msg = 'Saved ' + o.name + what + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
-    if (edits.length) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
+    /* What else changed with it (the user taken off, or the status) is said in the same message: its Undo puts all of it back. */
+    const msg = 'Saved ' + o.name + what + (followUp ? '. ' + followUp : '') + keptMsg + (warns.length ? '. Check: ' + warns.join('; ') : '');
+    if (edits.length || followUp) toastUndo(msg, () => { restoreSnapshot(before, `Change undone by ${who()}`); queueServerSave(); render(); });
     else toast(msg);
     queueServerSave();
     /* A new person: the page is drawn again, so More offers the entry sheet for them. */
     if ((o.uid || null) !== uidWas) rerender = true;
-    if (followUp) setTimeout(followUp, 0);
     if (rerender) render(); else {
       refreshHistory(o);
       $('#saveBtn').hidden = true; $('#objSaved').textContent = 'Saved ' + savedAt(o.handAt); $('#objSaved').classList.remove('dirty'); renderStatus();

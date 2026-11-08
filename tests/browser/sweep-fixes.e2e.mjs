@@ -68,6 +68,15 @@ try {
   await mark(p, 'f_v1_os').click(); await p.waitForSelector('#fsrcPop.pick');
   assert.match(await p.textContent('#fsrcPop .sp-foot'), /Active Directory, then Entra & Intune/, 'the picker does not tell the order set');
 
+  // In stock picked for a device someone has: one message says both, and its Undo puts the person and the status back
+  const meId = await p.evaluate(async () => { const c = await import('/js/01-core.js'); const o = c.byId('v1'); o.uid = c.st.meId; o.status = 'active'; (await import('/js/04-settings.js')).bindUser(o); (await import('/js/07-render.js')).queueServerSave(); return c.st.meId; });
+  await storedBy(() => obj('v1'), o => o.uid === meId);
+  await p.evaluate(async () => (await import('/js/02-views.js')).openObj('v1'));
+  await p.waitForSelector('#f_v1_status'); await p.selectOption('#f_v1_status', 'stock');
+  await until(p, () => /Saved PC-V · Status: In use → In stock\. In stock: .+ no longer has it/.test(document.querySelector('#toast').textContent));
+  await storedBy(() => obj('v1'), o => o.status === 'stock' && !o.uid);
+  await p.click('#toast .t-undo');
+  await storedBy(() => obj('v1'), o => o.status === 'active' && o.uid === meId);
   // Retired picked in the Status field opens the Retire dialog; the field keeps the status until then
   await p.evaluate(async () => (await import('/js/02-views.js')).openObj('r1'));
   await p.waitForSelector('#f_r1_status');
