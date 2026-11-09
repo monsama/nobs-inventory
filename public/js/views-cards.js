@@ -9,6 +9,7 @@ import { mergeTarget, resolveModal, reviewDo, reviewStale } from './15-review.js
 import { emptyHtml, hiddenHits, bindHiddenHits } from './02-views.js';
 import { pickBar, bindScopeActs, pickedInPool, bindPickBar } from './views-bulk.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
+import { bindPrintMenu, printMenuHtml } from './print-view.js';
 import { html, rawHtml } from './html.js';
 /* ---------- cards ---------- */
 /* Network and attached relations are counted apart: a PC with a monitor is not a PC with more network links. */
@@ -70,7 +71,7 @@ export const joinCardsAvailable = () => SYNC.graph || objs.some(o => o.inAd);
 /* On unless this person turned it off: a computer's place in AD, Entra and Intune is what one looks for first. */
 let cardJoin = true;
 try { cardJoin = localStorage.getItem('ni-card-join') !== '0'; } catch { /* Browser storage can be blocked (a private window): then the choice is simply not kept. */ }
-const showJoin = () => cardJoin && joinCardsAvailable();
+export const showJoin = () => cardJoin && joinCardsAvailable();
 /* The card's status: excluded or detached from Lansweeper says so; else when the device was last seen and by whom
    (Lansweeper, AD, Intune, Entra or Defender, whichever saw it last); else Lansweeper's own state. */
 const cardSeen = o => {
@@ -120,8 +121,8 @@ export function renderCardsBody(){
     <span class="tb-grp"><label class="muted" for="grp">Group by</label><select id="grp"><option value="none">Nothing</option><option value="type">Type</option><option value="loc">Location</option><option value="user">User</option></select></span>
     ${st.cardsGroup !== 'none' ? html`<button id="grpAll">Collapse all</button><button id="grpNone">Expand all</button>` : ''}
     ${joinCardsAvailable() ? html`<span class="tbsep"></span><label class="pchk" title="Show on computers and phones whether they are in Active Directory, Microsoft Entra ID (Azure AD) and Intune"><input type="checkbox" id="cardJoin" ${cardJoin ? 'checked' : ''}> Show directory status</label>` : ''}
-    ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
-  bindScopeActs(list); bindSaveView();
+    ${saveViewBtn() ? html`<span class="tbsep"></span>${rawHtml(saveViewBtn())}` : ''}${list.length ? html`<span class="tbsep"></span>${rawHtml(printMenuHtml())}` : ''}<div class="grow"></div>${rawHtml(pickBar(list))}`;
+  bindScopeActs(list); bindSaveView(); bindPrintMenu();
   $('#grp').value = st.cardsGroup;
   $('#grp').onchange = e => { st.cardsGroup = e.target.value; view(); };
   const cj = $('#cardJoin');
