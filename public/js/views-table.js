@@ -16,6 +16,7 @@ import { exportCsv, importCsvModal } from './views-csv.js';
 import { patchImportModal } from './24-patch.js';
 import { bindSaveView, saveViewBtn } from './views-saved.js';
 import { remapTable } from './saved-views.js';
+import { bindPrintMenu, printMenuHtml } from './print-view.js';
 import { html, rawHtml } from './html.js';
 /* ---------- table ---------- */
 /* The columns of the objects table. Name always shows; the others can be hidden from the Columns menu. */
@@ -55,6 +56,20 @@ export const TABLE_COLS = [
   {k:'found', w:220, label:'Found by', cell: o => String(html`<td>${o.review ? [REVIEW_SRC[o.review.src] || o.review.src, ...(alsoIn(o).length ? [`also ${alsoIn(o).join(' · ')}`] : [])].join(' · ') : ''}</td>`)}
 ];
 /* The Lansweeper column is left out while Lansweeper is off; Found by shows only in To review. */
+/* The rows the Table shows (after its column filters and sort, also those not drawn yet), for printing. */
+let LAST = null;
+const cellText = h => String(h).replace(/<span class="mk\b[^"]*"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, m => ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"})[m]).replace(/\s+/g, ' ').trim();
+/* The Table's columns in the order shown and the text of each cell; from the Cards, the devices listed with the
+   Table's columns. */
+export function tablePrintData(){
+  if (st.tab === 'table' && LAST){
+    const ks = [...document.querySelectorAll('#view table.grid thead th[data-ck]')].map(th => /** @type {HTMLElement} */ (th).dataset.ck);
+    const cols = ks.map(k => LAST.shown.find(c => c.k === k)).filter(Boolean);
+    return { head: cols.map(c => c.label), rows: LAST.list.map(o => cols.map(c => cellText(c.cell(o, LAST.idx)))) };
+  }
+  const idx = relIndex(), cols = tableCols().filter(c => c.fixed || !hiddenCols().includes(c.k));
+  return { head: cols.map(c => c.label), rows: filtered().map(o => cols.map(c => cellText(c.cell(o, idx)))) };
+}
 export const tableCols = () => TABLE_COLS.filter(c => (c.k !== 'ls' || LS_USED()) && (c.k !== 'found' || st.scope));
 /* Rack is hidden until it is wanted: most devices do not go in a rack. */
 export const DEFAULT_HIDDEN_COLS = ['rack', 'price', 'supplier', 'invoice', 'resp', 'urls', 'purchased', 'due', 'replPrice', 'maint', 'secureBoot'];
@@ -132,7 +147,7 @@ export function renderTable(){
   st.bulk = pickedInPool();
   const n = st.bulk.size;
   $('#toolbar').innerHTML = html`<span class="muted" id="tblCount">${listCount(list.length, scopePool().length)}</span><span class="tbsep"></span>
-    ${rawHtml(columnsMenu())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV', String(html`<button type="button" id="csvShown">The columns shown<span class="muted">, as in the table</span></button><button type="button" id="csvBtn">All fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
+    ${rawHtml(columnsMenu())}${rawHtml(printMenuHtml())}${rawHtml(menuHtml('<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Export CSV', String(html`<button type="button" id="csvShown">The columns shown<span class="muted">, as in the table</span></button><button type="button" id="csvBtn">All fields<span class="muted">, to import again</span></button>`), { id: 'csvMenu' }))}${isAdmin() ? html`<button id="csvImp">Import CSV…</button>` : ''}${isAdmin() && objs.some(o => o.type === 'patch') ? html`<button id="patchImp" title="Outlets and patch cords of patch panels, from a CSV file">Import patch list…</button>` : ''}${rawHtml(saveViewBtn())}${st.scope || !SERVER.on ? '' : html`<button id="rpBtn" title="The inventory or lifecycle report, of the devices listed here if filtered">Report…</button>`}${!n && st.scope ? html`<span class="grow"></span>${rawHtml(scopeActs(list, true))}` : ''}${rawHtml(tableBulkBar(list, n))}`;
   if (colOpen) $('#colMenu .menubox').showPopover();
   bindScopeActs(list);
   const cp = $('#colPick'); if (cp) cp.ontoggle = () => { colPickOpen = cp.open; };
@@ -157,7 +172,7 @@ export function renderTable(){
   };
   const imp = $('#csvImp'); if (imp) imp.onclick = importCsvModal;
   const pimp = $('#patchImp'); if (pimp) pimp.onclick = () => patchImportModal();
-  bindSaveView();
+  bindSaveView(); bindPrintMenu();
   const rb = $('#rpBtn'); if (rb) rb.onclick = () => reportsModal({ ids: leftFilters() || st.q.trim() || Object.values(tv.filters || {}).some(v => String(v || '').trim()) ? list.map(o => o.id) : null });
   bindTableBulk(n);
   const idx = relIndex();   /* one index of the relations for all rows */
@@ -200,6 +215,8 @@ export function renderTable(){
   }
   const sc = tv.sort && colOf(tv.sort.ci);
   if (sc) { const key = new Map(list.map(o => [o, textOf(sc.cell(o, idx))])); list = [...list].sort((a, b) => tv.sort.dir * cmpCells(key.get(a), key.get(b))); }
+  /* What Print → As a table prints: these rows, in this order, with these columns. */
+  LAST = { list, shown, idx };
   /* Thousands of rows take seconds to lay out: the first ones are drawn, the rest on request. */
   $('#tblCount').textContent = listCount(list.length, scopePool().length);
   const cut = !st.tableAll && list.length > SHOW_FIRST + 100;
