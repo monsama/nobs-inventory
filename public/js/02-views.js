@@ -61,7 +61,7 @@ export function renderSide(){
   $('#locList').innerHTML = html`${sites.map(s => html`<button class="item ${st.loc===s?'sel':''}" data-loc="${s}"><span class="lbl">${s}</span><span class="cnt">${cnt(ofType(o=>String(o.loc||'').split(' / ')[0]===s))}</span></button>${
     LOCS.filter(l => l.startsWith(s + ' / ')).map(l => html`<button class="item sub ${st.loc===l?'sel':''}" data-loc="${l}"><span class="lbl">${l.split(' / ')[1]}</span><span class="cnt">${cnt(ofType(o=>o.loc===l))}</span></button>`)}`)}`;
   /* Warranty: devices whose warranty ends within 90 days, and those whose has ended. */
-  $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'warn'], ['ended', 'Ended', 'bad']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
+  $('#wtyList').innerHTML = html`${[['soon', `Ends within ${WARRANTY_SOON_DAYS} days`, 'off'], ['ended', 'Ended', 'off']].map(([k, l, c]) => html`<button class="item ${st.warranty===k?'sel':''}" data-warranty="${k}"><span class="dot ${c}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(o => warrantyState(o) === k)}</span></button>`)}`;
   $('#seenList').innerHTML = html`${Object.entries(SEEN_FILTERS).map(([k, [l, f]]) => html`<button class="item ${st.seen===k?'sel':''}" data-seen="${k}"><span class="dot ${k === 'd30' ? 'warn' : 'bad'}"></span><span class="lbl">${l}</span><span class="cnt">${cnt(f)}</span></button>`)}`;
   /* Lansweeper: devices it has not scanned for three months, to be checked by hand. Shown while Lansweeper is in use. */
   const nOld = LS_USED() ? cnt(o => scanOld(o)) : 0;

@@ -1,6 +1,7 @@
 import { historyLens, noteChanges } from './sync-changes.js';
 import crypto from 'node:crypto';
 import { isPlaceholderSerial } from '../public/js/serials.js';
+import { HOST_KINDS, relationProblem } from '../public/js/relations.js';
 import { LS_FIELDS, LS_FILL, fieldOrder } from '../public/js/sync-map.js';
 import { HttpError } from './errors.js';
 import { KNOWN_TYPES, intakeOf } from './state.js';
@@ -56,7 +57,8 @@ const LONG_TEXT = ['av', 'disk'];
 export function recordsFromJson(list) {
   return list.map(raw => {
     const r = {};
-    for (const k of FEED_TEXT) r[k] = raw && raw[k] != null ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
+    /* A field that is not text or a number (an object, a list) is left empty, not stored as "[object Object]". */
+    for (const k of FEED_TEXT) r[k] = raw && raw[k] != null && typeof raw[k] !== 'object' ? String(raw[k]).trim().slice(0, LONG_TEXT.includes(k) ? 1000 : 200) : '';
     /* A link joins this object to another one: by the other object's Lansweeper ref (or its name), with a port. */
     r.links = Array.isArray(raw && raw.links) ? raw.links.filter(l => l && l.kind === 'attached').slice(0, 50).map(l => ({
       ref: String(l && l.ref != null ? l.ref : '').trim().slice(0, 200),
@@ -215,7 +217,7 @@ function applyLinks(s, pairs, counts, seen) {
     wantedOf.set(obj.id, wanted);
     for (const l of linksOnly ? r.links : [...r.links, ...(mergedLinks.get(obj.id) || [])]) {
       const to = (l.ref && byRef.get(String(l.ref))) || (l.name && byName.get(l.name.toLowerCase())) || null;
-      if (!to || to === obj) continue;
+      if (!to || to === obj || to.status === 'retired' || obj.status === 'retired') continue;
       const port = l.port || null;
       wanted.add(to.id + '|' + l.kind);
       /* A port that another device already uses is not taken: the link is left out and counted, and the push goes on. */
@@ -228,6 +230,13 @@ function applyLinks(s, pairs, counts, seen) {
         if (existing.src === 'Lansweeper' && port && existing.port !== port) { existing.port = port; n++; }
         continue;
       }
+      /* The same rule as for a link made by hand (relations.js): a monitor on one computer, types that fit. Lansweeper
+         moving a monitor it made to another computer moves it; one attached by hand stays and the new link is counted. */
+      if (HOST_KINDS.includes(l.kind)) {
+        const mine = s.rels.filter(x => x.from === obj.id && HOST_KINDS.includes(x.kind) && x.src === 'Lansweeper');
+        for (const x of mine) s.rels.splice(s.rels.indexOf(x), 1);
+      }
+      if (relationProblem(l.kind, obj, to, s.rels)) { counts.linkRefused = (counts.linkRefused || 0) + 1; continue; }
       s.rels.push({ id: 'r' + crypto.randomUUID(), from: obj.id, to: to.id, kind: l.kind, port, vlan: null, src: 'Lansweeper' });
       n++;
     }
@@ -310,8 +319,14 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
   /* Lookups by serial number (the first device that has it) and by name, kept up to date as devices are added, so a
      push of thousands does not go through every device for every record. */
   const lc = v => String(v || '').toLowerCase();
-  const bySerial = new Map(), byName = new Map();
-  const index = o => { if (o.serial && !bySerial.has(lc(o.serial))) bySerial.set(lc(o.serial), o); const k = lc(o.name); byName.set(k, [...(byName.get(k) || []), o]); };
+  const bySerial = new Map(), byName = new Map(), byAsset = new Map();
+  const index = o => {
+    if (o.serial){ const k = lc(o.serial); bySerial.set(k, [...(bySerial.get(k) || []), o]); }
+    const k = lc(o.name); byName.set(k, [...(byName.get(k) || []), o]);
+    /* Lansweeper's asset id: the same asset whatever its name or serial number says today. */
+    const ref = o.feed && o.feed.ref != null && String(o.feed.ref).trim();
+    if (ref && !byAsset.has(ref)) byAsset.set(ref, o);
+  };
   s.objs.forEach(index);
   /* The names this push brings, so a DNS-named record is known as a second record also when it comes before the device
      it stands for (after Clear inventory, both are new). */
@@ -333,15 +348,32 @@ export function mergeRecords(s, records, now = new Date(), ipLocations = null, {
     /* Matched by serial number. Without one, by name, but only when that name belongs to a single object: with two
        objects of the same name the record is left alone, so it cannot be merged into the wrong one. */
     /* A name only matches an object that has no other serial number: two devices can share a name, not a serial. */
-    const sameName = r.name ? (byName.get(lc(r.name)) || []).filter(o => !(r.serial && o.serial && lc(o.serial) !== lc(r.serial))) : [];
-    const found = (r.serial && bySerial.get(lc(r.serial))) || (sameName.length === 1 ? sameName[0] : null);
-    if (!found && sameName.length > 1) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
+    /* A retired device never blocks one in use: a name or serial number used again after a machine was retired is the
+       active one's. Two in use with the same serial number are told apart by the name. */
+    const inUse = list => { const a = list.filter(o => o.status !== 'retired'); return a.length ? a : list; };
+    const one = list => list.length === 1 ? list[0] : null;
+    const sameName = inUse(r.name ? (byName.get(lc(r.name)) || []).filter(o => !(r.serial && o.serial && lc(o.serial) !== lc(r.serial))) : []);
+    const sameSerial = inUse(r.serial ? bySerial.get(lc(r.serial)) || [] : []);
+    const ref = r.ref != null && String(r.ref).trim();
+    let found = (ref && byAsset.get(ref)) || one(sameSerial) || one(sameSerial.filter(o => lc(o.name) === lc(r.name))) || (!sameSerial.length ? one(sameName) : null);
+    if (!found && (sameName.length > 1 || sameSerial.length > 1)) { counts.ambiguous = (counts.ambiguous || 0) + 1; continue; }
+    /* A record merged into a device as the same device (a reinstall or a new mainboard: its serial number or name changed)
+       is that device: it is updated, so it does not go quiet. One merged as a docking station stays the dock's (below). */
+    if (found && found.excluded && found.review && found.review.merged) {
+      const t = s.objs.find(o => o.id === found.review.merged);
+      const asDock = t && (t.accessories || []).some(a => lc(a.seenAs) === lc(found.name));
+      if (t && !asDock && !t.excluded && !t.detached) found = t;
+    }
+    /* A retired device is kept for the record: no sync changes it. */
+    if (found && found.status === 'retired') { counts.retired = (counts.retired || 0) + 1; continue; }
     /* An object excluded from sync, or detached from it, is left as it is. */
     /* A record merged into a device (a dock's DNS-named one) still says what it is linked to (the switch port the dock is
        plugged into): those links are the device's. */
     if (found && found.excluded) {
       const t = found.review && found.review.merged && s.objs.find(o => o.id === found.review.merged && o.status !== 'retired' && !o.excluded && !o.detached);
-      if (t && Array.isArray(r.links)) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links), linksAt: seen }; pairs.push({ r: { links: r.links }, obj: t, linksOnly: true }); counts.scans = (counts.scans || 0) + 1; }
+      /* Saved only when its links changed, not on every push. */
+      if (t && Array.isArray(r.links) && JSON.stringify(linksOf(r.links)) !== JSON.stringify((found.feed || {}).links || [])) { found.feed = { ...(found.feed || { sys: 'Lansweeper' }), links: linksOf(r.links), linksAt: seen }; counts.scans = (counts.scans || 0) + 1; }
+      if (t && Array.isArray(r.links)) pairs.push({ r: { links: r.links }, obj: t, linksOnly: true });
       counts.excluded = (counts.excluded || 0) + 1; continue;
     }
     if (found && found.detached) { counts.detached = (counts.detached || 0) + 1; continue; }

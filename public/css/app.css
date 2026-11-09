@@ -952,7 +952,7 @@ input::-webkit-calendar-picker-indicator:hover{opacity:.9}
 input.inherit::placeholder{color:var(--fg);font-style:normal;opacity:.85}
 /* Warning text uses its own shade, which reads at 4.5:1 on the page in either theme. */
 .fieldnote.warn{color:var(--warntext)} .fieldnote.bad{color:var(--danger)} .fieldnote.info{color:var(--muted)}
-.wty.soon{color:var(--warntext);font-weight:600} .wty.ended{color:var(--danger);font-weight:600}
+/* The warranty is shown plainly: useful to know, not an alarm. */
 /* Subnets Lansweeper's adapters report that are not listed yet. */
 .sn-suggest{padding:8px 12px 10px;border-top:1px solid var(--bd2)}
 .sn-sughead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:4px}

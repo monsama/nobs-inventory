@@ -28,6 +28,11 @@ export async function syncLdapUsers(db, config) {
   let computers = null, computerError = null;
   if (config.computerGroups !== 'off') { try { computers = await ldapListComputers(config); } catch (e) { computerError = e.message; } }
   const s = loadState(db);
+  /* Nobody at all is most likely a wrong search base or group, or a directory that answered badly: nobody is switched
+     off for it, as no computer account at all leaves the devices as they are. */
+  if (!people.length && s.users.some(u => u.source === 'ldap' && u.active !== false)) {
+    throw new HttpError(502, 'The directory named nobody in the sign-in group, so nobody was switched off. Check the search base and the group.');
+  }
   const wanted = new Set(people.map(p => p.login.toLowerCase()));
   const counts = { created: 0, updated: 0, deactivated: 0, people: people.length };
   const linked = [];
