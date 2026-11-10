@@ -28,3 +28,14 @@ export function graphSeen(g){
   if (signIn) out.push(['Entra', signIn]);
   return out;
 }
+
+/* The system Intune reports, named the way Active Directory names it. Intune gives Windows as "Windows" and its build
+   (10.0.26200.9711), and Windows 11 kept the version 10.0: from build 22000 on it is Windows 11, so it reads
+   "Windows 11 (10.0.26200.9711)" next to AD's "Windows 11 Pro (10.0.26200)". Other systems stay as Intune writes them
+   (iOS 18.1, Android 15). */
+export function graphOsName(os, version){
+  const name = String(os || '').trim(), ver = String(version || '').trim();
+  const build = /^windows$/i.test(name) ? /^10\.0\.(\d+)/.exec(ver) : null;
+  if (build) return `Windows ${+build[1] >= 22000 ? '11' : '10'} (${ver})`;
+  return [name, ver].filter(Boolean).join(' ');
+}

@@ -120,3 +120,16 @@ test('a Lansweeper push whose user is the login of a directory person merges int
     assert.deepEqual(log, ['people merged by a sync: anna.muster@corp.example (Lansweeper) into Anna Muster (AD), same login']);
   } finally { await srv.close(); }
 });
+
+test('a person Lansweeper made with the login as the name (before 0.9.28) is merged into the directory account', async () => {
+  const { mergeSamePeople } = await import('../public/js/people-match.js');
+  const s = { users: [
+    { id: 'd1', login: 'Ljucav', name: 'Ljuca Viktor', source: 'ldap', active: true, role: 'none', groups: [] },
+    { id: 'l1', login: '', name: 'ljucav', dept: 'IT', source: 'lansweeper', active: true, role: 'none', groups: [] },
+    { id: 'l2', login: '', name: 'Anna Muster', source: 'lansweeper', active: true, role: 'none', groups: [] },
+  ], objs: [{ id: 'o1', uid: 'l1', user: 'ljucav' }] };
+  assert.equal(mergeSamePeople(s), 1);
+  assert.deepEqual(s.users.map(u => u.id), ['d1', 'l2'], 'a full name is not taken for a login');
+  assert.deepEqual([s.objs[0].uid, s.objs[0].user], ['d1', 'Ljuca Viktor'], 'the device moves to the directory account');
+  assert.equal(s.users[0].dept, 'IT');
+});

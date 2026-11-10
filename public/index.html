@@ -29,17 +29,17 @@
 
 <div id="main">
   <aside id="side" aria-label="Filters">
-    <div class="hdr" id="scopeHdr" hidden>To review</div>
-    <div class="sidegroup" id="scopeList" hidden></div>
-    <div class="hdr" id="viewHdr" hidden>Views</div>
-    <div class="sidegroup" id="viewList" hidden></div>
-    <div class="hdr">Types <button id="clearF">Clear filters</button></div>
-    <div class="sidegroup" id="typeList"></div>
-    <div class="hdr">Locations</div>
-    <div class="sidegroup" id="locList"></div>
-    <div class="hdr">Status</div>
-    <div class="sidegroup" id="statList"></div>
-    <details class="more-filters" id="moreFilters"><summary>More filters <span class="muted" id="moreFiltersOn"></span></summary>
+    <section class="sidesec" data-sec="review"><div class="hdr sechdr" id="scopeHdr" hidden><button type="button" class="sec-t">To review</button></div>
+    <div class="sidegroup" id="scopeList" hidden></div></section>
+    <section class="sidesec" data-sec="views"><div class="hdr sechdr" id="viewHdr" hidden><button type="button" class="sec-t">Views</button></div>
+    <div class="sidegroup" id="viewList" hidden></div></section>
+    <section class="sidesec" data-sec="types"><div class="hdr sechdr"><button type="button" class="sec-t">Types</button><button id="clearF">Clear filters</button></div>
+    <div class="sidegroup" id="typeList"></div></section>
+    <section class="sidesec" data-sec="locs"><div class="hdr sechdr"><button type="button" class="sec-t">Locations</button></div>
+    <div class="sidegroup" id="locList"></div></section>
+    <section class="sidesec" data-sec="status"><div class="hdr sechdr"><button type="button" class="sec-t">Status</button></div>
+    <div class="sidegroup" id="statList"></div></section>
+    <details class="more-filters sidesec" id="moreFilters" data-sec="more"><summary>More filters <span class="muted" id="moreFiltersOn"></span></summary>
       <div class="hdr">Warranty</div>
       <div class="sidegroup" id="wtyList"></div>
       <div class="hdr">Last seen</div>
@@ -51,12 +51,12 @@
       <div class="hdr" id="grHdr" hidden>Entra &amp; Intune</div>
       <div class="sidegroup" id="grList" hidden></div>
     </details>
-    <div class="hdr" id="osHdr" hidden>Operating system</div>
-    <div class="sidegroup" id="osList" hidden></div>
-    <div class="hdr" id="respHdr" hidden>Responsible</div>
-    <div class="sidegroup" id="respList" hidden></div>
-    <div class="hdr" id="adgHdr" hidden>AD group</div>
-    <div class="sidegroup" id="adgList" hidden></div>
+    <section class="sidesec" data-sec="os"><div class="hdr sechdr" id="osHdr" hidden><button type="button" class="sec-t">Operating system</button></div>
+    <div class="sidegroup" id="osList" hidden></div></section>
+    <section class="sidesec" data-sec="resp"><div class="hdr sechdr" id="respHdr" hidden><button type="button" class="sec-t">Responsible</button></div>
+    <div class="sidegroup" id="respList" hidden></div></section>
+    <section class="sidesec" data-sec="adg"><div class="hdr sechdr" id="adgHdr" hidden><button type="button" class="sec-t">AD group</button></div>
+    <div class="sidegroup" id="adgList" hidden></div></section>
   </aside>
 
   <section id="content">
