@@ -94,7 +94,7 @@ try {
   let pt = await areaMid();
   await p.mouse.click(pt.x, pt.y, { button: 'right' });
   await p.waitForSelector('#plCtx');
-  assert.deepEqual((await p.$$eval('#plCtx [data-ctx]', l => l.map(b => b.textContent.trim()))), ['Draw more of this area', 'Edit area…', 'Duplicate', 'Remove area…']);
+  assert.deepEqual((await p.$$eval('#plCtx [data-ctx]', l => l.map(b => b.textContent.trim()))), ['Draw more of this area', 'Edit rectangles', 'Edit area…', 'Duplicate', 'Remove area…']);
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('#plCtx').count(), 0, 'Esc leaves the menu open');
   // Draw more of this area: the bar says which area, and what is drawn is added at Done, without a dialog

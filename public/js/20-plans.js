@@ -62,6 +62,9 @@ function dropSpot(plan, cx, cy){
 export let planParts = [];
 /* The area that new rectangles are added to, after it is clicked. */
 export let planEditArea = null;
+/* The area whose rectangles are unlocked (its menu: Edit rectangles): only then are their handles, grips and × shown,
+   and a single rectangle can be resized, moved or removed. Otherwise an area moves and is edited as a whole. */
+let planShapeEdit = null;
 let planAreaDrag = null;
 /* A rectangle of the chosen area being resized by one of its handles: which rectangle, which side(s), and how it was. */
 let planResize = null;
@@ -203,6 +206,7 @@ export function renderPlans(){
   $('#toolbar').innerHTML = '';   /* the plans have their own bar; the toolbar of the tab before is not kept */
   const plan = planById(planSel) || PLANS[0] || null;
   planSel = plan ? plan.id : null;
+  if (planShapeEdit && (planShapeEdit !== planEditArea || planMode !== 'view')) planShapeEdit = null;
   const editArea = planEditArea && plan ? (plan.areas || []).find(a => a.id === planEditArea) : null;
   const bar = html`<div class="pl-bar">
       ${PLANS.length ? html`<select id="plSel" aria-label="Floor plan">${PLANS.map(p => html`<option value="${p.id}" ${plan && p.id === plan.id ? 'selected' : ''}>${p.name}${p.site ? ' · ' + p.site : ''}</option>`)}</select>` : html`<span class="muted">No floor plans yet.</span>`}
@@ -210,7 +214,8 @@ export function renderPlans(){
       ${plan ? html`${isAdmin() ? html`<span class="pl-sep"></span>
         <button id="plArea" class="${planMode === 'area' ? 'on' : ''}" title="Drag on the plan to mark an area">Draw area</button>
         <button id="plText" class="${planMode === 'text' ? 'on' : ''}" title="Click the plan to put a text there, such as Entrance">Add text</button>
-        ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${esc(editArea.name)}…`, html`<button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area: beside it, or apart from it">Draw more of this area</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
+        ${editArea && planMode === 'view' && planShapeEdit === editArea.id ? html`<span class="pl-adding" role="status">Rectangles of <b>${editArea.name}</b> unlocked</span><button id="plShapeDone" class="primary" title="Lock the rectangles again">Done</button>` : ''}
+        ${editArea && planMode === 'view' ? rawHtml(menuHtml(`${esc(editArea.name)}…`, html`<button id="plShapeEdit" title="Show the handles of each rectangle, to resize, move or remove one">${planShapeEdit === editArea.id ? 'Lock rectangles' : 'Edit rectangles'}</button><button id="plAreaEdit" title="Rename the area, choose its room or colour">Edit area</button><button id="plAreaAdd" title="Draw more rectangles for this area: beside it, or apart from it">Draw more of this area</button><button id="plAreaDup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>`, { id: 'plAreaMenu' })) : ''}
         ${planMode === 'area' && editArea ? html`<span class="pl-adding" role="status">Adding to <b>${editArea.name}</b></span>${planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button>` : html`<span class="muted pl-drawhint">Drag rectangles on the plan, then Done.</span>`}<button id="plAreaCancel">Cancel</button>`
           : planMode === 'area' ? planParts.length ? html`<button id="plAreaDone" class="primary">Done with ${planParts.length} ${planParts.length === 1 ? 'rectangle' : 'rectangles'}</button><button id="plAreaDiscard">Discard</button>` : html`<span class="muted pl-drawhint" role="status">Drag rectangles on the plan for a new area, then Done. Esc discards them.</span>` : ''}
         ${rawHtml(menuHtml('Plan…', html`<button id="plEdit" title="Rename the plan or change its site">Edit plan</button><button id="plReplace">Replace image</button><button id="plPrint" title="The plan with its devices and a list of them, to print or save as PDF">Print or save as PDF</button>
@@ -245,6 +250,8 @@ export function renderPlans(){
   });
   on('#plAreaDiscard', () => { planParts = []; renderPlans(); });
   on('#plAreaCancel', () => { planParts = []; planMode = 'view'; renderPlans(); });
+  on('#plShapeEdit', () => { planShapeEdit = planShapeEdit === planEditArea ? null : planEditArea; renderPlans(); });
+  on('#plShapeDone', () => { planShapeEdit = null; renderPlans(); });
   on('#plReplace', () => planModal(plan));
   on('#plEdit', () => planEditModal(plan));
   on('#plAreaEdit', () => { const a = (plan.areas || []).find(x => x.id === planEditArea); if (a) areaEditModal(plan, a); });
@@ -416,7 +423,7 @@ const setColor = (area, c) => { if (c === 'blue') delete area.color; else area.c
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const handleAt = (r, d) => ({ x: d.includes('w') ? r.x : d.includes('e') ? r.x + r.w : r.x + r.w / 2, y: d.includes('n') ? r.y : d.includes('s') ? r.y + r.h : r.y + r.h / 2 });
 function resizeHandles(plan){
-  const a = planEditArea && planMode === 'view' && isAdmin() ? (plan.areas || []).find(x => x.id === planEditArea) : null;
+  const a = planEditArea && planShapeEdit === planEditArea && planMode === 'view' && isAdmin() ? (plan.areas || []).find(x => x.id === planEditArea) : null;
   if (!a) return '';
   const rects = areaRects(a);
   return String(html`${rects.map((r, i) => HANDLES.map(d => { const p = handleAt(r, d); return html`<span class="pl-h pl-h-${d}" data-rh="${i}:${d}" style="left:${p.x}%;top:${p.y}%" title="Drag to change the size; Alt: without snapping"></span>`; }))}${rects.length > 1 ? rects.map((r, i) => html`<span class="pl-rm" data-rm="${i}" style="left:${r.x + r.w}%;top:${r.y}%" title="Drag to move only this rectangle; Alt: without snapping" aria-hidden="true">✥</span><button type="button" class="pl-rx" data-rx="${i}" style="left:${r.x + r.w}%;top:${r.y}%" aria-label="Remove this rectangle of ${a.name}" title="Remove this rectangle">×</button>`) : ''}`);
@@ -831,6 +838,7 @@ function areaMenu(plan, area, x, y){
   m.id = 'plCtx'; m.className = 'pl-ctx'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', `Area ${area.name}`);
   m.innerHTML = String(html`<div class="pl-ctx-h">${area.name}</div>
     <button type="button" role="menuitem" data-ctx="more" title="Every rectangle drawn now belongs to this area, beside it or apart from it">Draw more of this area</button>
+    <button type="button" role="menuitem" data-ctx="shape" title="Show the handles of each rectangle, to resize, move or remove one">${planShapeEdit === area.id ? 'Lock rectangles' : 'Edit rectangles'}</button>
     <button type="button" role="menuitem" data-ctx="edit">Edit area…</button>
     <button type="button" role="menuitem" data-ctx="dup" title="A copy of this area beside it, for rooms of the same size">Duplicate</button>
     <button type="button" role="menuitem" data-ctx="del" class="danger-text">Remove area…</button>`);
@@ -854,6 +862,7 @@ function areaMenu(plan, area, x, y){
     done();
     const k = b.dataset.ctx;
     if (k === 'more'){ planEditArea = area.id; planMode = 'area'; planPlace = null; planParts = []; renderPlans(); }
+    else if (k === 'shape'){ const on = planShapeEdit !== area.id; planEditArea = area.id; planMode = 'view'; planPlace = null; planShapeEdit = on ? area.id : null; renderPlans(); }
     else if (k === 'edit') areaEditModal(plan, area);
     else if (k === 'dup') duplicateArea(plan, area);
     else areaRemoveModal(plan, area);
