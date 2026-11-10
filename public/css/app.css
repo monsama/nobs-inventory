@@ -1694,8 +1694,7 @@ a.btnlike.lg-ms{width:100%;justify-content:center;height:36px;gap:10px;font-weig
 .ct-person > span{flex:1;min-width:0}.ct-person small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
 #ctAddContact{width:100%}
 /* Card footer: the "Seen" chip takes the room up to the relations on the right, so its text shows in full. */
-.card .cf .chip.lsst.seen{flex:1 1 auto;max-width:none;justify-content:flex-start}
-.card .cf .chip.lsst.seen ~ .grow{flex:0 0 0}
+.card .cf .chip.lsst.seen{flex:0 1 auto;max-width:none;justify-content:flex-start}
 .card .cf .grow:last-child{display:none}
 .notes-box{width:100%;min-height:64px;resize:vertical;font:inherit;line-height:1.45}
 /* Relations: beside a port box the VLAN has a slot of its own, so the port boxes line up with or without one. */
