@@ -74,7 +74,7 @@ export function newObjModal(pre={}){
       <label for="nUp">Plug into</label><select id="nUp"></select>
       ${portField('nPort', 'nUp')}
       ${outletField('nOutlet')}
-    </div></details><p class="note">The device gets its own code (INV-…). If a feed later finds the same serial number, it links to this object instead of creating a duplicate.</p></div>
+    </div></details><p class="note">The device gets its own code (INV-…). If a data source (Lansweeper, AD, Intune) later finds the same serial number, it updates this device instead of adding a second one.</p></div>
     <div class="mf"><button id="nCancel">Cancel</button><button id="nOk" class="primary">Create</button></div>`, 'sm');
   if (c){ $('#nType').value = c.type; $('#nName').value = c.name.replace(/\d+$/, m => String(+m + 1).padStart(m.length, '0')); $('#nModel').value = c.model; $('#nLoc').value = c.loc; }
   if (pre.name) $('#nName').value = pre.name;

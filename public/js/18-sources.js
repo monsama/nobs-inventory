@@ -1,6 +1,6 @@
 /* The device page's sources: what Lansweeper, Microsoft Entra and Intune (with Defender) and Active Directory say of a
    device, one tab each in the Sources panel. */
-import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_ON, SYNC, byId, complianceChip, dayText, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
+import { GRAPH_STALE_DAYS, GRAPH_TYPES, HISTORY, JOIN_INFO, LS_USED, SYNC, byId, complianceChip, dayText, defenderState, feedOwns, graphAmbiguousOf, graphLast, graphStale, joinOf, neverScanned, scanChip, scanOld, st, syncChip, syncOf } from './01-core.js';
 import { dateText, dateTimeText } from './dates.js';
 import { isIntune, otherManager } from './intune.js';
 import { html, rawHtml } from './html.js';
@@ -27,7 +27,7 @@ function lsDates(o){
 }
 /* Source of the object: its sync status, when Lansweeper last saw it, and what is taken from it. Attach and Detach live here. */
 export function feedPanel(o){
-  if (!LS_ON()) return '';
+  if (!LS_USED()) return '';
   const s = syncOf(o);
   const head = html`<div class="hdr">Lansweeper${o.feed ? html` <span class="cnt">${o.feed.sys}${o.feed.ref ? ' · ' + o.feed.ref : ''}</span>` : ''}</div>`;
   const dl = (/** @type {string | import('./html.js').Html} */ extra = '') => html`<dl class="lsbox"><dt>Status</dt><dd>${rawHtml(scanOld(o) ? scanChip(o) : syncChip(o))}</dd>

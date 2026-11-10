@@ -166,7 +166,7 @@ export function renderSetTypes(){
       <td class="n">${n}</td>
       <td><button data-td="${k}" ${BUILTIN.includes(k) || n ? html`disabled title="${lock}"` : ''}>Delete</button></td></tr>`;
   });
-  $('#setTypes').innerHTML = html`<div style="overflow-x:auto"><table class="grid mini types stack" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:116px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Objects</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  $('#setTypes').innerHTML = html`<div style="overflow-x:auto"><table class="grid mini types stack" style="min-width:0"><colgroup><col style="width:70px"><col><col style="width:120px"><col style="width:200px"><col style="width:80px"><col style="width:116px"></colgroup><thead><tr><th>Colour</th><th>Name</th><th>Short</th><th>Icon</th><th class="n">Devices</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addrel"><input id="ntName" placeholder="New type, e.g. Access point" style="flex:1;min-width:160px" aria-label="New type name"><button id="ntAdd">Add type</button></div>`;
   const root = $('#setTypes');
   renderSetTypeFields();

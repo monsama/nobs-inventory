@@ -28,7 +28,7 @@ export function reportsModal({ ids = null } = {}){
         <label class="rp-opt" data-for="costs">Year <select id="rpYear">${[y - 2, y - 1, y, y + 1].map(n => html`<option ${n === last.year ? 'selected' : ''}>${n}</option>`)}</select></label>
       </div>
       <p class="note">Made from what is saved now. The PDF is ready to print or pass on; the Excel file has one row per entry, with filters, to sort and sum.</p></div>
-    <div class="mf"><button id="rpCancel">Close</button><span class="grow"></span><a class="btnlike" id="rpXlsx" href="#" download>Excel</a><a class="btnlike primary" id="rpPdf" href="#" download>PDF</a></div>`);
+    <div class="mf"><span class="grow"></span><button id="rpCancel">Close</button><a class="btnlike" id="rpXlsx" href="#" download>Excel</a><a class="btnlike primary" id="rpPdf" href="#" download>PDF</a></div>`);
   const kind = () => $('[name=rpKind]:checked').value;
   const sync = () => {
     last = { kind: kind(), group: $('#rpGroup').value, years: Math.min(15, Math.max(1, Number($('#rpYears').value) || 5)), year: Number($('#rpYear').value), person: $('#rpPerson').value };
