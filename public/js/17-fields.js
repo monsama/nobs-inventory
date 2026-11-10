@@ -1,11 +1,12 @@
 /* The fields of a device page: which a type has, the control of each (lists, the model and address combos, dates),
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
+import { subnetOf } from './01-core.js';
 import { evEl, $$, LOCS, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
 import { USERS, freeStarts, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
-import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
+import { freeAddresses, ipInt, rangeKeptOut } from './net.js';
 import { isPlaceholderSerial } from './serials.js';
 import { html, rawHtml } from './html.js';
 import { outletChoices } from './24-patch.js';
@@ -421,13 +422,8 @@ export function fieldNote(o, k){
   if (k === 'warranty'){ const w = warrantyState(o); if (w === 'ended') t = 'The warranty has ended.'; else if (w === 'soon') t = `The warranty ends within ${WARRANTY_SOON_DAYS} days.`; }
   return t ? `<span></span><p class="fieldnote ${cls}">${esc(t)}</p>` : '';
 }
-/* The subnet a device is in: the one picked on it, or else the one its address falls in. */
-export function subnetFor(o){
-  const picked = SUBNETS.find(n => n.cidr === o.subnet);
-  if (picked) return picked;
-  const ip = ipInt(o.ip);
-  return ip === null ? null : SUBNETS.find(n => { const sp = subnetSpan(n); return sp && ip >= sp.first && ip <= sp.last; }) || null;
-}
+/* The subnet a device is in (01-core.js). */
+export const subnetFor = o => subnetOf(o);
 /* Fields the feed sets for this object that the type does not show (e.g. CPU on a PC), so nothing is hidden. */
 export function extraFields(o, fields){
   if (!o.feed || !LS_ON()) return [];

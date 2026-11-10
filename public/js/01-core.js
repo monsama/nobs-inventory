@@ -5,6 +5,7 @@ import { ORDER_FIELDS, maySet } from './sync-map.js';
 import { STOCKTAKE_DAYS, daysSinceVerified } from './stocktake.js';
 import { WARRANTY_SOON_DAYS, warrantyState } from './notices.js';
 import { netChain } from './cabling.js';
+import { ipInt, subnetSpan } from './net.js';
 /* The page's shared core: the device types and their icons, the inventory in memory (objs, rels, users, settings in st),
    field labels and rules, the colour chips and badges, toasts with Undo, and small helpers used by every view. */
 /* ---------- icons ---------- */
@@ -116,6 +117,15 @@ export const LOCS = [];
 export const VLANS = [];
 /* The IP subnets of the network, each on a VLAN, with its gateway, DNS servers, ranges and the device types that take an address from it. */
 export const SUBNETS = [];
+/* The subnet a device is in: the one picked on it, or else the one its address falls in. */
+export function subnetOf(o){
+  const picked = SUBNETS.find(n => n.cidr === o.subnet);
+  if (picked) return picked;
+  const ip = ipInt(o.ip);
+  return ip === null ? null : SUBNETS.find(n => { const sp = subnetSpan(n); return sp && ip >= sp.first && ip <= sp.last; }) || null;
+}
+/* A device whose own gateway is not its subnet's: that subnet, else null. Without its own gateway it takes the subnet's. */
+export const gatewayOff = o => { if (!o.gateway) return null; const sn = subnetOf(o); return sn && sn.gateway && sn.gateway !== o.gateway ? sn : null; };
 /* The hand-entered fields of each type, from Settings: { type: [{key, label, kind}] }. */
 export const TYPE_FIELDS = {};
 /* The domains devices join, from Settings. An object's domain is picked from this list. */
@@ -493,6 +503,7 @@ export const QUALITY = {
     return ![p.entra && p.entra.upn, p.profile && p.profile.mail, p.login].some(v => low(v) === owner) && !(g.ownerName && low(g.ownerName) === low(p.name))
       && !(p.source === 'ldap' && owner.split('@')[0] === low(p.login));
   }],
+  gateway: ['Gateway not its subnet\'s', 'Its own gateway is not the gateway of its subnet: Use the subnet\'s, here for all or on each device', o => !!gatewayOff(o)],
   reported: ['Problem reported by its user', 'Its user reported a problem: look at it, then mark it as done on the device', o => !!o.reported && !o.reported.done],
   conflict: ['Sources disagree', 'Lansweeper, Intune or AD give a field different values: compare and pick one', o => !!o.vals && Object.keys(o.vals).some(k => sourcesDisagree(o, k))],
 };
