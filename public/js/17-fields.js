@@ -2,7 +2,7 @@
    their menus, notes and source marks, and the parts drawn under some of them (other adapters, disks). */
 import { verifiedNote } from './22-stocktake.js';
 import { evEl, $$, LOCS, REVIEW, $, menuHtml, COSTS, DOMAINS, FIELD_LABEL, LS_ON, STATUS, SUBNETS, TYPES, WARRANTY_SOON_DAYS, byId, esc, feedLinked, graphLast, hasPorts, lagOfPort, lsLive, modelNames, objs, portLabel, rels, sourceMark, warrantyState } from './01-core.js';
-import { USERS, isAdmin } from './04-settings.js';
+import { USERS, freeStarts, isAdmin } from './04-settings.js';
 import { dateFieldHtml } from './datefield.js';
 import { dateText } from './dates.js';
 import { freeAddresses, ipInt, rangeKeptOut, subnetSpan } from './net.js';
@@ -133,11 +133,22 @@ export function freePorts(t){
 }
 /* Text fields whose list is what the devices already have (with a few common ones for the protocol), and their placeholder. */
 const FIRMWARE_OS = ['switch', 'router', 'firewall'];
-const PICK_FROM_SEEN = { supplier: 'Type or pick a supplier', os: 'Type or pick a system', proto: 'Type or pick, e.g. iSCSI' };
+const PICK_FROM_SEEN = { pfx: 'Type or pick, e.g. Gi1/0/', supplier: 'Type or pick a supplier', os: 'Type or pick a system', proto: 'Type or pick, e.g. iSCSI' };
 const seenValues = (k, common = []) => [...new Set([...objs.map(x => typeof x[k] === 'string' ? x[k].trim() : '').filter(Boolean), ...common])].sort((a, b) => a.localeCompare(b));
 /* The supplier's list is in 09-costs.js: contacts, contracts and devices. */
 /* The systems of devices of the same type: a printer is not offered Windows 11, a switch its firmware. */
 COMBO_SOURCES.os = input => { const o = byId(input.id.replace(/^f_/, '').replace(/_os$/, '')); return [...new Set(objs.filter(x => !o || x.type === o.type).map(x => typeof x.os === 'string' ? x.os.trim() : '').filter(Boolean))].sort((a, b) => a.localeCompare(b)); };
+/* Free places in a rack for the device's height: the rack named by data-rack or picked in the select data-rack-of, the
+   height in the input data-h-of, the device itself (data-except, or picked in data-except-of) left out. */
+COMBO_SOURCES.rackU = input => {
+  const d = input.dataset, rack = d.rack || ($('#' + d.rackOf) || {}).value, hIn = d.hOf ? input.closest('.mb, .form, form, body').querySelector(d.hOf) : null;
+  const h = hIn ? +hIn.value || 1 : 1, except = d.except || ($('#' + d.exceptOf) || {}).value;
+  const list = rack ? freeStarts(rack, h, except) : [];
+  return list.length ? list : [{ v: '', label: rack ? 'No free place of this height' : 'Pick a rack first', off: true }];
+};
+COMBO_SOURCES.pfx = () => seenValues('pfx', ['1/', 'Gi1/0/', 'Te1/0/', 'ge-0/0/', 'port']);
+/* Departments of the people already in the inventory. */
+COMBO_SOURCES.dept = () => [...new Set(USERS.map(u => typeof u.dept === 'string' ? u.dept.trim() : '').filter(Boolean))].sort((a, b) => a.localeCompare(b));
 COMBO_SOURCES.proto = () => seenValues('proto', ['iSCSI', 'NFS', 'SMB', 'Fibre Channel', 'NVMe/TCP', 'S3']);
 /* Sources that read what was typed themselves; the others are filtered by it here. */
 const SELF_FILTERED = ['ip', 'outlet'];

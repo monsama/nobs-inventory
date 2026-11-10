@@ -8,6 +8,7 @@ import { duplicateGroups, keepOf, pairKey } from './people-match.js';
 import { USERS, who, roleLabel, me, userId, openSettings, isAdmin } from './04-settings.js';
 import { $$, menuHtml, objs, st, $, PW_MIN, toast, toastUndo, hist, now, COMPANY, COSTS, SITES } from './01-core.js';
 import { html, rawHtml } from './html.js';
+import { comboHtml } from './17-fields.js';
 /* People whose name and department come from a directory: LDAP, or Entra for those Entra added. */
 const fromDirectory = u => u.source === 'ldap' || u.source === 'entra';
 /* Where a person comes from, and whether Entra knows them too: one chip, a coloured dot for each, the details in the tooltip.
@@ -212,7 +213,7 @@ export function renderSetUsers(){
     ${dupesHtml(devicesOfUser)}${kindTabs}${filterBar}
     ${rows.length ? '' : html`<p class="note" style="padding:10px 12px">Nobody matches. <button type="button" class="link" data-uclear="1">Clear the search and filters</button></p>`}
     <div style="overflow-x:auto"><table class="grid mini stack" style="min-width:1020px;table-layout:fixed"><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:12%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th>Name</th><th>Login</th><th>Department</th><th>Groups</th><th>Source</th><th>Devices</th><th>Role</th><th>Active</th><th><span class="sr-only">More</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name"><input id="nuDept" placeholder="Department" style="min-width:120px" aria-label="Department"></div>
+    <div class="addrel"><input id="nuFirst" placeholder="First name" style="min-width:130px" aria-label="First name"><input id="nuLast" placeholder="Last name" style="min-width:130px" aria-label="Last name">${rawHtml(comboHtml('<input id="nuDept" data-combo="dept" placeholder="Department" style="min-width:120px" aria-label="Department: type one, or pick one in use">', 'nuDept'))}</div>
     <div class="addrel"><input id="nuLogin" placeholder="Login (optional, lets them sign in)" style="min-width:200px" aria-label="Login" autocomplete="off"><input id="nuPw" type="password" placeholder="Password (min. ${PW_MIN})" style="min-width:160px" aria-label="Password" autocomplete="new-password"><select id="nuRole" aria-label="Role"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="none">No access</option></select><button id="nuAdd">Add user</button></div><p class="fieldnote warn" id="nuPwNote" aria-live="polite"></p></div>`;
   /* The search and filters first, then the edits in the table. */
   const root = $('#setUsers');

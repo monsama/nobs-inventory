@@ -40,7 +40,7 @@ function newPersonModal(o){
     <div class="mb"><div class="form" style="padding:0">
       <label for="npFirst">First name</label><input id="npFirst" maxlength="60" autocomplete="off">
       <label for="npLast">Last name</label><input id="npLast" maxlength="60" autocomplete="off">
-      <label for="npDept">Department</label><input id="npDept" maxlength="80" autocomplete="off" placeholder="Optional">
+      <label for="npDept">Department</label>${rawHtml(comboHtml('<input id="npDept" data-combo="dept" maxlength="80" placeholder="Optional: type or pick a department">', 'npDept'))}
     </div><p class="note">Added to Settings → Users as a person without a sign-in; give them a login there if they need one.</p></div>
     <div class="mf"><button id="npCancel">Cancel</button><button id="npOk" class="primary">Add and give the device</button></div>`, 'sm');
   $('#npCancel').onclick = closeModal;
@@ -467,7 +467,7 @@ export function renderObj(o){
   };
   $('#view').querySelectorAll('[data-delrel]').forEach(b => b.onclick = () => { const i = rels.findIndex(r => r.id === b.dataset.delrel); rels.splice(i, 1); toast('Relation removed'); render(); });
   /* A value picked from a list (a port, a model, a supplier) is saved at once, as a typed one is when the box is left. */
-  $('#view').querySelectorAll('[data-rport],.combo>input[data-k]').forEach(i => i.addEventListener('combopick', () => i.dispatchEvent(new Event('change', {bubbles: true}))));
+  $('#view').querySelectorAll('[data-rport],.combo>input[data-k],.combo>input[data-rk]').forEach(i => i.addEventListener('combopick', () => i.dispatchEvent(new Event('change', {bubbles: true}))));
   $('#view').querySelectorAll('[data-rport]').forEach(i => i.onchange = () => {
     const r = rels.find(x => x.id === i.dataset.rport); if (!r) return;
     const to = byId(r.to);

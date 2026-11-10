@@ -86,7 +86,7 @@ try {
   await p.fill('#nName', 'SCEN-SW-1'); await p.selectOption('#nType', 'switch'); await p.click('#nOk');
   await p.click('#tabsbar [data-tab=rack]');
   await p.click('#rkMount'); await p.waitForSelector('#mdDev');
-  await p.selectOption('#mdDev', await idOf(p, 'SCEN-SW-1')); await p.fill('#mdU', '10'); await p.click('#mdOk');
+  await p.selectOption('#mdDev', await idOf(p, 'SCEN-SW-1')); await p.selectOption('#mdU', '10'); await p.click('#mdOk');
   assert.equal(await state(p, async () => { const __mods = await Promise.all([import('/js/01-core.js')]); return (__mods[0].byName('SCEN-SW-1').rack); }), 'R-SRV', 'the device was not mounted in the rack');
   await openByName(p, 'SCEN-SW-1');
   await p.selectOption('[data-rk=rack]', 'R-2OG'); await p.fill('[data-rk=u]', '3');

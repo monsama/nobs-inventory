@@ -999,6 +999,7 @@ a.link{cursor:pointer;text-decoration:none}
 a.link:hover{text-decoration:underline}
 .addrel{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--panel);border-radius:0 0 var(--r-m) var(--r-m)}
 .addrel select,.addrel input{min-width:0}
+.rkrow .combo.rku{width:110px;flex:none}.rkrow .combo.rku .combo-list{right:auto;min-width:150px}
 .relrow .combo.rportbox{width:84px;flex:none}.relrow .combo.rportbox .combo-list{left:auto;right:0;min-width:200px}
 .addrel .combo.arport{width:110px;flex:none}.addrel .combo.arport .combo-list{right:auto;min-width:200px}
 .path{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px}
