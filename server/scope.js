@@ -46,10 +46,10 @@ export function scopeState(s, sc) {
   }
   /* The revisions of what was sent only: the ids of other sites' devices, links and histories say how many there are. */
   if (s.revs && typeof s.revs === 'object') {
-    const relIds = new Set(s.rels.map(r => String(r.id)));
+    const relIds = new Set(s.rels.map(r => String(r.id))), userIds = new Set((s.users || []).map(u => String(u.id)));
     s.revs = Object.fromEntries(Object.entries(s.revs).filter(([k]) => {
       const i = k.indexOf('|'), kind = k.slice(0, i), id = k.slice(i + 1);
-      return kind === 'object' ? ids.has(id) : kind === 'history' ? ids.has(id) : kind === 'rel' ? relIds.has(id) : true;
+      return kind === 'object' ? ids.has(id) : kind === 'history' ? ids.has(id) : kind === 'rel' ? relIds.has(id) : kind === 'user' ? userIds.has(id) : true;
     }));
   }
   return s;

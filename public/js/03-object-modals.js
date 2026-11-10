@@ -371,6 +371,13 @@ export function renderObj(o){
     box.querySelectorAll('[role=tabpanel]').forEach(x => { x.hidden = x.id !== 'srcbody-' + k; });
     box.querySelectorAll('[data-srcmeta]').forEach(x => { x.hidden = x.dataset.srcmeta !== k; });
   });
+  /* Arrow keys move between the source tabs, as in any tab list. */
+  objView.querySelectorAll('[data-srctab]').forEach(b => b.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const tabs = /** @type {HTMLElement[]} */ ([...b.closest('[role=tablist]').querySelectorAll('[data-srctab]')]), i = tabs.indexOf(b);
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+    e.preventDefault(); tabs[n].click(); tabs[n].focus();
+  }));
   /* A panel stays open or closed as the person left it. The choice is kept in this browser, by the panel's title. */
   $('#view').querySelectorAll('.obj .panelbox > .hdr').forEach(h => {
     h.classList.add('sechdr'); h.setAttribute('role', 'button'); h.tabIndex = 0;
@@ -452,14 +459,15 @@ export function renderObj(o){
     const inLag = (to.portGroups || []).find(g => g.lag && typeof port === 'number' && port >= g.from && port <= g.to);
     if (inLag){ toast(`Port ${port} is part of the LAG ${inLag.name}. Choose the LAG instead.`); return; }
     if (portRangeError(to, port)){ toast(portRangeError(to, port)); return; }
-    if (hasPorts(to) && typeof port === 'number') releaseRetiredPort(to, port);
-    if (hasPorts(to) && typeof port === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
-    if (to.type === 'patch' && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
     const k = $('#arKind').value;
     /* The same rule as everywhere: the types fit, and a monitor or VM has one host that is not attached itself. */
     { const why = relationProblem(k, o, to, rels); if (why){ toast(why); return; } }
     const finalPort = port === '' || !PORT_KINDS.includes(k) ? null : (to.type === 'patch' ? patchPort(port) : port);
     if (rels.some(r => r.from === o.id && r.to === to.id && r.kind === k && String(r.port) === String(finalPort))){ toast('That relation already exists.'); return; }
+    /* A retired device's hold on the port is let go only once the relation is sure to be added on it. */
+    if (hasPorts(to) && typeof port === 'number' && PORT_KINDS.includes(k)) releaseRetiredPort(to, port);
+    if (hasPorts(to) && typeof finalPort === 'number' && rels.some(r => r.to === to.id && r.port === port)){ toast(pfxOf(to) + port + ' on ' + to.name + ' is already taken. Pick a free port.'); return; }
+    if (to.type === 'patch' && finalPort != null && rels.some(r => r.to === to.id && r.port === patchPort(port))){ toast(patchPort(port) + ' on ' + to.name + ' is already taken.'); return; }
     if (finalPort != null && rels.some(r => r.to === to.id && String(r.port) === String(finalPort) && (hasPorts(to) || to.type === 'patch'))){ toast(`${finalPort} on ${to.name} is already taken.`); return; }
     rels.push({id:'r'+rid(), from:o.id, to:to.id, kind:k, port:finalPort, vlan: $('#arVlan').value ? +$('#arVlan').value : null});
     hist(o, now(), `Relation "${KINDS[k].fwd} ${to.name}" added by ${who()}`);

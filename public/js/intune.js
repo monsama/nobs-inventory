@@ -33,9 +33,12 @@ export function graphSeen(g){
    (10.0.26200.9711), and Windows 11 kept the version 10.0: from build 22000 on it is Windows 11, so it reads
    "Windows 11 (10.0.26200.9711)" next to AD's "Windows 11 Pro (10.0.26200)". Other systems stay as Intune writes them
    (iOS 18.1, Android 15). */
-export function graphOsName(os, version){
+export function graphOsName(os, version, entraOs = ''){
   const name = String(os || '').trim(), ver = String(version || '').trim();
   const build = /^windows$/i.test(name) ? /^10\.0\.(\d+)/.exec(ver) : null;
+  /* A server shares its build numbers with Windows 10 and 11 (Server 2025 and Windows 11 24H2 are both 26100): it is
+     named a server when Entra says so, or by a build only servers have (20348, Server 2022), never Windows 10 or 11. */
+  if (build && (/server/i.test(String(entraOs || '')) || +build[1] === 20348)) return `Windows Server (${ver})`;
   if (build) return `Windows ${+build[1] >= 22000 ? '11' : '10'} (${ver})`;
   return [name, ver].filter(Boolean).join(' ');
 }

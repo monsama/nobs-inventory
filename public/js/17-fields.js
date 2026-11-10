@@ -137,7 +137,7 @@ const PICK_FROM_SEEN = { pfx: 'Type or pick, e.g. Gi1/0/', supplier: 'Type or pi
 const seenValues = (k, common = []) => [...new Set([...objs.map(x => typeof x[k] === 'string' ? x[k].trim() : '').filter(Boolean), ...common])].sort((a, b) => a.localeCompare(b));
 /* The supplier's list is in 09-costs.js: contacts, contracts and devices. */
 /* The systems of devices of the same type: a printer is not offered Windows 11, a switch its firmware. */
-COMBO_SOURCES.os = input => { const o = byId(input.id.replace(/^f_/, '').replace(/_os$/, '')); return [...new Set(objs.filter(x => !o || x.type === o.type).map(x => typeof x.os === 'string' ? x.os.trim() : '').filter(Boolean))].sort((a, b) => a.localeCompare(b)); };
+COMBO_SOURCES.os = input => { const o = input && input.id ? byId(input.id.replace(/^f_/, '').replace(/_os$/, '')) : null; return [...new Set(objs.filter(x => !o || x.type === o.type).map(x => typeof x.os === 'string' ? x.os.trim() : '').filter(Boolean))].sort((a, b) => a.localeCompare(b)); };
 /* Free places in a rack for the device's height: the rack named by data-rack or picked in the select data-rack-of, the
    height in the input data-h-of, the device itself (data-except, or picked in data-except-of) left out. */
 COMBO_SOURCES.rackU = input => {
@@ -275,7 +275,9 @@ export function closeModel(v, names){
 export function comboNote(input){
   const note = document.getElementById(input.id + '_note'); if (!note) return;
   if (input.dataset.combo === 'ip') return ipNote(input, note);
-  const v = input.value.trim(), names = (COMBO_SOURCES[input.dataset.k] || (() => []))();
+  /* "Did you mean" and "New model" are about the model list only; the other lists take any value as it is. */
+  if (input.dataset.k !== 'model'){ note.hidden = true; return; }
+  const v = input.value.trim(), names = (COMBO_SOURCES.model || (() => []))();
   const show = on => { note.hidden = !on; if (note.previousElementSibling) /** @type {HTMLElement} */ (note.previousElementSibling).hidden = !on; };   /* the note and its empty first column */
   if (!v || names.includes(v)){ show(false); note.innerHTML = ''; return; }
   const near = closeModel(v, names);

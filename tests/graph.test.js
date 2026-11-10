@@ -381,6 +381,8 @@ test('Intune\'s Windows build is named like AD names it: Windows 11 from build 2
   const { graphOsName } = await import('../public/js/intune.js');
   assert.equal(graphOsName('Windows', '10.0.26200.9711'), 'Windows 11 (10.0.26200.9711)');
   assert.equal(graphOsName('Windows', '10.0.19045.5737'), 'Windows 10 (10.0.19045.5737)');
+  assert.equal(graphOsName('Windows', '10.0.26100.4061', 'Windows Server'), 'Windows Server (10.0.26100.4061)', 'Entra names it a server');
+  assert.equal(graphOsName('Windows', '10.0.20348.3207'), 'Windows Server (10.0.20348.3207)', 'a build only servers have');
   assert.equal(graphOsName('iOS', '18.1'), 'iOS 18.1');
   assert.equal(graphOsName('Windows', ''), 'Windows');
 });

@@ -41,6 +41,17 @@ test('a record merged into a device as the same device updates that device, not 
   assert.equal(ip(s, 't'), '10.0.0.8');
 });
 
+test('a device and a record merged into it, both still in Lansweeper: the one scanned last updates it, with no flip-flop', () => {
+  const rec = dev('m', 'PC-NEW', { serial: 'Y', excluded: true, review: { src: 'lansweeper', merged: 't', ignored: 'x' }, feed: { sys: 'Lansweeper', ref: 'r9' } });
+  const s = base([dev('t', 'PC-OLD', { serial: 'X', feed: { sys: 'Lansweeper', ref: 'r1' } }), rec]);
+  const recs = (oldDay, newDay) => [{ name: 'PC-OLD', serial: 'X', ref: 'r1', ip: '10.0.0.1', scanned: oldDay }, { name: 'PC-NEW', serial: 'Y', ref: 'r9', ip: '10.0.0.2', scanned: newDay }];
+  for (let i = 0; i < 3; i++) push(s, recs('2026-10-01', '2026-11-07'));
+  assert.equal(ip(s, 't'), '10.0.0.2');
+  assert.ok(!(s.history.t || []).some(h => /10\.0\.0\.1/.test(h.msg)), 'never set to the older record\'s address');
+  push(s, recs('2026-11-08', '2026-11-07'));
+  assert.equal(ip(s, 't'), '10.0.0.1', 'the own record scanned later wins');
+});
+
 test('links from Lansweeper follow the relation rule: one host, never a retired one', () => {
   const pcA = dev('a', 'PC-A', { feed: { sys: 'Lansweeper', ref: '1' } }), pcB = dev('b', 'PC-B', { feed: { sys: 'Lansweeper', ref: '2' } });
   const mon = dev('m', 'MON', { type: 'monitor', feed: { sys: 'Lansweeper', ref: '3' } });
